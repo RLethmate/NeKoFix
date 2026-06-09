@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeKoFix – Prototyp Durchstich</title>
+<style>
+  :root{
+    --primary:#15616D;      /* tiefes Petrol – Vertrauen/Seriosität */
+    --primary-dark:#0E454E;
+    --accent:#2A9D8F;       /* Guthaben/positiv */
+    --nachzahlung:#B4541E;  /* Nachzahlung – ruhiges Terrakotta */
+    --ink:#1d2733;
+    --muted:#5b6b7b;
+    --bg:#eef2f3;
+    --card:#ffffff;
+    --line:#dbe3e6;
+    --soft:#f4f7f8;
+    --radius:12px;
+    --font:"Segoe UI","Helvetica Neue",Arial,"Myriad Pro",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.5;}
+  header.app{background:var(--primary);color:#fff;padding:16px 28px;display:flex;align-items:center;gap:14px;}
+  .logo{font-weight:700;font-size:22px;letter-spacing:.3px;}
+  .logo span{font-weight:300;opacity:.85}
+  .tag{margin-left:auto;font-size:13px;opacity:.85;}
+  .wrap{max-width:920px;margin:0 auto;padding:24px 20px 64px;}
+  /* Stepper */
+  .stepper{display:flex;gap:6px;margin:18px 0 26px;flex-wrap:wrap;}
+  .step{flex:1;min-width:120px;font-size:12.5px;color:var(--muted);padding:10px 12px;border-radius:8px;background:var(--card);border:1px solid var(--line);display:flex;gap:8px;align-items:center;cursor:pointer;}
+  .step .n{width:22px;height:22px;border-radius:50%;background:var(--soft);color:var(--muted);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:1px solid var(--line);}
+  .step.active{border-color:var(--primary);color:var(--primary);font-weight:600;box-shadow:0 1px 0 var(--primary) inset;}
+  .step.active .n{background:var(--primary);color:#fff;border-color:var(--primary);}
+  .step.done .n{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:24px 26px;display:none;}
+  .panel.active{display:block;animation:f .18s ease;}
+  @keyframes f{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  h1{font-size:20px;margin:0 0 4px;}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 20px;}
+  .legal{font-size:12px;color:var(--primary);background:var(--soft);border-left:3px solid var(--primary);padding:8px 12px;border-radius:6px;margin:0 0 18px;}
+  table{width:100%;border-collapse:collapse;margin:8px 0 4px;}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle;}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;}
+  input,select{font-family:var(--font);font-size:14px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);width:100%;}
+  input:focus,select:focus{outline:2px solid var(--primary);outline-offset:0;border-color:var(--primary);}
+  input.short{max-width:130px;text-align:right;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600;}
+  .nav{display:flex;justify-content:space-between;margin-top:22px;gap:10px;}
+  button{font-family:var(--font);cursor:pointer;border-radius:8px;border:1px solid var(--primary);padding:10px 18px;font-size:14px;font-weight:600;}
+  .btn-primary{background:var(--primary);color:#fff;}
+  .btn-primary:hover{background:var(--primary-dark);}
+  .btn-ghost{background:#fff;color:var(--primary);}
+  .btn-ghost:hover{background:var(--soft);}
+  .btn-ghost:disabled{opacity:.4;cursor:not-allowed;}
+  .summary-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:6px 0 16px;}
+  .scard{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:14px;}
+  .scard .lbl{font-size:12px;color:var(--muted);}
+  .scard .val{font-size:20px;font-weight:700;margin-top:3px;}
+  .pos{color:var(--accent);} .neg{color:var(--nachzahlung);}
+  .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;background:var(--soft);border:1px solid var(--line);color:var(--muted);}
+  .doc{border:1px solid var(--line);border-radius:10px;padding:26px;background:#fff;}
+  .doc h2{font-size:17px;margin:0 0 2px;color:var(--primary-dark);}
+  .doc .meta{font-size:13px;color:var(--muted);margin-bottom:16px;}
+  .doc .total-row td{font-weight:700;border-top:2px solid var(--ink);border-bottom:none;}
+  .saldo-box{margin-top:14px;padding:14px 16px;border-radius:10px;background:var(--soft);border:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-size:16px;font-weight:700;}
+  .pay{margin-top:16px;font-size:13px;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:14px 16px;}
+  .pay h3{margin:0 0 6px;font-size:13px;color:var(--primary-dark);}
+  .check{list-style:none;padding:0;margin:14px 0 0;font-size:12.5px;color:var(--muted);}
+  .check li{padding:3px 0 3px 24px;position:relative;}
+  .check li:before{content:"\2713";position:absolute;left:0;color:var(--accent);font-weight:700;}
+  .mieter-tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .mtab{padding:7px 14px;border-radius:20px;border:1px solid var(--line);background:#fff;cursor:pointer;font-size:13px;}
+  .mtab.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+  .addrow{margin-top:8px;background:#fff;color:var(--primary);border:1px dashed var(--primary);}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;}
+  @media(max-width:620px){.grid2,.summary-cards{grid-template-columns:1fr;} .tag{display:none}}
+  @media print{header.app,.stepper,.nav,.mieter-tabs,.legal{display:none!important;} .panel{display:block!important;border:none;padding:0;} body{background:#fff;}}
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="logo">NeKo<span>Fix</span></div>
+  <div class="tag">Prototyp · Walking Skeleton · End-to-End-Durchstich</div>
+</header>
+
+<div class="wrap">
+  <div class="stepper" id="stepper"></div>
+
+  <!-- Step 1: Objekt & Einheiten -->
+  <section class="panel" data-step="0">
+    <h1>1 · Objekt &amp; Einheiten</h1>
+    <p class="sub">Grunddaten des Hauses und der Wohneinheiten – Basis für jede Verteilung.</p>
+    <div class="legal">Recht (V11): Für die Betriebskostenverteilung zählt die <b>tatsächliche</b> Wohnfläche, nicht die im Mietvertrag vereinbarte.</div>
+    <div class="grid2">
+      <div class="field"><label>Objekt / Adresse</label><input id="obj_addr"></div>
+      <div class="field"><label>Abrechnungszeitraum</label><input id="obj_zeitraum"></div>
+    </div>
+    <table id="tbl_einheiten" style="margin-top:16px">
+      <thead><tr><th>Einheit</th><th>Mieter</th><th class="num">Wohnfläche (m²)</th><th class="num">Personen</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="hint">Gesamtfläche und Personenzahl werden automatisch summiert und als Verteilungsbasis verwendet.</p>
+    <div class="nav"><span></span><button class="btn-primary" onclick="go(1)">Weiter</button></div>
+  </section>
+
+  <!-- Step 2: Mieter & Vorauszahlung -->
+  <section class="panel" data-step="1">
+    <h1>2 · Vorauszahlungen</h1>
+    <p class="sub">Die geleisteten Vorauszahlungen je Mieter – am Ende mit dem Anteil saldiert.</p>
+    <div class="legal">Recht (V07 / § 556 BGB): Die Saldierung der Vorauszahlungen ist eine formelle Pflichtangabe der Abrechnung.</div>
+    <table id="tbl_voraus">
+      <thead><tr><th>Mieter</th><th>Einheit</th><th class="num">Vorauszahlung gesamt (€)</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="nav"><button class="btn-ghost" onclick="go(0)">Zurück</button><button class="btn-primary" onclick="go(2)">Weiter</button></div>
+  </section>
+
+  <!-- Step 3: Kosten -->
+  <section class="panel" data-step="2">
+    <h1>3 · Kosten erfassen</h1>
+    <p class="sub">Umlagefähige Betriebskosten und die Heizkostensumme vom Messdienst.</p>
+    <div class="legal">Recht (V07): Positionen orientieren sich am BetrKV-Katalog. Heizkosten werden als Summe vom Messdienst übernommen, nicht selbst aus kWh berechnet.</div>
+    <table id="tbl_kosten">
+      <thead><tr><th>Kostenart</th><th class="num">Betrag (€)</th><th>Verteilerschlüssel</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button class="addrow" onclick="addKostenRow()">+ Weitere Position</button>
+    <p class="hint">Beträge und Schlüssel sind editierbar – die Berechnung aktualisiert sich automatisch.</p>
+    <div class="nav"><button class="btn-ghost" onclick="go(1)">Zurück</button><button class="btn-primary" onclick="go(3)">Berechnen</button></div>
+  </section>
+
+  <!-- Step 4: Berechnung Übersicht -->
+  <section class="panel" data-step="3">
+    <h1>4 · Berechnung</h1>
+    <p class="sub">Verteilung aller Kosten auf die Einheiten und Saldierung mit den Vorauszahlungen.</p>
+    <div class="summary-cards">
+      <div class="scard"><div class="lbl">Gesamtkosten</div><div class="val" id="sum_total">–</div></div>
+      <div class="scard"><div class="lbl">Vorauszahlungen</div><div class="val" id="sum_voraus">–</div></div>
+      <div class="scard"><div class="lbl">Saldo gesamt</div><div class="val" id="sum_saldo">–</div></div>
+    </div>
+    <table id="tbl_ergebnis">
+      <thead><tr><th>Mieter</th><th class="num">Anteil</th><th class="num">Vorauszahlung</th><th class="num">Saldo</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="nav"><button class="btn-ghost" onclick="go(2)">Zurück</button><button class="btn-primary" onclick="go(4)">Abrechnung erstellen</button></div>
+  </section>
+
+  <!-- Step 5: Abrechnung -->
+  <section class="panel" data-step="4">
+    <h1>5 · Fertige Abrechnung</h1>
+    <p class="sub">Die formell korrekte Abrechnung je Mieter – druck- und versandfertig.</p>
+    <div class="mieter-tabs" id="mieter_tabs"></div>
+    <div class="doc" id="doc"></div>
+    <ul class="check">
+      <li>Zusammenstellung der Gesamtkosten je Kostenart</li>
+      <li>Angabe und Erläuterung des Verteilerschlüssels</li>
+      <li>Berechnung des Mieteranteils</li>
+      <li>Saldierung mit den geleisteten Vorauszahlungen</li>
+      <li>Zahlungsmodalitäten: Frist, Bankverbindung, Verwendungszweck</li>
+    </ul>
+    <div class="nav"><button class="btn-ghost" onclick="go(3)">Zurück</button><button class="btn-primary" onclick="window.print()">Drucken / als PDF speichern</button></div>
+  </section>
+</div>
+
+<script>
+/* ---------- In-Memory-State (kein localStorage) ---------- */
+const state = {
+  objekt: { addr:"Musterstraße 12, 48155 Münster", zeitraum:"01.01.2025 – 31.12.2025" },
+  einheiten: [
+    { id:1, name:"EG links",  mieter:"Familie Becker", flaeche:70, personen:2, voraus:1800 },
+    { id:2, name:"1. OG",     mieter:"Frau Sahin",     flaeche:85, personen:3, voraus:2100 },
+    { id:3, name:"2. OG",     mieter:"Herr Klein",     flaeche:60, personen:1, voraus:1500 }
+  ],
+  kosten: [
+    { bez:"Grundsteuer",            betrag:1200, schluessel:"flaeche" },
+    { bez:"Wasser / Abwasser",      betrag:1600, schluessel:"person"  },
+    { bez:"Müllabfuhr",             betrag:900,  schluessel:"einheit" },
+    { bez:"Gebäudeversicherung",    betrag:600,  schluessel:"flaeche" },
+    { bez:"Allgemeinstrom",         betrag:300,  schluessel:"flaeche" },
+    { bez:"Hauswart / Gartenpflege",betrag:1200, schluessel:"flaeche" },
+    { bez:"Heizung & Warmwasser (Messdienst)", betrag:4800, schluessel:"flaeche" }
+  ],
+  zahlung:{ frist:"14 Tage nach Zugang", iban:"DE12 3456 7890 1234 5678 00", bic:"WELADED1MST", empfaenger:"M. Vermieter" }
+};
+const STEPS = ["Objekt","Vorauszahlung","Kosten","Berechnung","Abrechnung"];
+let current = 0, activeMieter = 0;
+
+const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit" };
+
+function totals(){
+  return {
+    flaeche: state.einheiten.reduce((s,e)=>s+(+e.flaeche||0),0),
+    personen: state.einheiten.reduce((s,e)=>s+(+e.personen||0),0),
+    einheiten: state.einheiten.length
+  };
+}
+function factor(e, schluessel){
+  const t = totals();
+  if(schluessel==="flaeche") return t.flaeche? (e.flaeche/t.flaeche):0;
+  if(schluessel==="person")  return t.personen? (e.personen/t.personen):0;
+  return t.einheiten? (1/t.einheiten):0;
+}
+function anteilOf(e){ return state.kosten.reduce((s,k)=>s + (+k.betrag||0)*factor(e,k.schluessel), 0); }
+function lineItemsFor(e){
+  return state.kosten.map(k=>{
+    const f = factor(e,k.schluessel);
+    return { bez:k.bez, gesamt:+k.betrag||0, schluessel:k.schluessel, anteil:(+k.betrag||0)*f };
+  });
+}
+
+/* ---------- Stepper ---------- */
+function renderStepper(){
+  const el = document.getElementById('stepper'); el.innerHTML='';
+  STEPS.forEach((label,i)=>{
+    const d=document.createElement('div');
+    d.className='step'+(i===current?' active':'')+(i<current?' done':'');
+    d.innerHTML='<span class="n">'+(i+1)+'</span>'+label;
+    d.onclick=()=>go(i);
+    el.appendChild(d);
+  });
+}
+function go(i){
+  if(i===3) computeView();
+  if(i===4) renderDoc();
+  current=i;
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', +p.dataset.step===i));
+  renderStepper();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ---------- Step 1 ---------- */
+function renderEinheiten(){
+  document.getElementById('obj_addr').value = state.objekt.addr;
+  document.getElementById('obj_zeitraum').value = state.objekt.zeitraum;
+  const tb = document.querySelector('#tbl_einheiten tbody'); tb.innerHTML='';
+  state.einheiten.forEach((e,idx)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML =
+      '<td>'+e.name+'</td>'+
+      '<td><input value="'+e.mieter+'" oninput="upd(\'mieter\','+idx+',this.value)"></td>'+
+      '<td class="num"><input class="short" type="number" value="'+e.flaeche+'" oninput="upd(\'flaeche\','+idx+',this.value)"></td>'+
+      '<td class="num"><input class="short" type="number" value="'+e.personen+'" oninput="upd(\'personen\','+idx+',this.value)"></td>';
+    tb.appendChild(tr);
+  });
+}
+document.getElementById('obj_addr').addEventListener('input',e=>state.objekt.addr=e.target.value);
+document.getElementById('obj_zeitraum').addEventListener('input',e=>state.objekt.zeitraum=e.target.value);
+function upd(field,idx,val){ state.einheiten[idx][field] = (field==='mieter')?val:(+val); if(field==='mieter') renderVoraus(); }
+
+/* ---------- Step 2 ---------- */
+function renderVoraus(){
+  const tb=document.querySelector('#tbl_voraus tbody'); tb.innerHTML='';
+  state.einheiten.forEach((e,idx)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td>'+e.mieter+'</td><td><span class="pill">'+e.name+'</span></td>'+
+      '<td class="num"><input class="short" type="number" value="'+e.voraus+'" oninput="state.einheiten['+idx+'].voraus=+this.value"></td>';
+    tb.appendChild(tr);
+  });
+}
+
+/* ---------- Step 3 ---------- */
+function renderKosten(){
+  const tb=document.querySelector('#tbl_kosten tbody'); tb.innerHTML='';
+  state.kosten.forEach((k,idx)=>{
+    const tr=document.createElement('tr');
+    let opts='';
+    for(const key in SCHLUESSEL){ opts+='<option value="'+key+'"'+(k.schluessel===key?' selected':'')+'>'+SCHLUESSEL[key]+'</option>'; }
+    tr.innerHTML=
+      '<td><input value="'+k.bez+'" oninput="state.kosten['+idx+'].bez=this.value"></td>'+
+      '<td class="num"><input class="short" type="number" value="'+k.betrag+'" oninput="state.kosten['+idx+'].betrag=+this.value"></td>'+
+      '<td><select onchange="state.kosten['+idx+'].schluessel=this.value">'+opts+'</select></td>';
+    tb.appendChild(tr);
+  });
+}
+function addKostenRow(){ state.kosten.push({bez:"Neue Position",betrag:0,schluessel:"flaeche"}); renderKosten(); }
+
+/* ---------- Step 4 ---------- */
+function computeView(){
+  const tb=document.querySelector('#tbl_ergebnis tbody'); tb.innerHTML='';
+  let total=0,voraus=0;
+  state.einheiten.forEach(e=>{
+    const a=anteilOf(e); const s=a-(+e.voraus||0); total+=a; voraus+=(+e.voraus||0);
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td>'+e.mieter+'</td><td class="num">'+eur(a)+'</td><td class="num">'+eur(+e.voraus||0)+
+      '</td><td class="num '+(s>0?'neg':'pos')+'">'+(s>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(s))+'</td>';
+    tb.appendChild(tr);
+  });
+  document.getElementById('sum_total').textContent=eur(total);
+  document.getElementById('sum_voraus').textContent=eur(voraus);
+  const saldo=total-voraus;
+  const el=document.getElementById('sum_saldo');
+  el.textContent=(saldo>=0?'+ ':'– ')+eur(Math.abs(saldo));
+  el.className='val '+(saldo>0?'neg':'pos');
+}
+
+/* ---------- Step 5 ---------- */
+function renderDoc(){
+  const tabs=document.getElementById('mieter_tabs'); tabs.innerHTML='';
+  state.einheiten.forEach((e,idx)=>{
+    const b=document.createElement('div');
+    b.className='mtab'+(idx===activeMieter?' active':'');
+    b.textContent=e.mieter; b.onclick=()=>{activeMieter=idx;renderDoc();};
+    tabs.appendChild(b);
+  });
+  const e=state.einheiten[activeMieter];
+  const items=lineItemsFor(e);
+  const anteil=items.reduce((s,i)=>s+i.anteil,0);
+  const saldo=anteil-(+e.voraus||0);
+  let rows=items.map(i=>
+    '<tr><td>'+i.bez+'</td><td class="num">'+eur(i.gesamt)+'</td><td>'+SCHLUESSEL[i.schluessel]+
+    '</td><td class="num">'+eur(i.anteil)+'</td></tr>').join('');
+  document.getElementById('doc').innerHTML=
+    '<h2>Betriebs- und Heizkostenabrechnung</h2>'+
+    '<div class="meta">'+state.objekt.addr+' · Einheit '+e.name+' · Mieter: <b>'+e.mieter+'</b><br>Abrechnungszeitraum: '+state.objekt.zeitraum+'</div>'+
+    '<table><thead><tr><th>Kostenart</th><th class="num">Gesamtkosten</th><th>Verteilerschlüssel</th><th class="num">Ihr Anteil</th></tr></thead><tbody>'+
+    rows+
+    '<tr class="total-row"><td>Ihr Anteil an den Gesamtkosten</td><td></td><td></td><td class="num">'+eur(anteil)+'</td></tr>'+
+    '</tbody></table>'+
+    '<div class="saldo-box"><span>'+(saldo>0?'Nachzahlung':'Guthaben')+' (Anteil '+eur(anteil)+' – Vorauszahlung '+eur(+e.voraus||0)+')</span>'+
+    '<span class="'+(saldo>0?'neg':'pos')+'">'+eur(Math.abs(saldo))+'</span></div>'+
+    '<div class="pay"><h3>Zahlungsmodalitäten</h3>'+
+    (saldo>0
+      ? 'Bitte überweisen Sie den Nachzahlungsbetrag innerhalb von '+state.zahlung.frist+' auf folgendes Konto:<br>'
+        +'Empfänger: '+state.zahlung.empfaenger+' · IBAN: '+state.zahlung.iban+' · BIC: '+state.zahlung.bic+'<br>'
+        +'Verwendungszweck: NK '+e.name+' '+state.objekt.zeitraum
+      : 'Das Guthaben wird Ihnen innerhalb von '+state.zahlung.frist+' auf Ihr hinterlegtes Konto erstattet.')
+    +'<br><span class="hint">Hinweis: Einwendungen können Sie innerhalb von 12 Monaten nach Zugang geltend machen.</span></div>';
+}
+
+/* ---------- Init ---------- */
+renderEinheiten(); renderVoraus(); renderKosten(); renderStepper(); go(0);
+</script>
+</body>
+</html>
