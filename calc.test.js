@@ -3,7 +3,7 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor } = require("./calc.js");
+const { nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor, nkOwnerOverview } = require("./calc.js");
 
 const einheiten = [
   { flaeche: 70, personen: 2, voraus: 1800 },
@@ -64,4 +64,18 @@ test("lineItemsFor liefert je Kostenart eine Zeile mit korrektem Anteil", () => 
 test("leere Einheitenliste führt nicht zu Division durch Null", () => {
   const t = nkTotals([]);
   assert.equal(nkFactor({ flaeche: 50 }, "flaeche", t), 0);
+});
+
+test("Eigentümerübersicht: Saldo je Zeile = Anteil minus Vorauszahlung (US-18)", () => {
+  const ov = nkOwnerOverview(einheiten, kosten);
+  assert.equal(ov.rows.length, einheiten.length);
+  ov.rows.forEach((r, i) => {
+    assert.ok(Math.abs(r.saldo - (r.anteil - (+einheiten[i].voraus || 0))) < 1e-9);
+  });
+});
+
+test("Eigentümerübersicht: Summe der Anteile = Summe der Kosten (US-18)", () => {
+  const ov = nkOwnerOverview(einheiten, kosten);
+  const gesamtKosten = kosten.reduce((s, k) => s + k.betrag, 0);
+  assert.ok(Math.abs(ov.totalAnteil - gesamtKosten) < 1e-6);
 });
