@@ -103,6 +103,12 @@ test("Vorschlag neuer Monatsbetrag = Anteil ÷ 12, gerundet (US-09)", () => {
   assert.equal(calc.nkVorschlagVorauszahlung(0), 0);
 });
 
+test("State aus JSON laden und prüfen (US-27)", () => {
+  assert.ok(calc.nkParseState(JSON.stringify({ objekt:{}, einheiten:[], kosten:[] })));
+  assert.equal(calc.nkParseState("kein json"), null);
+  assert.equal(calc.nkParseState(JSON.stringify({ foo:1 })), null);
+});
+
 test("Standardname nächste Einheit hochzählen (US-26)", () => {
   assert.equal(calc.nkNaechsteEinheitName(["EG", "1. OG", "2. OG"]), "3. OG");
   assert.equal(calc.nkNaechsteEinheitName(["EG", "1. OG"]), "2. OG");
