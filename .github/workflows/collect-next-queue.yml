@@ -1,0 +1,44 @@
+name: Next-Queue sammeln
+
+# Auslöser: ein Issue erhält oder verliert das Label "next".
+# Ergebnis: die Datei auto/NEXT-QUEUE.md listet alle offenen "Next"-Stories.
+# Benötigt KEINEN Anthropic-API-Schlüssel – nur das eingebaute GITHUB_TOKEN.
+on:
+  issues:
+    types: [labeled, unlabeled]
+
+permissions:
+  contents: write   # Queue-Datei committen
+  issues: read      # Issues auflisten
+
+jobs:
+  collect:
+    # Nur reagieren, wenn es um das Label "next" geht
+    if: github.event.label.name == 'next'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Queue-Datei aus den "next"-Issues erzeugen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p auto
+          {
+            echo "# Next-Queue (automatisch erzeugt – nicht manuell bearbeiten)"
+            echo ""
+            echo "Stand: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo ""
+            gh issue list --repo "$GITHUB_REPOSITORY" --label next --state open \
+              --json number,title,url \
+              --jq '.[] | "- [ ] #\(.number) \(.title)\n  \(.url)"'
+          } > auto/NEXT-QUEUE.md
+
+      - name: Änderung committen
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add auto/NEXT-QUEUE.md
+          git diff --staged --quiet || git commit -m "chore: Next-Queue aktualisiert"
+          git push
