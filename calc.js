@@ -68,6 +68,15 @@ function nkVorschlagSchluessel(bez) {
   return "flaeche";
 }
 
+/* Vorauszahlung (US-09): Gesamt = Monatsbetrag × Monate + Einmalzahlung. Reine Funktionen. */
+function nkVorauszahlungGesamt(monatsbetrag, monate, einmal) {
+  return (+monatsbetrag || 0) * (+monate || 0) + (+einmal || 0);
+}
+function nkVorschlagVorauszahlung(anteil, monate) {
+  const m = +monate || 0;
+  return m > 0 ? Math.round((+anteil || 0) / m) : 0;
+}
+
 /* Umlagefähigkeit je Kostenart (US-04). Reine Funktion; gibt Vorschlag + Begründung zurück.
    Nicht umlagefähig: Verwaltung, Instandhaltung/Reparatur, Rücklagen sowie das
    Kabel-/Fernsehsignal (seit 01.07.2024). Unbekanntes gilt vorsichtshalber als umlagefähig. */
@@ -96,5 +105,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkOwnerOverview,
     nkVorschlagSchluessel,
     nkUmlageInfo,
+    nkVorauszahlungGesamt,
+    nkVorschlagVorauszahlung,
   };
 }

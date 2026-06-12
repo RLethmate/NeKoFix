@@ -92,6 +92,9 @@
   .picker-list input[type=checkbox]{width:auto;}
   .dd-footer{display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:8px;margin-top:6px;}
   .dd-footer .sonstige-input{flex:1;min-width:0;}
+  .voraus-modus{display:flex;gap:18px;margin-bottom:12px;font-size:13px;}
+  .voraus-modus label{display:flex;align-items:center;gap:6px;cursor:pointer;}
+  .voraus-modus input{width:auto;}
   .bez-cell{display:flex;align-items:center;gap:4px;}
   .bez-cell input{flex:1;}
   .warn{color:var(--nachzahlung);cursor:help;display:inline-flex;align-items:center;}
@@ -132,10 +135,15 @@
     <h1>2 · Vorauszahlungen</h1>
     <p class="sub">Die geleisteten Vorauszahlungen je Mieter – am Ende mit dem Anteil saldiert.</p>
     <div class="legal">Recht (V07 / § 556 BGB): Die Saldierung der Vorauszahlungen ist eine formelle Pflichtangabe der Abrechnung.</div>
+    <div class="voraus-modus">
+      <label><input type="radio" name="vmodus" value="monatlich" checked onclick="setVorausModus('monatlich')"> Monatsbetrag × Monate</label>
+      <label><input type="radio" name="vmodus" value="jahr" onclick="setVorausModus('jahr')"> Jahressumme direkt</label>
+    </div>
     <table id="tbl_voraus">
-      <thead><tr><th>Mieter</th><th>Einheit</th><th class="num">Vorauszahlung gesamt (€)</th></tr></thead>
+      <thead id="voraus_head"></thead>
       <tbody></tbody>
     </table>
+    <p class="hint">Gesamt = (Monatsbetrag × Monate bzw. Jahressumme) + Einmalzahlung.</p>
     <div class="nav"><button class="btn-ghost" onclick="go(0)">Zurück</button><button class="btn-primary" onclick="go(2)">Weiter</button></div>
   </section>
 
@@ -173,7 +181,7 @@
       <div class="scard"><div class="lbl">Saldo gesamt</div><div class="val" id="sum_saldo">–</div></div>
     </div>
     <table id="tbl_ergebnis">
-      <thead><tr><th>Mieter</th><th class="num">Anteil</th><th class="num">Vorauszahlung</th><th class="num">Saldo</th></tr></thead>
+      <thead><tr><th>Mieter</th><th class="num">Anteil</th><th class="num">Vorauszahlung</th><th class="num">Saldo</th><th class="num">Empf. €/Monat</th></tr></thead>
       <tbody></tbody>
     </table>
     <div class="nav"><button class="btn-ghost" onclick="go(2)">Zurück</button><button class="btn-primary" onclick="go(4)">Abrechnung erstellen</button></div>
@@ -209,9 +217,9 @@
 const state = {
   objekt: { addr:"Musterstraße 12, 48155 Münster", zeitraum:"01.01.2025 – 31.12.2025" },
   einheiten: [
-    { id:1, name:"EG links",  mieter:"Familie Becker", flaeche:70, personen:2, voraus:1800 },
-    { id:2, name:"1. OG",     mieter:"Frau Sahin",     flaeche:85, personen:3, voraus:2100 },
-    { id:3, name:"2. OG",     mieter:"Herr Klein",     flaeche:60, personen:1, voraus:1500 }
+    { id:1, name:"EG links",  mieter:"Familie Becker", flaeche:70, personen:2, vmonat:150, vmonate:12, vjahr:1800, einmal:0, voraus:1800 },
+    { id:2, name:"1. OG",     mieter:"Frau Sahin",     flaeche:85, personen:3, vmonat:175, vmonate:12, vjahr:2100, einmal:0, voraus:2100 },
+    { id:3, name:"2. OG",     mieter:"Herr Klein",     flaeche:60, personen:1, vmonat:125, vmonate:12, vjahr:1500, einmal:0, voraus:1500 }
   ],
   kosten: [
     { bez:"Grundsteuer",            betrag:1200, schluessel:"flaeche" },
@@ -226,6 +234,7 @@ const state = {
 };
 const STEPS = ["Objekt","Vorauszahlung","Kosten","Berechnung","Abrechnung"];
 let current = 0, activeMieter = 0;
+let vorausModus = "monatlich";
 
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit" };
@@ -289,12 +298,39 @@ document.getElementById('obj_zeitraum').addEventListener('input',e=>state.objekt
 function upd(field,idx,val){ state.einheiten[idx][field] = (field==='mieter')?val:(+val); if(field==='mieter') renderVoraus(); }
 
 /* ---------- Step 2 ---------- */
+function recomputeVoraus(e){
+  e.voraus = vorausModus==='monatlich'
+    ? nkVorauszahlungGesamt(e.vmonat, e.vmonate, e.einmal)
+    : nkVorauszahlungGesamt(e.vjahr, 1, e.einmal);
+}
+function setVorausModus(m){ vorausModus=m; renderVoraus(); }
+function updVoraus(idx, field, val){
+  state.einheiten[idx][field]=+val;
+  recomputeVoraus(state.einheiten[idx]);
+  const c=document.getElementById('gesamt-'+idx); if(c) c.textContent=eur(state.einheiten[idx].voraus);
+}
 function renderVoraus(){
+  const head=document.getElementById('voraus_head');
   const tb=document.querySelector('#tbl_voraus tbody'); tb.innerHTML='';
+  const monat = vorausModus==='monatlich';
+  head.innerHTML = monat
+    ? '<tr><th>Mieter</th><th>Einheit</th><th class="num">Monatsbetrag (€)</th><th class="num">Monate</th><th class="num">Einmalzahlung (€)</th><th class="num">Gesamt (€)</th></tr>'
+    : '<tr><th>Mieter</th><th>Einheit</th><th class="num">Jahressumme (€)</th><th class="num">Einmalzahlung (€)</th><th class="num">Gesamt (€)</th></tr>';
   state.einheiten.forEach((e,idx)=>{
+    recomputeVoraus(e);
     const tr=document.createElement('tr');
-    tr.innerHTML='<td>'+e.mieter+'</td><td><span class="pill">'+e.name+'</span></td>'+
-      '<td class="num"><input class="short" type="number" value="'+e.voraus+'" oninput="state.einheiten['+idx+'].voraus=+this.value"></td>';
+    const kopf='<td>'+e.mieter+'</td><td><span class="pill">'+e.name+'</span></td>';
+    const gesamt='<td class="num" id="gesamt-'+idx+'">'+eur(e.voraus)+'</td>';
+    if(monat){
+      tr.innerHTML=kopf+
+        '<td class="num"><input class="short" type="number" value="'+e.vmonat+'" oninput="updVoraus('+idx+',\'vmonat\',this.value)"></td>'+
+        '<td class="num"><input class="short" type="number" value="'+e.vmonate+'" oninput="updVoraus('+idx+',\'vmonate\',this.value)"></td>'+
+        '<td class="num"><input class="short" type="number" value="'+e.einmal+'" oninput="updVoraus('+idx+',\'einmal\',this.value)"></td>'+gesamt;
+    } else {
+      tr.innerHTML=kopf+
+        '<td class="num"><input class="short" type="number" value="'+e.vjahr+'" oninput="updVoraus('+idx+',\'vjahr\',this.value)"></td>'+
+        '<td class="num"><input class="short" type="number" value="'+e.einmal+'" oninput="updVoraus('+idx+',\'einmal\',this.value)"></td>'+gesamt;
+    }
     tb.appendChild(tr);
   });
 }
@@ -360,7 +396,8 @@ function computeView(){
     const a=nkAnteilOf(e, state.kosten, t); const s=a-(+e.voraus||0); total+=a; voraus+=(+e.voraus||0);
     const tr=document.createElement('tr');
     tr.innerHTML='<td>'+e.mieter+'</td><td class="num">'+eur(a)+'</td><td class="num">'+eur(+e.voraus||0)+
-      '</td><td class="num '+(s>0?'neg':'pos')+'">'+(s>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(s))+'</td>';
+      '</td><td class="num '+(s>0?'neg':'pos')+'">'+(s>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(s))+'</td>'+
+      '<td class="num" title="Empfehlung: diesjähriger Anteil auf den Monat umgelegt">'+eur(nkVorschlagVorauszahlung(a, e.vmonate||12))+'</td>';
     tb.appendChild(tr);
   });
   document.getElementById('sum_total').textContent=eur(total);
