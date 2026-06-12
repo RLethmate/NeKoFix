@@ -1,9 +1,11 @@
 /* Regressionstests für den Rechenkern (calc.js).
-   Ausführen mit:  node --test   */
+   Ausführen mit:  node --test
+   Hinweis: Namespace-Import (calc.*) – so muss diese Zeile beim Hinzufügen neuer
+   Funktionen nicht geändert werden (vermeidet wiederkehrende Merge-Konflikte). */
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor, nkOwnerOverview, nkVorschlagSchluessel } = require("./calc.js");
+const calc = require("./calc.js");
 
 const einheiten = [
   { flaeche: 70, personen: 2, voraus: 1800 },
@@ -17,57 +19,57 @@ const kosten = [
 ];
 
 test("totals summiert Fläche, Personen und Einheiten", () => {
-  const t = nkTotals(einheiten);
+  const t = calc.nkTotals(einheiten);
   assert.equal(t.flaeche, 215);
   assert.equal(t.personen, 6);
   assert.equal(t.einheiten, 3);
 });
 
 test("factor verteilt nach Fläche", () => {
-  const t = nkTotals(einheiten);
-  assert.ok(Math.abs(nkFactor(einheiten[0], "flaeche", t) - 70 / 215) < 1e-9);
+  const t = calc.nkTotals(einheiten);
+  assert.ok(Math.abs(calc.nkFactor(einheiten[0], "flaeche", t) - 70 / 215) < 1e-9);
 });
 
 test("factor verteilt nach Personen", () => {
-  const t = nkTotals(einheiten);
-  assert.ok(Math.abs(nkFactor(einheiten[1], "person", t) - 3 / 6) < 1e-9);
+  const t = calc.nkTotals(einheiten);
+  assert.ok(Math.abs(calc.nkFactor(einheiten[1], "person", t) - 3 / 6) < 1e-9);
 });
 
 test("factor verteilt nach Einheit", () => {
-  const t = nkTotals(einheiten);
-  assert.ok(Math.abs(nkFactor(einheiten[2], "einheit", t) - 1 / 3) < 1e-9);
+  const t = calc.nkTotals(einheiten);
+  assert.ok(Math.abs(calc.nkFactor(einheiten[2], "einheit", t) - 1 / 3) < 1e-9);
 });
 
 test("jede Position wird vollständig (zu 100 %) verteilt", () => {
-  const t = nkTotals(einheiten);
+  const t = calc.nkTotals(einheiten);
   for (const k of kosten) {
-    const summe = einheiten.reduce((s, e) => s + (+k.betrag) * nkFactor(e, k.schluessel, t), 0);
+    const summe = einheiten.reduce((s, e) => s + (+k.betrag) * calc.nkFactor(e, k.schluessel, t), 0);
     assert.ok(Math.abs(summe - k.betrag) < 1e-6, `Position ${k.bez} nicht vollständig verteilt`);
   }
 });
 
 test("Summe aller Mieteranteile entspricht der Summe aller Kosten", () => {
-  const t = nkTotals(einheiten);
+  const t = calc.nkTotals(einheiten);
   const gesamtKosten = kosten.reduce((s, k) => s + k.betrag, 0);
-  const gesamtAnteile = einheiten.reduce((s, e) => s + nkAnteilOf(e, kosten, t), 0);
+  const gesamtAnteile = einheiten.reduce((s, e) => s + calc.nkAnteilOf(e, kosten, t), 0);
   assert.ok(Math.abs(gesamtAnteile - gesamtKosten) < 1e-6);
 });
 
 test("lineItemsFor liefert je Kostenart eine Zeile mit korrektem Anteil", () => {
-  const t = nkTotals(einheiten);
-  const items = nkLineItemsFor(einheiten[0], kosten, t);
+  const t = calc.nkTotals(einheiten);
+  const items = calc.nkLineItemsFor(einheiten[0], kosten, t);
   assert.equal(items.length, kosten.length);
   const muell = items.find(i => i.schluessel === "einheit"); // 900 / 3 = 300
   assert.ok(Math.abs(muell.anteil - 300) < 1e-9);
 });
 
 test("leere Einheitenliste führt nicht zu Division durch Null", () => {
-  const t = nkTotals([]);
-  assert.equal(nkFactor({ flaeche: 50 }, "flaeche", t), 0);
+  const t = calc.nkTotals([]);
+  assert.equal(calc.nkFactor({ flaeche: 50 }, "flaeche", t), 0);
 });
 
 test("Eigentümerübersicht: Saldo je Zeile = Anteil minus Vorauszahlung (US-18)", () => {
-  const ov = nkOwnerOverview(einheiten, kosten);
+  const ov = calc.nkOwnerOverview(einheiten, kosten);
   assert.equal(ov.rows.length, einheiten.length);
   ov.rows.forEach((r, i) => {
     assert.ok(Math.abs(r.saldo - (r.anteil - (+einheiten[i].voraus || 0))) < 1e-9);
@@ -75,15 +77,15 @@ test("Eigentümerübersicht: Saldo je Zeile = Anteil minus Vorauszahlung (US-18)
 });
 
 test("Eigentümerübersicht: Summe der Anteile = Summe der Kosten (US-18)", () => {
-  const ov = nkOwnerOverview(einheiten, kosten);
+  const ov = calc.nkOwnerOverview(einheiten, kosten);
   const gesamtKosten = kosten.reduce((s, k) => s + k.betrag, 0);
   assert.ok(Math.abs(ov.totalAnteil - gesamtKosten) < 1e-6);
 });
 
 test("Verteilerschlüssel-Vorschlag je Kostenart (US-03)", () => {
-  assert.equal(nkVorschlagSchluessel("Grundsteuer"), "flaeche");
-  assert.equal(nkVorschlagSchluessel("Wasser / Abwasser"), "person");
-  assert.equal(nkVorschlagSchluessel("Müllabfuhr"), "einheit");
-  assert.equal(nkVorschlagSchluessel("Heizung & Warmwasser (Messdienst)"), "flaeche");
-  assert.equal(nkVorschlagSchluessel("Unbekannte Position"), "flaeche");
+  assert.equal(calc.nkVorschlagSchluessel("Grundsteuer"), "flaeche");
+  assert.equal(calc.nkVorschlagSchluessel("Wasser / Abwasser"), "person");
+  assert.equal(calc.nkVorschlagSchluessel("Müllabfuhr"), "einheit");
+  assert.equal(calc.nkVorschlagSchluessel("Heizung & Warmwasser (Messdienst)"), "flaeche");
+  assert.equal(calc.nkVorschlagSchluessel("Unbekannte Position"), "flaeche");
 });

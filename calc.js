@@ -69,7 +69,16 @@ function nkVorschlagSchluessel(bez) {
 }
 
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
-   und die Funktionen stehen global zur Verfügung. */
+   und die Funktionen stehen global zur Verfügung.
+   Eine Funktion pro Zeile (mit Komma am Ende) – das entschärft Merge-Konflikte beim
+   Hinzufügen neuer Funktionen. */
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor, nkOwnerOverview, nkVorschlagSchluessel };
+  module.exports = {
+    nkTotals,
+    nkFactor,
+    nkAnteilOf,
+    nkLineItemsFor,
+    nkOwnerOverview,
+    nkVorschlagSchluessel,
+  };
 }
