@@ -1,55 +1,39 @@
-# Automatisierung mit Review-Tor – Einrichtung
+# Automatisierung – einmalige Einrichtung
 
-Ziel: Sobald eine Story-Karte im GitHub-Project nach „Next" wandert, implementiert ein
-Claude-Agent die Story in der CI, schreibt Tests und öffnet einen **Pull Request**. Ein Mensch
-reviewt und mergt; nach dem Merge wandert die Karte automatisch auf „Done".
+Dieses Dokument beschreibt die einmalige Einrichtung der Automatisierung. Der laufende
+Ablauf (Story → Deploy) steht in `Entwicklungsprozess.md`.
 
-Der Mechanismus läuft vollständig in GitHub (Actions), nicht in der Chat-Umgebung.
+So funktioniert die Automatik im Überblick: Eine Story wird über das Label `next` zur Umsetzung
+markiert; ein Workflow sammelt alle `next`-Stories in `auto/NEXT-QUEUE.md`. Die eigentliche
+Umsetzung erfolgt in einer Cowork-Session (kein KI-Agent in der CI, kein API-Schlüssel nötig).
+Das Ergebnis kommt als Pull Request; die CI führt die Tests aus, der Merge ist nur bei grünem
+Test-Check möglich (Review-Tor). Nach dem Merge schließt sich das Issue, die Karte wandert auf
+„Done" und das `next`-Label wird automatisch entfernt.
+
+Aktive Workflows: `collect-next-queue.yml` (Queue), `tests.yml` (Regressionstests),
+`done-cleanup.yml` (Label-Aufräumen).
 
 ## Einmalige Einrichtung
 
-### 1. Anthropic-API-Schlüssel als Repo-Secret
-- Ein Anthropic-API-Konto mit Guthaben wird benötigt (die Agenten-Läufe verursachen Kosten
-  je nach Story-Umfang).
-- Repo → Settings → Secrets and variables → Actions → **New repository secret**.
-- Name: `ANTHROPIC_API_KEY`, Wert: dein API-Schlüssel.
-
-### 2. Claude-GitHub-App installieren
-- Die offizielle Claude-Integration für GitHub im Repo `RLethmate/NeKoFix` installieren
-  und ihr Zugriff auf das Repo geben. Den aktuellen Installationsweg und die genauen
-  Action-Parameter bitte der offiziellen README der Action `anthropics/claude-code-action`
-  entnehmen (Versionsstand kann sich geändert haben).
-
-### 3. Label `next` anlegen
+### 1. Label `next` anlegen
 - Repo → Issues → Labels → **New label** → Name: `next`.
-- Dieses Label ist der Auslöser des Workflows (siehe
-  `.github/workflows/claude-auto-implement.yml`).
+- Dieses Label ist der Auslöser für die Queue (`collect-next-queue.yml`).
 
-### 4. Projekt-Automationen (im GitHub-Project)
+### 2. Projekt-Automationen (im GitHub-Project)
 - Project → ⋯ → **Workflows**.
-- „Auto-add"/Status-Regeln nach Bedarf aktivieren.
-- Empfohlen: integrierte Regel **„When issue/PR closed → Set Status: Done"** einschalten,
-  damit die Karte nach dem Merge automatisch auf „Done" landet (der PR schließt das Issue
-  über „Closes #…").
-- Optional: eine Regel, die beim Statuswechsel auf „Next" das Label `next` setzt – so genügt
-  das Verschieben der Karte. Falls das in deinem Projekt nicht verfügbar ist, vergibst du das
-  Label `next` einfach manuell an der Story.
+- Integrierte Regel **„Item closed → Set Status: Done"** aktivieren, damit die Karte nach dem
+  Merge automatisch auf „Done" landet (der PR schließt das Issue über „Closes #…").
 
-## Täglicher Ablauf
-1. Story-Karte nach „Next" ziehen (bzw. Label `next` setzen).
-2. Workflow startet, Claude öffnet einen Pull Request mit Code und Tests.
-3. CI führt die Tests aus – Ergebnis im PR sichtbar.
-4. Review durch einen Menschen, dann Merge.
-5. Issue schließt sich, Karte wandert automatisch auf „Done".
+### 3. Branch-Schutz / Quality Gate (Ruleset für `main`)
+- Repo → Settings → Branches → Ruleset für `main`.
+- **Require a pull request before merging** und **Require status checks to pass** (Check
+  „Tests") aktivieren. Damit kann nichts Ungeprüftes oder mit roten Tests nach `main`.
 
 ## Sicherheits-/Qualitätshinweise (Review-Tor)
-- Aktiviere KEIN Auto-Merge. Grüne Tests bedeuten „vorhandene Tests erfüllt", nicht
-  „rechtlich korrekt" – die fachliche Prüfung gehört in den Review.
-- Beschränke den API-Schlüssel auf das Nötige und rotiere ihn bei Bedarf.
-- Voll-Automatik (Auto-Merge) ließe sich später gezielt nur für unkritische Routine-Stories
-  freischalten.
+- Kein Auto-Merge. Grüne Tests bedeuten „vorhandene Tests erfüllt", nicht „fachlich/rechtlich
+  korrekt" – die inhaltliche Prüfung gehört in den Review durch einen Menschen.
 
 ## Hinweis zur Repo-Struktur
-Diese Dateien liegen unter `prototype-site/`, weil dein GitHub-Repo aktuell aus diesem Ordner
-befüllt wird. Nach dem Push erscheinen sie im Repo-Wurzelverzeichnis unter
-`.github/workflows/` – nur dort werden GitHub Actions ausgeführt.
+Diese Dateien liegen unter `prototype-site/`, weil das GitHub-Repo aus diesem Ordner befüllt
+wird. Nach dem Push erscheinen sie im Repo-Wurzelverzeichnis unter `.github/workflows/` –
+nur dort werden GitHub Actions ausgeführt.
