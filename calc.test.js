@@ -90,6 +90,18 @@ test("Verteilerschlüssel-Vorschlag je Kostenart (US-03)", () => {
   assert.equal(calc.nkVorschlagSchluessel("Unbekannte Position"), "flaeche");
 });
 
+test("Gesamt-Vorauszahlung = Monatsbetrag × Monate + Einmalzahlung (US-09)", () => {
+  assert.equal(calc.nkVorauszahlungGesamt(150, 12, 0), 1800);
+  assert.equal(calc.nkVorauszahlungGesamt(150, 12, 200), 2000);
+  assert.equal(calc.nkVorauszahlungGesamt(0, 0, 500), 500);
+});
+
+test("Vorschlag neuer Monatsbetrag = Anteil ÷ Monate, gerundet (US-09)", () => {
+  assert.equal(calc.nkVorschlagVorauszahlung(1800, 12), 150);
+  assert.equal(calc.nkVorschlagVorauszahlung(2000, 12), 167);
+  assert.equal(calc.nkVorschlagVorauszahlung(1000, 0), 0);
+});
+
 test("Umlagefähigkeit je Kostenart (US-04)", () => {
   assert.equal(calc.nkUmlageInfo("Grundsteuer").umlagefaehig, true);
   assert.equal(calc.nkUmlageInfo("Wasser / Abwasser").umlagefaehig, true);
