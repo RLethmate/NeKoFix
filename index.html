@@ -81,17 +81,20 @@
   .schluessel-cell select{flex:1;}
   .reset-btn{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:50%;width:26px;height:26px;min-width:26px;padding:0;font-size:14px;line-height:1;cursor:pointer;}
   .reset-btn:hover{border-color:var(--primary);color:var(--primary);}
-  .kosten-picker{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:16px;background:var(--soft);}
-  .picker-label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:8px;}
-  .picker-list{display:flex;flex-wrap:wrap;gap:6px 18px;margin-bottom:12px;}
-  .picker-list label{font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer;}
+  .kosten-add{position:relative;margin-bottom:16px;}
+  .combo-field{display:flex;align-items:center;justify-content:space-between;gap:8px;width:320px;max-width:100%;height:38px;padding:0 12px;background:#fff;border:1px solid var(--line);border-radius:8px;color:var(--muted);font-size:14px;font-weight:400;cursor:pointer;}
+  .combo-field:hover{border-color:var(--primary);}
+  .combo-dd{position:absolute;top:44px;left:0;width:340px;max-width:100%;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.10);}
+  .picker-list{display:flex;flex-direction:column;gap:2px;max-height:240px;overflow:auto;}
+  .picker-list label{font-size:13px;display:flex;align-items:center;gap:8px;cursor:pointer;padding:5px 8px;border-radius:6px;}
+  .picker-list label:hover{background:var(--soft);}
   .picker-list label.used{opacity:.4;cursor:default;}
   .picker-list input[type=checkbox]{width:auto;}
-  .picker-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
-  .sonstige-input{max-width:240px;}
+  .dd-footer{display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:8px;margin-top:6px;}
+  .dd-footer .sonstige-input{flex:1;min-width:0;}
   .bez-cell{display:flex;align-items:center;gap:4px;}
   .bez-cell input{flex:1;}
-  .warn{color:var(--nachzahlung);font-weight:700;cursor:help;}
+  .warn{color:var(--nachzahlung);cursor:help;display:inline-flex;align-items:center;}
   .row-del{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:14px;line-height:1;}
   .row-del:hover{border-color:var(--nachzahlung);color:var(--nachzahlung);}
   @media(max-width:620px){.grid2,.summary-cards{grid-template-columns:1fr;} .tag{display:none}}
@@ -141,13 +144,15 @@
     <h1>3 · Kosten erfassen</h1>
     <p class="sub">Umlagefähige Betriebskosten und die Heizkostensumme vom Messdienst.</p>
     <div class="legal">Recht (V07): Positionen orientieren sich am BetrKV-Katalog. Kabel-/Fernsehsignal ist seit 01.07.2024 nicht mehr umlagefähig. Heizkosten werden als Summe vom Messdienst übernommen.</div>
-    <div class="kosten-picker">
-      <div class="picker-label">Kostenarten auswählen (Mehrfachauswahl; bereits übernommene sind ausgegraut):</div>
-      <div id="kosten_auswahl" class="picker-list"></div>
-      <div class="picker-actions">
-        <button class="btn-ghost" onclick="addAusgewaehlteKosten()">Auswahl hinzufügen</button>
-        <input id="sonstige_bez" class="sonstige-input" placeholder="Sonstige Position (eigener Text)">
-        <button class="btn-ghost" onclick="addSonstigeKosten()">Sonstige hinzufügen</button>
+    <div class="kosten-add" id="kosten_add">
+      <button class="combo-field" onclick="toggleKostenDropdown(event)"><span>Kostenart wählen …</span><span aria-hidden="true">▾</span></button>
+      <div id="kosten_dd" class="combo-dd" style="display:none;">
+        <div id="kosten_auswahl" class="picker-list"></div>
+        <div class="dd-footer">
+          <input id="sonstige_bez" class="sonstige-input" placeholder="Sonstige Position …">
+          <button class="btn-ghost" onclick="addSonstigeKosten()">+ Sonstige</button>
+          <button class="btn-primary" onclick="addAusgewaehlteKosten()">Übernehmen</button>
+        </div>
       </div>
     </div>
     <table id="tbl_kosten">
@@ -240,6 +245,7 @@ const KOSTEN_KATALOG = [
   "Ungezieferbekämpfung",
   "Wasser / Abwasser"
 ];
+const WARN_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
 
 /* Rechenkern ausgelagert nach calc.js (testbar): nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor */
 
@@ -301,7 +307,7 @@ function renderKosten(){
     let opts='';
     for(const key in SCHLUESSEL){ opts+='<option value="'+key+'"'+(k.schluessel===key?' selected':'')+'>'+SCHLUESSEL[key]+'</option>'; }
     const info = nkUmlageInfo(k.bez);
-    const warn = info.umlagefaehig ? '' : ' <span class="warn" title="'+info.grund.replace(/"/g,'')+'">!</span>';
+    const warn = info.umlagefaehig ? '' : ' <span class="warn" title="'+info.grund.replace(/"/g,'')+'">'+WARN_ICON+'</span>';
     tr.innerHTML=
       '<td><span class="bez-cell"><input value="'+k.bez.replace(/"/g,'&quot;')+'" oninput="state.kosten['+idx+'].bez=this.value" onchange="applyKostenart('+idx+',this.value)">'+warn+'</span></td>'+
       '<td class="num"><input class="short" type="number" value="'+k.betrag+'" oninput="state.kosten['+idx+'].betrag=+this.value"></td>'+
@@ -319,16 +325,19 @@ function renderPicker(){
   box.innerHTML = sorted.map(name=>{
     const used = vorhanden.has(name);
     const info = nkUmlageInfo(name);
-    const warn = info.umlagefaehig ? '' : ' <span class="warn" title="'+info.grund.replace(/"/g,'')+'">!</span>';
+    const warn = info.umlagefaehig ? '' : ' <span class="warn" title="'+info.grund.replace(/"/g,'')+'">'+WARN_ICON+'</span>';
     return '<label class="'+(used?'used':'')+'"><input type="checkbox" value="'+name.replace(/"/g,'&quot;')+'"'+(used?' disabled':'')+'>'+name+warn+'</label>';
   }).join('');
 }
+function toggleKostenDropdown(ev){ if(ev) ev.stopPropagation(); const dd=document.getElementById('kosten_dd'); dd.style.display = dd.style.display==='none' ? 'block' : 'none'; }
+document.addEventListener('click', e=>{ const add=document.getElementById('kosten_add'); const dd=document.getElementById('kosten_dd'); if(dd && add && !add.contains(e.target)) dd.style.display='none'; });
 function addAusgewaehlteKosten(){
   document.querySelectorAll('#kosten_auswahl input[type=checkbox]:checked').forEach(c=>{
     const bez = c.value;
     if(!state.kosten.some(k=>k.bez===bez)) state.kosten.push({bez, betrag:0, schluessel: nkVorschlagSchluessel(bez)});
   });
   renderKosten();
+  document.getElementById('kosten_dd').style.display='none';
 }
 function addSonstigeKosten(){
   const inp = document.getElementById('sonstige_bez');
