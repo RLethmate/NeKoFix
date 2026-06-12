@@ -89,3 +89,13 @@ test("Verteilerschlüssel-Vorschlag je Kostenart (US-03)", () => {
   assert.equal(calc.nkVorschlagSchluessel("Heizung & Warmwasser (Messdienst)"), "flaeche");
   assert.equal(calc.nkVorschlagSchluessel("Unbekannte Position"), "flaeche");
 });
+
+test("Umlagefähigkeit je Kostenart (US-04)", () => {
+  assert.equal(calc.nkUmlageInfo("Grundsteuer").umlagefaehig, true);
+  assert.equal(calc.nkUmlageInfo("Wasser / Abwasser").umlagefaehig, true);
+  assert.equal(calc.nkUmlageInfo("Verwaltungskosten").umlagefaehig, false);
+  assert.equal(calc.nkUmlageInfo("Instandhaltung Dach").umlagefaehig, false);
+  assert.equal(calc.nkUmlageInfo("Reparatur Heizung").umlagefaehig, false);
+  assert.equal(calc.nkUmlageInfo("Kabel-/Fernsehsignal").umlagefaehig, false);
+  assert.ok(calc.nkUmlageInfo("Kabel-/Fernsehsignal").grund.length > 0);
+});
