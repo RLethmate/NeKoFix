@@ -25,6 +25,9 @@
   .logo{font-weight:700;font-size:22px;letter-spacing:.3px;}
   .logo span{font-weight:300;opacity:.85}
   .tag{margin-left:auto;font-size:13px;opacity:.85;}
+  .save-status{font-size:12px;color:#fff;opacity:.9;}
+  .reset-data{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer;}
+  .reset-data:hover{background:rgba(255,255,255,.25);}
   .wrap{max-width:920px;margin:0 auto;padding:24px 20px 64px;}
   /* Stepper */
   .stepper{display:flex;gap:6px;margin:18px 0 26px;flex-wrap:wrap;}
@@ -116,6 +119,8 @@
 <header class="app">
   <div class="logo">NeKo<span>Fix</span></div>
   <div class="tag">Prototyp · Walking Skeleton · End-to-End-Durchstich</div>
+  <span id="save_status" class="save-status"></span>
+  <button class="reset-data" onclick="resetState()" title="Alle gespeicherten Daten löschen">Zurücksetzen</button>
 </header>
 
 <div class="wrap">
@@ -565,8 +570,27 @@ function exportOwnerOverviewPdf(){
   doc.save("Eigentuemer-Uebersicht.pdf");
 }
 
+/* ---------- Persistenz (US-27) ---------- */
+const STORAGE_KEY="nekofix-state-v1";
+function ensureIds(){
+  let max=0; const bump=o=>{ if(o.id&&o.id>max)max=o.id; };
+  state.einheiten.forEach(e=>{bump(e);(e.mv||[]).forEach(bump);}); state.kosten.forEach(bump);
+  const set=o=>{ if(!o.id) o.id=++max; };
+  state.einheiten.forEach(e=>{set(e);(e.mv||[]).forEach(set);}); state.kosten.forEach(set);
+}
+function setSaveStatus(t){ const el=document.getElementById('save_status'); if(el) el.textContent=t; }
+function saveState(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); setSaveStatus('gespeichert '+new Date().toLocaleTimeString('de-DE')); }catch(e){ setSaveStatus('Speichern nicht möglich'); } }
+function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return false; const o=nkParseState(raw); if(!o) return false; state.objekt=o.objekt||state.objekt; state.einheiten=o.einheiten||state.einheiten; state.kosten=o.kosten||state.kosten; state.zahlung=o.zahlung||state.zahlung; return true; }catch(e){ return false; } }
+function resetState(){ if(confirm('Alle gespeicherten Daten löschen und Beispiel zurücksetzen?')){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} location.reload(); } }
+let _saveTimer; function scheduleSave(){ clearTimeout(_saveTimer); _saveTimer=setTimeout(saveState,600); }
+document.addEventListener('input', scheduleSave);
+document.addEventListener('change', scheduleSave);
+window.addEventListener('beforeunload', saveState);
+
 /* ---------- Init ---------- */
+loadState(); ensureIds();
 renderEinheiten(); renderVoraus(); renderKosten(); renderStepper(); go(0);
+saveState();
 </script>
 </body>
 </html>

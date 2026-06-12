@@ -68,6 +68,15 @@ function nkVorschlagSchluessel(bez) {
   return "flaeche";
 }
 
+/* Persistenz (US-27): State aus JSON laden und grob prüfen. Gibt Objekt oder null zurück. */
+function nkParseState(json) {
+  try {
+    const o = JSON.parse(json);
+    if (o && typeof o === "object" && Array.isArray(o.einheiten) && Array.isArray(o.kosten)) return o;
+    return null;
+  } catch (e) { return null; }
+}
+
 /* Standardname für eine neue Einheit (US-26): nächstes Geschoss hochzählen. */
 function nkNaechsteEinheitName(namen) {
   let max = 0;
@@ -148,5 +157,6 @@ if (typeof module !== "undefined" && module.exports) {
     nkUeberlappungsTage,
     nkZeitanteil,
     nkNaechsteEinheitName,
+    nkParseState,
   };
 }
