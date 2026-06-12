@@ -68,13 +68,39 @@ function nkVorschlagSchluessel(bez) {
   return "flaeche";
 }
 
+/* Zeitanteilige Aufteilung (US-10). Datumsformat "YYYY-MM-DD". Reine Funktionen. */
+function nkDatum(s) {
+  if (!s) return null;
+  const p = String(s).split("-");
+  if (p.length !== 3) return null;
+  const d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2]));
+  return isNaN(d.getTime()) ? null : d;
+}
+function nkTageInklusive(von, bis) {
+  const a = nkDatum(von), b = nkDatum(bis);
+  if (!a || !b || b < a) return 0;
+  return Math.round((b - a) / 86400000) + 1;
+}
+function nkUeberlappungsTage(von1, bis1, von2, bis2) {
+  const a1 = nkDatum(von1), e1 = nkDatum(bis1), a2 = nkDatum(von2), e2 = nkDatum(bis2);
+  if (!a1 || !e1 || !a2 || !e2) return 0;
+  const start = a1 > a2 ? a1 : a2;
+  const end = e1 < e2 ? e1 : e2;
+  if (end < start) return 0;
+  return Math.round((end - start) / 86400000) + 1;
+}
+function nkZeitanteil(mvVon, mvBis, pVon, pBis) {
+  const tage = nkTageInklusive(pVon, pBis);
+  if (tage <= 0) return 0;
+  return nkUeberlappungsTage(mvVon, mvBis, pVon, pBis) / tage;
+}
+
 /* Vorauszahlung (US-09): Gesamt = Monatsbetrag × Monate + Einmalzahlung. Reine Funktionen. */
 function nkVorauszahlungGesamt(monatsbetrag, monate, einmal) {
   return (+monatsbetrag || 0) * (+monate || 0) + (+einmal || 0);
 }
-function nkVorschlagVorauszahlung(anteil, monate) {
-  const m = +monate || 0;
-  return m > 0 ? Math.round((+anteil || 0) / m) : 0;
+function nkVorschlagVorauszahlung(anteil) {
+  return Math.round((+anteil || 0) / 12);
 }
 
 /* Umlagefähigkeit je Kostenart (US-04). Reine Funktion; gibt Vorschlag + Begründung zurück.
@@ -107,5 +133,8 @@ if (typeof module !== "undefined" && module.exports) {
     nkUmlageInfo,
     nkVorauszahlungGesamt,
     nkVorschlagVorauszahlung,
+    nkTageInklusive,
+    nkUeberlappungsTage,
+    nkZeitanteil,
   };
 }
