@@ -172,7 +172,7 @@
   </section>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="calc.js"></script>
 <script>
 /* ---------- In-Memory-State (kein localStorage) ---------- */
@@ -324,6 +324,13 @@ function renderDoc(){
 
 /* ---------- PDF-Export (US-18) ---------- */
 function pdfSafeName(s){ return String(s).replace(/[^\wäöüÄÖÜß .-]/g,'_').trim(); }
+function ensurePdfLib(){
+  if(!(window.jspdf && window.jspdf.jsPDF)){
+    alert("Die PDF-Bibliothek konnte nicht geladen werden. Bitte Internetverbindung prüfen, einen evtl. Adblocker deaktivieren und die Seite neu laden.");
+    return false;
+  }
+  return true;
+}
 function buildTenantPdf(e){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'pt', format:'a4'});
@@ -353,9 +360,10 @@ function buildTenantPdf(e){
   lines.forEach(l=>{ doc.text(l,56,y); y+=14; });
   return doc;
 }
-function exportTenantPdf(){ const e=state.einheiten[activeMieter]; buildTenantPdf(e).save("Abrechnung-"+pdfSafeName(e.mieter)+".pdf"); }
-function exportAllTenantPdfs(){ state.einheiten.forEach(e=> buildTenantPdf(e).save("Abrechnung-"+pdfSafeName(e.mieter)+".pdf")); }
+function exportTenantPdf(){ if(!ensurePdfLib())return; const e=state.einheiten[activeMieter]; buildTenantPdf(e).save("Abrechnung-"+pdfSafeName(e.mieter)+".pdf"); }
+function exportAllTenantPdfs(){ if(!ensurePdfLib())return; state.einheiten.forEach(e=> buildTenantPdf(e).save("Abrechnung-"+pdfSafeName(e.mieter)+".pdf")); }
 function exportOwnerOverviewPdf(){
+  if(!ensurePdfLib())return;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'pt', format:'a4'});
   const ov = nkOwnerOverview(state.einheiten, state.kosten);
