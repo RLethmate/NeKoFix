@@ -3,7 +3,7 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor, nkOwnerOverview } = require("./calc.js");
+const { nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor, nkOwnerOverview, nkVorschlagSchluessel } = require("./calc.js");
 
 const einheiten = [
   { flaeche: 70, personen: 2, voraus: 1800 },
@@ -78,4 +78,12 @@ test("Eigentümerübersicht: Summe der Anteile = Summe der Kosten (US-18)", () =
   const ov = nkOwnerOverview(einheiten, kosten);
   const gesamtKosten = kosten.reduce((s, k) => s + k.betrag, 0);
   assert.ok(Math.abs(ov.totalAnteil - gesamtKosten) < 1e-6);
+});
+
+test("Verteilerschlüssel-Vorschlag je Kostenart (US-03)", () => {
+  assert.equal(nkVorschlagSchluessel("Grundsteuer"), "flaeche");
+  assert.equal(nkVorschlagSchluessel("Wasser / Abwasser"), "person");
+  assert.equal(nkVorschlagSchluessel("Müllabfuhr"), "einheit");
+  assert.equal(nkVorschlagSchluessel("Heizung & Warmwasser (Messdienst)"), "flaeche");
+  assert.equal(nkVorschlagSchluessel("Unbekannte Position"), "flaeche");
 });

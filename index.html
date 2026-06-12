@@ -77,6 +77,10 @@
   .mtab.active{background:var(--primary);color:#fff;border-color:var(--primary);}
   .addrow{margin-top:8px;background:#fff;color:var(--primary);border:1px dashed var(--primary);}
   .hint{font-size:12px;color:var(--muted);margin-top:6px;}
+  .schluessel-cell{display:flex;gap:6px;align-items:center;}
+  .schluessel-cell select{flex:1;}
+  .reset-btn{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:50%;width:26px;height:26px;min-width:26px;padding:0;font-size:14px;line-height:1;cursor:pointer;}
+  .reset-btn:hover{border-color:var(--primary);color:var(--primary);}
   @media(max-width:620px){.grid2,.summary-cards{grid-template-columns:1fr;} .tag{display:none}}
   @media print{header.app,.stepper,.nav,.mieter-tabs,.legal{display:none!important;} .panel{display:block!important;border:none;padding:0;} body{background:#fff;}}
 </style>
@@ -128,8 +132,20 @@
       <thead><tr><th>Kostenart</th><th class="num">Betrag (€)</th><th>Verteilerschlüssel</th></tr></thead>
       <tbody></tbody>
     </table>
+    <datalist id="kostenarten">
+      <option value="Grundsteuer"></option>
+      <option value="Wasser / Abwasser"></option>
+      <option value="Müllabfuhr"></option>
+      <option value="Gebäudeversicherung"></option>
+      <option value="Allgemeinstrom"></option>
+      <option value="Hauswart / Gartenpflege"></option>
+      <option value="Gebäudereinigung"></option>
+      <option value="Aufzug"></option>
+      <option value="Schornsteinreinigung"></option>
+      <option value="Heizung & Warmwasser (Messdienst)"></option>
+    </datalist>
     <button class="addrow" onclick="addKostenRow()">+ Weitere Position</button>
-    <p class="hint">Beträge und Schlüssel sind editierbar – die Berechnung aktualisiert sich automatisch.</p>
+    <p class="hint">Der Verteilerschlüssel wird je Kostenart automatisch vorgeschlagen und ist überschreibbar. Beträge und Schlüssel sind editierbar – die Berechnung aktualisiert sich sofort.</p>
     <div class="nav"><button class="btn-ghost" onclick="go(1)">Zurück</button><button class="btn-primary" onclick="go(3)">Berechnen</button></div>
   </section>
 
@@ -260,12 +276,15 @@ function renderKosten(){
     let opts='';
     for(const key in SCHLUESSEL){ opts+='<option value="'+key+'"'+(k.schluessel===key?' selected':'')+'>'+SCHLUESSEL[key]+'</option>'; }
     tr.innerHTML=
-      '<td><input value="'+k.bez+'" oninput="state.kosten['+idx+'].bez=this.value"></td>'+
+      '<td><input list="kostenarten" value="'+k.bez+'" oninput="state.kosten['+idx+'].bez=this.value" onchange="applyKostenart('+idx+',this.value)"></td>'+
       '<td class="num"><input class="short" type="number" value="'+k.betrag+'" oninput="state.kosten['+idx+'].betrag=+this.value"></td>'+
-      '<td><select onchange="state.kosten['+idx+'].schluessel=this.value">'+opts+'</select></td>';
+      '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug)." onchange="state.kosten['+idx+'].schluessel=this.value">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button></span></td>';
     tb.appendChild(tr);
   });
 }
+/* US-03: Kostenart setzen und passenden Verteilerschlüssel vorschlagen (überschreibbar). */
+function applyKostenart(idx, val){ state.kosten[idx].bez = val; state.kosten[idx].schluessel = nkVorschlagSchluessel(val); renderKosten(); }
+function resetSchluessel(idx){ state.kosten[idx].schluessel = nkVorschlagSchluessel(state.kosten[idx].bez); renderKosten(); }
 function addKostenRow(){ state.kosten.push({bez:"Neue Position",betrag:0,schluessel:"flaeche"}); renderKosten(); }
 
 /* ---------- Step 4 ---------- */

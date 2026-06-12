@@ -40,8 +40,36 @@ function nkOwnerOverview(einheiten, kosten) {
   return { rows, totalAnteil, totalVoraus, totalSaldo: totalAnteil - totalVoraus };
 }
 
+/* Verteilerschlüssel-Vorschlag je Kostenart (US-03). Reine Funktion; in der UI überschreibbar.
+   Reihenfolge beachten: spezifischere Begriffe (warmwasser, abwasser) vor allgemeineren (wasser). */
+const NK_SCHLUESSEL_VORSCHLAG = [
+  ["grundsteuer", "flaeche"],
+  ["versicherung", "flaeche"],
+  ["allgemeinstrom", "flaeche"],
+  ["strom", "flaeche"],
+  ["hauswart", "flaeche"],
+  ["hausmeister", "flaeche"],
+  ["garten", "flaeche"],
+  ["reinigung", "flaeche"],
+  ["schornstein", "flaeche"],
+  ["aufzug", "flaeche"],
+  ["heizung", "flaeche"],
+  ["warmwasser", "flaeche"],
+  ["abwasser", "person"],
+  ["wasser", "person"],
+  ["müll", "einheit"],
+  ["mull", "einheit"]
+];
+function nkVorschlagSchluessel(bez) {
+  const b = String(bez || "").toLowerCase();
+  for (const [key, sch] of NK_SCHLUESSEL_VORSCHLAG) {
+    if (b.includes(key)) return sch;
+  }
+  return "flaeche";
+}
+
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
    und die Funktionen stehen global zur Verfügung. */
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor, nkOwnerOverview };
+  module.exports = { nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor, nkOwnerOverview, nkVorschlagSchluessel };
 }
