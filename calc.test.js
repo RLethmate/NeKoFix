@@ -3,7 +3,7 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor, nkVisibleEinheiten } = require("./calc.js");
+const { nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor } = require("./calc.js");
 
 const einheiten = [
   { flaeche: 70, personen: 2, voraus: 1800 },
@@ -64,15 +64,4 @@ test("lineItemsFor liefert je Kostenart eine Zeile mit korrektem Anteil", () => 
 test("leere Einheitenliste führt nicht zu Division durch Null", () => {
   const t = nkTotals([]);
   assert.equal(nkFactor({ flaeche: 50 }, "flaeche", t), 0);
-});
-
-test("Mietersicht zeigt ausschließlich die eigene Einheit (US-16)", () => {
-  const sicht = nkVisibleEinheiten(einheiten, "mieter", 1);
-  assert.equal(sicht.length, 1);
-  assert.equal(sicht[0], einheiten[1]);
-});
-
-test("Eigentümersicht zeigt alle Einheiten (US-16)", () => {
-  const sicht = nkVisibleEinheiten(einheiten, "eigentuemer", 0);
-  assert.equal(sicht.length, einheiten.length);
 });
