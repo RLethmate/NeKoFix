@@ -171,6 +171,7 @@
 <footer style="text-align:center;color:#5b6b7b;font-size:12px;padding:14px 0 24px;">NeKoFix Prototyp – Testversion</footer>
 <!-- TEST-B END -->
 
+<script src="calc.js"></script>
 <script>
 /* ---------- In-Memory-State (kein localStorage) ---------- */
 const state = {
@@ -197,26 +198,7 @@ let current = 0, activeMieter = 0;
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit" };
 
-function totals(){
-  return {
-    flaeche: state.einheiten.reduce((s,e)=>s+(+e.flaeche||0),0),
-    personen: state.einheiten.reduce((s,e)=>s+(+e.personen||0),0),
-    einheiten: state.einheiten.length
-  };
-}
-function factor(e, schluessel){
-  const t = totals();
-  if(schluessel==="flaeche") return t.flaeche? (e.flaeche/t.flaeche):0;
-  if(schluessel==="person")  return t.personen? (e.personen/t.personen):0;
-  return t.einheiten? (1/t.einheiten):0;
-}
-function anteilOf(e){ return state.kosten.reduce((s,k)=>s + (+k.betrag||0)*factor(e,k.schluessel), 0); }
-function lineItemsFor(e){
-  return state.kosten.map(k=>{
-    const f = factor(e,k.schluessel);
-    return { bez:k.bez, gesamt:+k.betrag||0, schluessel:k.schluessel, anteil:(+k.betrag||0)*f };
-  });
-}
+/* Rechenkern ausgelagert nach calc.js (testbar): nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor */
 
 /* ---------- Stepper ---------- */
 function renderStepper(){
@@ -288,8 +270,9 @@ function addKostenRow(){ state.kosten.push({bez:"Neue Position",betrag:0,schlues
 function computeView(){
   const tb=document.querySelector('#tbl_ergebnis tbody'); tb.innerHTML='';
   let total=0,voraus=0;
+  const t=nkTotals(state.einheiten);
   state.einheiten.forEach(e=>{
-    const a=anteilOf(e); const s=a-(+e.voraus||0); total+=a; voraus+=(+e.voraus||0);
+    const a=nkAnteilOf(e, state.kosten, t); const s=a-(+e.voraus||0); total+=a; voraus+=(+e.voraus||0);
     const tr=document.createElement('tr');
     tr.innerHTML='<td>'+e.mieter+'</td><td class="num">'+eur(a)+'</td><td class="num">'+eur(+e.voraus||0)+
       '</td><td class="num '+(s>0?'neg':'pos')+'">'+(s>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(s))+'</td>';
@@ -313,7 +296,7 @@ function renderDoc(){
     tabs.appendChild(b);
   });
   const e=state.einheiten[activeMieter];
-  const items=lineItemsFor(e);
+  const items=nkLineItemsFor(e, state.kosten, nkTotals(state.einheiten));
   const anteil=items.reduce((s,i)=>s+i.anteil,0);
   const saldo=anteil-(+e.voraus||0);
   let rows=items.map(i=>

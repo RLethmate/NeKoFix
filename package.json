@@ -1,0 +1,9 @@
+{
+  "name": "nekofix-prototyp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NeKoFix Prototyp – Rechenkern und Regressionstests",
+  "scripts": {
+    "test": "node --test"
+  }
+}
