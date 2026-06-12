@@ -81,6 +81,19 @@
   .schluessel-cell select{flex:1;}
   .reset-btn{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:50%;width:26px;height:26px;min-width:26px;padding:0;font-size:14px;line-height:1;cursor:pointer;}
   .reset-btn:hover{border-color:var(--primary);color:var(--primary);}
+  .kosten-picker{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:16px;background:var(--soft);}
+  .picker-label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:8px;}
+  .picker-list{display:flex;flex-wrap:wrap;gap:6px 18px;margin-bottom:12px;}
+  .picker-list label{font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer;}
+  .picker-list label.used{opacity:.4;cursor:default;}
+  .picker-list input[type=checkbox]{width:auto;}
+  .picker-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .sonstige-input{max-width:240px;}
+  .bez-cell{display:flex;align-items:center;gap:4px;}
+  .bez-cell input{flex:1;}
+  .warn{color:var(--nachzahlung);font-weight:700;cursor:help;}
+  .row-del{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:14px;line-height:1;}
+  .row-del:hover{border-color:var(--nachzahlung);color:var(--nachzahlung);}
   @media(max-width:620px){.grid2,.summary-cards{grid-template-columns:1fr;} .tag{display:none}}
   @media print{header.app,.stepper,.nav,.mieter-tabs,.legal{display:none!important;} .panel{display:block!important;border:none;padding:0;} body{background:#fff;}}
 </style>
@@ -127,25 +140,21 @@
   <section class="panel" data-step="2">
     <h1>3 · Kosten erfassen</h1>
     <p class="sub">Umlagefähige Betriebskosten und die Heizkostensumme vom Messdienst.</p>
-    <div class="legal">Recht (V07): Positionen orientieren sich am BetrKV-Katalog. Heizkosten werden als Summe vom Messdienst übernommen, nicht selbst aus kWh berechnet.</div>
+    <div class="legal">Recht (V07): Positionen orientieren sich am BetrKV-Katalog. Kabel-/Fernsehsignal ist seit 01.07.2024 nicht mehr umlagefähig. Heizkosten werden als Summe vom Messdienst übernommen.</div>
+    <div class="kosten-picker">
+      <div class="picker-label">Kostenarten auswählen (Mehrfachauswahl; bereits übernommene sind ausgegraut):</div>
+      <div id="kosten_auswahl" class="picker-list"></div>
+      <div class="picker-actions">
+        <button class="btn-ghost" onclick="addAusgewaehlteKosten()">Auswahl hinzufügen</button>
+        <input id="sonstige_bez" class="sonstige-input" placeholder="Sonstige Position (eigener Text)">
+        <button class="btn-ghost" onclick="addSonstigeKosten()">Sonstige hinzufügen</button>
+      </div>
+    </div>
     <table id="tbl_kosten">
-      <thead><tr><th>Kostenart</th><th class="num">Betrag (€)</th><th>Verteilerschlüssel</th></tr></thead>
+      <thead><tr><th>Kostenart</th><th class="num">Betrag (€)</th><th>Verteilerschlüssel</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
-    <datalist id="kostenarten">
-      <option value="Grundsteuer"></option>
-      <option value="Wasser / Abwasser"></option>
-      <option value="Müllabfuhr"></option>
-      <option value="Gebäudeversicherung"></option>
-      <option value="Allgemeinstrom"></option>
-      <option value="Hauswart / Gartenpflege"></option>
-      <option value="Gebäudereinigung"></option>
-      <option value="Aufzug"></option>
-      <option value="Schornsteinreinigung"></option>
-      <option value="Heizung & Warmwasser (Messdienst)"></option>
-    </datalist>
-    <button class="addrow" onclick="addKostenRow()">+ Weitere Position</button>
-    <p class="hint">Der Verteilerschlüssel wird je Kostenart automatisch vorgeschlagen und ist überschreibbar. Beträge und Schlüssel sind editierbar – die Berechnung aktualisiert sich sofort.</p>
+    <p class="hint">Der Verteilerschlüssel wird je Kostenart vorgeschlagen und ist überschreibbar (↺). Ein <b>!</b> markiert nicht umlagefähige Positionen – sie werden weiterhin verteilt, aber gewarnt.</p>
     <div class="nav"><button class="btn-ghost" onclick="go(1)">Zurück</button><button class="btn-primary" onclick="go(3)">Berechnen</button></div>
   </section>
 
@@ -202,10 +211,10 @@ const state = {
   kosten: [
     { bez:"Grundsteuer",            betrag:1200, schluessel:"flaeche" },
     { bez:"Wasser / Abwasser",      betrag:1600, schluessel:"person"  },
-    { bez:"Müllabfuhr",             betrag:900,  schluessel:"einheit" },
+    { bez:"Müllbeseitigung",        betrag:900,  schluessel:"einheit" },
     { bez:"Gebäudeversicherung",    betrag:600,  schluessel:"flaeche" },
-    { bez:"Allgemeinstrom",         betrag:300,  schluessel:"flaeche" },
-    { bez:"Hauswart / Gartenpflege",betrag:1200, schluessel:"flaeche" },
+    { bez:"Beleuchtung / Allgemeinstrom", betrag:300, schluessel:"flaeche" },
+    { bez:"Hauswart",               betrag:1200, schluessel:"flaeche" },
     { bez:"Heizung & Warmwasser (Messdienst)", betrag:4800, schluessel:"flaeche" }
   ],
   zahlung:{ frist:"14 Tage nach Zugang", iban:"DE12 3456 7890 1234 5678 00", bic:"WELADED1MST", empfaenger:"M. Vermieter" }
@@ -215,6 +224,22 @@ let current = 0, activeMieter = 0;
 
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit" };
+const KOSTEN_KATALOG = [
+  "Aufzug",
+  "Beleuchtung / Allgemeinstrom",
+  "Gartenpflege",
+  "Gebäudereinigung",
+  "Gebäudeversicherung",
+  "Grundsteuer",
+  "Hauswart",
+  "Heizung & Warmwasser (Messdienst)",
+  "Kabel-/Fernsehsignal",
+  "Müllbeseitigung",
+  "Schornsteinreinigung",
+  "Straßenreinigung",
+  "Ungezieferbekämpfung",
+  "Wasser / Abwasser"
+];
 
 /* Rechenkern ausgelagert nach calc.js (testbar): nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor */
 
@@ -275,17 +300,47 @@ function renderKosten(){
     const tr=document.createElement('tr');
     let opts='';
     for(const key in SCHLUESSEL){ opts+='<option value="'+key+'"'+(k.schluessel===key?' selected':'')+'>'+SCHLUESSEL[key]+'</option>'; }
+    const info = nkUmlageInfo(k.bez);
+    const warn = info.umlagefaehig ? '' : ' <span class="warn" title="'+info.grund.replace(/"/g,'')+'">!</span>';
     tr.innerHTML=
-      '<td><input list="kostenarten" value="'+k.bez+'" oninput="state.kosten['+idx+'].bez=this.value" onchange="applyKostenart('+idx+',this.value)"></td>'+
+      '<td><span class="bez-cell"><input value="'+k.bez.replace(/"/g,'&quot;')+'" oninput="state.kosten['+idx+'].bez=this.value" onchange="applyKostenart('+idx+',this.value)">'+warn+'</span></td>'+
       '<td class="num"><input class="short" type="number" value="'+k.betrag+'" oninput="state.kosten['+idx+'].betrag=+this.value"></td>'+
-      '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug)." onchange="state.kosten['+idx+'].schluessel=this.value">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button></span></td>';
+      '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug)." onchange="state.kosten['+idx+'].schluessel=this.value">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button></span></td>'+
+      '<td><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button></td>';
     tb.appendChild(tr);
   });
+  renderPicker();
 }
+/* US-04: Auswahl-Liste der Kostenarten; bereits übernommene ausgegraut, nicht umlagefähige mit ! */
+function renderPicker(){
+  const box = document.getElementById('kosten_auswahl'); if(!box) return;
+  const vorhanden = new Set(state.kosten.map(k=>k.bez));
+  const sorted = KOSTEN_KATALOG.slice().sort((a,b)=>a.localeCompare(b,'de'));
+  box.innerHTML = sorted.map(name=>{
+    const used = vorhanden.has(name);
+    const info = nkUmlageInfo(name);
+    const warn = info.umlagefaehig ? '' : ' <span class="warn" title="'+info.grund.replace(/"/g,'')+'">!</span>';
+    return '<label class="'+(used?'used':'')+'"><input type="checkbox" value="'+name.replace(/"/g,'&quot;')+'"'+(used?' disabled':'')+'>'+name+warn+'</label>';
+  }).join('');
+}
+function addAusgewaehlteKosten(){
+  document.querySelectorAll('#kosten_auswahl input[type=checkbox]:checked').forEach(c=>{
+    const bez = c.value;
+    if(!state.kosten.some(k=>k.bez===bez)) state.kosten.push({bez, betrag:0, schluessel: nkVorschlagSchluessel(bez)});
+  });
+  renderKosten();
+}
+function addSonstigeKosten(){
+  const inp = document.getElementById('sonstige_bez');
+  const bez = (inp.value||'').trim();
+  if(!bez) return;
+  state.kosten.push({bez, betrag:0, schluessel: nkVorschlagSchluessel(bez)});
+  inp.value=''; renderKosten();
+}
+function deleteKostenRow(idx){ state.kosten.splice(idx,1); renderKosten(); }
 /* US-03: Kostenart setzen und passenden Verteilerschlüssel vorschlagen (überschreibbar). */
 function applyKostenart(idx, val){ state.kosten[idx].bez = val; state.kosten[idx].schluessel = nkVorschlagSchluessel(val); renderKosten(); }
 function resetSchluessel(idx){ state.kosten[idx].schluessel = nkVorschlagSchluessel(state.kosten[idx].bez); renderKosten(); }
-function addKostenRow(){ state.kosten.push({bez:"Neue Position",betrag:0,schluessel:"flaeche"}); renderKosten(); }
 
 /* ---------- Step 4 ---------- */
 function computeView(){

@@ -68,6 +68,21 @@ function nkVorschlagSchluessel(bez) {
   return "flaeche";
 }
 
+/* Umlagefähigkeit je Kostenart (US-04). Reine Funktion; gibt Vorschlag + Begründung zurück.
+   Nicht umlagefähig: Verwaltung, Instandhaltung/Reparatur, Rücklagen sowie das
+   Kabel-/Fernsehsignal (seit 01.07.2024). Unbekanntes gilt vorsichtshalber als umlagefähig. */
+function nkUmlageInfo(bez) {
+  const b = String(bez || "").toLowerCase();
+  if (b.includes("verwaltung")) return { umlagefaehig: false, grund: "Verwaltungskosten sind nicht umlagefähig." };
+  if (b.includes("instandhalt") || b.includes("instandsetz") || b.includes("reparatur"))
+    return { umlagefaehig: false, grund: "Instandhaltung/Reparaturen sind nicht umlagefähig." };
+  if (b.includes("rücklage") || b.includes("ruecklage"))
+    return { umlagefaehig: false, grund: "Rücklagen sind nicht umlagefähig." };
+  if (b.includes("kabel") || b.includes("fernseh") || b.includes("breitband"))
+    return { umlagefaehig: false, grund: "Kabel-/Fernsehsignal ist seit 01.07.2024 nicht mehr umlagefähig." };
+  return { umlagefaehig: true, grund: "" };
+}
+
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
    und die Funktionen stehen global zur Verfügung.
    Eine Funktion pro Zeile (mit Komma am Ende) – das entschärft Merge-Konflikte beim
@@ -80,5 +95,6 @@ if (typeof module !== "undefined" && module.exports) {
     nkLineItemsFor,
     nkOwnerOverview,
     nkVorschlagSchluessel,
+    nkUmlageInfo,
   };
 }
