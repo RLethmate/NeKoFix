@@ -96,10 +96,23 @@ test("Gesamt-Vorauszahlung = Monatsbetrag × Monate + Einmalzahlung (US-09)", ()
   assert.equal(calc.nkVorauszahlungGesamt(0, 0, 500), 500);
 });
 
-test("Vorschlag neuer Monatsbetrag = Anteil ÷ Monate, gerundet (US-09)", () => {
-  assert.equal(calc.nkVorschlagVorauszahlung(1800, 12), 150);
-  assert.equal(calc.nkVorschlagVorauszahlung(2000, 12), 167);
-  assert.equal(calc.nkVorschlagVorauszahlung(1000, 0), 0);
+test("Vorschlag neuer Monatsbetrag = Anteil ÷ 12, gerundet (US-09)", () => {
+  assert.equal(calc.nkVorschlagVorauszahlung(480), 40);
+  assert.equal(calc.nkVorschlagVorauszahlung(1800), 150);
+  assert.equal(calc.nkVorschlagVorauszahlung(2000), 167);
+  assert.equal(calc.nkVorschlagVorauszahlung(0), 0);
+});
+
+test("Überlappungstage tagesgenau (US-10)", () => {
+  assert.equal(calc.nkUeberlappungsTage("2025-01-01", "2025-12-31", "2025-01-01", "2025-12-31"), 365);
+  assert.equal(calc.nkUeberlappungsTage("2025-06-01", "2025-06-30", "2025-06-15", "2025-07-15"), 16);
+  assert.equal(calc.nkUeberlappungsTage("2024-01-01", "2024-12-31", "2025-01-01", "2025-12-31"), 0);
+});
+
+test("Zeitanteil tagesgenau (US-10)", () => {
+  assert.ok(Math.abs(calc.nkZeitanteil("2025-01-01", "2025-12-31", "2025-01-01", "2025-12-31") - 1) < 1e-9);
+  assert.ok(Math.abs(calc.nkZeitanteil("2025-01-01", "2025-06-30", "2025-01-01", "2025-12-31") - 181 / 365) < 1e-9);
+  assert.equal(calc.nkZeitanteil("2024-01-01", "2024-12-31", "2025-01-01", "2025-12-31"), 0);
 });
 
 test("Umlagefähigkeit je Kostenart (US-04)", () => {
