@@ -68,6 +68,17 @@ function nkVorschlagSchluessel(bez) {
   return "flaeche";
 }
 
+/* Standardname für eine neue Einheit (US-26): nächstes Geschoss hochzählen. */
+function nkNaechsteEinheitName(namen) {
+  let max = 0;
+  (namen || []).forEach(n => {
+    const m = String(n).match(/(\d+)\.\s*OG/i);
+    if (m && +m[1] > max) max = +m[1];
+  });
+  if (max > 0) return (max + 1) + ". OG";
+  return (namen || []).some(n => /EG/i.test(n)) ? "1. OG" : "EG";
+}
+
 /* Zeitanteilige Aufteilung (US-10). Datumsformat "YYYY-MM-DD". Reine Funktionen. */
 function nkDatum(s) {
   if (!s) return null;
@@ -136,5 +147,6 @@ if (typeof module !== "undefined" && module.exports) {
     nkTageInklusive,
     nkUeberlappungsTage,
     nkZeitanteil,
+    nkNaechsteEinheitName,
   };
 }

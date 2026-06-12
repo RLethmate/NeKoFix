@@ -103,6 +103,13 @@ test("Vorschlag neuer Monatsbetrag = Anteil ÷ 12, gerundet (US-09)", () => {
   assert.equal(calc.nkVorschlagVorauszahlung(0), 0);
 });
 
+test("Standardname nächste Einheit hochzählen (US-26)", () => {
+  assert.equal(calc.nkNaechsteEinheitName(["EG", "1. OG", "2. OG"]), "3. OG");
+  assert.equal(calc.nkNaechsteEinheitName(["EG", "1. OG"]), "2. OG");
+  assert.equal(calc.nkNaechsteEinheitName(["EG"]), "1. OG");
+  assert.equal(calc.nkNaechsteEinheitName([]), "EG");
+});
+
 test("Überlappungstage tagesgenau (US-10)", () => {
   assert.equal(calc.nkUeberlappungsTage("2025-01-01", "2025-12-31", "2025-01-01", "2025-12-31"), 365);
   assert.equal(calc.nkUeberlappungsTage("2025-06-01", "2025-06-30", "2025-06-15", "2025-07-15"), 16);

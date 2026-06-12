@@ -133,6 +133,7 @@
       </div>
     </div>
     <div id="einheiten_box" style="margin-top:16px"></div>
+    <button class="addrow" onclick="addEinheit()">+ Einheit hinzufügen</button>
     <p class="hint">Je Einheit lassen sich mehrere Mietverhältnisse mit Zeitraum erfassen (Mieterwechsel, Leerstand). Kosten werden tagesgenau zeitanteilig verteilt; nicht belegte Tage trägt der Vermieter.</p>
     <div class="nav"><span></span><button class="btn-primary" onclick="go(1)">Weiter</button></div>
   </section>
@@ -318,6 +319,7 @@ function renderEinheiten(){
           '<input class="unit-name" value="'+e.name.replace(/"/g,'&quot;')+'" oninput="updEinheit('+ei+',\'name\',this.value)">'+
           '<label class="unit-f">Fläche m² <input class="short" type="number" value="'+e.flaeche+'" oninput="updEinheit('+ei+',\'flaeche\',this.value)"></label>'+
           '<label class="unit-f">Personen <input class="short" type="number" value="'+e.personen+'" oninput="updEinheit('+ei+',\'personen\',this.value)"></label>'+
+          '<button class="row-del" title="Einheit entfernen" onclick="delEinheit('+ei+')" style="margin-left:auto;">×</button>'+
         '</div>'+
         '<table class="mv-table"><thead><tr><th>Mieter</th><th>von</th><th>bis</th><th></th></tr></thead><tbody>'+mvRows+'</tbody></table>'+
         '<button class="addrow" onclick="addMV('+ei+')">+ Mietverhältnis</button>'+
@@ -332,6 +334,13 @@ function updEinheit(ei,field,val){ state.einheiten[ei][field] = field==='name'?v
 function updMV(ei,mi,field,val){ state.einheiten[ei].mv[mi][field]=val; if(field==='von'||field==='bis') renderEinheiten(); }
 function addMV(ei){ state.einheiten[ei].mv.push({mieter:"Neuer Mieter",von:state.objekt.von,bis:state.objekt.bis,vmonat:0,vmonate:12,vjahr:0,einmal:0,voraus:0}); renderEinheiten(); }
 function delMV(ei,mi){ if(state.einheiten[ei].mv.length>1) state.einheiten[ei].mv.splice(mi,1); renderEinheiten(); }
+function addEinheit(){
+  const name = nkNaechsteEinheitName(state.einheiten.map(e=>e.name));
+  const id = state.einheiten.reduce((m,e)=>Math.max(m,e.id||0),0)+1;
+  state.einheiten.push({ id, name, flaeche:0, personen:1, mv:[{mieter:"Neuer Mieter",von:state.objekt.von,bis:state.objekt.bis,vmonat:0,vmonate:12,vjahr:0,einmal:0,voraus:0}] });
+  renderEinheiten();
+}
+function delEinheit(ei){ if(state.einheiten.length>1) state.einheiten.splice(ei,1); renderEinheiten(); }
 
 /* ---------- Step 2 ---------- */
 function recomputeVoraus(m){
