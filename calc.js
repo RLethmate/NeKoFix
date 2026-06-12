@@ -27,18 +27,8 @@ function nkLineItemsFor(e, kosten, t) {
   });
 }
 
-/* Sichtbare Einheiten je Rolle (US-16, Datenschutz):
-   Mieter sieht ausschließlich die eigene Einheit, Eigentümer alle. */
-function nkVisibleEinheiten(einheiten, role, ownIndex) {
-  if (role === "mieter") {
-    const own = einheiten[ownIndex];
-    return own ? [own] : [];
-  }
-  return einheiten;
-}
-
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
    und die Funktionen stehen global zur Verfügung. */
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor, nkVisibleEinheiten };
+  module.exports = { nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor };
 }
