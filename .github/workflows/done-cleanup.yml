@@ -1,0 +1,22 @@
+name: next-Label aufräumen
+
+# Wenn ein Issue geschlossen wird (z. B. durch einen gemergten PR mit "Closes #…"),
+# wird das Label "next" automatisch entfernt. So tragen nur noch offene/laufende
+# Stories das Label; erledigte verlieren es und stehen am Board in der Spalte "Done".
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  issues: write
+
+jobs:
+  cleanup:
+    # Nur tätig werden, wenn das Issue überhaupt das Label "next" trägt
+    if: contains(github.event.issue.labels.*.name, 'next')
+    runs-on: ubuntu-latest
+    steps:
+      - name: next-Label entfernen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh issue edit ${{ github.event.issue.number }} --repo "$GITHUB_REPOSITORY" --remove-label next
