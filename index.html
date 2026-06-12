@@ -76,6 +76,12 @@
   .mtab.active{background:var(--primary);color:#fff;border-color:var(--primary);}
   .addrow{margin-top:8px;background:#fff;color:var(--primary);border:1px dashed var(--primary);}
   .hint{font-size:12px;color:var(--muted);margin-top:6px;}
+  .roles{display:flex;gap:6px;margin-left:18px;}
+  .role-btn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.45);border-radius:7px;padding:5px 12px;font-size:13px;cursor:pointer;}
+  .role-btn.active{background:#fff;color:var(--primary);border-color:#fff;font-weight:700;}
+  body.mieter .stepper{display:none;}
+  body.mieter #doc-back{display:none;}
+  .mieter-note{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--muted);margin-bottom:12px;}
   @media(max-width:620px){.grid2,.summary-cards{grid-template-columns:1fr;} .tag{display:none}}
   @media print{header.app,.stepper,.nav,.mieter-tabs,.legal{display:none!important;} .panel{display:block!important;border:none;padding:0;} body{background:#fff;}}
 </style>
@@ -83,6 +89,10 @@
 <body>
 <header class="app">
   <div class="logo">NeKo<span>Fix</span></div>
+  <div class="roles">
+    <button id="role-eig" class="role-btn active" onclick="setRole('eigentuemer')">Eigentümer</button>
+    <button id="role-mie" class="role-btn" onclick="setRole('mieter')">Mieter</button>
+  </div>
   <div class="tag">Prototyp · Walking Skeleton · End-to-End-Durchstich</div>
 </header>
 
@@ -91,9 +101,6 @@
 
   <!-- Step 1: Objekt & Einheiten -->
   <section class="panel" data-step="0">
-    <!-- TEST-A START (Wegwerf – nach Test wieder entfernen) -->
-    <div style="background:#fff7e6;border:1px solid #f0c27a;border-radius:8px;padding:10px 14px;margin-bottom:14px;color:#B4541E;font-size:14px;font-weight:600;">Testlauf – diese Änderung wird wieder entfernt.</div>
-    <!-- TEST-A END -->
     <h1>1 · Objekt &amp; Einheiten</h1>
     <p class="sub">Grunddaten des Hauses und der Wohneinheiten – Basis für jede Verteilung.</p>
     <div class="legal">Recht (V11): Für die Betriebskostenverteilung zählt die <b>tatsächliche</b> Wohnfläche, nicht die im Mietvertrag vereinbarte.</div>
@@ -167,10 +174,8 @@
     <div class="nav"><button class="btn-ghost" onclick="go(3)">Zurück</button><button class="btn-primary" onclick="window.print()">Drucken / als PDF speichern</button></div>
   </section>
 </div>
-<!-- TEST-B START (Wegwerf – nach Test wieder entfernen) -->
-<footer style="text-align:center;color:#5b6b7b;font-size:12px;padding:14px 0 24px;">NeKoFix Prototyp – Testversion</footer>
-<!-- TEST-B END -->
 
+<script src="calc.js"></script>
 <script>
 /* ---------- In-Memory-State (kein localStorage) ---------- */
 const state = {
@@ -193,30 +198,13 @@ const state = {
 };
 const STEPS = ["Objekt","Vorauszahlung","Kosten","Berechnung","Abrechnung"];
 let current = 0, activeMieter = 0;
+let role = "eigentuemer";   // US-16: Rollentrennung
+const ownIndex = 0;          // im Prototyp: die "eingeloggte" Mieterpartei
 
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit" };
 
-function totals(){
-  return {
-    flaeche: state.einheiten.reduce((s,e)=>s+(+e.flaeche||0),0),
-    personen: state.einheiten.reduce((s,e)=>s+(+e.personen||0),0),
-    einheiten: state.einheiten.length
-  };
-}
-function factor(e, schluessel){
-  const t = totals();
-  if(schluessel==="flaeche") return t.flaeche? (e.flaeche/t.flaeche):0;
-  if(schluessel==="person")  return t.personen? (e.personen/t.personen):0;
-  return t.einheiten? (1/t.einheiten):0;
-}
-function anteilOf(e){ return state.kosten.reduce((s,k)=>s + (+k.betrag||0)*factor(e,k.schluessel), 0); }
-function lineItemsFor(e){
-  return state.kosten.map(k=>{
-    const f = factor(e,k.schluessel);
-    return { bez:k.bez, gesamt:+k.betrag||0, schluessel:k.schluessel, anteil:(+k.betrag||0)*f };
-  });
-}
+/* Rechenkern ausgelagert nach calc.js (testbar): nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor */
 
 /* ---------- Stepper ---------- */
 function renderStepper(){
@@ -236,6 +224,16 @@ function go(i){
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', +p.dataset.step===i));
   renderStepper();
   window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* US-16: Rolle umschalten. Mieter sieht nur die eigene Abrechnung, Eigentümer alles. */
+function setRole(r){
+  role = r;
+  document.getElementById('role-eig').classList.toggle('active', r==='eigentuemer');
+  document.getElementById('role-mie').classList.toggle('active', r==='mieter');
+  document.body.classList.toggle('mieter', r==='mieter');
+  if(r==='mieter'){ activeMieter = ownIndex; go(4); }
+  else { go(0); }
 }
 
 /* ---------- Step 1 ---------- */
@@ -288,8 +286,9 @@ function addKostenRow(){ state.kosten.push({bez:"Neue Position",betrag:0,schlues
 function computeView(){
   const tb=document.querySelector('#tbl_ergebnis tbody'); tb.innerHTML='';
   let total=0,voraus=0;
+  const t=nkTotals(state.einheiten);
   state.einheiten.forEach(e=>{
-    const a=anteilOf(e); const s=a-(+e.voraus||0); total+=a; voraus+=(+e.voraus||0);
+    const a=nkAnteilOf(e, state.kosten, t); const s=a-(+e.voraus||0); total+=a; voraus+=(+e.voraus||0);
     const tr=document.createElement('tr');
     tr.innerHTML='<td>'+e.mieter+'</td><td class="num">'+eur(a)+'</td><td class="num">'+eur(+e.voraus||0)+
       '</td><td class="num '+(s>0?'neg':'pos')+'">'+(s>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(s))+'</td>';
@@ -306,14 +305,20 @@ function computeView(){
 /* ---------- Step 5 ---------- */
 function renderDoc(){
   const tabs=document.getElementById('mieter_tabs'); tabs.innerHTML='';
-  state.einheiten.forEach((e,idx)=>{
-    const b=document.createElement('div');
-    b.className='mtab'+(idx===activeMieter?' active':'');
-    b.textContent=e.mieter; b.onclick=()=>{activeMieter=idx;renderDoc();};
-    tabs.appendChild(b);
-  });
+  if(role==='mieter'){
+    activeMieter = ownIndex;
+    tabs.innerHTML='<div class="mieter-note">Mietersicht: Sie sehen ausschließlich Ihre eigenen Daten und die Gesamtkosten – keine Angaben anderer Mieter.</div>';
+  } else {
+    nkVisibleEinheiten(state.einheiten, role, ownIndex).forEach((e)=>{
+      const idx=state.einheiten.indexOf(e);
+      const b=document.createElement('div');
+      b.className='mtab'+(idx===activeMieter?' active':'');
+      b.textContent=e.mieter; b.onclick=()=>{activeMieter=idx;renderDoc();};
+      tabs.appendChild(b);
+    });
+  }
   const e=state.einheiten[activeMieter];
-  const items=lineItemsFor(e);
+  const items=nkLineItemsFor(e, state.kosten, nkTotals(state.einheiten));
   const anteil=items.reduce((s,i)=>s+i.anteil,0);
   const saldo=anteil-(+e.voraus||0);
   let rows=items.map(i=>

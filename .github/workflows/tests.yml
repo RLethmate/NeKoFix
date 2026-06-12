@@ -1,0 +1,33 @@
+name: Tests
+
+# Läuft bei jedem Pull Request und bei Push auf main.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Regressionstests ausführen
+        run: node --test --test-reporter=spec 2>&1 | tee test-output.txt
+
+      - name: Testbericht in die Job-Zusammenfassung schreiben
+        if: always()
+        run: |
+          {
+            echo "## Regressionstests"
+            echo ""
+            echo '```'
+            cat test-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
