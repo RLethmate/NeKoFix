@@ -126,6 +126,10 @@
   .zahl-monat.paid{background:#e6f4ee;border-color:var(--accent);}
   .zahl-monat input{width:auto;}
   .leer-hint{font-size:12px;color:var(--nachzahlung);display:flex;align-items:center;gap:6px;margin-top:8px;}
+  .chronik-titel{font-size:12px;color:var(--muted);font-weight:600;margin:10px 0 4px;}
+  .chronik-row{display:flex;gap:8px;align-items:center;margin:4px 0;}
+  .chronik-row input[type=date]{max-width:150px;}
+  .chronik-row input:not([type=date]){flex:1;}
   .muted{color:var(--muted);}
   .bez-cell{display:flex;align-items:center;gap:4px;}
   .bez-cell input{flex:1;}
@@ -268,7 +272,7 @@ const state = {
   objekt: { addr:"Musterstraße 12, 48155 Münster", von:"2025-01-01", bis:"2025-12-31" },
   einheiten: [
     { id:1, name:"EG links", flaeche:70, personen:2, mv:[
-      { mieter:"Familie Becker", von:"2025-01-01", bis:"2025-12-31", vmonat:150, vmonate:12, vjahr:1800, einmal:0, voraus:1800, grundmiete:800, stellAnzahl:1, stellPreis:40, bezahlt:{} }
+      { mieter:"Familie Becker", von:"2025-01-01", bis:"2025-12-31", vmonat:150, vmonate:12, vjahr:1800, einmal:0, voraus:1800, grundmiete:800, stellAnzahl:1, stellPreis:40, bezahlt:{}, vertragGrundmiete:760, vertragNK:140, letzteAnpassung:"2025-09-01", naechsteAnpassung:"2026-09-01", chronik:[{datum:"2025-09-01",text:"Indexmiete +5 % (Grundmiete 760 → 800 €)"}] }
     ]},
     { id:2, name:"1. OG", flaeche:85, personen:3, mv:[
       { mieter:"Frau Sahin", von:"2025-01-01", bis:"2025-08-31", vmonat:175, vmonate:8, vjahr:1400, einmal:0, voraus:1400, grundmiete:950, stellAnzahl:0, stellPreis:40, bezahlt:{} },
@@ -319,6 +323,8 @@ const STATUS_FARBE={geschaetzt:"var(--muted)",vorlaeufig:"#d99a2b",geprueft:"var
 const VERFUEGBAR_FARBE={fehlt:"var(--nachzahlung)",kommt:"#d99a2b",vorhanden:"var(--accent)"};
 let nurUngeprueft=false;
 let expandedKosten=new Set();
+let expandedMV=new Set();
+function heute(){ return new Date().toISOString().slice(0,10); }
 
 /* Rechenkern ausgelagert nach calc.js (testbar): nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor */
 function fmtDatum(s){ const p=String(s||'').split('-'); return p.length===3 ? p[2]+'.'+p[1]+'.'+p[0] : (s||''); }
@@ -349,20 +355,45 @@ function go(i){
 
 /* ---------- Step 1 ---------- */
 function renderEinheiten(){
+  ensureIds();
   document.getElementById('obj_addr').value = state.objekt.addr;
   document.getElementById('obj_von').value = state.objekt.von;
   document.getElementById('obj_bis').value = state.objekt.bis;
   const box = document.getElementById('einheiten_box'); box.innerHTML='';
   state.einheiten.forEach((e,ei)=>{
     const lz = leerstandZa(e);
-    const mvRows = e.mv.map((m,mi)=>
-      '<tr>'+
-      '<td><input value="'+(m.mieter||'').replace(/"/g,'&quot;')+'" oninput="updMV('+ei+','+mi+',\'mieter\',this.value)"></td>'+
-      '<td><input type="date" value="'+m.von+'" onchange="updMV('+ei+','+mi+',\'von\',this.value)"></td>'+
-      '<td><input type="date" value="'+m.bis+'" onchange="updMV('+ei+','+mi+',\'bis\',this.value)"></td>'+
-      '<td title="gewerblich / umsatzsteuerpflichtig"><label class="gewerbl"><input type="checkbox" '+(m.gewerblich?'checked':'')+' onchange="updMV('+ei+','+mi+',\'gewerblich\',this.checked)"> gewerbl.</label></td>'+
-      '<td><button class="row-del" title="Mietverhältnis entfernen" onclick="delMV('+ei+','+mi+')">×</button></td>'+
-      '</tr>').join('');
+    const mvRows = e.mv.map((m,mi)=>{
+      const na=m.naechsteAnpassung||'';
+      const badge = nkBaldFaellig(na, heute(), 3) ? ' <span class="warn" title="Mieterhöhung bald fällig ('+fmtDatum(na)+')">'+WARN_ICON+'</span>' : '';
+      const open = expandedMV.has(m.id);
+      let row='<tr>'+
+        '<td><span class="bez-cell"><input value="'+(m.mieter||'').replace(/"/g,'&quot;')+'" oninput="updMV('+ei+','+mi+',\'mieter\',this.value)">'+badge+'</span></td>'+
+        '<td><input type="date" value="'+m.von+'" onchange="updMV('+ei+','+mi+',\'von\',this.value)"></td>'+
+        '<td><input type="date" value="'+m.bis+'" onchange="updMV('+ei+','+mi+',\'bis\',this.value)"></td>'+
+        '<td title="gewerblich / umsatzsteuerpflichtig"><label class="gewerbl"><input type="checkbox" '+(m.gewerblich?'checked':'')+' onchange="updMV('+ei+','+mi+',\'gewerblich\',this.checked)"> gewerbl.</label></td>'+
+        '<td><button class="status-toggle" onclick="toggleVertrag('+m.id+')">Vertrag '+(open?'▴':'▾')+'</button></td>'+
+        '<td><button class="row-del" title="Mietverhältnis entfernen" onclick="delMV('+ei+','+mi+')">×</button></td>'+
+        '</tr>';
+      if(open){
+        const vg=(m.vertragGrundmiete!==undefined?m.vertragGrundmiete:(m.grundmiete||0));
+        const vnk=(m.vertragNK!==undefined?m.vertragNK:(m.vmonat||0));
+        const chronik=m.chronik||[];
+        const chronikRows=chronik.map((c,ci)=>'<div class="chronik-row"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)"><input value="'+(c.text||'').replace(/"/g,'&quot;')+'" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value)" placeholder="Was wurde angepasst?"><button class="row-del" onclick="delChronik('+ei+','+mi+','+ci+')">×</button></div>').join('');
+        const bald=nkBaldFaellig(na, heute(), 3);
+        row+='<tr class="detail-row"><td colspan="6">'+
+          '<div class="detail-grid">'+
+            '<label>Urspr. Grundmiete <input class="short" type="number" value="'+vg+'" onchange="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)"></label>'+
+            '<label>Urspr. NK/Monat <input class="short" type="number" value="'+vnk+'" onchange="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)"></label>'+
+            '<label>Letzte Anpassung <input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)"></label>'+
+            '<label>Nächste Anpassung <input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)"></label>'+
+          '</div>'+
+          '<div class="chronik-titel">Anpassungs-Chronik</div>'+chronikRows+
+          '<button class="addrow" onclick="addChronik('+ei+','+mi+')">+ Eintrag</button>'+
+          (bald?'<div class="leer-hint" style="margin-top:6px;">'+WARN_ICON+' Nächste Anpassung am '+fmtDatum(na)+' – in Kürze fällig.</div>':'')+
+        '</td></tr>';
+      }
+      return row;
+    }).join('');
     const leerHint = lz>0.0001 ? '<div class="leer-hint">'+WARN_ICON+' Leerstand: '+Math.round(lz*100)+' % des Zeitraums (trägt der Vermieter).</div>' : '';
     box.insertAdjacentHTML('beforeend',
       '<div class="unit-card">'+
@@ -372,7 +403,7 @@ function renderEinheiten(){
           '<label class="unit-f">Personen <input class="short" type="number" value="'+e.personen+'" oninput="updEinheit('+ei+',\'personen\',this.value)"></label>'+
           '<button class="row-del" title="Einheit entfernen" onclick="delEinheit('+ei+')" style="margin-left:auto;">×</button>'+
         '</div>'+
-        '<table class="mv-table"><thead><tr><th>Mieter</th><th>von</th><th>bis</th><th>gewerbl.</th><th></th></tr></thead><tbody>'+mvRows+'</tbody></table>'+
+        '<table class="mv-table"><thead><tr><th>Mieter</th><th>von</th><th>bis</th><th>gewerbl.</th><th>Vertrag</th><th></th></tr></thead><tbody>'+mvRows+'</tbody></table>'+
         '<button class="addrow" onclick="addMV('+ei+')">+ Mietverhältnis</button>'+
         leerHint+
       '</div>');
@@ -385,6 +416,12 @@ function updEinheit(ei,field,val){ state.einheiten[ei][field] = field==='name'?v
 function updMV(ei,mi,field,val){ state.einheiten[ei].mv[mi][field]=val; if(field==='von'||field==='bis') renderEinheiten(); }
 function addMV(ei){ state.einheiten[ei].mv.push({mieter:"Neuer Mieter",von:state.objekt.von,bis:state.objekt.bis,vmonat:0,vmonate:12,vjahr:0,einmal:0,voraus:0,grundmiete:0,stellAnzahl:0,stellPreis:0,bezahlt:{}}); renderEinheiten(); }
 function delMV(ei,mi){ if(state.einheiten[ei].mv.length>1) state.einheiten[ei].mv.splice(mi,1); renderEinheiten(); }
+/* US-21: Vertrag & Anpassungs-Chronik je Mietverhältnis */
+function toggleVertrag(id){ if(expandedMV.has(id)) expandedMV.delete(id); else expandedMV.add(id); renderEinheiten(); }
+function updVertrag(ei,mi,field,val,num){ state.einheiten[ei].mv[mi][field]= num? (+val) : val; renderEinheiten(); }
+function addChronik(ei,mi){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik) m.chronik=[]; m.chronik.push({datum:state.objekt.von||'', text:''}); renderEinheiten(); }
+function delChronik(ei,mi,ci){ state.einheiten[ei].mv[mi].chronik.splice(ci,1); renderEinheiten(); }
+function updChronik(ei,mi,ci,field,val){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik) m.chronik=[]; m.chronik[ci][field]=val; if(field==='datum') renderEinheiten(); }
 function addEinheit(){
   const name = nkNaechsteEinheitName(state.einheiten.map(e=>e.name));
   const id = state.einheiten.reduce((m,e)=>Math.max(m,e.id||0),0)+1;

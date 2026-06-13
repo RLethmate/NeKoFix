@@ -104,6 +104,14 @@ function nkParseState(json) {
   } catch (e) { return null; }
 }
 
+/* Mietanpassung (US-21): ist die nächste Anpassung in <= schwelleMonate ab heute fällig? */
+function nkBaldFaellig(zielDatum, heuteDatum, schwelleMonate) {
+  const ziel = nkDatum(zielDatum), heute = nkDatum(heuteDatum);
+  if (!ziel || !heute) return false;
+  const grenze = new Date(Date.UTC(heute.getUTCFullYear(), heute.getUTCMonth() + (+schwelleMonate || 0), heute.getUTCDate()));
+  return ziel >= heute && ziel <= grenze;
+}
+
 /* Zahlungseingänge (US-28): monatlicher Soll-Betrag und aktive Monate. */
 function nkSollMonat(grundmiete, nkMonat, stellAnzahl, stellPreis) {
   return (+grundmiete || 0) + (+nkMonat || 0) + (+stellAnzahl || 0) * (+stellPreis || 0);
@@ -209,5 +217,6 @@ if (typeof module !== "undefined" && module.exports) {
     nkMieterBetrag,
     nkSollMonat,
     nkAktiveMonate,
+    nkBaldFaellig,
   };
 }
