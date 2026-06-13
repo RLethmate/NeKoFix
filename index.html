@@ -33,6 +33,12 @@
   .menu-pop button{display:block;width:100%;text-align:left;background:none;border:none;color:#1d2733;font-size:13px;padding:8px 10px;border-radius:6px;cursor:pointer;}
   .menu-pop button:hover{background:#eef3f8;}
   header.app{flex-wrap:wrap;}
+  .vorjahr-banner{background:#fbf4e6;border:1px solid #e6c878;border-radius:10px;padding:12px 16px;margin:12px 0;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .vorjahr-banner .vb-text{font-size:13px;color:#7a5a12;flex:1;min-width:240px;}
+  .vorjahr-banner button{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;}
+  tr.vorjahr td{background:#fdf6e8;}
+  tr.vorjahr td:nth-child(2) input{border-color:#e6c878;background:#fffaf0;font-style:italic;}
+  .vorjahr-badge{display:inline-block;font-size:11px;color:#7a5a12;background:#fbf4e6;border:1px solid #e6c878;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
   .reset-data{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer;}
   .reset-data:hover{background:rgba(255,255,255,.25);}
   .abr-status-wrap{font-size:12px;color:#fff;opacity:.95;display:flex;align-items:center;gap:6px;}
@@ -170,6 +176,7 @@
     <div id="datei_menu" class="menu-pop" hidden>
       <button onclick="exportObjekt();toggleDateiMenu(true)">Aktuelles Objekt sichern …</button>
       <button onclick="document.getElementById('obj_import').click();toggleDateiMenu(true)">Objekt aus Datei laden …</button>
+      <button onclick="neuesJahrAusVorjahr();toggleDateiMenu(true)">Neues Jahr aus aktuellem Objekt …</button>
     </div>
   </div>
   <input type="file" id="obj_import" accept=".json,application/json" style="display:none" onchange="importObjekt(event)">
@@ -188,6 +195,7 @@
 
 <div class="wrap">
   <div class="stepper" id="stepper"></div>
+  <div id="vorjahr_banner"></div>
 
   <!-- Step 1: Objekt & Einheiten -->
   <section class="panel" data-step="0">
@@ -389,11 +397,13 @@ function go(i){
 }
 
 /* ---------- Step 1 ---------- */
-function renderEinheiten(){
-  ensureIds();
+function fillObjektKopf(){
   document.getElementById('obj_addr').value = state.objekt.addr;
   document.getElementById('obj_von').value = state.objekt.von;
   document.getElementById('obj_bis').value = state.objekt.bis;
+}
+function renderEinheiten(){
+  ensureIds();
   const box = document.getElementById('einheiten_box'); box.innerHTML='';
   state.einheiten.forEach((e,ei)=>{
     const lz = leerstandZa(e);
@@ -403,8 +413,8 @@ function renderEinheiten(){
       const open = expandedMV.has(m.id);
       let row='<tr>'+
         '<td><span class="bez-cell"><input value="'+(m.mieter||'').replace(/"/g,'&quot;')+'" oninput="updMV('+ei+','+mi+',\'mieter\',this.value)">'+badge+'</span></td>'+
-        '<td><input type="date" value="'+m.von+'" onchange="updMV('+ei+','+mi+',\'von\',this.value)"></td>'+
-        '<td><input type="date" value="'+m.bis+'" onchange="updMV('+ei+','+mi+',\'bis\',this.value)"></td>'+
+        '<td><input type="date" value="'+m.von+'" onchange="updMV('+ei+','+mi+',\'von\',this.value)" onblur="renderEinheiten()"></td>'+
+        '<td><input type="date" value="'+m.bis+'" onchange="updMV('+ei+','+mi+',\'bis\',this.value)" onblur="renderEinheiten()"></td>'+
         '<td title="gewerblich / umsatzsteuerpflichtig"><label class="gewerbl"><input type="checkbox" '+(m.gewerblich?'checked':'')+' onchange="updMV('+ei+','+mi+',\'gewerblich\',this.checked)"> gewerbl.</label></td>'+
         '<td><button class="status-toggle" onclick="toggleVertrag('+m.id+')">Vertrag '+(open?'▴':'▾')+'</button></td>'+
         '<td><button class="row-del" title="Mietverhältnis entfernen" onclick="delMV('+ei+','+mi+')">×</button></td>'+
@@ -413,14 +423,14 @@ function renderEinheiten(){
         const vg=(m.vertragGrundmiete!==undefined?m.vertragGrundmiete:(m.grundmiete||0));
         const vnk=(m.vertragNK!==undefined?m.vertragNK:(m.vmonat||0));
         const chronik=m.chronik||[];
-        const chronikRows=chronik.map((c,ci)=>'<div class="chronik-row"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)"><input value="'+(c.text||'').replace(/"/g,'&quot;')+'" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value)" placeholder="Was wurde angepasst?"><button class="row-del" onclick="delChronik('+ei+','+mi+','+ci+')">×</button></div>').join('');
+        const chronikRows=chronik.map((c,ci)=>'<div class="chronik-row"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"><input value="'+(c.text||'').replace(/"/g,'&quot;')+'" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value)" placeholder="Was wurde angepasst?"><button class="row-del" onclick="delChronik('+ei+','+mi+','+ci+')">×</button></div>').join('');
         const bald=nkBaldFaellig(na, heute(), 3);
         row+='<tr class="detail-row"><td colspan="6">'+
           '<div class="detail-grid">'+
             '<label>Urspr. Grundmiete <input class="short" type="number" value="'+vg+'" onchange="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)"></label>'+
             '<label>Urspr. NK/Monat <input class="short" type="number" value="'+vnk+'" onchange="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)"></label>'+
-            '<label>Letzte Anpassung <input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)"></label>'+
-            '<label>Nächste Anpassung <input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)"></label>'+
+            '<label>Letzte Anpassung <input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()"></label>'+
+            '<label>Nächste Anpassung <input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)" onblur="renderEinheiten()"></label>'+
           '</div>'+
           '<div class="chronik-titel">Anpassungs-Chronik</div>'+chronikRows+
           '<button class="addrow" onclick="addChronik('+ei+','+mi+')">+ Eintrag</button>'+
@@ -444,19 +454,22 @@ function renderEinheiten(){
       '</div>');
   });
 }
-document.getElementById('obj_addr').addEventListener('input',e=>state.objekt.addr=e.target.value);
-document.getElementById('obj_von').addEventListener('change',e=>{state.objekt.von=e.target.value; renderEinheiten();});
-document.getElementById('obj_bis').addEventListener('change',e=>{state.objekt.bis=e.target.value; renderEinheiten();});
+document.getElementById('obj_addr').addEventListener('input',e=>{state.objekt.addr=e.target.value; renderObjektSelect();});
+/* Datum nur in den Zustand schreiben; Neu-Zeichnen erst beim Verlassen (sonst wirft type=date beim Tippen der Jahreszahl raus). */
+document.getElementById('obj_von').addEventListener('change',e=>{state.objekt.von=e.target.value; renderObjektSelect();});
+document.getElementById('obj_bis').addEventListener('change',e=>{state.objekt.bis=e.target.value; renderObjektSelect();});
+document.getElementById('obj_von').addEventListener('blur',renderEinheiten);
+document.getElementById('obj_bis').addEventListener('blur',renderEinheiten);
 function updEinheit(ei,field,val){ state.einheiten[ei][field] = field==='name'?val:(+val); }
-function updMV(ei,mi,field,val){ state.einheiten[ei].mv[mi][field]=val; if(field==='von'||field==='bis') renderEinheiten(); }
+function updMV(ei,mi,field,val){ state.einheiten[ei].mv[mi][field]=val; /* Datum: Neu-Zeichnen via onblur, nicht beim Tippen */ }
 function addMV(ei){ state.einheiten[ei].mv.push({mieter:"Neuer Mieter",von:state.objekt.von,bis:state.objekt.bis,vmonat:0,vmonate:12,vjahr:0,einmal:0,voraus:0,grundmiete:0,stellAnzahl:0,stellPreis:0,bezahlt:{}}); renderEinheiten(); }
 function delMV(ei,mi){ if(state.einheiten[ei].mv.length>1) state.einheiten[ei].mv.splice(mi,1); renderEinheiten(); }
 /* US-21: Vertrag & Anpassungs-Chronik je Mietverhältnis */
 function toggleVertrag(id){ if(expandedMV.has(id)) expandedMV.delete(id); else expandedMV.add(id); renderEinheiten(); }
-function updVertrag(ei,mi,field,val,num){ state.einheiten[ei].mv[mi][field]= num? (+val) : val; renderEinheiten(); }
+function updVertrag(ei,mi,field,val,num){ state.einheiten[ei].mv[mi][field]= num? (+val) : val; /* Datum: Neu-Zeichnen via onblur */ }
 function addChronik(ei,mi){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik) m.chronik=[]; m.chronik.push({datum:state.objekt.von||'', text:''}); renderEinheiten(); }
 function delChronik(ei,mi,ci){ state.einheiten[ei].mv[mi].chronik.splice(ci,1); renderEinheiten(); }
-function updChronik(ei,mi,ci,field,val){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik) m.chronik=[]; m.chronik[ci][field]=val; if(field==='datum') renderEinheiten(); }
+function updChronik(ei,mi,ci,field,val){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik) m.chronik=[]; m.chronik[ci][field]=val; /* Datum: Neu-Zeichnen via onblur */ }
 function addEinheit(){
   const name = nkNaechsteEinheitName(state.einheiten.map(e=>e.name));
   const id = state.einheiten.reduce((m,e)=>Math.max(m,e.id||0),0)+1;
@@ -518,10 +531,10 @@ function renderKosten(){
     const dots='<span class="dot" style="background:'+STATUS_FARBE[st]+'" title="Status: '+STATUS_BELEG[st]+'"></span>'+
                '<span class="dot" style="background:'+VERFUEGBAR_FARBE[vf]+'" title="Verfügbarkeit: '+VERFUEGBAR[vf]+'"></span>';
     const open=expandedKosten.has(k.id);
-    const tr=document.createElement('tr');
+    const tr=document.createElement('tr'); tr.id='krow-'+idx; if(k.vorjahr) tr.className='vorjahr';
     tr.innerHTML=
-      '<td><span class="bez-cell"><input value="'+k.bez.replace(/"/g,'&quot;')+'" oninput="state.kosten['+idx+'].bez=this.value" onchange="applyKostenart('+idx+',this.value)">'+warn+'</span></td>'+
-      '<td class="num"><input class="short" type="number" value="'+k.betrag+'" oninput="state.kosten['+idx+'].betrag=+this.value"></td>'+
+      '<td><span class="bez-cell"><input value="'+k.bez.replace(/"/g,'&quot;')+'" oninput="state.kosten['+idx+'].bez=this.value" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+'</span></td>'+
+      '<td class="num"><input class="short" type="number" value="'+k.betrag+'" oninput="updKostenBetrag('+idx+',this.value)"></td>'+
       '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug)." onchange="state.kosten['+idx+'].schluessel=this.value">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button></span></td>'+
       '<td><button class="status-toggle" onclick="toggleKostenDetail('+k.id+')" title="Status & Notiz">'+dots+'<span class="chev">'+(open?'▴':'▾')+'</span></button></td>'+
       '<td><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button></td>';
@@ -544,6 +557,8 @@ function renderKosten(){
   renderPicker();
 }
 function updKosten(idx,field,val){ state.kosten[idx][field]=val; renderKosten(); }
+/* US-11: Betrag erfassen hebt die Vorjahr-Markierung der Zeile auf */
+function updKostenBetrag(idx,val){ const k=state.kosten[idx]; k.betrag=+val; if(k.vorjahr){ k.vorjahr=false; const r=document.getElementById('krow-'+idx); if(r) r.classList.remove('vorjahr'); const b=r&&r.querySelector('.vorjahr-badge'); if(b) b.remove(); } }
 function toggleKostenDetail(id){ if(expandedKosten.has(id)) expandedKosten.delete(id); else expandedKosten.add(id); renderKosten(); }
 function setNurUngeprueft(v){ nurUngeprueft=v; renderKosten(); }
 /* US-04: Auswahl-Liste der Kostenarten; bereits übernommene ausgegraut, nicht umlagefähige mit ! */
@@ -583,34 +598,26 @@ function resetSchluessel(idx){ state.kosten[idx].schluessel = nkVorschlagSchlues
 /* ---------- Step 4 ---------- */
 function computeView(){
   const tb=document.querySelector('#tbl_ergebnis tbody'); tb.innerHTML='';
-  let total=0,voraus=0;
-  const t=nkTotals(state.einheiten);
-  state.einheiten.forEach(e=>{
-    const unitShare=nkAnteilOf(e, state.kosten, t);
-    let sumZa=0;
-    e.mv.forEach(m=>{
-      const za=nkZeitanteil(m.von,m.bis,state.objekt.von,state.objekt.bis); sumZa+=za;
-      const items=nkLineItemsFor(e, state.kosten, t).map(i=>({anteil:i.anteil*za, vorsteuer:i.vorsteuer}));
-      const betrag=nkMieterBetrag(items, !!m.gewerblich);
-      const a=betrag.brutto; const v=+m.voraus||0; const s=a-v; total+=a; voraus+=v;
-      const ustHint = betrag.gewerblich ? ' <span class="pill">inkl. 19% USt</span>' : '';
+  const ab=nkObjektAbrechnung(state.einheiten, state.kosten, state.objekt);
+  ab.einheiten.forEach(er=>{
+    er.mietverhaeltnisse.forEach(mv=>{
+      const a=mv.brutto, v=mv.vorauszahlung, s=mv.saldo;
+      const ustHint = mv.gewerblich ? ' <span class="pill">inkl. 19% USt</span>' : '';
       const tr=document.createElement('tr');
-      tr.innerHTML='<td>'+(m.mieter||'')+' <span class="pill">'+e.name+'</span>'+ustHint+'</td><td class="num">'+eur(a)+'</td><td class="num">'+eur(v)+
+      tr.innerHTML='<td>'+(mv.mieter||'')+' <span class="pill">'+er.name+'</span>'+ustHint+'</td><td class="num">'+eur(a)+'</td><td class="num">'+eur(v)+
         '</td><td class="num '+(s>0?'neg':'pos')+'">'+(s>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(s))+'</td>'+
         '<td class="num" title="Empfehlung: Anteil ÷ 12 Monate">'+eur(nkVorschlagVorauszahlung(a))+'</td>';
       tb.appendChild(tr);
     });
-    const lz=Math.max(0,1-sumZa);
-    if(lz>0.0001){
-      const aL=unitShare*lz; total+=aL;
+    if(er.leerstandZeitanteil>0.0001){
       const tr=document.createElement('tr');
-      tr.innerHTML='<td class="muted">Leerstand (Vermieter) <span class="pill">'+e.name+'</span></td><td class="num">'+eur(aL)+'</td><td class="num">–</td><td class="num neg">trägt Vermieter</td><td class="num">–</td>';
+      tr.innerHTML='<td class="muted">Leerstand (Vermieter) <span class="pill">'+er.name+'</span></td><td class="num">'+eur(er.leerstandBetrag)+'</td><td class="num">–</td><td class="num neg">trägt Vermieter</td><td class="num">–</td>';
       tb.appendChild(tr);
     }
   });
-  document.getElementById('sum_total').textContent=eur(total);
-  document.getElementById('sum_voraus').textContent=eur(voraus);
-  const saldo=total-voraus;
+  document.getElementById('sum_total').textContent=eur(ab.summeAnteil);
+  document.getElementById('sum_voraus').textContent=eur(ab.summeVoraus);
+  const saldo=ab.summeSaldo;
   const el=document.getElementById('sum_saldo');
   el.textContent=(saldo>=0?'+ ':'– ')+eur(Math.abs(saldo));
   el.className='val '+(saldo>0?'neg':'pos');
@@ -651,26 +658,21 @@ function nkRechenweg(){
   state.kosten.forEach(k=>{ L.push('- '+k.bez+': '+eur(k.betrag)+' · '+SCHLUESSEL[k.schluessel]+(nkUmlageInfo(k.bez).umlagefaehig?'':' · NICHT umlagefähig')); });
   L.push('');
   L.push('## Herleitung je Mietverhältnis');
-  state.einheiten.forEach(e=>{
-    let sumZa=0;
-    e.mv.forEach(m=>{
-      const za=nkZeitanteil(m.von,m.bis,state.objekt.von,state.objekt.bis); sumZa+=za;
-      L.push('### '+m.mieter+' – '+e.name+(m.gewerblich?' (gewerblich)':''));
-      L.push('Mietzeit '+fmtDatum(m.von)+'–'+fmtDatum(m.bis)+', Zeitanteil '+(za*100).toFixed(1)+' %');
-      const items=nkLineItemsFor(e, state.kosten, t);
-      items.forEach(i=>{
-        const f = i.schluessel==='flaeche'? (t.flaeche?e.flaeche/t.flaeche:0) : i.schluessel==='person'? (t.personen?e.personen/t.personen:0) : (t.einheiten?1/t.einheiten:0);
-        L.push('- '+i.bez+': '+eur(i.gesamt)+' × '+(f*100).toFixed(2)+' % = '+eur(i.anteil)+' × Zeit '+(za*100).toFixed(1)+' % = '+eur(i.anteil*za));
+  const ab=nkObjektAbrechnung(state.einheiten, state.kosten, state.objekt);
+  ab.einheiten.forEach(er=>{
+    er.mietverhaeltnisse.forEach(mv=>{
+      const za=mv.zeitanteil;
+      L.push('### '+mv.mieter+' – '+er.name+(mv.gewerblich?' (gewerblich)':''));
+      L.push('Mietzeit '+fmtDatum(mv.von)+'–'+fmtDatum(mv.bis)+', Zeitanteil '+(za*100).toFixed(1)+' %');
+      mv.zeilen.forEach(i=>{
+        L.push('- '+i.bez+': '+eur(i.gesamt)+' × '+(i.faktor*100).toFixed(2)+' % = '+eur(i.anteilVoll)+' × Zeit '+(za*100).toFixed(1)+' % = '+eur(i.anteil));
       });
-      const betrag=nkMieterBetrag(items.map(i=>({anteil:i.anteil*za, vorsteuer:i.vorsteuer})), !!m.gewerblich);
-      if(m.gewerblich) L.push('- Zwischensumme netto '+eur(betrag.netto)+' + 19 % USt '+eur(betrag.ust)+' = '+eur(betrag.brutto));
-      else L.push('- Summe Anteil: '+eur(betrag.brutto));
-      const saldo=betrag.brutto-(+m.voraus||0);
-      L.push('- Vorauszahlung '+eur(+m.voraus||0)+' → '+(saldo>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(saldo)));
+      if(mv.gewerblich) L.push('- Zwischensumme netto '+eur(mv.netto)+' + 19 % USt '+eur(mv.ust)+' = '+eur(mv.brutto));
+      else L.push('- Summe Anteil: '+eur(mv.brutto));
+      L.push('- Vorauszahlung '+eur(mv.vorauszahlung)+' → '+(mv.saldo>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(mv.saldo)));
       L.push('');
     });
-    const lz=Math.max(0,1-sumZa);
-    if(lz>0.0001){ const us=nkAnteilOf(e,state.kosten,t); L.push('### Leerstand '+e.name+': '+(lz*100).toFixed(1)+' % → '+eur(us*lz)+' (trägt Vermieter)'); L.push(''); }
+    if(er.leerstandZeitanteil>0.0001){ L.push('### Leerstand '+er.name+': '+(er.leerstandZeitanteil*100).toFixed(1)+' % → '+eur(er.leerstandBetrag)+' (trägt Vermieter)'); L.push(''); }
   });
   return L.join('\n');
 }
@@ -693,21 +695,17 @@ function renderDoc(){
     tabs.appendChild(b);
   });
   const sel=list[activeMieter]; if(!sel){ document.getElementById('doc').innerHTML=''; return; }
-  const e=sel.e, m=sel.m, za=sel.za;
-  const items=nkLineItemsFor(e, state.kosten, nkTotals(state.einheiten)).map(i=>({...i, anteil:i.anteil*za}));
-  const gew=!!m.gewerblich;
-  const betrag=nkMieterBetrag(items.map(i=>({anteil:i.anteil, vorsteuer:i.vorsteuer})), gew);
-  const anteil=betrag.brutto;
-  const saldo=anteil-(+m.voraus||0);
-  let rows=items.map(i=>{
-    const wert = gew ? nkNetto(i.anteil, i.vorsteuer) : i.anteil;
-    return '<tr><td>'+i.bez+'</td><td class="num">'+eur(i.gesamt)+'</td><td>'+SCHLUESSEL[i.schluessel]+'</td><td class="num">'+eur(wert)+'</td></tr>';
-  }).join('');
+  const e=sel.e, m=sel.m;
+  const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, nkTotals(state.einheiten));
+  const gew=ab.gewerblich, za=ab.zeitanteil, anteil=ab.brutto, saldo=ab.saldo;
+  let rows=ab.zeilen.map(i=>
+    '<tr><td>'+i.bez+'</td><td class="num">'+eur(i.gesamt)+'</td><td>'+SCHLUESSEL[i.schluessel]+'</td><td class="num">'+eur(i.wert)+'</td></tr>'
+  ).join('');
   const summen = gew
-    ? '<tr class="total-row"><td>Zwischensumme netto</td><td></td><td></td><td class="num">'+eur(betrag.netto)+'</td></tr>'+
-      '<tr><td>zzgl. 19 % Umsatzsteuer</td><td></td><td></td><td class="num">'+eur(betrag.ust)+'</td></tr>'+
-      '<tr class="total-row"><td>Ihr Anteil (brutto)</td><td></td><td></td><td class="num">'+eur(betrag.brutto)+'</td></tr>'
-    : '<tr class="total-row"><td>Ihr Anteil an den Gesamtkosten</td><td></td><td></td><td class="num">'+eur(betrag.brutto)+'</td></tr>';
+    ? '<tr class="total-row"><td>Zwischensumme netto</td><td></td><td></td><td class="num">'+eur(ab.netto)+'</td></tr>'+
+      '<tr><td>zzgl. 19 % Umsatzsteuer</td><td></td><td></td><td class="num">'+eur(ab.ust)+'</td></tr>'+
+      '<tr class="total-row"><td>Ihr Anteil (brutto)</td><td></td><td></td><td class="num">'+eur(ab.brutto)+'</td></tr>'
+    : '<tr class="total-row"><td>Ihr Anteil an den Gesamtkosten</td><td></td><td></td><td class="num">'+eur(ab.brutto)+'</td></tr>';
   document.getElementById('doc').innerHTML=
     '<h2>Betriebs- und Heizkostenabrechnung</h2>'+
     '<div class="meta">'+state.objekt.addr+' · Einheit '+e.name+' · Mieter: <b>'+m.mieter+'</b>'+(gew?' (gewerblich, umsatzsteuerpflichtig)':'')+'<br>Abrechnungszeitraum: '+zeitraumText()+' · Mietzeit: '+fmtDatum(m.von)+'–'+fmtDatum(m.bis)+' ('+Math.round(za*100)+' % des Zeitraums)</div>'+
@@ -774,13 +772,9 @@ function ensurePdfLib(){
 function buildTenantPdf(sel){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'pt', format:'a4'});
-  const e=sel.e, m=sel.m, za=sel.za;
-  const t = nkTotals(state.einheiten);
-  const items = nkLineItemsFor(e, state.kosten, t).map(i=>({...i, anteil:i.anteil*za}));
-  const gew=!!m.gewerblich;
-  const betrag=nkMieterBetrag(items.map(i=>({anteil:i.anteil, vorsteuer:i.vorsteuer})), gew);
-  const anteil = betrag.brutto;
-  const saldo = anteil-(+m.voraus||0);
+  const e=sel.e, m=sel.m;
+  const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, nkTotals(state.einheiten));
+  const gew=ab.gewerblich, anteil=ab.brutto, saldo=ab.saldo;
   let y=56;
   doc.setFontSize(16); doc.text("Betriebs- und Heizkostenabrechnung",56,y); y+=24;
   doc.setFontSize(10);
@@ -789,11 +783,11 @@ function buildTenantPdf(sel){
   doc.setFont(undefined,'bold');
   doc.text("Kostenart",56,y); doc.text("Gesamtkosten",380,y,{align:'right'}); doc.text(gew?"Anteil netto":"Ihr Anteil",540,y,{align:'right'});
   doc.setFont(undefined,'normal'); y+=6; doc.line(56,y,540,y); y+=14;
-  items.forEach(i=>{ const w=gew?nkNetto(i.anteil,i.vorsteuer):i.anteil; doc.text(String(i.bez).substring(0,42),56,y); doc.text(eur(i.gesamt),380,y,{align:'right'}); doc.text(eur(w),540,y,{align:'right'}); y+=14; });
+  ab.zeilen.forEach(i=>{ doc.text(String(i.bez).substring(0,42),56,y); doc.text(eur(i.gesamt),380,y,{align:'right'}); doc.text(eur(i.wert),540,y,{align:'right'}); y+=14; });
   y+=4; doc.line(56,y,540,y); y+=16;
   if(gew){
-    doc.text("Zwischensumme netto",56,y); doc.text(eur(betrag.netto),540,y,{align:'right'}); y+=14;
-    doc.text("zzgl. 19 % Umsatzsteuer",56,y); doc.text(eur(betrag.ust),540,y,{align:'right'}); y+=16;
+    doc.text("Zwischensumme netto",56,y); doc.text(eur(ab.netto),540,y,{align:'right'}); y+=14;
+    doc.text("zzgl. 19 % Umsatzsteuer",56,y); doc.text(eur(ab.ust),540,y,{align:'right'}); y+=16;
     doc.setFont(undefined,'bold'); doc.text("Ihr Anteil (brutto)",56,y); doc.text(eur(anteil),540,y,{align:'right'}); y+=18;
   } else {
     doc.setFont(undefined,'bold'); doc.text("Ihr Anteil an den Gesamtkosten",56,y); doc.text(eur(anteil),540,y,{align:'right'}); y+=18;
@@ -814,24 +808,22 @@ function exportOwnerOverviewPdf(){
   if(!ensurePdfLib())return;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'pt', format:'a4'});
-  const t = nkTotals(state.einheiten);
   let y=56;
   doc.setFontSize(16); doc.text("Eigentümer-Gesamtübersicht",56,y); y+=22;
   doc.setFontSize(10); doc.text(state.objekt.addr+"  ·  Zeitraum: "+zeitraumText(),56,y); y+=22;
   doc.setFont(undefined,'bold');
   doc.text("Mieter / Einheit",56,y); doc.text("Anteil",330,y,{align:'right'}); doc.text("Vorauszahlung",440,y,{align:'right'}); doc.text("Saldo",540,y,{align:'right'});
   doc.setFont(undefined,'normal'); y+=6; doc.line(56,y,540,y); y+=14;
-  let tA=0,tV=0;
-  state.einheiten.forEach(e=>{
-    const unitShare=nkAnteilOf(e, state.kosten, t); let sumZa=0;
-    e.mv.forEach(m=>{ const za=nkZeitanteil(m.von,m.bis,state.objekt.von,state.objekt.bis); sumZa+=za;
-      const items=nkLineItemsFor(e, state.kosten, t).map(i=>({anteil:i.anteil*za, vorsteuer:i.vorsteuer}));
-      const a=nkMieterBetrag(items, !!m.gewerblich).brutto; const v=+m.voraus||0; const s=a-v; tA+=a; tV+=v;
-      doc.text((m.mieter+" / "+e.name+(m.gewerblich?" (gewerbl.)":"")).substring(0,38),56,y); doc.text(eur(a),330,y,{align:'right'}); doc.text(eur(v),440,y,{align:'right'}); doc.text((s>0?"+":"")+eur(s),540,y,{align:'right'}); y+=14; });
-    const lz=Math.max(0,1-sumZa); if(lz>0.0001){ const aL=unitShare*lz; tA+=aL; doc.text(("Leerstand / "+e.name).substring(0,38),56,y); doc.text(eur(aL),330,y,{align:'right'}); doc.text("–",440,y,{align:'right'}); doc.text("Vermieter",540,y,{align:'right'}); y+=14; }
+  const ab=nkObjektAbrechnung(state.einheiten, state.kosten, state.objekt);
+  ab.einheiten.forEach(er=>{
+    er.mietverhaeltnisse.forEach(mv=>{
+      const a=mv.brutto, v=mv.vorauszahlung, s=mv.saldo;
+      doc.text((mv.mieter+" / "+er.name+(mv.gewerblich?" (gewerbl.)":"")).substring(0,38),56,y); doc.text(eur(a),330,y,{align:'right'}); doc.text(eur(v),440,y,{align:'right'}); doc.text((s>0?"+":"")+eur(s),540,y,{align:'right'}); y+=14;
+    });
+    if(er.leerstandZeitanteil>0.0001){ doc.text(("Leerstand / "+er.name).substring(0,38),56,y); doc.text(eur(er.leerstandBetrag),330,y,{align:'right'}); doc.text("–",440,y,{align:'right'}); doc.text("Vermieter",540,y,{align:'right'}); y+=14; }
   });
   y+=4; doc.line(56,y,540,y); y+=16; doc.setFont(undefined,'bold');
-  doc.text("Summe",56,y); doc.text(eur(tA),330,y,{align:'right'}); doc.text(eur(tV),440,y,{align:'right'}); doc.text(eur(tA-tV),540,y,{align:'right'});
+  doc.text("Summe",56,y); doc.text(eur(ab.summeAnteil),330,y,{align:'right'}); doc.text(eur(ab.summeVoraus),440,y,{align:'right'}); doc.text(eur(ab.summeSaldo),540,y,{align:'right'});
   doc.save("Eigentuemer-Uebersicht.pdf");
 }
 
@@ -852,8 +844,8 @@ function ensureIds(){
 }
 function setSaveStatus(t){ const el=document.getElementById('save_status'); if(el) el.textContent=t; }
 /* US-30: aktives Objekt als reine Daten herausziehen / in `state` laden */
-function snapshot(){ return { objekt:state.objekt, einheiten:state.einheiten, kosten:state.kosten, zahlung:state.zahlung, abrechnungStatus:state.abrechnungStatus }; }
-function ladeDaten(d){ state.objekt=d.objekt; state.einheiten=d.einheiten||[]; state.kosten=d.kosten||[]; state.zahlung=d.zahlung||{}; state.abrechnungStatus=d.abrechnungStatus||"inArbeit"; }
+function snapshot(){ return { objekt:state.objekt, einheiten:state.einheiten, kosten:state.kosten, zahlung:state.zahlung, abrechnungStatus:state.abrechnungStatus, vorjahr:!!state.vorjahr }; }
+function ladeDaten(d){ state.objekt=d.objekt; state.einheiten=d.einheiten||[]; state.kosten=d.kosten||[]; state.zahlung=d.zahlung||{}; state.abrechnungStatus=d.abrechnungStatus||"inArbeit"; state.vorjahr=!!d.vorjahr; }
 function makeFreshDaten(){ const von="2025-01-01", bis="2025-12-31"; return {
   objekt:{ addr:"Neues Objekt", von, bis },
   einheiten:[{ id:1, name:"EG", flaeche:0, personen:1, mv:[{ mieter:"Mieter 1", von, bis, vmonat:0, vmonate:12, vjahr:0, einmal:0, voraus:0, grundmiete:0, stellAnzahl:0, stellPreis:0, bezahlt:{} }] }],
@@ -861,30 +853,54 @@ function makeFreshDaten(){ const von="2025-01-01", bis="2025-12-31"; return {
   zahlung:{ frist:"14 Tage nach Zugang", iban:"", bic:"", empfaenger:"" },
   abrechnungStatus:"inArbeit"
 }; }
-function objektLabel(d,i){ return (d&&d.objekt&&String(d.objekt.addr||"").trim()) || ("Objekt "+(i+1)); }
+function objektLabel(d,i){ const addr=(d&&d.objekt&&String(d.objekt.addr||"").trim())||("Objekt "+(i+1)); const j=objektJahr(d); return j?(addr+" · "+j):addr; }
+function objSignatur(d){ const o=(d&&d.objekt)||{}; return [String(o.addr||"").trim(), o.von||"", o.bis||""].join("|"); }
 function renderObjektSelect(){ const sel=document.getElementById('obj_select'); if(!sel) return;
   sel.innerHTML=objekte.map((d,i)=>'<option value="'+i+'"'+(i===aktivIdx?' selected':'')+'>'+objektLabel(d,i).replace(/</g,'&lt;')+'</option>').join(''); }
-function renderAll(){ renderObjektSelect();
+function renderAll(){ renderObjektSelect(); renderVorjahrBanner(); fillObjektKopf();
   const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus;
   renderEinheiten(); renderVoraus(); renderKosten();
   if(current===3) computeView(); else if(current===4) renderDoc(); else if(current===5) renderZahlungen();
   renderStepper(); }
 function switchObjekt(idx){ saveState(); aktivIdx=Math.max(0,Math.min(+idx,objekte.length-1)); ladeDaten(objekte[aktivIdx]); ensureIds(); renderAll(); saveState(); }
 function neuesObjekt(){ saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); saveState(); }
-function exportObjekt(){ const d=snapshot(); const name=objektLabel(d,aktivIdx).replace(/[^\wäöüÄÖÜß.\- ]/g,'_').trim()||'Objekt';
+function objektJahr(d){ const v=d&&d.objekt&&(d.objekt.von||d.objekt.bis); const m=String(v||'').match(/^(\d{4})/); return m?m[1]:''; }
+function exportObjekt(){ const d=snapshot(); const name=objektLabel(d,aktivIdx).replace(/[^\wäöüÄÖÜß.\- ]/g,'_').trim()||'Objekt'; const jahr=objektJahr(d);
   const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json;charset=utf-8'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='NeKoFix-'+name+'.json';
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='NeKoFix-'+name+(jahr?'-'+jahr:'')+'.json'; /* AC4: Jahr im Dateinamen */
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href); }
+/* US-11: Folgejahr aus dem aktiven Objekt anlegen */
+function neuesJahrAusVorjahr(){
+  const jahrAlt=objektJahr(snapshot()); const jahrNeu=jahrAlt?(+jahrAlt+1):'';
+  if(!confirm('Neues Abrechnungsjahr'+(jahrNeu?' '+jahrNeu:'')+' aus „'+objektLabel(snapshot(),aktivIdx)+'" anlegen?\n\nStammdaten, Kostenarten und Verteilerschlüssel werden übernommen. Die Kostenbeträge bleiben leer und sind zu prüfen; ausgezogene Mieter werden nicht übernommen, aktive auf das ganze Jahr gesetzt.')) return;
+  saveState();
+  const neu=nkVorjahrUebernehmen(snapshot());
+  if(objekte.some(d=>objSignatur(d)===objSignatur(neu)) && !confirm('Für diese Adresse und diesen Zeitraum gibt es bereits ein Objekt. Trotzdem ein weiteres anlegen?')) return;
+  objekte.push(neu); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); saveState();
+}
+function renderVorjahrBanner(){
+  const box=document.getElementById('vorjahr_banner'); if(!box) return;
+  if(!state.vorjahr){ box.innerHTML=''; return; }
+  box.innerHTML='<div class="vorjahr-banner"><span class="vb-text"><b>Aus Vorjahr übernommen.</b> Bitte Kostenbeträge erfassen und Mietzeiten prüfen. Übernommene Felder sind markiert.</span><button onclick="confirmVorjahr()">Übernahme bestätigen</button></div>';
+}
+function confirmVorjahr(){
+  state.vorjahr=false;
+  (state.kosten||[]).forEach(k=>{ k.vorjahr=false; });
+  (state.einheiten||[]).forEach(e=>{ e.vorjahr=false; (e.mv||[]).forEach(m=>{ m.vorjahr=false; }); });
+  renderAll(); saveState();
+}
 function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ return; }
   const r=new FileReader();
   r.onload=function(){ try{ const d=JSON.parse(r.result);
       if(!d || !Array.isArray(d.einheiten)){ alert('Datei ist kein gültiges Objekt (es fehlen Einheiten).'); return; }
+      const sig=JSON.stringify(d);
+      if(objekte.some(x=>JSON.stringify(x)===sig) && !confirm('Dieses Objekt ist bereits vorhanden (identische Daten). Trotzdem importieren?')) return;
       saveState(); objekte.push(d); aktivIdx=objekte.length-1; ladeDaten(d); ensureIds(); current=0; renderAll(); go(0); saveState();
     }catch(e){ alert('Datei konnte nicht gelesen werden.'); } finally{ ev.target.value=''; } };
   r.readAsText(f); }
 function saveState(){ try{ if(objekte.length) objekte[aktivIdx]=snapshot(); localStorage.setItem(STORAGE_KEY, JSON.stringify({ objekte, aktivIdx })); setSaveStatus('✓ gespeichert'); }catch(e){ setSaveStatus('⚠ nicht gespeichert'); } }
 function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return false; const o=JSON.parse(raw);
-    if(o && Array.isArray(o.objekte) && o.objekte.length){ objekte=o.objekte; aktivIdx=Math.max(0,Math.min(o.aktivIdx||0, objekte.length-1)); ladeDaten(objekte[aktivIdx]); return true; }
+    if(o && Array.isArray(o.objekte) && o.objekte.length){ objekte=nkDedupeObjekte(o.objekte); aktivIdx=Math.max(0,Math.min(o.aktivIdx||0, objekte.length-1)); ladeDaten(objekte[aktivIdx]); return true; }
     if(o && Array.isArray(o.einheiten)){ objekte=[o]; aktivIdx=0; ladeDaten(o); return true; } /* Migration: altes Einzelformat */
     return false; }catch(e){ return false; } }
 function resetState(){ if(confirm('Aktuelle Eingaben verwerfen und die Beispiel-/Testdaten laden? Alle gespeicherten Daten (auch weitere Objekte) gehen dabei verloren.')){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} location.reload(); } }
@@ -902,6 +918,7 @@ renderObjektSelect();
 (function(){ const v=document.getElementById('app_version'); if(v) v.textContent=APP_VERSION+' · Build '+BUILD_DATE; })();
 (function(){ if(new URLSearchParams(location.search).has('debug')){ const b=document.getElementById('btn_testdaten'); if(b) b.hidden=false; } })();
 (function(){ const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus; })();
+fillObjektKopf();
 renderEinheiten(); renderVoraus(); renderKosten(); renderStepper(); go(0);
 saveState();
 </script>
