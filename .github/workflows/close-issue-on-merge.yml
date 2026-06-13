@@ -1,0 +1,48 @@
+name: Issue bei Merge schließen
+
+# Schließt beim Mergen eines PRs automatisch das zugehörige Story-Issue – auch dann,
+# wenn im PR-Text kein (korrektes) "Closes #…" steht. Das Story-Token (US-NN) wird aus
+# dem Branch-Namen oder dem PR-Titel gelesen und das offene Issue mit passendem Titel
+# geschlossen. Das Schließen löst die eingebaute Projekt-Automatik (→ Done) und
+# done-cleanup.yml (entfernt das Label "next") aus.
+# Nutzt nur das eingebaute GITHUB_TOKEN.
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  close-issue:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Story-Issue anhand des US-Tokens schließen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          # US-Token aus Branch-Name oder PR-Titel (z. B. US-33). Erstes Vorkommen gewinnt.
+          token="$(printf '%s\n%s\n' "$HEAD_REF" "$PR_TITLE" | grep -oE 'US-[0-9]+' | head -n1 || true)"
+          if [ -z "${token:-}" ]; then
+            echo "Kein US-Token in Branch/Titel gefunden – nichts zu tun."
+            exit 0
+          fi
+          echo "Story-Token: $token"
+          # Suche per Bindestrich ist unzuverlässig (Tokenizer) → alle offenen Issues lokal filtern.
+          num="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 300 \
+                   --json number,title \
+                   --jq ".[] | select(.title | startswith(\"$token \")) | .number" | head -n1 || true)"
+          if [ -z "${num:-}" ]; then
+            echo "Kein offenes Issue mit Titelpräfix \"$token \" gefunden."
+            exit 0
+          fi
+          echo "Schließe Issue #$num (Story $token), ausgelöst durch PR #$PR_NUMBER."
+          gh issue close "$num" --repo "$GITHUB_REPOSITORY" \
+            --comment "Automatisch geschlossen durch gemergten PR #$PR_NUMBER ($token)."
