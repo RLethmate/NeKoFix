@@ -217,6 +217,12 @@ function nkPlausibilitaet(s) {
   return { bereit: !punkte.some(p => p.level === "fehler"), punkte };
 }
 
+/* US-36: HTML-Escaping für Freitext (Namen, Notizen, Adresse), bevor er ins innerHTML
+   eingefügt wird. Reine Funktion, deshalb hier und getestet. */
+function nkEsc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 /* US-32: zentrale, getestete Abrechnung eines einzelnen Mietverhältnisses.
    `t` sind die Objekt-Totals (nkTotals über ALLE Einheiten). Liefert alles, was
    Bildschirm, PDF und Rechenweg brauchen – eine Quelle der Wahrheit. */
@@ -342,5 +348,6 @@ if (typeof module !== "undefined" && module.exports) {
     nkDedupeObjekte,
     nkMieterAbrechnung,
     nkObjektAbrechnung,
+    nkEsc,
   };
 }
