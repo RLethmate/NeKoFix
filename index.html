@@ -148,7 +148,7 @@
     </select>
   </label>
   <span id="save_status" class="save-status"></span>
-  <button class="reset-data" onclick="resetState()" title="Alle gespeicherten Daten löschen">Zurücksetzen</button>
+  <button class="reset-data" onclick="resetState()" title="Aktuelle Eingaben verwerfen und Testdaten laden">Testdaten laden</button>
 </header>
 
 <div class="wrap">
@@ -709,7 +709,7 @@ function ensureIds(){
 function setSaveStatus(t){ const el=document.getElementById('save_status'); if(el) el.textContent=t; }
 function saveState(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); setSaveStatus('gespeichert '+new Date().toLocaleTimeString('de-DE')); }catch(e){ setSaveStatus('Speichern nicht möglich'); } }
 function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return false; const o=nkParseState(raw); if(!o) return false; state.objekt=o.objekt||state.objekt; state.einheiten=o.einheiten||state.einheiten; state.kosten=o.kosten||state.kosten; state.zahlung=o.zahlung||state.zahlung; if(o.abrechnungStatus) state.abrechnungStatus=o.abrechnungStatus; return true; }catch(e){ return false; } }
-function resetState(){ if(confirm('Alle gespeicherten Daten löschen und Beispiel zurücksetzen?')){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} location.reload(); } }
+function resetState(){ if(confirm('Aktuelle Eingaben verwerfen und die Beispiel-/Testdaten laden? Alle gespeicherten Daten gehen dabei verloren.')){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} location.reload(); } }
 function setAbrStatus(v){ state.abrechnungStatus=v; scheduleSave(); }
 let _saveTimer; function scheduleSave(){ clearTimeout(_saveTimer); _saveTimer=setTimeout(saveState,600); }
 document.addEventListener('input', scheduleSave);
