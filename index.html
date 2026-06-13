@@ -598,34 +598,26 @@ function resetSchluessel(idx){ state.kosten[idx].schluessel = nkVorschlagSchlues
 /* ---------- Step 4 ---------- */
 function computeView(){
   const tb=document.querySelector('#tbl_ergebnis tbody'); tb.innerHTML='';
-  let total=0,voraus=0;
-  const t=nkTotals(state.einheiten);
-  state.einheiten.forEach(e=>{
-    const unitShare=nkAnteilOf(e, state.kosten, t);
-    let sumZa=0;
-    e.mv.forEach(m=>{
-      const za=nkZeitanteil(m.von,m.bis,state.objekt.von,state.objekt.bis); sumZa+=za;
-      const items=nkLineItemsFor(e, state.kosten, t).map(i=>({anteil:i.anteil*za, vorsteuer:i.vorsteuer}));
-      const betrag=nkMieterBetrag(items, !!m.gewerblich);
-      const a=betrag.brutto; const v=+m.voraus||0; const s=a-v; total+=a; voraus+=v;
-      const ustHint = betrag.gewerblich ? ' <span class="pill">inkl. 19% USt</span>' : '';
+  const ab=nkObjektAbrechnung(state.einheiten, state.kosten, state.objekt);
+  ab.einheiten.forEach(er=>{
+    er.mietverhaeltnisse.forEach(mv=>{
+      const a=mv.brutto, v=mv.vorauszahlung, s=mv.saldo;
+      const ustHint = mv.gewerblich ? ' <span class="pill">inkl. 19% USt</span>' : '';
       const tr=document.createElement('tr');
-      tr.innerHTML='<td>'+(m.mieter||'')+' <span class="pill">'+e.name+'</span>'+ustHint+'</td><td class="num">'+eur(a)+'</td><td class="num">'+eur(v)+
+      tr.innerHTML='<td>'+(mv.mieter||'')+' <span class="pill">'+er.name+'</span>'+ustHint+'</td><td class="num">'+eur(a)+'</td><td class="num">'+eur(v)+
         '</td><td class="num '+(s>0?'neg':'pos')+'">'+(s>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(s))+'</td>'+
         '<td class="num" title="Empfehlung: Anteil ÷ 12 Monate">'+eur(nkVorschlagVorauszahlung(a))+'</td>';
       tb.appendChild(tr);
     });
-    const lz=Math.max(0,1-sumZa);
-    if(lz>0.0001){
-      const aL=unitShare*lz; total+=aL;
+    if(er.leerstandZeitanteil>0.0001){
       const tr=document.createElement('tr');
-      tr.innerHTML='<td class="muted">Leerstand (Vermieter) <span class="pill">'+e.name+'</span></td><td class="num">'+eur(aL)+'</td><td class="num">–</td><td class="num neg">trägt Vermieter</td><td class="num">–</td>';
+      tr.innerHTML='<td class="muted">Leerstand (Vermieter) <span class="pill">'+er.name+'</span></td><td class="num">'+eur(er.leerstandBetrag)+'</td><td class="num">–</td><td class="num neg">trägt Vermieter</td><td class="num">–</td>';
       tb.appendChild(tr);
     }
   });
-  document.getElementById('sum_total').textContent=eur(total);
-  document.getElementById('sum_voraus').textContent=eur(voraus);
-  const saldo=total-voraus;
+  document.getElementById('sum_total').textContent=eur(ab.summeAnteil);
+  document.getElementById('sum_voraus').textContent=eur(ab.summeVoraus);
+  const saldo=ab.summeSaldo;
   const el=document.getElementById('sum_saldo');
   el.textContent=(saldo>=0?'+ ':'– ')+eur(Math.abs(saldo));
   el.className='val '+(saldo>0?'neg':'pos');
@@ -666,26 +658,21 @@ function nkRechenweg(){
   state.kosten.forEach(k=>{ L.push('- '+k.bez+': '+eur(k.betrag)+' · '+SCHLUESSEL[k.schluessel]+(nkUmlageInfo(k.bez).umlagefaehig?'':' · NICHT umlagefähig')); });
   L.push('');
   L.push('## Herleitung je Mietverhältnis');
-  state.einheiten.forEach(e=>{
-    let sumZa=0;
-    e.mv.forEach(m=>{
-      const za=nkZeitanteil(m.von,m.bis,state.objekt.von,state.objekt.bis); sumZa+=za;
-      L.push('### '+m.mieter+' – '+e.name+(m.gewerblich?' (gewerblich)':''));
-      L.push('Mietzeit '+fmtDatum(m.von)+'–'+fmtDatum(m.bis)+', Zeitanteil '+(za*100).toFixed(1)+' %');
-      const items=nkLineItemsFor(e, state.kosten, t);
-      items.forEach(i=>{
-        const f = i.schluessel==='flaeche'? (t.flaeche?e.flaeche/t.flaeche:0) : i.schluessel==='person'? (t.personen?e.personen/t.personen:0) : (t.einheiten?1/t.einheiten:0);
-        L.push('- '+i.bez+': '+eur(i.gesamt)+' × '+(f*100).toFixed(2)+' % = '+eur(i.anteil)+' × Zeit '+(za*100).toFixed(1)+' % = '+eur(i.anteil*za));
+  const ab=nkObjektAbrechnung(state.einheiten, state.kosten, state.objekt);
+  ab.einheiten.forEach(er=>{
+    er.mietverhaeltnisse.forEach(mv=>{
+      const za=mv.zeitanteil;
+      L.push('### '+mv.mieter+' – '+er.name+(mv.gewerblich?' (gewerblich)':''));
+      L.push('Mietzeit '+fmtDatum(mv.von)+'–'+fmtDatum(mv.bis)+', Zeitanteil '+(za*100).toFixed(1)+' %');
+      mv.zeilen.forEach(i=>{
+        L.push('- '+i.bez+': '+eur(i.gesamt)+' × '+(i.faktor*100).toFixed(2)+' % = '+eur(i.anteilVoll)+' × Zeit '+(za*100).toFixed(1)+' % = '+eur(i.anteil));
       });
-      const betrag=nkMieterBetrag(items.map(i=>({anteil:i.anteil*za, vorsteuer:i.vorsteuer})), !!m.gewerblich);
-      if(m.gewerblich) L.push('- Zwischensumme netto '+eur(betrag.netto)+' + 19 % USt '+eur(betrag.ust)+' = '+eur(betrag.brutto));
-      else L.push('- Summe Anteil: '+eur(betrag.brutto));
-      const saldo=betrag.brutto-(+m.voraus||0);
-      L.push('- Vorauszahlung '+eur(+m.voraus||0)+' → '+(saldo>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(saldo)));
+      if(mv.gewerblich) L.push('- Zwischensumme netto '+eur(mv.netto)+' + 19 % USt '+eur(mv.ust)+' = '+eur(mv.brutto));
+      else L.push('- Summe Anteil: '+eur(mv.brutto));
+      L.push('- Vorauszahlung '+eur(mv.vorauszahlung)+' → '+(mv.saldo>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(mv.saldo)));
       L.push('');
     });
-    const lz=Math.max(0,1-sumZa);
-    if(lz>0.0001){ const us=nkAnteilOf(e,state.kosten,t); L.push('### Leerstand '+e.name+': '+(lz*100).toFixed(1)+' % → '+eur(us*lz)+' (trägt Vermieter)'); L.push(''); }
+    if(er.leerstandZeitanteil>0.0001){ L.push('### Leerstand '+er.name+': '+(er.leerstandZeitanteil*100).toFixed(1)+' % → '+eur(er.leerstandBetrag)+' (trägt Vermieter)'); L.push(''); }
   });
   return L.join('\n');
 }
@@ -708,21 +695,17 @@ function renderDoc(){
     tabs.appendChild(b);
   });
   const sel=list[activeMieter]; if(!sel){ document.getElementById('doc').innerHTML=''; return; }
-  const e=sel.e, m=sel.m, za=sel.za;
-  const items=nkLineItemsFor(e, state.kosten, nkTotals(state.einheiten)).map(i=>({...i, anteil:i.anteil*za}));
-  const gew=!!m.gewerblich;
-  const betrag=nkMieterBetrag(items.map(i=>({anteil:i.anteil, vorsteuer:i.vorsteuer})), gew);
-  const anteil=betrag.brutto;
-  const saldo=anteil-(+m.voraus||0);
-  let rows=items.map(i=>{
-    const wert = gew ? nkNetto(i.anteil, i.vorsteuer) : i.anteil;
-    return '<tr><td>'+i.bez+'</td><td class="num">'+eur(i.gesamt)+'</td><td>'+SCHLUESSEL[i.schluessel]+'</td><td class="num">'+eur(wert)+'</td></tr>';
-  }).join('');
+  const e=sel.e, m=sel.m;
+  const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, nkTotals(state.einheiten));
+  const gew=ab.gewerblich, za=ab.zeitanteil, anteil=ab.brutto, saldo=ab.saldo;
+  let rows=ab.zeilen.map(i=>
+    '<tr><td>'+i.bez+'</td><td class="num">'+eur(i.gesamt)+'</td><td>'+SCHLUESSEL[i.schluessel]+'</td><td class="num">'+eur(i.wert)+'</td></tr>'
+  ).join('');
   const summen = gew
-    ? '<tr class="total-row"><td>Zwischensumme netto</td><td></td><td></td><td class="num">'+eur(betrag.netto)+'</td></tr>'+
-      '<tr><td>zzgl. 19 % Umsatzsteuer</td><td></td><td></td><td class="num">'+eur(betrag.ust)+'</td></tr>'+
-      '<tr class="total-row"><td>Ihr Anteil (brutto)</td><td></td><td></td><td class="num">'+eur(betrag.brutto)+'</td></tr>'
-    : '<tr class="total-row"><td>Ihr Anteil an den Gesamtkosten</td><td></td><td></td><td class="num">'+eur(betrag.brutto)+'</td></tr>';
+    ? '<tr class="total-row"><td>Zwischensumme netto</td><td></td><td></td><td class="num">'+eur(ab.netto)+'</td></tr>'+
+      '<tr><td>zzgl. 19 % Umsatzsteuer</td><td></td><td></td><td class="num">'+eur(ab.ust)+'</td></tr>'+
+      '<tr class="total-row"><td>Ihr Anteil (brutto)</td><td></td><td></td><td class="num">'+eur(ab.brutto)+'</td></tr>'
+    : '<tr class="total-row"><td>Ihr Anteil an den Gesamtkosten</td><td></td><td></td><td class="num">'+eur(ab.brutto)+'</td></tr>';
   document.getElementById('doc').innerHTML=
     '<h2>Betriebs- und Heizkostenabrechnung</h2>'+
     '<div class="meta">'+state.objekt.addr+' · Einheit '+e.name+' · Mieter: <b>'+m.mieter+'</b>'+(gew?' (gewerblich, umsatzsteuerpflichtig)':'')+'<br>Abrechnungszeitraum: '+zeitraumText()+' · Mietzeit: '+fmtDatum(m.von)+'–'+fmtDatum(m.bis)+' ('+Math.round(za*100)+' % des Zeitraums)</div>'+
@@ -789,13 +772,9 @@ function ensurePdfLib(){
 function buildTenantPdf(sel){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'pt', format:'a4'});
-  const e=sel.e, m=sel.m, za=sel.za;
-  const t = nkTotals(state.einheiten);
-  const items = nkLineItemsFor(e, state.kosten, t).map(i=>({...i, anteil:i.anteil*za}));
-  const gew=!!m.gewerblich;
-  const betrag=nkMieterBetrag(items.map(i=>({anteil:i.anteil, vorsteuer:i.vorsteuer})), gew);
-  const anteil = betrag.brutto;
-  const saldo = anteil-(+m.voraus||0);
+  const e=sel.e, m=sel.m;
+  const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, nkTotals(state.einheiten));
+  const gew=ab.gewerblich, anteil=ab.brutto, saldo=ab.saldo;
   let y=56;
   doc.setFontSize(16); doc.text("Betriebs- und Heizkostenabrechnung",56,y); y+=24;
   doc.setFontSize(10);
@@ -804,11 +783,11 @@ function buildTenantPdf(sel){
   doc.setFont(undefined,'bold');
   doc.text("Kostenart",56,y); doc.text("Gesamtkosten",380,y,{align:'right'}); doc.text(gew?"Anteil netto":"Ihr Anteil",540,y,{align:'right'});
   doc.setFont(undefined,'normal'); y+=6; doc.line(56,y,540,y); y+=14;
-  items.forEach(i=>{ const w=gew?nkNetto(i.anteil,i.vorsteuer):i.anteil; doc.text(String(i.bez).substring(0,42),56,y); doc.text(eur(i.gesamt),380,y,{align:'right'}); doc.text(eur(w),540,y,{align:'right'}); y+=14; });
+  ab.zeilen.forEach(i=>{ doc.text(String(i.bez).substring(0,42),56,y); doc.text(eur(i.gesamt),380,y,{align:'right'}); doc.text(eur(i.wert),540,y,{align:'right'}); y+=14; });
   y+=4; doc.line(56,y,540,y); y+=16;
   if(gew){
-    doc.text("Zwischensumme netto",56,y); doc.text(eur(betrag.netto),540,y,{align:'right'}); y+=14;
-    doc.text("zzgl. 19 % Umsatzsteuer",56,y); doc.text(eur(betrag.ust),540,y,{align:'right'}); y+=16;
+    doc.text("Zwischensumme netto",56,y); doc.text(eur(ab.netto),540,y,{align:'right'}); y+=14;
+    doc.text("zzgl. 19 % Umsatzsteuer",56,y); doc.text(eur(ab.ust),540,y,{align:'right'}); y+=16;
     doc.setFont(undefined,'bold'); doc.text("Ihr Anteil (brutto)",56,y); doc.text(eur(anteil),540,y,{align:'right'}); y+=18;
   } else {
     doc.setFont(undefined,'bold'); doc.text("Ihr Anteil an den Gesamtkosten",56,y); doc.text(eur(anteil),540,y,{align:'right'}); y+=18;
@@ -829,24 +808,22 @@ function exportOwnerOverviewPdf(){
   if(!ensurePdfLib())return;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'pt', format:'a4'});
-  const t = nkTotals(state.einheiten);
   let y=56;
   doc.setFontSize(16); doc.text("Eigentümer-Gesamtübersicht",56,y); y+=22;
   doc.setFontSize(10); doc.text(state.objekt.addr+"  ·  Zeitraum: "+zeitraumText(),56,y); y+=22;
   doc.setFont(undefined,'bold');
   doc.text("Mieter / Einheit",56,y); doc.text("Anteil",330,y,{align:'right'}); doc.text("Vorauszahlung",440,y,{align:'right'}); doc.text("Saldo",540,y,{align:'right'});
   doc.setFont(undefined,'normal'); y+=6; doc.line(56,y,540,y); y+=14;
-  let tA=0,tV=0;
-  state.einheiten.forEach(e=>{
-    const unitShare=nkAnteilOf(e, state.kosten, t); let sumZa=0;
-    e.mv.forEach(m=>{ const za=nkZeitanteil(m.von,m.bis,state.objekt.von,state.objekt.bis); sumZa+=za;
-      const items=nkLineItemsFor(e, state.kosten, t).map(i=>({anteil:i.anteil*za, vorsteuer:i.vorsteuer}));
-      const a=nkMieterBetrag(items, !!m.gewerblich).brutto; const v=+m.voraus||0; const s=a-v; tA+=a; tV+=v;
-      doc.text((m.mieter+" / "+e.name+(m.gewerblich?" (gewerbl.)":"")).substring(0,38),56,y); doc.text(eur(a),330,y,{align:'right'}); doc.text(eur(v),440,y,{align:'right'}); doc.text((s>0?"+":"")+eur(s),540,y,{align:'right'}); y+=14; });
-    const lz=Math.max(0,1-sumZa); if(lz>0.0001){ const aL=unitShare*lz; tA+=aL; doc.text(("Leerstand / "+e.name).substring(0,38),56,y); doc.text(eur(aL),330,y,{align:'right'}); doc.text("–",440,y,{align:'right'}); doc.text("Vermieter",540,y,{align:'right'}); y+=14; }
+  const ab=nkObjektAbrechnung(state.einheiten, state.kosten, state.objekt);
+  ab.einheiten.forEach(er=>{
+    er.mietverhaeltnisse.forEach(mv=>{
+      const a=mv.brutto, v=mv.vorauszahlung, s=mv.saldo;
+      doc.text((mv.mieter+" / "+er.name+(mv.gewerblich?" (gewerbl.)":"")).substring(0,38),56,y); doc.text(eur(a),330,y,{align:'right'}); doc.text(eur(v),440,y,{align:'right'}); doc.text((s>0?"+":"")+eur(s),540,y,{align:'right'}); y+=14;
+    });
+    if(er.leerstandZeitanteil>0.0001){ doc.text(("Leerstand / "+er.name).substring(0,38),56,y); doc.text(eur(er.leerstandBetrag),330,y,{align:'right'}); doc.text("–",440,y,{align:'right'}); doc.text("Vermieter",540,y,{align:'right'}); y+=14; }
   });
   y+=4; doc.line(56,y,540,y); y+=16; doc.setFont(undefined,'bold');
-  doc.text("Summe",56,y); doc.text(eur(tA),330,y,{align:'right'}); doc.text(eur(tV),440,y,{align:'right'}); doc.text(eur(tA-tV),540,y,{align:'right'});
+  doc.text("Summe",56,y); doc.text(eur(ab.summeAnteil),330,y,{align:'right'}); doc.text(eur(ab.summeVoraus),440,y,{align:'right'}); doc.text(eur(ab.summeSaldo),540,y,{align:'right'});
   doc.save("Eigentuemer-Uebersicht.pdf");
 }
 

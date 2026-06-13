@@ -193,6 +193,40 @@ test("Zeitanteil tagesgenau (US-10)", () => {
   assert.equal(calc.nkZeitanteil("2024-01-01", "2024-12-31", "2025-01-01", "2025-12-31"), 0);
 });
 
+test("Mieterabrechnung: Zeilen, Zeitanteil, gewerblich, Saldo (US-32)", () => {
+  const objekt = { von: "2025-01-01", bis: "2025-12-31" };
+  const eh = [{ name: "EG", flaeche: 100, personen: 2 }, { name: "OG", flaeche: 100, personen: 2 }];
+  const k = [{ bez: "Grundsteuer", betrag: 1000, schluessel: "flaeche", vorsteuer: 0 }];
+  const t = calc.nkTotals(eh);
+  // Ganzjährig, privat: Anteil = 50 % von 1000 = 500
+  const ab = calc.nkMieterAbrechnung(eh[0], { mieter: "A", von: "2025-01-01", bis: "2025-12-31", voraus: 400 }, k, objekt, t);
+  assert.ok(Math.abs(ab.zeitanteil - 1) < 1e-9);
+  assert.ok(Math.abs(ab.zeilen[0].anteil - 500) < 1e-9);
+  assert.ok(Math.abs(ab.brutto - 500) < 1e-9);
+  assert.ok(Math.abs(ab.saldo - 100) < 1e-9);
+  // Gewerblich (19 %): brutto = netto × 1,19
+  const g = calc.nkMieterAbrechnung(eh[0], { mieter: "G", gewerblich: true, von: "2025-01-01", bis: "2025-12-31", voraus: 0 }, [{ bez: "Hauswart", betrag: 1190, schluessel: "flaeche", vorsteuer: 19 }], objekt, t);
+  assert.ok(Math.abs(g.netto - 500) < 1e-6);            // 50 % von (1190 netto=1000) = 500
+  assert.ok(Math.abs(g.brutto - g.netto * 1.19) < 1e-6);
+});
+
+test("Objektabrechnung: Summe inkl. Leerstand, Leerstandanteil (US-32)", () => {
+  const objekt = { von: "2025-01-01", bis: "2025-12-31" };
+  const einheiten = [
+    { name: "EG", flaeche: 100, personen: 2, mv: [{ mieter: "A", von: "2025-01-01", bis: "2025-12-31", voraus: 0 }] },
+    { name: "OG", flaeche: 100, personen: 2, mv: [{ mieter: "B", von: "2025-07-02", bis: "2025-12-31", voraus: 0 }] } // ~ halbes Jahr
+  ];
+  const kosten = [{ bez: "Grundsteuer", betrag: 1000, schluessel: "flaeche", vorsteuer: 0 }];
+  const ab = calc.nkObjektAbrechnung(einheiten, kosten, objekt);
+  // Voll verteilt: Summe aller Anteile inkl. Leerstand = Gesamtkosten
+  assert.ok(Math.abs(ab.summeAnteil - 1000) < 1e-6);
+  // OG: ~halbes Jahr belegt → Leerstand ~0,5, Leerstandbetrag ~ 500 × 0,5
+  const og = ab.einheiten[1];
+  assert.ok(og.leerstandZeitanteil > 0.4 && og.leerstandZeitanteil < 0.6);
+  assert.ok(Math.abs(og.leerstandBetrag - og.unitShare * og.leerstandZeitanteil) < 1e-9);
+  assert.ok(Math.abs(ab.summeSaldo - (ab.summeAnteil - ab.summeVoraus)) < 1e-9);
+});
+
 test("Exakte Objekt-Duplikate entfernen, Reihenfolge bleibt (US-30)", () => {
   const a = { objekt: { addr: "X", von: "2025-01-01", bis: "2025-12-31" }, einheiten: [], kosten: [] };
   const a2 = JSON.parse(JSON.stringify(a));

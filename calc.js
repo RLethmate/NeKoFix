@@ -217,6 +217,53 @@ function nkPlausibilitaet(s) {
   return { bereit: !punkte.some(p => p.level === "fehler"), punkte };
 }
 
+/* US-32: zentrale, getestete Abrechnung eines einzelnen Mietverhältnisses.
+   `t` sind die Objekt-Totals (nkTotals über ALLE Einheiten). Liefert alles, was
+   Bildschirm, PDF und Rechenweg brauchen – eine Quelle der Wahrheit. */
+function nkMieterAbrechnung(e, m, kosten, objekt, t) {
+  const o = objekt || {};
+  const za = nkZeitanteil(m.von, m.bis, o.von, o.bis);
+  const gewerblich = !!m.gewerblich;
+  const zeilen = nkLineItemsFor(e, kosten || [], t).map(i => {
+    const anteil = i.anteil * za;                 // zeitanteilig
+    const wert = gewerblich ? nkNetto(anteil, i.vorsteuer) : anteil; // Anzeige je Zeile
+    return {
+      bez: i.bez, gesamt: i.gesamt, schluessel: i.schluessel, vorsteuer: i.vorsteuer,
+      faktor: nkFactor(e, i.schluessel, t), anteilVoll: i.anteil, anteil: anteil, wert: wert
+    };
+  });
+  const betrag = nkMieterBetrag(zeilen, gewerblich); // liest .anteil und .vorsteuer
+  const vorauszahlung = +m.voraus || 0;
+  return {
+    einheit: e.name, mieter: m.mieter, gewerblich: gewerblich,
+    von: m.von, bis: m.bis, zeitanteil: za, zeilen: zeilen,
+    netto: betrag.netto, ust: betrag.ust, brutto: betrag.brutto,
+    vorauszahlung: vorauszahlung, saldo: betrag.brutto - vorauszahlung
+  };
+}
+
+/* US-32: Abrechnung des gesamten Objekts – je Einheit die Mietverhältnisse und der
+   Leerstand (trägt der Vermieter) plus Objekt-Summen. */
+function nkObjektAbrechnung(einheiten, kosten, objekt) {
+  const E = einheiten || [], K = kosten || [];
+  const t = nkTotals(E);
+  let summeAnteil = 0, summeVoraus = 0;
+  const eRows = E.map(e => {
+    const unitShare = nkAnteilOf(e, K, t);
+    let sumZa = 0;
+    const mietverhaeltnisse = (e.mv || []).map(m => {
+      const ab = nkMieterAbrechnung(e, m, K, objekt, t);
+      sumZa += ab.zeitanteil; summeAnteil += ab.brutto; summeVoraus += ab.vorauszahlung;
+      return ab;
+    });
+    const leerstandZeitanteil = Math.max(0, 1 - sumZa);
+    const leerstandBetrag = unitShare * leerstandZeitanteil;
+    summeAnteil += leerstandBetrag;
+    return { name: e.name, unitShare: unitShare, mietverhaeltnisse: mietverhaeltnisse, leerstandZeitanteil: leerstandZeitanteil, leerstandBetrag: leerstandBetrag };
+  });
+  return { totals: t, einheiten: eRows, summeAnteil: summeAnteil, summeVoraus: summeVoraus, summeSaldo: summeAnteil - summeVoraus };
+}
+
 /* US-11: ISO-Datum um ein Jahr verschieben (29.02. → 28.02. im Folgejahr). */
 function nkPlusJahr(d) {
   const m = String(d || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -293,5 +340,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkPlusJahr,
     nkVorjahrUebernehmen,
     nkDedupeObjekte,
+    nkMieterAbrechnung,
+    nkObjektAbrechnung,
   };
 }
