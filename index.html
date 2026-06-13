@@ -28,6 +28,19 @@
   .save-status{font-size:12px;color:#fff;opacity:.9;}
   .reset-data{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer;}
   .reset-data:hover{background:rgba(255,255,255,.25);}
+  .abr-status-wrap{font-size:12px;color:#fff;opacity:.95;display:flex;align-items:center;gap:6px;}
+  .abr-status{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:3px 8px;font-size:12px;}
+  .abr-status option{color:#1d2733;}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:3px;vertical-align:middle;}
+  .status-toggle{background:#fff;border:1px solid var(--line);border-radius:7px;padding:3px 8px;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;gap:3px;}
+  .status-toggle:hover{border-color:var(--primary);}
+  .detail-row td{background:var(--soft);}
+  .detail-grid{display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:4px 0;}
+  .detail-grid label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;}
+  .detail-grid .notiz-field{flex:1;min-width:200px;}
+  .detail-grid .notiz-field input{flex:1;}
+  .filter-toggle{display:flex;align-items:center;gap:6px;font-size:13px;margin:0 0 8px;cursor:pointer;}
+  .filter-toggle input{width:auto;}
   .wrap{max-width:920px;margin:0 auto;padding:24px 20px 64px;}
   /* Stepper */
   .stepper{display:flex;gap:6px;margin:18px 0 26px;flex-wrap:wrap;}
@@ -119,6 +132,13 @@
 <header class="app">
   <div class="logo">NeKo<span>Fix</span></div>
   <div class="tag">Prototyp · Walking Skeleton · End-to-End-Durchstich</div>
+  <label class="abr-status-wrap" title="Status der Abrechnung">Status:
+    <select id="abr_status" class="abr-status" onchange="setAbrStatus(this.value)">
+      <option value="inArbeit">in Arbeit</option>
+      <option value="vorabzug">Vorabzug</option>
+      <option value="abgeschlossen">abgeschlossen</option>
+    </select>
+  </label>
   <span id="save_status" class="save-status"></span>
   <button class="reset-data" onclick="resetState()" title="Alle gespeicherten Daten löschen">Zurücksetzen</button>
 </header>
@@ -176,8 +196,9 @@
         </div>
       </div>
     </div>
+    <label class="filter-toggle"><input type="checkbox" onchange="setNurUngeprueft(this.checked)"> Nur ungeprüfte Belege anzeigen<span id="ungeprueft_count" class="muted"></span></label>
     <table id="tbl_kosten">
-      <thead><tr><th>Kostenart</th><th class="num">Betrag (€)</th><th>Verteilerschlüssel</th><th></th></tr></thead>
+      <thead><tr><th>Kostenart</th><th class="num">Betrag (€)</th><th>Verteilerschlüssel</th><th>Status</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
     <p class="hint">Der Verteilerschlüssel wird je Kostenart vorgeschlagen und ist überschreibbar (↺). Ein <b>!</b> markiert nicht umlagefähige Positionen – sie werden weiterhin verteilt, aber gewarnt.</p>
@@ -250,7 +271,8 @@ const state = {
     { bez:"Hauswart",               betrag:1200, schluessel:"flaeche" },
     { bez:"Heizung & Warmwasser (Messdienst)", betrag:4800, schluessel:"flaeche" }
   ],
-  zahlung:{ frist:"14 Tage nach Zugang", iban:"DE12 3456 7890 1234 5678 00", bic:"WELADED1MST", empfaenger:"M. Vermieter" }
+  zahlung:{ frist:"14 Tage nach Zugang", iban:"DE12 3456 7890 1234 5678 00", bic:"WELADED1MST", empfaenger:"M. Vermieter" },
+  abrechnungStatus:"inArbeit"
 };
 const STEPS = ["Objekt","Vorauszahlung","Kosten","Berechnung","Abrechnung"];
 let current = 0, activeMieter = 0;
@@ -275,6 +297,12 @@ const KOSTEN_KATALOG = [
   "Wasser / Abwasser"
 ];
 const WARN_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+const STATUS_BELEG={geschaetzt:"geschätzt",vorlaeufig:"vorläufig",geprueft:"geprüft"};
+const VERFUEGBAR={fehlt:"fehlt",kommt:"kommt noch",vorhanden:"vorhanden"};
+const STATUS_FARBE={geschaetzt:"var(--muted)",vorlaeufig:"#d99a2b",geprueft:"var(--accent)"};
+const VERFUEGBAR_FARBE={fehlt:"var(--nachzahlung)",kommt:"#d99a2b",vorhanden:"var(--accent)"};
+let nurUngeprueft=false;
+let expandedKosten=new Set();
 
 /* Rechenkern ausgelagert nach calc.js (testbar): nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor */
 function fmtDatum(s){ const p=String(s||'').split('-'); return p.length===3 ? p[2]+'.'+p[1]+'.'+p[0] : (s||''); }
@@ -363,22 +391,23 @@ function renderVoraus(){
   const tb=document.querySelector('#tbl_voraus tbody'); tb.innerHTML='';
   const monat = vorausModus==='monatlich';
   head.innerHTML = monat
-    ? '<tr><th>Mieter</th><th>Einheit</th><th class="num">Monatsbetrag (€)</th><th class="num">Monate</th><th class="num">Einmalzahlung (€)</th><th class="num">Gesamt (€)</th></tr>'
-    : '<tr><th>Mieter</th><th>Einheit</th><th class="num">Jahressumme (€)</th><th class="num">Einmalzahlung (€)</th><th class="num">Gesamt (€)</th></tr>';
+    ? '<tr><th>Mieter</th><th>Einheit</th><th class="num">Monatsbetrag (€)</th><th class="num">Monate</th><th class="num">Einmalzahlung (€)</th><th class="num">Gesamt (€)</th><th>Notiz</th></tr>'
+    : '<tr><th>Mieter</th><th>Einheit</th><th class="num">Jahressumme (€)</th><th class="num">Einmalzahlung (€)</th><th class="num">Gesamt (€)</th><th>Notiz</th></tr>';
   alleMV().forEach(({e,m,ei,mi})=>{
     recomputeVoraus(m);
     const tr=document.createElement('tr');
     const kopf='<td>'+(m.mieter||'')+'</td><td><span class="pill">'+e.name+'</span></td>';
     const gesamt='<td class="num" id="gesamt-'+ei+'-'+mi+'">'+eur(m.voraus)+'</td>';
+    const notizCell='<td><input value="'+(m.notiz||'').replace(/"/g,'&quot;')+'" oninput="state.einheiten['+ei+'].mv['+mi+'].notiz=this.value" placeholder="Notiz"></td>';
     if(monat){
       tr.innerHTML=kopf+
         '<td class="num"><input class="short" type="number" value="'+m.vmonat+'" oninput="updVorausMV('+ei+','+mi+',\'vmonat\',this.value)"></td>'+
         '<td class="num"><input class="short" type="number" value="'+m.vmonate+'" oninput="updVorausMV('+ei+','+mi+',\'vmonate\',this.value)"></td>'+
-        '<td class="num"><input class="short" type="number" value="'+m.einmal+'" oninput="updVorausMV('+ei+','+mi+',\'einmal\',this.value)"></td>'+gesamt;
+        '<td class="num"><input class="short" type="number" value="'+m.einmal+'" oninput="updVorausMV('+ei+','+mi+',\'einmal\',this.value)"></td>'+gesamt+notizCell;
     } else {
       tr.innerHTML=kopf+
         '<td class="num"><input class="short" type="number" value="'+m.vjahr+'" oninput="updVorausMV('+ei+','+mi+',\'vjahr\',this.value)"></td>'+
-        '<td class="num"><input class="short" type="number" value="'+m.einmal+'" oninput="updVorausMV('+ei+','+mi+',\'einmal\',this.value)"></td>'+gesamt;
+        '<td class="num"><input class="short" type="number" value="'+m.einmal+'" oninput="updVorausMV('+ei+','+mi+',\'einmal\',this.value)"></td>'+gesamt+notizCell;
     }
     tb.appendChild(tr);
   });
@@ -386,22 +415,44 @@ function renderVoraus(){
 
 /* ---------- Step 3 ---------- */
 function renderKosten(){
+  ensureIds();
   const tb=document.querySelector('#tbl_kosten tbody'); tb.innerHTML='';
   state.kosten.forEach((k,idx)=>{
-    const tr=document.createElement('tr');
+    const st=k.status||'vorlaeufig', vf=k.verfuegbar||'vorhanden';
+    if(nurUngeprueft && st==='geprueft') return;
     let opts='';
     for(const key in SCHLUESSEL){ opts+='<option value="'+key+'"'+(k.schluessel===key?' selected':'')+'>'+SCHLUESSEL[key]+'</option>'; }
     const info = nkUmlageInfo(k.bez);
     const warn = info.umlagefaehig ? '' : ' <span class="warn" title="'+info.grund.replace(/"/g,'')+'">'+WARN_ICON+'</span>';
+    const dots='<span class="dot" style="background:'+STATUS_FARBE[st]+'" title="Status: '+STATUS_BELEG[st]+'"></span>'+
+               '<span class="dot" style="background:'+VERFUEGBAR_FARBE[vf]+'" title="Verfügbarkeit: '+VERFUEGBAR[vf]+'"></span>';
+    const open=expandedKosten.has(k.id);
+    const tr=document.createElement('tr');
     tr.innerHTML=
       '<td><span class="bez-cell"><input value="'+k.bez.replace(/"/g,'&quot;')+'" oninput="state.kosten['+idx+'].bez=this.value" onchange="applyKostenart('+idx+',this.value)">'+warn+'</span></td>'+
       '<td class="num"><input class="short" type="number" value="'+k.betrag+'" oninput="state.kosten['+idx+'].betrag=+this.value"></td>'+
       '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug)." onchange="state.kosten['+idx+'].schluessel=this.value">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button></span></td>'+
+      '<td><button class="status-toggle" onclick="toggleKostenDetail('+k.id+')" title="Status & Notiz">'+dots+'<span class="chev">'+(open?'▴':'▾')+'</span></button></td>'+
       '<td><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button></td>';
     tb.appendChild(tr);
+    if(open){
+      let so=''; for(const key in STATUS_BELEG){ so+='<option value="'+key+'"'+(st===key?' selected':'')+'>'+STATUS_BELEG[key]+'</option>'; }
+      let vo=''; for(const key in VERFUEGBAR){ vo+='<option value="'+key+'"'+(vf===key?' selected':'')+'>'+VERFUEGBAR[key]+'</option>'; }
+      const d=document.createElement('tr'); d.className='detail-row';
+      d.innerHTML='<td colspan="5"><div class="detail-grid">'+
+        '<label>Status <select onchange="updKosten('+idx+',\'status\',this.value)">'+so+'</select></label>'+
+        '<label>Verfügbarkeit <select onchange="updKosten('+idx+',\'verfuegbar\',this.value)">'+vo+'</select></label>'+
+        '<label class="notiz-field">Notiz <input value="'+(k.notiz||'').replace(/"/g,'&quot;')+'" oninput="state.kosten['+idx+'].notiz=this.value" placeholder="z. B. Zähler defekt"></label>'+
+      '</div></td>';
+      tb.appendChild(d);
+    }
   });
+  const uc=document.getElementById('ungeprueft_count'); if(uc){ const n=nkUngeprueftAnzahl(state.kosten); uc.textContent = n? ' — '+n+' offen' : ' — alle geprüft'; }
   renderPicker();
 }
+function updKosten(idx,field,val){ state.kosten[idx][field]=val; renderKosten(); }
+function toggleKostenDetail(id){ if(expandedKosten.has(id)) expandedKosten.delete(id); else expandedKosten.add(id); renderKosten(); }
+function setNurUngeprueft(v){ nurUngeprueft=v; renderKosten(); }
 /* US-04: Auswahl-Liste der Kostenarten; bereits übernommene ausgegraut, nicht umlagefähige mit ! */
 function renderPicker(){
   const box = document.getElementById('kosten_auswahl'); if(!box) return;
@@ -580,8 +631,9 @@ function ensureIds(){
 }
 function setSaveStatus(t){ const el=document.getElementById('save_status'); if(el) el.textContent=t; }
 function saveState(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); setSaveStatus('gespeichert '+new Date().toLocaleTimeString('de-DE')); }catch(e){ setSaveStatus('Speichern nicht möglich'); } }
-function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return false; const o=nkParseState(raw); if(!o) return false; state.objekt=o.objekt||state.objekt; state.einheiten=o.einheiten||state.einheiten; state.kosten=o.kosten||state.kosten; state.zahlung=o.zahlung||state.zahlung; return true; }catch(e){ return false; } }
+function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return false; const o=nkParseState(raw); if(!o) return false; state.objekt=o.objekt||state.objekt; state.einheiten=o.einheiten||state.einheiten; state.kosten=o.kosten||state.kosten; state.zahlung=o.zahlung||state.zahlung; if(o.abrechnungStatus) state.abrechnungStatus=o.abrechnungStatus; return true; }catch(e){ return false; } }
 function resetState(){ if(confirm('Alle gespeicherten Daten löschen und Beispiel zurücksetzen?')){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} location.reload(); } }
+function setAbrStatus(v){ state.abrechnungStatus=v; scheduleSave(); }
 let _saveTimer; function scheduleSave(){ clearTimeout(_saveTimer); _saveTimer=setTimeout(saveState,600); }
 document.addEventListener('input', scheduleSave);
 document.addEventListener('change', scheduleSave);
@@ -589,6 +641,7 @@ window.addEventListener('beforeunload', saveState);
 
 /* ---------- Init ---------- */
 loadState(); ensureIds();
+(function(){ const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus; })();
 renderEinheiten(); renderVoraus(); renderKosten(); renderStepper(); go(0);
 saveState();
 </script>
