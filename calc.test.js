@@ -138,6 +138,20 @@ test("State aus JSON laden und prüfen (US-27)", () => {
   assert.equal(calc.nkParseState(JSON.stringify({ foo:1 })), null);
 });
 
+test("Plausibilitätsprüfung: bereit / Lücken (US-14)", () => {
+  const ok = {
+    objekt:{von:"2025-01-01",bis:"2025-12-31"},
+    einheiten:[{flaeche:70,personen:2,mv:[{mieter:"A",von:"2025-01-01",bis:"2025-12-31"}]}],
+    kosten:[{bez:"Grundsteuer",betrag:1200,schluessel:"flaeche"}],
+    zahlung:{iban:"DE12",empfaenger:"V"}
+  };
+  assert.equal(calc.nkPlausibilitaet(ok).bereit, true);
+  const ohneIban = JSON.parse(JSON.stringify(ok)); ohneIban.zahlung.iban = "";
+  assert.equal(calc.nkPlausibilitaet(ohneIban).bereit, false);
+  const ohneFlaeche = JSON.parse(JSON.stringify(ok)); ohneFlaeche.einheiten[0].flaeche = 0;
+  assert.equal(calc.nkPlausibilitaet(ohneFlaeche).bereit, false);
+});
+
 test("Anpassung bald fällig (US-21)", () => {
   assert.equal(calc.nkBaldFaellig("2026-08-01", "2026-06-12", 3), true);
   assert.equal(calc.nkBaldFaellig("2026-12-01", "2026-06-12", 3), false);
