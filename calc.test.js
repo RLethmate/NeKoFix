@@ -138,6 +138,13 @@ test("State aus JSON laden und prüfen (US-27)", () => {
   assert.equal(calc.nkParseState(JSON.stringify({ foo:1 })), null);
 });
 
+test("Anpassung bald fällig (US-21)", () => {
+  assert.equal(calc.nkBaldFaellig("2026-08-01", "2026-06-12", 3), true);
+  assert.equal(calc.nkBaldFaellig("2026-12-01", "2026-06-12", 3), false);
+  assert.equal(calc.nkBaldFaellig("2026-01-01", "2026-06-12", 3), false);
+  assert.equal(calc.nkBaldFaellig("", "2026-06-12", 3), false);
+});
+
 test("Soll-Monatsbetrag = Grundmiete + NK + N×Stellplatz (US-28)", () => {
   assert.equal(calc.nkSollMonat(800, 150, 1, 40), 990);
   assert.equal(calc.nkSollMonat(650, 125, 0, 0), 775);
