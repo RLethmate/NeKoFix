@@ -455,29 +455,60 @@ function renderEinheiten(){
       '</div>');
   });
 }
-document.getElementById('obj_addr').addEventListener('input',e=>{state.objekt.addr=e.target.value; renderObjektSelect();});
+document.getElementById('obj_addr').addEventListener('input',e=>{store.setObjektFeld('addr',e.target.value); renderObjektSelect();});
 /* Datum nur in den Zustand schreiben; Neu-Zeichnen erst beim Verlassen (sonst wirft type=date beim Tippen der Jahreszahl raus). */
-document.getElementById('obj_von').addEventListener('change',e=>{state.objekt.von=e.target.value; renderObjektSelect();});
-document.getElementById('obj_bis').addEventListener('change',e=>{state.objekt.bis=e.target.value; renderObjektSelect();});
+document.getElementById('obj_von').addEventListener('change',e=>{store.setObjektFeld('von',e.target.value); renderObjektSelect();});
+document.getElementById('obj_bis').addEventListener('change',e=>{store.setObjektFeld('bis',e.target.value); renderObjektSelect();});
 document.getElementById('obj_von').addEventListener('blur',renderEinheiten);
 document.getElementById('obj_bis').addEventListener('blur',renderEinheiten);
-function updEinheit(ei,field,val){ state.einheiten[ei][field] = field==='name'?val:(+val); }
-function updMV(ei,mi,field,val){ state.einheiten[ei].mv[mi][field]=val; /* Datum: Neu-Zeichnen via onblur, nicht beim Tippen */ }
-function addMV(ei){ state.einheiten[ei].mv.push({mieter:"Neuer Mieter",von:state.objekt.von,bis:state.objekt.bis,vmonat:0,vmonate:12,vjahr:0,einmal:0,voraus:0,grundmiete:0,stellAnzahl:0,stellPreis:0,bezahlt:{}}); renderEinheiten(); }
-function delMV(ei,mi){ if(state.einheiten[ei].mv.length>1) state.einheiten[ei].mv.splice(mi,1); renderEinheiten(); }
+
+/* ---------- US-34: dünne Zustands-Schicht (Store) ----------
+   Einziger Ort, der tief in `state` schreibt, und löst zentral über commit() das
+   Speichern aus. Rendering bleibt in der UI-Schicht (Handler rufen renderX()). */
+function neuesMv(){ return {mieter:"Neuer Mieter",von:state.objekt.von,bis:state.objekt.bis,vmonat:0,vmonate:12,vjahr:0,einmal:0,voraus:0,grundmiete:0,stellAnzahl:0,stellPreis:0,bezahlt:{}}; }
+const store = {
+  // Lesezugriffe
+  mv(ei,mi){ return state.einheiten[ei].mv[mi]; },
+  kosten(idx){ return state.kosten[idx]; },
+  // Objekt
+  setObjektFeld(field,val){ state.objekt[field]=val; commit(); },
+  setAbrechnungStatus(val){ state.abrechnungStatus=val; commit(); },
+  // Einheiten
+  addEinheit(){ const name=nkNaechsteEinheitName(state.einheiten.map(e=>e.name)); const id=state.einheiten.reduce((m,e)=>Math.max(m,e.id||0),0)+1; state.einheiten.push({ id, name, flaeche:0, personen:1, mv:[neuesMv()] }); commit(); },
+  removeEinheit(ei){ if(state.einheiten.length>1){ state.einheiten.splice(ei,1); commit(); } },
+  setEinheitFeld(ei,field,val){ state.einheiten[ei][field] = field==='name'?val:(+val); commit(); },
+  // Mietverhältnisse
+  addMv(ei){ state.einheiten[ei].mv.push(neuesMv()); commit(); },
+  removeMv(ei,mi){ const mv=state.einheiten[ei].mv; if(mv.length>1){ mv.splice(mi,1); commit(); } },
+  setMvFeld(ei,mi,field,val){ state.einheiten[ei].mv[mi][field]=val; commit(); },
+  setMvNum(ei,mi,field,val){ state.einheiten[ei].mv[mi][field]=+val; commit(); },
+  setVertragFeld(ei,mi,field,val,num){ state.einheiten[ei].mv[mi][field]= num?(+val):val; commit(); },
+  setBezahlt(ei,mi,key,checked){ const m=state.einheiten[ei].mv[mi]; if(!m.bezahlt)m.bezahlt={}; m.bezahlt[key]=checked; commit(); },
+  // Chronik
+  addChronik(ei,mi){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik)m.chronik=[]; m.chronik.push({datum:state.objekt.von||'',text:''}); commit(); },
+  removeChronik(ei,mi,ci){ state.einheiten[ei].mv[mi].chronik.splice(ci,1); commit(); },
+  setChronikFeld(ei,mi,ci,field,val){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik)m.chronik=[]; m.chronik[ci][field]=val; commit(); },
+  // Kosten
+  addKosten(bez){ if(!state.kosten.some(k=>k.bez===bez)) state.kosten.push({bez, betrag:0, schluessel:nkVorschlagSchluessel(bez)}); commit(); },
+  removeKosten(idx){ state.kosten.splice(idx,1); commit(); },
+  setKostenFeld(idx,field,val){ state.kosten[idx][field]=val; commit(); },
+  setKostenBetrag(idx,val){ state.kosten[idx].betrag=+val; commit(); },
+  setKostenart(idx,val){ const k=state.kosten[idx]; k.bez=val; k.schluessel=nkVorschlagSchluessel(val); k.vorsteuer=nkVorschlagVorsteuer(val); commit(); },
+  resetKostenSchluessel(idx){ const k=state.kosten[idx]; k.schluessel=nkVorschlagSchluessel(k.bez); commit(); }
+};
+
+function updEinheit(ei,field,val){ store.setEinheitFeld(ei,field,val); }
+function updMV(ei,mi,field,val){ store.setMvFeld(ei,mi,field,val); /* Datum: Neu-Zeichnen via onblur, nicht beim Tippen */ }
+function addMV(ei){ store.addMv(ei); renderEinheiten(); }
+function delMV(ei,mi){ store.removeMv(ei,mi); renderEinheiten(); }
 /* US-21: Vertrag & Anpassungs-Chronik je Mietverhältnis */
 function toggleVertrag(id){ if(expandedMV.has(id)) expandedMV.delete(id); else expandedMV.add(id); renderEinheiten(); }
-function updVertrag(ei,mi,field,val,num){ state.einheiten[ei].mv[mi][field]= num? (+val) : val; /* Datum: Neu-Zeichnen via onblur */ }
-function addChronik(ei,mi){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik) m.chronik=[]; m.chronik.push({datum:state.objekt.von||'', text:''}); renderEinheiten(); }
-function delChronik(ei,mi,ci){ state.einheiten[ei].mv[mi].chronik.splice(ci,1); renderEinheiten(); }
-function updChronik(ei,mi,ci,field,val){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik) m.chronik=[]; m.chronik[ci][field]=val; /* Datum: Neu-Zeichnen via onblur */ }
-function addEinheit(){
-  const name = nkNaechsteEinheitName(state.einheiten.map(e=>e.name));
-  const id = state.einheiten.reduce((m,e)=>Math.max(m,e.id||0),0)+1;
-  state.einheiten.push({ id, name, flaeche:0, personen:1, mv:[{mieter:"Neuer Mieter",von:state.objekt.von,bis:state.objekt.bis,vmonat:0,vmonate:12,vjahr:0,einmal:0,voraus:0,grundmiete:0,stellAnzahl:0,stellPreis:0,bezahlt:{}}] });
-  renderEinheiten();
-}
-function delEinheit(ei){ if(state.einheiten.length>1) state.einheiten.splice(ei,1); renderEinheiten(); }
+function updVertrag(ei,mi,field,val,num){ store.setVertragFeld(ei,mi,field,val,num); /* Datum: Neu-Zeichnen via onblur */ }
+function addChronik(ei,mi){ store.addChronik(ei,mi); renderEinheiten(); }
+function delChronik(ei,mi,ci){ store.removeChronik(ei,mi,ci); renderEinheiten(); }
+function updChronik(ei,mi,ci,field,val){ store.setChronikFeld(ei,mi,ci,field,val); /* Datum: Neu-Zeichnen via onblur */ }
+function addEinheit(){ store.addEinheit(); renderEinheiten(); }
+function delEinheit(ei){ store.removeEinheit(ei); renderEinheiten(); }
 
 /* ---------- Step 2 ---------- */
 function recomputeVoraus(m){
@@ -487,7 +518,8 @@ function recomputeVoraus(m){
 }
 function setVorausModus(x){ vorausModus=x; renderVoraus(); }
 function updVorausMV(ei, mi, field, val){
-  const m=state.einheiten[ei].mv[mi]; m[field]=+val; recomputeVoraus(m);
+  store.setMvNum(ei,mi,field,val);
+  const m=store.mv(ei,mi); recomputeVoraus(m);
   const c=document.getElementById('gesamt-'+ei+'-'+mi); if(c) c.textContent=eur(m.voraus);
 }
 function renderVoraus(){
@@ -502,7 +534,7 @@ function renderVoraus(){
     const tr=document.createElement('tr');
     const kopf='<td>'+esc(m.mieter)+'</td><td><span class="pill">'+esc(e.name)+'</span></td>';
     const gesamt='<td class="num" id="gesamt-'+ei+'-'+mi+'">'+eur(m.voraus)+'</td>';
-    const notizCell='<td><input value="'+esc(m.notiz)+'" oninput="state.einheiten['+ei+'].mv['+mi+'].notiz=this.value" placeholder="Notiz"></td>';
+    const notizCell='<td><input value="'+esc(m.notiz)+'" oninput="store.setMvFeld('+ei+','+mi+',\'notiz\',this.value)" placeholder="Notiz"></td>';
     if(monat){
       tr.innerHTML=kopf+
         '<td class="num"><input class="short" type="number" value="'+m.vmonat+'" oninput="updVorausMV('+ei+','+mi+',\'vmonat\',this.value)"></td>'+
@@ -534,9 +566,9 @@ function renderKosten(){
     const open=expandedKosten.has(k.id);
     const tr=document.createElement('tr'); tr.id='krow-'+idx; if(k.vorjahr) tr.className='vorjahr';
     tr.innerHTML=
-      '<td><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="state.kosten['+idx+'].bez=this.value" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+'</span></td>'+
+      '<td><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+'</span></td>'+
       '<td class="num"><input class="short" type="number" value="'+k.betrag+'" oninput="updKostenBetrag('+idx+',this.value)"></td>'+
-      '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug)." onchange="state.kosten['+idx+'].schluessel=this.value">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button></span></td>'+
+      '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug)." onchange="store.setKostenFeld('+idx+',\'schluessel\',this.value)">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button></span></td>'+
       '<td><button class="status-toggle" onclick="toggleKostenDetail('+k.id+')" title="Status & Notiz">'+dots+'<span class="chev">'+(open?'▴':'▾')+'</span></button></td>'+
       '<td><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button></td>';
     tb.appendChild(tr);
@@ -549,7 +581,7 @@ function renderKosten(){
         '<label>Status <select onchange="updKosten('+idx+',\'status\',this.value)">'+so+'</select></label>'+
         '<label>Verfügbarkeit <select onchange="updKosten('+idx+',\'verfuegbar\',this.value)">'+vo+'</select></label>'+
         '<label title="Im Beleg enthaltene Vorsteuer">Vorsteuer <select onchange="updKosten('+idx+',\'vorsteuer\',+this.value)">'+vsOpts+'</select></label>'+
-        '<label class="notiz-field">Notiz <input value="'+esc(k.notiz)+'" oninput="state.kosten['+idx+'].notiz=this.value" placeholder="z. B. Zähler defekt"></label>'+
+        '<label class="notiz-field">Notiz <input value="'+esc(k.notiz)+'" oninput="store.setKostenFeld('+idx+',\'notiz\',this.value)" placeholder="z. B. Zähler defekt"></label>'+
       '</div></td>';
       tb.appendChild(d);
     }
@@ -557,9 +589,9 @@ function renderKosten(){
   const uc=document.getElementById('ungeprueft_count'); if(uc){ const n=nkUngeprueftAnzahl(state.kosten); uc.textContent = n? ' — '+n+' offen' : ' — alle geprüft'; }
   renderPicker();
 }
-function updKosten(idx,field,val){ state.kosten[idx][field]=val; renderKosten(); }
+function updKosten(idx,field,val){ store.setKostenFeld(idx,field,val); renderKosten(); }
 /* US-11: Betrag erfassen hebt die Vorjahr-Markierung der Zeile auf */
-function updKostenBetrag(idx,val){ const k=state.kosten[idx]; k.betrag=+val; if(k.vorjahr){ k.vorjahr=false; const r=document.getElementById('krow-'+idx); if(r) r.classList.remove('vorjahr'); const b=r&&r.querySelector('.vorjahr-badge'); if(b) b.remove(); } }
+function updKostenBetrag(idx,val){ store.setKostenBetrag(idx,val); const k=store.kosten(idx); if(k.vorjahr){ store.setKostenFeld(idx,'vorjahr',false); const r=document.getElementById('krow-'+idx); if(r) r.classList.remove('vorjahr'); const b=r&&r.querySelector('.vorjahr-badge'); if(b) b.remove(); } }
 function toggleKostenDetail(id){ if(expandedKosten.has(id)) expandedKosten.delete(id); else expandedKosten.add(id); renderKosten(); }
 function setNurUngeprueft(v){ nurUngeprueft=v; renderKosten(); }
 /* US-04: Auswahl-Liste der Kostenarten; bereits übernommene ausgegraut, nicht umlagefähige mit ! */
@@ -577,10 +609,7 @@ function renderPicker(){
 function toggleKostenDropdown(ev){ if(ev) ev.stopPropagation(); const dd=document.getElementById('kosten_dd'); dd.style.display = dd.style.display==='none' ? 'block' : 'none'; }
 document.addEventListener('click', e=>{ const add=document.getElementById('kosten_add'); const dd=document.getElementById('kosten_dd'); if(dd && add && !add.contains(e.target)) dd.style.display='none'; });
 function addAusgewaehlteKosten(){
-  document.querySelectorAll('#kosten_auswahl input[type=checkbox]:checked').forEach(c=>{
-    const bez = c.value;
-    if(!state.kosten.some(k=>k.bez===bez)) state.kosten.push({bez, betrag:0, schluessel: nkVorschlagSchluessel(bez)});
-  });
+  document.querySelectorAll('#kosten_auswahl input[type=checkbox]:checked').forEach(c=> store.addKosten(c.value));
   renderKosten();
   document.getElementById('kosten_dd').style.display='none';
 }
@@ -588,13 +617,13 @@ function addSonstigeKosten(){
   const inp = document.getElementById('sonstige_bez');
   const bez = (inp.value||'').trim();
   if(!bez) return;
-  state.kosten.push({bez, betrag:0, schluessel: nkVorschlagSchluessel(bez)});
+  store.addKosten(bez);
   inp.value=''; renderKosten();
 }
-function deleteKostenRow(idx){ state.kosten.splice(idx,1); renderKosten(); }
+function deleteKostenRow(idx){ store.removeKosten(idx); renderKosten(); }
 /* US-03: Kostenart setzen und passenden Verteilerschlüssel vorschlagen (überschreibbar). */
-function applyKostenart(idx, val){ state.kosten[idx].bez = val; state.kosten[idx].schluessel = nkVorschlagSchluessel(val); state.kosten[idx].vorsteuer = nkVorschlagVorsteuer(val); renderKosten(); }
-function resetSchluessel(idx){ state.kosten[idx].schluessel = nkVorschlagSchluessel(state.kosten[idx].bez); renderKosten(); }
+function applyKostenart(idx, val){ store.setKostenart(idx,val); renderKosten(); }
+function resetSchluessel(idx){ store.resetKostenSchluessel(idx); renderKosten(); }
 
 /* ---------- Step 4 ---------- */
 function computeView(){
@@ -758,8 +787,8 @@ function renderZahlungen(){
       '</div>');
   });
 }
-function updZahlung(ei,mi,key,checked){ const m=state.einheiten[ei].mv[mi]; if(!m.bezahlt) m.bezahlt={}; m.bezahlt[key]=checked; renderZahlungen(); }
-function updMVNum(ei,mi,field,val){ state.einheiten[ei].mv[mi][field]=+val; renderZahlungen(); }
+function updZahlung(ei,mi,key,checked){ store.setBezahlt(ei,mi,key,checked); renderZahlungen(); }
+function updMVNum(ei,mi,field,val){ store.setMvNum(ei,mi,field,val); renderZahlungen(); }
 
 /* ---------- PDF-Export (US-18) ---------- */
 function pdfSafeName(s){ return String(s).replace(/[^\wäöüÄÖÜß .-]/g,'_').trim(); }
@@ -905,10 +934,12 @@ function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw)
     if(o && Array.isArray(o.einheiten)){ objekte=[o]; aktivIdx=0; ladeDaten(o); return true; } /* Migration: altes Einzelformat */
     return false; }catch(e){ return false; } }
 function resetState(){ if(confirm('Aktuelle Eingaben verwerfen und die Beispiel-/Testdaten laden? Alle gespeicherten Daten (auch weitere Objekte) gehen dabei verloren.')){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} location.reload(); } }
-function setAbrStatus(v){ state.abrechnungStatus=v; scheduleSave(); }
-let _saveTimer; function scheduleSave(){ clearTimeout(_saveTimer); _saveTimer=setTimeout(saveState,600); }
-document.addEventListener('input', scheduleSave);
-document.addEventListener('change', scheduleSave);
+function setAbrStatus(v){ store.setAbrechnungStatus(v); }
+/* US-34: einzelner Auslöser fürs (entprellte) Speichern. Der Store ruft ausschließlich commit(). */
+let _saveTimer; function commit(){ clearTimeout(_saveTimer); _saveTimer=setTimeout(saveState,600); }
+function scheduleSave(){ commit(); } /* Rückwärtskompatibel */
+document.addEventListener('input', commit);  /* Sicherheitsnetz für nicht über den Store laufende Eingaben */
+document.addEventListener('change', commit);
 window.addEventListener('beforeunload', saveState);
 
 /* ---------- Init ---------- */
