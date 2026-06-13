@@ -68,6 +68,11 @@ function nkVorschlagSchluessel(bez) {
   return "flaeche";
 }
 
+/* Notizen-System (US-19): Anzahl noch nicht geprüfter Kostenpositionen. */
+function nkUngeprueftAnzahl(kosten) {
+  return (kosten || []).filter(k => (k.status || "vorlaeufig") !== "geprueft").length;
+}
+
 /* Persistenz (US-27): State aus JSON laden und grob prüfen. Gibt Objekt oder null zurück. */
 function nkParseState(json) {
   try {
@@ -158,5 +163,6 @@ if (typeof module !== "undefined" && module.exports) {
     nkZeitanteil,
     nkNaechsteEinheitName,
     nkParseState,
+    nkUngeprueftAnzahl,
   };
 }
