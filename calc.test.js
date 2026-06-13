@@ -193,6 +193,15 @@ test("Zeitanteil tagesgenau (US-10)", () => {
   assert.equal(calc.nkZeitanteil("2024-01-01", "2024-12-31", "2025-01-01", "2025-12-31"), 0);
 });
 
+test("HTML-Escaping von Freitext (US-36)", () => {
+  assert.equal(calc.nkEsc("A & B"), "A &amp; B");
+  assert.equal(calc.nkEsc("<script>"), "&lt;script&gt;");
+  assert.equal(calc.nkEsc('Mü"ller'), "Mü&quot;ller");
+  assert.equal(calc.nkEsc("O'Neil"), "O&#39;Neil");
+  assert.equal(calc.nkEsc(null), "");
+  assert.equal(calc.nkEsc(42), "42");
+});
+
 test("Mieterabrechnung: Zeilen, Zeitanteil, gewerblich, Saldo (US-32)", () => {
   const objekt = { von: "2025-01-01", bis: "2025-12-31" };
   const eh = [{ name: "EG", flaeche: 100, personen: 2 }, { name: "OG", flaeche: 100, personen: 2 }];
