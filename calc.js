@@ -191,6 +191,32 @@ function nkUmlageInfo(bez) {
   return { umlagefaehig: true, grund: "" };
 }
 
+/* Plausibilitätsprüfung (US-14): liefert Prüfpunkte und ob die Abrechnung „bereit" ist. */
+function nkPlausibilitaet(s) {
+  const punkte = [];
+  const E = s.einheiten || [], K = s.kosten || [], Z = s.zahlung || {}, O = s.objekt || {};
+  if (nkTageInklusive(O.von, O.bis) > 0) punkte.push({ level: "ok", text: "Abrechnungszeitraum gültig." });
+  else punkte.push({ level: "fehler", text: "Abrechnungszeitraum ungültig (von/bis prüfen)." });
+  const t = nkTotals(E);
+  K.forEach(k => {
+    const basis = k.schluessel === "flaeche" ? t.flaeche : k.schluessel === "person" ? t.personen : t.einheiten;
+    if (!(basis > 0)) punkte.push({ level: "fehler", text: "Position „" + k.bez + "“ ist nicht verteilbar (Basis für „" + k.schluessel + "“ ist 0)." });
+  });
+  if (K.length) punkte.push({ level: "ok", text: K.length + " Kostenposition(en), alle verteilbar." });
+  if (Z.iban && String(Z.iban).trim()) punkte.push({ level: "ok", text: "IBAN vorhanden." });
+  else punkte.push({ level: "fehler", text: "IBAN fehlt (Zahlungsangaben)." });
+  if (!(Z.empfaenger && String(Z.empfaenger).trim())) punkte.push({ level: "fehler", text: "Empfänger der Zahlung fehlt." });
+  let ohneName = 0;
+  E.forEach(e => (e.mv || []).forEach(m => { if (!(m.mieter && String(m.mieter).trim())) ohneName++; }));
+  if (ohneName) punkte.push({ level: "fehler", text: ohneName + " Mietverhältnis(se) ohne Mieternamen." });
+  const nu = K.filter(k => !nkUmlageInfo(k.bez).umlagefaehig);
+  if (nu.length) punkte.push({ level: "warn", text: nu.length + " nicht umlagefähige Position(en) enthalten (z. B. „" + nu[0].bez + "“)." });
+  let leer = false;
+  E.forEach(e => { const z = (e.mv || []).reduce((a, m) => a + nkZeitanteil(m.von, m.bis, O.von, O.bis), 0); if (z < 0.999) leer = true; });
+  if (leer) punkte.push({ level: "warn", text: "Leerstand vorhanden – dieser Anteil trägt der Vermieter." });
+  return { bereit: !punkte.some(p => p.level === "fehler"), punkte };
+}
+
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
    und die Funktionen stehen global zur Verfügung.
    Eine Funktion pro Zeile (mit Komma am Ende) – das entschärft Merge-Konflikte beim
@@ -218,5 +244,6 @@ if (typeof module !== "undefined" && module.exports) {
     nkSollMonat,
     nkAktiveMonate,
     nkBaldFaellig,
+    nkPlausibilitaet,
   };
 }
