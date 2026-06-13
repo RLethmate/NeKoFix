@@ -23,8 +23,30 @@ function nkAnteilOf(e, kosten, t) {
 function nkLineItemsFor(e, kosten, t) {
   return kosten.map(k => {
     const f = nkFactor(e, k.schluessel, t);
-    return { bez: k.bez, gesamt: +k.betrag || 0, schluessel: k.schluessel, anteil: (+k.betrag || 0) * f };
+    return { bez: k.bez, gesamt: +k.betrag || 0, schluessel: k.schluessel, vorsteuer: +k.vorsteuer || 0, anteil: (+k.betrag || 0) * f };
   });
+}
+
+/* Umsatzsteuer (US-20). Reine Funktionen. Hinweis: steuerlich noch zu verifizieren. */
+function nkNetto(brutto, satz) {
+  return (+brutto || 0) / (1 + (+satz || 0) / 100);
+}
+function nkVorschlagVorsteuer(bez) {
+  const b = String(bez || "").toLowerCase();
+  if (b.includes("grundsteuer") || b.includes("versicherung")) return 0;
+  if (b.includes("müll") || b.includes("mull") || b.includes("wasser") || b.includes("abwasser")) return 7;
+  return 19;
+}
+/* Mieterbetrag je Typ: privat = brutto wie erfasst; gewerblich = Positionen netto stellen,
+   summieren, am Ende einheitlich 19 % aufschlagen. items: [{anteil, vorsteuer}]. */
+function nkMieterBetrag(items, gewerblich) {
+  if (!gewerblich) {
+    const b = (items || []).reduce((s, i) => s + (+i.anteil || 0), 0);
+    return { netto: b, ust: 0, brutto: b, gewerblich: false };
+  }
+  const netto = (items || []).reduce((s, i) => s + nkNetto(i.anteil, i.vorsteuer), 0);
+  const ust = netto * 0.19;
+  return { netto: netto, ust: ust, brutto: netto + ust, gewerblich: true };
 }
 
 /* Eigentümer-Gesamtübersicht (US-18): je Mieter Anteil, Vorauszahlung, Saldo plus Summen. */
@@ -164,5 +186,8 @@ if (typeof module !== "undefined" && module.exports) {
     nkNaechsteEinheitName,
     nkParseState,
     nkUngeprueftAnzahl,
+    nkNetto,
+    nkVorschlagVorsteuer,
+    nkMieterBetrag,
   };
 }

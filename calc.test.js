@@ -103,6 +103,29 @@ test("Vorschlag neuer Monatsbetrag = Anteil ÷ 12, gerundet (US-09)", () => {
   assert.equal(calc.nkVorschlagVorauszahlung(0), 0);
 });
 
+test("Netto aus Brutto (US-20)", () => {
+  assert.ok(Math.abs(calc.nkNetto(119, 19) - 100) < 1e-9);
+  assert.ok(Math.abs(calc.nkNetto(107, 7) - 100) < 1e-9);
+  assert.equal(calc.nkNetto(100, 0), 100);
+});
+
+test("Vorsteuersatz-Vorschlag je Kostenart (US-20)", () => {
+  assert.equal(calc.nkVorschlagVorsteuer("Grundsteuer"), 0);
+  assert.equal(calc.nkVorschlagVorsteuer("Gebäudeversicherung"), 0);
+  assert.equal(calc.nkVorschlagVorsteuer("Müllbeseitigung"), 7);
+  assert.equal(calc.nkVorschlagVorsteuer("Hauswart"), 19);
+});
+
+test("Mieterbetrag privat vs. gewerblich (US-20)", () => {
+  const privat = calc.nkMieterBetrag([{anteil:100},{anteil:50}], false);
+  assert.equal(privat.brutto, 150);
+  assert.equal(privat.ust, 0);
+  const gew = calc.nkMieterBetrag([{anteil:107, vorsteuer:7}], true);
+  assert.ok(Math.abs(gew.netto - 100) < 1e-9);
+  assert.ok(Math.abs(gew.ust - 19) < 1e-9);
+  assert.ok(Math.abs(gew.brutto - 119) < 1e-9);
+});
+
 test("Anzahl ungeprüfter Belege (US-19)", () => {
   assert.equal(calc.nkUngeprueftAnzahl([{status:"geprueft"},{status:"vorlaeufig"},{}]), 2);
   assert.equal(calc.nkUngeprueftAnzahl([{status:"geprueft"}]), 0);
