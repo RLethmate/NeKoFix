@@ -119,6 +119,12 @@
   .mv-table input[type=date]{max-width:160px;}
   .gewerbl{font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;}
   .gewerbl input{width:auto;}
+  .zahl-soll{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:8px 0;}
+  .zahl-summe{font-size:13px;margin-left:auto;}
+  .zahl-monate{display:flex;flex-wrap:wrap;gap:8px;}
+  .zahl-monat{font-size:12px;border:1px solid var(--line);border-radius:7px;padding:5px 9px;display:flex;align-items:center;gap:6px;cursor:pointer;}
+  .zahl-monat.paid{background:#e6f4ee;border-color:var(--accent);}
+  .zahl-monat input{width:auto;}
   .leer-hint{font-size:12px;color:var(--nachzahlung);display:flex;align-items:center;gap:6px;margin-top:8px;}
   .muted{color:var(--muted);}
   .bez-cell{display:flex;align-items:center;gap:4px;}
@@ -244,6 +250,14 @@
       </span>
     </div>
   </section>
+
+  <!-- Step 6: Zahlungseingänge -->
+  <section class="panel" data-step="5">
+    <h1>6 · Zahlungseingänge</h1>
+    <p class="sub">Monatliche Soll-Mieten je Mietverhältnis abhaken und mit dem Kontoauszug abgleichen.</p>
+    <div id="zahlungen_box"></div>
+    <div class="nav"><button class="btn-ghost" onclick="go(4)">Zurück</button></div>
+  </section>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -254,14 +268,14 @@ const state = {
   objekt: { addr:"Musterstraße 12, 48155 Münster", von:"2025-01-01", bis:"2025-12-31" },
   einheiten: [
     { id:1, name:"EG links", flaeche:70, personen:2, mv:[
-      { mieter:"Familie Becker", von:"2025-01-01", bis:"2025-12-31", vmonat:150, vmonate:12, vjahr:1800, einmal:0, voraus:1800 }
+      { mieter:"Familie Becker", von:"2025-01-01", bis:"2025-12-31", vmonat:150, vmonate:12, vjahr:1800, einmal:0, voraus:1800, grundmiete:800, stellAnzahl:1, stellPreis:40, bezahlt:{} }
     ]},
     { id:2, name:"1. OG", flaeche:85, personen:3, mv:[
-      { mieter:"Frau Sahin", von:"2025-01-01", bis:"2025-08-31", vmonat:175, vmonate:8, vjahr:1400, einmal:0, voraus:1400 },
-      { mieter:"Herr Neu",  von:"2025-10-01", bis:"2025-12-31", vmonat:175, vmonate:3, vjahr:525,  einmal:0, voraus:525 }
+      { mieter:"Frau Sahin", von:"2025-01-01", bis:"2025-08-31", vmonat:175, vmonate:8, vjahr:1400, einmal:0, voraus:1400, grundmiete:950, stellAnzahl:0, stellPreis:40, bezahlt:{} },
+      { mieter:"Herr Neu",  von:"2025-10-01", bis:"2025-12-31", vmonat:175, vmonate:3, vjahr:525,  einmal:0, voraus:525, grundmiete:980, stellAnzahl:1, stellPreis:40, bezahlt:{} }
     ]},
     { id:3, name:"2. OG", flaeche:60, personen:1, mv:[
-      { mieter:"Herr Klein", von:"2025-01-01", bis:"2025-12-31", vmonat:125, vmonate:12, vjahr:1500, einmal:0, voraus:1500 }
+      { mieter:"Herr Klein", von:"2025-01-01", bis:"2025-12-31", vmonat:125, vmonate:12, vjahr:1500, einmal:0, voraus:1500, grundmiete:650, stellAnzahl:0, stellPreis:40, bezahlt:{} }
     ]}
   ],
   kosten: [
@@ -276,7 +290,7 @@ const state = {
   zahlung:{ frist:"14 Tage nach Zugang", iban:"DE12 3456 7890 1234 5678 00", bic:"WELADED1MST", empfaenger:"M. Vermieter" },
   abrechnungStatus:"inArbeit"
 };
-const STEPS = ["Objekt","Vorauszahlung","Kosten","Berechnung","Abrechnung"];
+const STEPS = ["Objekt","Vorauszahlung","Kosten","Berechnung","Abrechnung","Zahlungen"];
 let current = 0, activeMieter = 0;
 let vorausModus = "monatlich";
 
@@ -326,6 +340,7 @@ function renderStepper(){
 function go(i){
   if(i===3) computeView();
   if(i===4) renderDoc();
+  if(i===5) renderZahlungen();
   current=i;
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', +p.dataset.step===i));
   renderStepper();
@@ -368,12 +383,12 @@ document.getElementById('obj_von').addEventListener('change',e=>{state.objekt.vo
 document.getElementById('obj_bis').addEventListener('change',e=>{state.objekt.bis=e.target.value; renderEinheiten();});
 function updEinheit(ei,field,val){ state.einheiten[ei][field] = field==='name'?val:(+val); }
 function updMV(ei,mi,field,val){ state.einheiten[ei].mv[mi][field]=val; if(field==='von'||field==='bis') renderEinheiten(); }
-function addMV(ei){ state.einheiten[ei].mv.push({mieter:"Neuer Mieter",von:state.objekt.von,bis:state.objekt.bis,vmonat:0,vmonate:12,vjahr:0,einmal:0,voraus:0}); renderEinheiten(); }
+function addMV(ei){ state.einheiten[ei].mv.push({mieter:"Neuer Mieter",von:state.objekt.von,bis:state.objekt.bis,vmonat:0,vmonate:12,vjahr:0,einmal:0,voraus:0,grundmiete:0,stellAnzahl:0,stellPreis:0,bezahlt:{}}); renderEinheiten(); }
 function delMV(ei,mi){ if(state.einheiten[ei].mv.length>1) state.einheiten[ei].mv.splice(mi,1); renderEinheiten(); }
 function addEinheit(){
   const name = nkNaechsteEinheitName(state.einheiten.map(e=>e.name));
   const id = state.einheiten.reduce((m,e)=>Math.max(m,e.id||0),0)+1;
-  state.einheiten.push({ id, name, flaeche:0, personen:1, mv:[{mieter:"Neuer Mieter",von:state.objekt.von,bis:state.objekt.bis,vmonat:0,vmonate:12,vjahr:0,einmal:0,voraus:0}] });
+  state.einheiten.push({ id, name, flaeche:0, personen:1, mv:[{mieter:"Neuer Mieter",von:state.objekt.von,bis:state.objekt.bis,vmonat:0,vmonate:12,vjahr:0,einmal:0,voraus:0,grundmiete:0,stellAnzahl:0,stellPreis:0,bezahlt:{}}] });
   renderEinheiten();
 }
 function delEinheit(ei){ if(state.einheiten.length>1) state.einheiten.splice(ei,1); renderEinheiten(); }
@@ -573,6 +588,42 @@ function renderDoc(){
       : 'Das Guthaben wird Ihnen innerhalb von '+state.zahlung.frist+' auf Ihr hinterlegtes Konto erstattet.')
     +'<br><span class="hint">Hinweis: Einwendungen können Sie innerhalb von 12 Monaten nach Zugang geltend machen.</span></div>';
 }
+
+/* ---------- Step 6: Zahlungseingänge (US-28) ---------- */
+function monatLabel(key){ const p=String(key).split('-'); const n=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez']; return (n[(+p[1])-1]||'?')+' '+p[0]; }
+function nkMonatNK(m){ return +m.vmonat || Math.round((+m.voraus||0)/(m.vmonate||12)); }
+function renderZahlungen(){
+  const box=document.getElementById('zahlungen_box'); box.innerHTML='';
+  alleMV().forEach(({e,m,ei,mi})=>{
+    if(!m.bezahlt) m.bezahlt={};
+    const nk=nkMonatNK(m);
+    const soll=nkSollMonat(m.grundmiete, nk, m.stellAnzahl, m.stellPreis);
+    const monate=nkAktiveMonate(m.von, m.bis, state.objekt.von, state.objekt.bis);
+    const offen=monate.filter(k=>!m.bezahlt[k]);
+    const chips=monate.map(k=>{
+      const paid=!!m.bezahlt[k];
+      return '<label class="zahl-monat'+(paid?' paid':'')+'"><input type="checkbox" '+(paid?'checked':'')+' onchange="updZahlung('+ei+','+mi+',\''+k+'\',this.checked)"> '+monatLabel(k)+' · '+eur(soll)+'</label>';
+    }).join('');
+    const status = offen.length
+      ? '<span style="color:var(--nachzahlung)">'+offen.length+' von '+monate.length+' Monaten offen · '+eur(offen.length*soll)+' ausstehend</span>'
+      : '<span style="color:var(--accent)">alle '+monate.length+' Monate eingegangen</span>';
+    box.insertAdjacentHTML('beforeend',
+      '<div class="unit-card">'+
+        '<div class="unit-head"><b>'+m.mieter+'</b> <span class="pill">'+e.name+'</span></div>'+
+        '<div class="zahl-soll">'+
+          '<label class="unit-f">Grundmiete <input class="short" type="number" value="'+(m.grundmiete||0)+'" onchange="updMVNum('+ei+','+mi+',\'grundmiete\',this.value)"></label>'+
+          '<span class="unit-f">+ NK-Vorauszahlung '+eur(nk)+'</span>'+
+          '<label class="unit-f">+ Stellplätze <input class="short" type="number" value="'+(m.stellAnzahl||0)+'" onchange="updMVNum('+ei+','+mi+',\'stellAnzahl\',this.value)"></label>'+
+          '<label class="unit-f">× <input class="short" type="number" value="'+(m.stellPreis||0)+'" onchange="updMVNum('+ei+','+mi+',\'stellPreis\',this.value)"> €</label>'+
+          '<span class="zahl-summe">Soll/Monat: <b>'+eur(soll)+'</b></span>'+
+        '</div>'+
+        '<div class="zahl-monate">'+(chips||'<span class="hint">keine aktiven Monate im Zeitraum</span>')+'</div>'+
+        '<div class="leer-hint" style="margin-top:8px;">'+status+'</div>'+
+      '</div>');
+  });
+}
+function updZahlung(ei,mi,key,checked){ const m=state.einheiten[ei].mv[mi]; if(!m.bezahlt) m.bezahlt={}; m.bezahlt[key]=checked; renderZahlungen(); }
+function updMVNum(ei,mi,field,val){ state.einheiten[ei].mv[mi][field]=+val; renderZahlungen(); }
 
 /* ---------- PDF-Export (US-18) ---------- */
 function pdfSafeName(s){ return String(s).replace(/[^\wäöüÄÖÜß .-]/g,'_').trim(); }

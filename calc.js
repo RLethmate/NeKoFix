@@ -104,6 +104,24 @@ function nkParseState(json) {
   } catch (e) { return null; }
 }
 
+/* Zahlungseingänge (US-28): monatlicher Soll-Betrag und aktive Monate. */
+function nkSollMonat(grundmiete, nkMonat, stellAnzahl, stellPreis) {
+  return (+grundmiete || 0) + (+nkMonat || 0) + (+stellAnzahl || 0) * (+stellPreis || 0);
+}
+function nkAktiveMonate(mvVon, mvBis, pVon, pBis) {
+  const a1 = nkDatum(mvVon), e1 = nkDatum(mvBis), a2 = nkDatum(pVon), e2 = nkDatum(pBis);
+  if (!a1 || !e1 || !a2 || !e2) return [];
+  const start = a1 > a2 ? a1 : a2, end = e1 < e2 ? e1 : e2;
+  if (end < start) return [];
+  const out = []; let y = start.getUTCFullYear(), mo = start.getUTCMonth();
+  const ey = end.getUTCFullYear(), em = end.getUTCMonth();
+  while (y < ey || (y === ey && mo <= em)) {
+    out.push(y + "-" + String(mo + 1).padStart(2, "0"));
+    mo++; if (mo > 11) { mo = 0; y++; }
+  }
+  return out;
+}
+
 /* Standardname für eine neue Einheit (US-26): nächstes Geschoss hochzählen. */
 function nkNaechsteEinheitName(namen) {
   let max = 0;
@@ -189,5 +207,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkNetto,
     nkVorschlagVorsteuer,
     nkMieterBetrag,
+    nkSollMonat,
+    nkAktiveMonate,
   };
 }
