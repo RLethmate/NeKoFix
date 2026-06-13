@@ -217,6 +217,51 @@ function nkPlausibilitaet(s) {
   return { bereit: !punkte.some(p => p.level === "fehler"), punkte };
 }
 
+/* US-11: ISO-Datum um ein Jahr verschieben (29.02. → 28.02. im Folgejahr). */
+function nkPlusJahr(d) {
+  const m = String(d || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return d;
+  const y = (+m[1]) + 1;
+  let day = +m[3];
+  if (m[2] === "02" && day === 29) day = 28;
+  return y + "-" + m[2] + "-" + String(day).padStart(2, "0");
+}
+
+/* US-11: Vorjahr als Vorlage für die Folgeperiode übernehmen (reine Funktion).
+   - Abrechnungszeitraum +1 Jahr (AC3)
+   - Stammdaten, Kostenarten und Verteilerschlüssel bleiben; Kostenbeträge werden geleert (AC1/AC2)
+   - Mietverhältnisse, die vor Periodenende endeten (ausgezogen), werden weggelassen;
+     aktive werden auf den vollen Folgezeitraum gesetzt, Zahlungseingänge zurückgesetzt
+   - Vorauszahlung: Monatsbetrag bleibt, Jahreswert auf 12 Monate gesetzt
+   - alle übernommenen Daten tragen die Markierung `vorjahr:true` (AC5) */
+function nkVorjahrUebernehmen(src) {
+  const s = JSON.parse(JSON.stringify(src || {}));
+  const o = s.objekt || {};
+  const altBis = o.bis;
+  const objekt = Object.assign({}, o, { von: nkPlusJahr(o.von), bis: nkPlusJahr(o.bis) });
+  const einheiten = (s.einheiten || []).map(e => {
+    const aktive = (e.mv || []).filter(m => !altBis || !m.bis || m.bis >= altBis);
+    const mv = aktive.map(m => {
+      const monat = +m.vmonat || 0;
+      return Object.assign({}, m, {
+        von: objekt.von, bis: objekt.bis,
+        vmonate: 12, vjahr: monat * 12, voraus: monat * 12,
+        bezahlt: {}, vorjahr: true
+      });
+    });
+    return Object.assign({}, e, { mv, vorjahr: true });
+  });
+  const kosten = (s.kosten || []).map(k => Object.assign({}, k, { betrag: 0, status: "vorlaeufig", vorjahr: true }));
+  return { objekt, einheiten, kosten, zahlung: Object.assign({}, s.zahlung), abrechnungStatus: "inArbeit", vorjahr: true };
+}
+
+/* US-30/US-11: exakte Objekt-Duplikate entfernen (gleicher Inhalt), Reihenfolge bleibt. */
+function nkDedupeObjekte(arr) {
+  const out = [], seen = new Set();
+  (arr || []).forEach(d => { const sig = JSON.stringify(d); if (!seen.has(sig)) { seen.add(sig); out.push(d); } });
+  return out;
+}
+
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
    und die Funktionen stehen global zur Verfügung.
    Eine Funktion pro Zeile (mit Komma am Ende) – das entschärft Merge-Konflikte beim
@@ -245,5 +290,8 @@ if (typeof module !== "undefined" && module.exports) {
     nkAktiveMonate,
     nkBaldFaellig,
     nkPlausibilitaet,
+    nkPlusJahr,
+    nkVorjahrUebernehmen,
+    nkDedupeObjekte,
   };
 }
