@@ -25,12 +25,22 @@
   .logo{font-weight:700;font-size:22px;letter-spacing:.3px;}
   .logo span{font-weight:300;opacity:.85}
   .tag{margin-left:auto;font-size:13px;opacity:.85;}
-  .save-status{font-size:12px;color:#fff;opacity:.9;}
+  .spacer{margin-left:auto;}
+  .app-version{font-size:12px;opacity:.65;white-space:nowrap;}
+  .save-status{font-size:12px;color:#fff;opacity:.9;white-space:nowrap;}
+  .menu{position:relative;}
+  .menu-pop{position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:1px solid #d6dde6;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.15);padding:6px;z-index:20;min-width:220px;}
+  .menu-pop button{display:block;width:100%;text-align:left;background:none;border:none;color:#1d2733;font-size:13px;padding:8px 10px;border-radius:6px;cursor:pointer;}
+  .menu-pop button:hover{background:#eef3f8;}
+  header.app{flex-wrap:wrap;}
   .reset-data{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer;}
   .reset-data:hover{background:rgba(255,255,255,.25);}
   .abr-status-wrap{font-size:12px;color:#fff;opacity:.95;display:flex;align-items:center;gap:6px;}
   .abr-status{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:3px 8px;font-size:12px;}
   .abr-status option{color:#1d2733;}
+  .obj-bar{font-size:12px;color:#fff;opacity:.95;display:flex;align-items:center;gap:6px;}
+  .obj-select{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:3px 8px;font-size:12px;max-width:220px;}
+  .obj-select option{color:#1d2733;}
   .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:3px;vertical-align:middle;}
   .status-toggle{background:#fff;border:1px solid var(--line);border-radius:7px;padding:3px 8px;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;gap:3px;}
   .status-toggle:hover{border-color:var(--primary);}
@@ -151,7 +161,19 @@
 <body>
 <header class="app">
   <div class="logo">NeKo<span>Fix</span></div>
-  <div class="tag">Prototyp · Walking Skeleton · End-to-End-Durchstich</div>
+  <label class="obj-bar" title="Objekt wählen – im Abrechnungsmonat ohne Laden umschalten">Objekt:
+    <select id="obj_select" class="obj-select" onchange="switchObjekt(this.value)"></select>
+  </label>
+  <button class="reset-data" onclick="neuesObjekt()" title="Neues, leeres Objekt anlegen">+ Objekt</button>
+  <div class="menu">
+    <button class="reset-data" onclick="toggleDateiMenu()" title="Objekt sichern oder aus Datei laden">Datei ▾</button>
+    <div id="datei_menu" class="menu-pop" hidden>
+      <button onclick="exportObjekt();toggleDateiMenu(true)">Aktuelles Objekt sichern …</button>
+      <button onclick="document.getElementById('obj_import').click();toggleDateiMenu(true)">Objekt aus Datei laden …</button>
+    </div>
+  </div>
+  <input type="file" id="obj_import" accept=".json,application/json" style="display:none" onchange="importObjekt(event)">
+  <span class="spacer"></span>
   <label class="abr-status-wrap" title="Status der Abrechnung">Status:
     <select id="abr_status" class="abr-status" onchange="setAbrStatus(this.value)">
       <option value="inArbeit">in Arbeit</option>
@@ -160,7 +182,8 @@
     </select>
   </label>
   <span id="save_status" class="save-status"></span>
-  <button class="reset-data" onclick="resetState()" title="Aktuelle Eingaben verwerfen und Testdaten laden">Testdaten laden</button>
+  <span id="app_version" class="app-version"></span>
+  <button id="btn_testdaten" class="reset-data" onclick="resetState()" title="Nur Debug: Eingaben verwerfen und Testdaten laden" hidden>Testdaten laden</button>
 </header>
 
 <div class="wrap">
@@ -307,6 +330,8 @@ const state = {
 const STEPS = ["Objekt","Vorauszahlung","Kosten","Berechnung","Abrechnung","Zahlungen"];
 let current = 0, activeMieter = 0;
 let vorausModus = "monatlich";
+/* US-30: mehrere Objekte im Speicher; `state` ist immer das aktive Objekt */
+let objekte = [], aktivIdx = 0;
 
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit" };
@@ -810,6 +835,13 @@ function exportOwnerOverviewPdf(){
   doc.save("Eigentuemer-Uebersicht.pdf");
 }
 
+/* ---------- Version / Header (US-30) ---------- */
+/* Bei jedem Release pflegen: APP_VERSION hochzählen, BUILD_DATE auf das Deploy-Datum setzen. */
+const APP_VERSION="v0.3";
+const BUILD_DATE="2026-06-13";
+function toggleDateiMenu(forceClose){ const m=document.getElementById('datei_menu'); if(!m) return; m.hidden = forceClose ? true : !m.hidden; }
+document.addEventListener('click', e=>{ const m=document.getElementById('datei_menu'); if(m && !m.hidden && !e.target.closest('.menu')) m.hidden=true; });
+
 /* ---------- Persistenz (US-27) ---------- */
 const STORAGE_KEY="nekofix-state-v1";
 function ensureIds(){
@@ -819,9 +851,43 @@ function ensureIds(){
   state.einheiten.forEach(e=>{set(e);(e.mv||[]).forEach(set);}); state.kosten.forEach(set);
 }
 function setSaveStatus(t){ const el=document.getElementById('save_status'); if(el) el.textContent=t; }
-function saveState(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); setSaveStatus('gespeichert '+new Date().toLocaleTimeString('de-DE')); }catch(e){ setSaveStatus('Speichern nicht möglich'); } }
-function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return false; const o=nkParseState(raw); if(!o) return false; state.objekt=o.objekt||state.objekt; state.einheiten=o.einheiten||state.einheiten; state.kosten=o.kosten||state.kosten; state.zahlung=o.zahlung||state.zahlung; if(o.abrechnungStatus) state.abrechnungStatus=o.abrechnungStatus; return true; }catch(e){ return false; } }
-function resetState(){ if(confirm('Aktuelle Eingaben verwerfen und die Beispiel-/Testdaten laden? Alle gespeicherten Daten gehen dabei verloren.')){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} location.reload(); } }
+/* US-30: aktives Objekt als reine Daten herausziehen / in `state` laden */
+function snapshot(){ return { objekt:state.objekt, einheiten:state.einheiten, kosten:state.kosten, zahlung:state.zahlung, abrechnungStatus:state.abrechnungStatus }; }
+function ladeDaten(d){ state.objekt=d.objekt; state.einheiten=d.einheiten||[]; state.kosten=d.kosten||[]; state.zahlung=d.zahlung||{}; state.abrechnungStatus=d.abrechnungStatus||"inArbeit"; }
+function makeFreshDaten(){ const von="2025-01-01", bis="2025-12-31"; return {
+  objekt:{ addr:"Neues Objekt", von, bis },
+  einheiten:[{ id:1, name:"EG", flaeche:0, personen:1, mv:[{ mieter:"Mieter 1", von, bis, vmonat:0, vmonate:12, vjahr:0, einmal:0, voraus:0, grundmiete:0, stellAnzahl:0, stellPreis:0, bezahlt:{} }] }],
+  kosten:[],
+  zahlung:{ frist:"14 Tage nach Zugang", iban:"", bic:"", empfaenger:"" },
+  abrechnungStatus:"inArbeit"
+}; }
+function objektLabel(d,i){ return (d&&d.objekt&&String(d.objekt.addr||"").trim()) || ("Objekt "+(i+1)); }
+function renderObjektSelect(){ const sel=document.getElementById('obj_select'); if(!sel) return;
+  sel.innerHTML=objekte.map((d,i)=>'<option value="'+i+'"'+(i===aktivIdx?' selected':'')+'>'+objektLabel(d,i).replace(/</g,'&lt;')+'</option>').join(''); }
+function renderAll(){ renderObjektSelect();
+  const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus;
+  renderEinheiten(); renderVoraus(); renderKosten();
+  if(current===3) computeView(); else if(current===4) renderDoc(); else if(current===5) renderZahlungen();
+  renderStepper(); }
+function switchObjekt(idx){ saveState(); aktivIdx=Math.max(0,Math.min(+idx,objekte.length-1)); ladeDaten(objekte[aktivIdx]); ensureIds(); renderAll(); saveState(); }
+function neuesObjekt(){ saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); saveState(); }
+function exportObjekt(){ const d=snapshot(); const name=objektLabel(d,aktivIdx).replace(/[^\wäöüÄÖÜß.\- ]/g,'_').trim()||'Objekt';
+  const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='NeKoFix-'+name+'.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href); }
+function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ return; }
+  const r=new FileReader();
+  r.onload=function(){ try{ const d=JSON.parse(r.result);
+      if(!d || !Array.isArray(d.einheiten)){ alert('Datei ist kein gültiges Objekt (es fehlen Einheiten).'); return; }
+      saveState(); objekte.push(d); aktivIdx=objekte.length-1; ladeDaten(d); ensureIds(); current=0; renderAll(); go(0); saveState();
+    }catch(e){ alert('Datei konnte nicht gelesen werden.'); } finally{ ev.target.value=''; } };
+  r.readAsText(f); }
+function saveState(){ try{ if(objekte.length) objekte[aktivIdx]=snapshot(); localStorage.setItem(STORAGE_KEY, JSON.stringify({ objekte, aktivIdx })); setSaveStatus('✓ gespeichert'); }catch(e){ setSaveStatus('⚠ nicht gespeichert'); } }
+function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return false; const o=JSON.parse(raw);
+    if(o && Array.isArray(o.objekte) && o.objekte.length){ objekte=o.objekte; aktivIdx=Math.max(0,Math.min(o.aktivIdx||0, objekte.length-1)); ladeDaten(objekte[aktivIdx]); return true; }
+    if(o && Array.isArray(o.einheiten)){ objekte=[o]; aktivIdx=0; ladeDaten(o); return true; } /* Migration: altes Einzelformat */
+    return false; }catch(e){ return false; } }
+function resetState(){ if(confirm('Aktuelle Eingaben verwerfen und die Beispiel-/Testdaten laden? Alle gespeicherten Daten (auch weitere Objekte) gehen dabei verloren.')){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} location.reload(); } }
 function setAbrStatus(v){ state.abrechnungStatus=v; scheduleSave(); }
 let _saveTimer; function scheduleSave(){ clearTimeout(_saveTimer); _saveTimer=setTimeout(saveState,600); }
 document.addEventListener('input', scheduleSave);
@@ -829,7 +895,12 @@ document.addEventListener('change', scheduleSave);
 window.addEventListener('beforeunload', saveState);
 
 /* ---------- Init ---------- */
-loadState(); ensureIds();
+loadState();
+if(!objekte.length){ objekte=[snapshot()]; aktivIdx=0; } /* Erststart: Demodaten als erstes Objekt */
+ensureIds();
+renderObjektSelect();
+(function(){ const v=document.getElementById('app_version'); if(v) v.textContent=APP_VERSION+' · Build '+BUILD_DATE; })();
+(function(){ if(new URLSearchParams(location.search).has('debug')){ const b=document.getElementById('btn_testdaten'); if(b) b.hidden=false; } })();
 (function(){ const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus; })();
 renderEinheiten(); renderVoraus(); renderKosten(); renderStepper(); go(0);
 saveState();
