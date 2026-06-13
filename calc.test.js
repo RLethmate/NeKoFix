@@ -138,6 +138,21 @@ test("State aus JSON laden und prüfen (US-27)", () => {
   assert.equal(calc.nkParseState(JSON.stringify({ foo:1 })), null);
 });
 
+test("Soll-Monatsbetrag = Grundmiete + NK + N×Stellplatz (US-28)", () => {
+  assert.equal(calc.nkSollMonat(800, 150, 1, 40), 990);
+  assert.equal(calc.nkSollMonat(650, 125, 0, 0), 775);
+  assert.equal(calc.nkSollMonat(700, 100, 2, 35), 870);
+});
+
+test("Aktive Monate eines Mietverhältnisses (US-28)", () => {
+  const a = calc.nkAktiveMonate("2025-01-01", "2025-08-31", "2025-01-01", "2025-12-31");
+  assert.equal(a.length, 8);
+  assert.equal(a[0], "2025-01");
+  assert.equal(a[7], "2025-08");
+  const b = calc.nkAktiveMonate("2025-10-01", "2025-12-31", "2025-01-01", "2025-12-31");
+  assert.deepEqual(b, ["2025-10","2025-11","2025-12"]);
+});
+
 test("Standardname nächste Einheit hochzählen (US-26)", () => {
   assert.equal(calc.nkNaechsteEinheitName(["EG", "1. OG", "2. OG"]), "3. OG");
   assert.equal(calc.nkNaechsteEinheitName(["EG", "1. OG"]), "2. OG");
