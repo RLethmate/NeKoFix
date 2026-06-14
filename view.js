@@ -202,11 +202,14 @@ function renderKosten(){
     const dots='<span class="dot" style="background:'+STATUS_FARBE[st]+'" title="Status: '+STATUS_BELEG[st]+'"></span>'+
                '<span class="dot" style="background:'+VERFUEGBAR_FARBE[vf]+'" title="Verfügbarkeit: '+VERFUEGBAR[vf]+'"></span>';
     const open=expandedKosten.has(k.id);
+    const ausNamen=nkAusschlussNamen(k, state.einheiten);
     const tr=document.createElement('tr'); tr.id='krow-'+idx; if(k.vorjahr) tr.className='vorjahr';
     tr.innerHTML=
       '<td><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+'</span></td>'+
       '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+'" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+
-      '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug)." onchange="store.setKostenFeld('+idx+',\'schluessel\',this.value)">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button></span></td>'+
+      '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug)." onchange="store.setKostenFeld('+idx+',\'schluessel\',this.value)">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button>'+
+        '<button class="teilnahme-chip'+(ausNamen.length?' aktiv':'')+'" title="Teilnehmende Einheiten festlegen" onclick="toggleKostenDetail('+k.id+')">'+(ausNamen.length?'ohne '+ausNamen.map(esc).join(', '):'alle Einheiten')+'</button>'+
+        '</span></td>'+
       '<td><button class="status-toggle" onclick="toggleKostenDetail('+k.id+')" title="Status & Notiz">'+dots+'<span class="chev">'+(open?'▴':'▾')+'</span></button></td>'+
       '<td><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button></td>';
     tb.appendChild(tr);
@@ -220,6 +223,9 @@ function renderKosten(){
         '<label>Verfügbarkeit <select onchange="updKosten('+idx+',\'verfuegbar\',this.value)">'+vo+'</select></label>'+
         '<label title="Im Beleg enthaltene Vorsteuer">Vorsteuer <select onchange="updKosten('+idx+',\'vorsteuer\',+this.value)">'+vsOpts+'</select></label>'+
         '<label class="notiz-field">Notiz <input value="'+esc(k.notiz)+'" oninput="store.setKostenFeld('+idx+',\'notiz\',this.value)" placeholder="z. B. Zähler defekt"></label>'+
+      '</div>'+
+      '<div class="teilnahme"><span class="teilnahme-lbl">Teilnehmende Einheiten:</span> '+
+        state.einheiten.map(x=>'<label class="teilnahme-item"><input type="checkbox" '+(nkTeilnahme(x,k)?'checked':'')+' onchange="toggleTeilnahme('+idx+','+x.id+',this.checked)"> '+esc(x.name)+'</label>').join('')+
       '</div></td>';
       tb.appendChild(d);
     }
@@ -228,6 +234,13 @@ function renderKosten(){
   renderPicker();
 }
 function updKosten(idx,field,val){ store.setKostenFeld(idx,field,val); renderKosten(); }
+/* US-50: Teilnahme einer Einheit an einer Kostenart umschalten (ausgeschlossen = Liste von IDs). */
+function toggleTeilnahme(idx, einheitId, checked){
+  const k=store.kosten(idx); let aus=((k.ausgeschlossen)||[]).slice();
+  if(checked) aus=aus.filter(id=>id!==einheitId);
+  else if(aus.indexOf(einheitId)<0) aus.push(einheitId);
+  store.setKostenFeld(idx,'ausgeschlossen',aus);
+}
 /* US-11: Betrag erfassen hebt die Vorjahr-Markierung der Zeile auf */
 function updKostenBetrag(idx,val){ store.setKostenBetrag(idx, nkParseBetrag(val)); const k=store.kosten(idx); if(k.vorjahr){ store.setKostenFeld(idx,'vorjahr',false); const r=document.getElementById('krow-'+idx); if(r) r.classList.remove('vorjahr'); const b=r&&r.querySelector('.vorjahr-badge'); if(b) b.remove(); } }
 function toggleKostenDetail(id){ if(expandedKosten.has(id)) expandedKosten.delete(id); else expandedKosten.add(id); renderKosten(); }
@@ -323,7 +336,7 @@ function nkRechenweg(){
   L.push('- Saldo = Anteil − geleistete Vorauszahlung.');
   L.push('');
   L.push('## Kostenpositionen');
-  state.kosten.forEach(k=>{ L.push('- '+k.bez+': '+eur(k.betrag)+' · '+SCHLUESSEL[k.schluessel]+(nkUmlageInfo(k.bez).umlagefaehig?'':' · NICHT umlagefähig')); });
+  state.kosten.forEach(k=>{ const an=nkAusschlussNamen(k, state.einheiten); L.push('- '+k.bez+': '+eur(k.betrag)+' · '+SCHLUESSEL[k.schluessel]+(an.length?' (ohne '+an.join(', ')+')':'')+(nkUmlageInfo(k.bez).umlagefaehig?'':' · NICHT umlagefähig')); });
   L.push('');
   L.push('## Herleitung je Mietverhältnis');
   const ab=nkObjektAbrechnung(state.einheiten, state.kosten, state.objekt);
@@ -364,11 +377,13 @@ function renderDoc(){
   });
   const sel=list[activeMieter]; if(!sel){ document.getElementById('doc').innerHTML=''; return; }
   const e=sel.e, m=sel.m;
-  const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, nkTotals(state.einheiten));
+  const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, state.einheiten);
   const gew=ab.gewerblich, za=ab.zeitanteil, anteil=ab.brutto, saldo=ab.saldo;
-  let rows=ab.zeilen.map(i=>
-    '<tr><td>'+i.bez+'</td><td class="num">'+eur(i.gesamt)+'</td><td>'+SCHLUESSEL[i.schluessel]+'</td><td class="num">'+eur(i.wert)+'</td></tr>'
-  ).join('');
+  let rows=ab.zeilen.map((i,ix)=>{
+    const namen=nkAusschlussNamen(state.kosten[ix], state.einheiten);
+    const sch=SCHLUESSEL[i.schluessel]+(namen.length?' (ohne '+namen.join(', ')+')':'');
+    return '<tr><td>'+i.bez+'</td><td class="num">'+eur(i.gesamt)+'</td><td>'+sch+'</td><td class="num">'+eur(i.wert)+'</td></tr>';
+  }).join('');
   const summen = gew
     ? '<tr class="total-row"><td>Zwischensumme netto</td><td></td><td></td><td class="num">'+eur(ab.netto)+'</td></tr>'+
       '<tr><td>zzgl. '+NK_UST_SATZ+' % Umsatzsteuer</td><td></td><td></td><td class="num">'+eur(ab.ust)+'</td></tr>'+

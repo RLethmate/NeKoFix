@@ -51,16 +51,38 @@ test("jede Position wird vollständig (zu 100 %) verteilt", () => {
 test("Summe aller Mieteranteile entspricht der Summe aller Kosten", () => {
   const t = calc.nkTotals(einheiten);
   const gesamtKosten = kosten.reduce((s, k) => s + k.betrag, 0);
-  const gesamtAnteile = einheiten.reduce((s, e) => s + calc.nkAnteilOf(e, kosten, t), 0);
+  const gesamtAnteile = einheiten.reduce((s, e) => s + calc.nkAnteilOf(e, kosten, einheiten), 0);
   assert.ok(Math.abs(gesamtAnteile - gesamtKosten) < 1e-6);
 });
 
 test("lineItemsFor liefert je Kostenart eine Zeile mit korrektem Anteil", () => {
   const t = calc.nkTotals(einheiten);
-  const items = calc.nkLineItemsFor(einheiten[0], kosten, t);
+  const items = calc.nkLineItemsFor(einheiten[0], kosten, einheiten);
   assert.equal(items.length, kosten.length);
   const muell = items.find(i => i.schluessel === "einheit"); // 900 / 3 = 300
   assert.ok(Math.abs(muell.anteil - 300) < 1e-9);
+});
+
+test("Einheiten-Teilnahme je Kostenart (US-50)", () => {
+  const einheiten = [
+    { id:1, name:"EG",   flaeche:100, personen:2, mv:[] },
+    { id:2, name:"1.OG", flaeche:100, personen:2, mv:[] }
+  ];
+  // Aufzug 1000 €, nach Fläche, EG (id 1) ausgeschlossen → vollständig auf 1.OG
+  const aufzug = [{ bez:"Aufzug", betrag:1000, schluessel:"flaeche", ausgeschlossen:[1] }];
+  assert.equal(calc.nkAnteilOf(einheiten[0], aufzug, einheiten), 0);
+  assert.ok(Math.abs(calc.nkAnteilOf(einheiten[1], aufzug, einheiten) - 1000) < 1e-9);
+  // Summe der Anteile = Kosten (voll auf Teilnehmer verteilt)
+  const summe = einheiten.reduce((s,e)=>s+calc.nkAnteilOf(e,aufzug,einheiten),0);
+  assert.ok(Math.abs(summe - 1000) < 1e-9);
+  // Helfer
+  assert.equal(calc.nkTeilnahme(einheiten[0], aufzug[0]), false);
+  assert.equal(calc.nkTeilnahme(einheiten[1], aufzug[0]), true);
+  assert.deepEqual(calc.nkAusschlussNamen(aufzug[0], einheiten), ["EG"]);
+  // Ohne Ausschluss → normale Verteilung (je 500)
+  const alle = [{ bez:"Grundsteuer", betrag:1000, schluessel:"flaeche" }];
+  assert.ok(Math.abs(calc.nkAnteilOf(einheiten[0], alle, einheiten) - 500) < 1e-9);
+  assert.deepEqual(calc.nkAusschlussNamen(alle[0], einheiten), []);
 });
 
 test("leere Einheitenliste führt nicht zu Division durch Null", () => {
@@ -270,13 +292,13 @@ test("Mieterabrechnung: Zeilen, Zeitanteil, gewerblich, Saldo (US-32)", () => {
   const k = [{ bez: "Grundsteuer", betrag: 1000, schluessel: "flaeche", vorsteuer: 0 }];
   const t = calc.nkTotals(eh);
   // Ganzjährig, privat: Anteil = 50 % von 1000 = 500
-  const ab = calc.nkMieterAbrechnung(eh[0], { mieter: "A", von: "2025-01-01", bis: "2025-12-31", voraus: 400 }, k, objekt, t);
+  const ab = calc.nkMieterAbrechnung(eh[0], { mieter: "A", von: "2025-01-01", bis: "2025-12-31", voraus: 400 }, k, objekt, eh);
   assert.ok(Math.abs(ab.zeitanteil - 1) < 1e-9);
   assert.ok(Math.abs(ab.zeilen[0].anteil - 500) < 1e-9);
   assert.ok(Math.abs(ab.brutto - 500) < 1e-9);
   assert.ok(Math.abs(ab.saldo - 100) < 1e-9);
   // Gewerblich (19 %): brutto = netto × 1,19
-  const g = calc.nkMieterAbrechnung(eh[0], { mieter: "G", gewerblich: true, von: "2025-01-01", bis: "2025-12-31", voraus: 0 }, [{ bez: "Hauswart", betrag: 1190, schluessel: "flaeche", vorsteuer: 19 }], objekt, t);
+  const g = calc.nkMieterAbrechnung(eh[0], { mieter: "G", gewerblich: true, von: "2025-01-01", bis: "2025-12-31", voraus: 0 }, [{ bez: "Hauswart", betrag: 1190, schluessel: "flaeche", vorsteuer: 19 }], objekt, eh);
   assert.ok(Math.abs(g.netto - 500) < 1e-6);            // 50 % von (1190 netto=1000) = 500
   assert.ok(Math.abs(g.brutto - g.netto * 1.19) < 1e-6);
 });

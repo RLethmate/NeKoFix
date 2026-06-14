@@ -15,7 +15,7 @@ function buildTenantPdf(sel){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'pt', format:'a4'});
   const e=sel.e, m=sel.m;
-  const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, nkTotals(state.einheiten));
+  const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, state.einheiten);
   const gew=ab.gewerblich, anteil=ab.brutto, saldo=ab.saldo;
   let y=56;
   doc.setFontSize(16); doc.text("Betriebs- und Heizkostenabrechnung",56,y); y+=24;
@@ -25,7 +25,7 @@ function buildTenantPdf(sel){
   doc.setFont(undefined,'bold');
   doc.text("Kostenart",56,y); doc.text("Gesamtkosten",380,y,{align:'right'}); doc.text(gew?"Anteil netto":"Ihr Anteil",540,y,{align:'right'});
   doc.setFont(undefined,'normal'); y+=6; doc.line(56,y,540,y); y+=14;
-  ab.zeilen.forEach(i=>{ doc.text(String(i.bez).substring(0,42),56,y); doc.text(eur(i.gesamt),380,y,{align:'right'}); doc.text(eur(i.wert),540,y,{align:'right'}); y+=14; });
+  ab.zeilen.forEach((i,ix)=>{ const an=nkAusschlussNamen(state.kosten[ix], state.einheiten); const bez=i.bez+(an.length?' (ohne '+an.join(', ')+')':''); doc.text(String(bez).substring(0,52),56,y); doc.text(eur(i.gesamt),380,y,{align:'right'}); doc.text(eur(i.wert),540,y,{align:'right'}); y+=14; });
   y+=4; doc.line(56,y,540,y); y+=16;
   if(gew){
     doc.text("Zwischensumme netto",56,y); doc.text(eur(ab.netto),540,y,{align:'right'}); y+=14;
