@@ -152,26 +152,37 @@ test("Plausibilitätsprüfung: bereit / Lücken (US-14)", () => {
   assert.equal(calc.nkPlausibilitaet(ohneFlaeche).bereit, false);
 });
 
-test("Plausibilität: überschneidende Mietzeiträume > 100 % (US-47)", () => {
+test("Überschneidungstage je Einheit (US-47)", () => {
+  // 30.06. ist bei beiden enthalten → 1 Tag Überschneidung
+  const e1 = { mv:[{von:"2025-01-01",bis:"2025-06-30"},{von:"2025-06-30",bis:"2025-12-31"}] };
+  assert.equal(calc.nkUeberlappungTageEinheit(e1), 1);
+  // Angrenzend (29.06. / 30.06.) → keine Überschneidung
+  const e2 = { mv:[{von:"2025-01-01",bis:"2025-06-29"},{von:"2025-06-30",bis:"2025-12-31"}] };
+  assert.equal(calc.nkUeberlappungTageEinheit(e2), 0);
+  // Ein Mietverhältnis → 0
+  assert.equal(calc.nkUeberlappungTageEinheit({ mv:[{von:"2025-01-01",bis:"2025-12-31"}] }), 0);
+});
+
+test("Plausibilität: überschneidende Mietzeiträume als Warnung (US-47)", () => {
   const base = {
     objekt:{von:"2025-01-01",bis:"2025-12-31"},
     einheiten:[{name:"EG",flaeche:70,personen:2,mv:[
-      {mieter:"A",von:"2025-01-01",bis:"2025-12-31"},
-      {mieter:"B",von:"2025-06-01",bis:"2025-12-31"}   // überlappt mit A
+      {mieter:"A",von:"2025-01-01",bis:"2025-06-30"},
+      {mieter:"B",von:"2025-06-30",bis:"2025-12-31"}   // 1 Tag Überschneidung
     ]}],
     kosten:[{bez:"Grundsteuer",betrag:1200,schluessel:"flaeche"}],
     zahlung:{iban:"DE12",empfaenger:"V"}
   };
   const r = calc.nkPlausibilitaet(base);
-  const treffer = r.punkte.find(p => /über 100 %/.test(p.text));
-  assert.ok(treffer, "Warnung über 100 % erwartet");
+  const treffer = r.punkte.find(p => /überschneidende Mietzeiträume/.test(p.text));
+  assert.ok(treffer, "Überschneidungs-Warnung erwartet");
   assert.equal(treffer.level, "warn");
-  assert.ok(/EG/.test(treffer.text) && /A/.test(treffer.text) && /B/.test(treffer.text));
+  assert.ok(/EG/.test(treffer.text) && /A/.test(treffer.text) && /B/.test(treffer.text) && /1 Tag/.test(treffer.text));
   assert.equal(r.bereit, true); // Warnung blockiert den Versand nicht
-  // Ohne Überschneidung: kein solcher Hinweis, Leerstand-Warnung bleibt möglich
+  // Angrenzend (kein gemeinsamer Tag) → keine Warnung
   const ohne = JSON.parse(JSON.stringify(base));
-  ohne.einheiten[0].mv = [{mieter:"A",von:"2025-01-01",bis:"2025-12-31"}];
-  assert.ok(!calc.nkPlausibilitaet(ohne).punkte.some(p => /über 100 %/.test(p.text)));
+  ohne.einheiten[0].mv[0].bis = "2025-06-29";
+  assert.ok(!calc.nkPlausibilitaet(ohne).punkte.some(p => /überschneidende Mietzeiträume/.test(p.text)));
 });
 
 test("Anpassung bald fällig (US-21)", () => {

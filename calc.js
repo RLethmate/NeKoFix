@@ -184,6 +184,16 @@ function nkUeberlappungsTage(von1, bis1, von2, bis2) {
   if (end < start) return 0;
   return Math.round((end - start) / 86400000) + 1;
 }
+/* US-47: Gesamtzahl der Tage, an denen sich Mietverhältnisse derselben Einheit überschneiden
+   (Summe über alle Paare). 0 = keine Überschneidung. */
+function nkUeberlappungTageEinheit(e) {
+  const mv = (e && e.mv) || [];
+  let tage = 0;
+  for (let i = 0; i < mv.length; i++)
+    for (let j = i + 1; j < mv.length; j++)
+      tage += nkUeberlappungsTage(mv[i].von, mv[i].bis, mv[j].von, mv[j].bis);
+  return tage;
+}
 function nkZeitanteil(mvVon, mvBis, pVon, pBis) {
   const tage = nkTageInklusive(pVon, pBis);
   if (tage <= 0) return 0;
@@ -239,10 +249,10 @@ function nkPlausibilitaet(s) {
   // US-47: Spiegelbild der Leerstand-Prüfung – Summe der Zeitanteile einer Einheit über 100 %
   // deutet auf überschneidende Mietzeiträume (Doppelerfassung) hin.
   E.forEach(e => {
-    const z = (e.mv || []).reduce((a, m) => a + nkZeitanteil(m.von, m.bis, O.von, O.bis), 0);
-    if (z > 1.001) {
+    const tage = nkUeberlappungTageEinheit(e);
+    if (tage > 0) {
       const namen = (e.mv || []).map(m => (m.mieter && String(m.mieter).trim()) || "(ohne Name)").join(", ");
-      punkte.push({ level: "warn", text: "Einheit „" + e.name + "“: Summe der Zeitanteile über 100 % (" + Math.round(z * 100) + " %) – überschneidende Mietverhältnisse prüfen: " + namen + "." });
+      punkte.push({ level: "warn", text: "Einheit „" + e.name + "“: überschneidende Mietzeiträume – " + tage + " Tag(e) doppelt belegt; Mietverhältnisse prüfen: " + namen + "." });
     }
   });
   return { bereit: !punkte.some(p => p.level === "fehler"), punkte };
@@ -363,6 +373,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkVorschlagVorauszahlung,
     nkTageInklusive,
     nkUeberlappungsTage,
+    nkUeberlappungTageEinheit,
     nkZeitanteil,
     nkNaechsteEinheitName,
     nkParseState,
