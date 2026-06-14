@@ -71,7 +71,7 @@ function buildTenantPdf(sel){
     ? ['Bitte überweisen Sie den Betrag innerhalb von '+(z.frist||'14 Tage nach Zugang')+' auf folgendes Konto:',
        'Empfänger: '+(z.empfaenger||'')+'    IBAN: '+(z.iban||'')+'    BIC: '+(z.bic||''),
        'Verwendungszweck: NK '+e.name+' '+zeitraumText()]
-    : ['Das Guthaben wird Ihnen innerhalb von '+(z.frist||'14 Tage nach Zugang')+' erstattet.']
+    : ['Das Guthaben wird Ihnen innerhalb von '+((z.frist||'14 Tage').replace(/\s*nach Zugang/i,'').replace(/\bTage\b/,'Tagen'))+' erstattet.']
   ).forEach(l=>nl(l));
   y+=8; doc.setFontSize(8); doc.setTextColor(110);
   doc.splitTextToSize('Einwendungen gegen diese Abrechnung können Sie innerhalb von 12 Monaten nach Zugang geltend machen.', W).forEach(l=>{ if(y>790){doc.addPage();y=64;} doc.text(l,L,y); y+=11; });

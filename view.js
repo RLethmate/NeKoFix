@@ -58,7 +58,7 @@ function zeitraumText(){ return fmtDatum(state.objekt.von)+' – '+fmtDatum(stat
 function zeitraumSatz(){
   const v=String(state.objekt.von||''), b=String(state.objekt.bis||'');
   const mv=v.match(/^(\d{4})-01-01$/), mb=b.match(/^(\d{4})-12-31$/);
-  if(mv && mb && mv[1]===mb[1]) return 'das Jahr '+mv[1];
+  if(mv && mb && mv[1]===mb[1]) return mv[1];
   return 'den Zeitraum '+fmtDatum(v)+' – '+fmtDatum(b);
 }
 function alleMV(){ const out=[]; state.einheiten.forEach((e,ei)=>{ (e.mv||[]).forEach((m,mi)=>{ out.push({e,m,ei,mi,za:nkZeitanteil(m.von,m.bis,state.objekt.von,state.objekt.bis)}); }); }); return out; }

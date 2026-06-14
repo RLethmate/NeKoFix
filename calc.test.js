@@ -140,6 +140,14 @@ test("IBAN-Prüfung: Prüfziffer und Länge (US-51)", () => {
   assert.equal(calc.nkIbanGueltig("XX12"), false);
 });
 
+test("Briefanrede neutral/Herr/Frau (US-53)", () => {
+  assert.equal(calc.nkAnrede({mieter:"Sahin", anrede:"frau"}), "Sehr geehrte Frau Sahin");
+  assert.equal(calc.nkAnrede({mieter:"Frau Sahin", anrede:"frau"}), "Sehr geehrte Frau Sahin"); // kein „Frau Frau"
+  assert.equal(calc.nkAnrede({mieter:"Klein", anrede:"herr"}), "Sehr geehrter Herr Klein");
+  assert.equal(calc.nkAnrede({mieter:"Familie Becker"}), "Guten Tag Familie Becker"); // neutral
+  assert.equal(calc.nkAnrede({mieter:"Herr Klein"}), "Guten Tag Herr Klein");         // neutral: Name unverändert
+});
+
 test("leere Einheitenliste führt nicht zu Division durch Null", () => {
   const t = calc.nkTotals([]);
   assert.equal(calc.nkFactor({ flaeche: 50 }, "flaeche", t), 0);
