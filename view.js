@@ -55,6 +55,9 @@ function renderStepper(){
   });
 }
 function go(i){
+  if(i===0) renderEinheiten();   /* US-49: Ziel-Reiter beim Wechsel aus aktuellem Zustand neu zeichnen */
+  if(i===1) renderVoraus();
+  if(i===2) renderKosten();
   if(i===3) computeView();
   if(i===4) renderDoc();
   if(i===5) renderZahlungen();
