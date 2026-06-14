@@ -340,6 +340,11 @@ function heizKarte(k,idx){
       '<label>Verteilerschlüssel <select onchange="store.setKostenFeld('+idx+',\'schluessel\',this.value)">'+schlOpts+'</select></label>'+
       '<span class="zahl-summe">Heizkosten: <b>'+eur(k.betrag||0)+'</b></span>'+
     '</div>'+
+    '<div class="detail-grid" title="US-06: Zeitraum, in dem dieser Heiztyp aktiv war. Leer = ganzer Abrechnungszeitraum. Bei Mieterwechsel wird der Block über diese Periode auf die anwesenden Mieter verteilt.">'+
+      '<label>aktiv von <input type="date" value="'+(k.von||'')+'" onchange="store.setKostenFeld('+idx+',\'von\',this.value)"></label>'+
+      '<label>aktiv bis <input type="date" value="'+(k.bis||'')+'" onchange="store.setKostenFeld('+idx+',\'bis\',this.value)"></label>'+
+      '<span class="unit-f">leer = ganzer Abrechnungszeitraum</span>'+
+    '</div>'+
   '</div>';
 }
 function addHeizblock(){
@@ -434,7 +439,7 @@ function nkRechenweg(){
       L.push('### '+mv.mieter+' – '+er.name+(mv.gewerblich?' (gewerblich)':''));
       L.push('Mietzeit '+fmtDatum(mv.von)+'–'+fmtDatum(mv.bis)+', Zeitanteil '+(za*100).toFixed(1)+' %');
       mv.zeilen.forEach(i=>{
-        L.push('- '+i.bez+': '+eur(i.gesamt)+' × '+(i.faktor*100).toFixed(2)+' % = '+eur(i.anteilVoll)+' × Zeit '+(za*100).toFixed(1)+' % = '+eur(i.anteil));
+        L.push('- '+i.bez+': '+eur(i.gesamt)+' × '+(i.faktor*100).toFixed(2)+' % = '+eur(i.anteilVoll)+' × Zeit '+((i.zeitanteil!=null?i.zeitanteil:za)*100).toFixed(1)+' % = '+eur(i.anteil));
       });
       if(mv.gewerblich) L.push('- Zwischensumme netto '+eur(mv.netto)+' + '+NK_UST_SATZ+' % USt '+eur(mv.ust)+' = '+eur(mv.brutto));
       else L.push('- Summe Anteil: '+eur(mv.brutto));
