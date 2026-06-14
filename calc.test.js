@@ -85,6 +85,21 @@ test("Einheiten-Teilnahme je Kostenart (US-50)", () => {
   assert.deepEqual(calc.nkAusschlussNamen(alle[0], einheiten), []);
 });
 
+test("Direktkosten: 100 % auf eine Einheit (US-22)", () => {
+  const einheiten = [
+    { id:1, name:"EG",   flaeche:100, personen:2, mv:[] },
+    { id:2, name:"1.OG", flaeche:100, personen:2, mv:[] }
+  ];
+  const k = [{ bez:"Reparatur EG-Fenster", betrag:300, schluessel:"direkt", direktEinheit:1 }];
+  assert.equal(calc.nkAnteilOf(einheiten[0], k, einheiten), 300);
+  assert.equal(calc.nkAnteilOf(einheiten[1], k, einheiten), 0);
+  assert.equal(calc.nkFaktorFuer(einheiten[0], k[0], einheiten), 1);
+  assert.equal(calc.nkFaktorFuer(einheiten[1], k[0], einheiten), 0);
+  // Summe = Kosten (vollständig der Zieleinheit zugeordnet)
+  const summe = einheiten.reduce((s,e)=>s+calc.nkAnteilOf(e,k,einheiten),0);
+  assert.equal(summe, 300);
+});
+
 test("leere Einheitenliste führt nicht zu Division durch Null", () => {
   const t = calc.nkTotals([]);
   assert.equal(calc.nkFactor({ flaeche: 50 }, "flaeche", t), 0);

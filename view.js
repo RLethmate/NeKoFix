@@ -9,7 +9,21 @@ let current = 0, activeMieter = 0;
 let vorausModus = "monatlich";
 
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
-const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit" };
+const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit", direkt:"Direkt (eine Einheit)" };
+/* US-22/US-50: Kurz-Restriktion und Schlüssel-Anzeige je Kostenposition. */
+function restriktionText(k){
+  if(k.schluessel==='direkt'){ const e=state.einheiten.find(x=>x.id===k.direktEinheit); return 'Direkt: '+(e?e.name:'—'); }
+  const an=nkAusschlussNamen(k, state.einheiten); return an.length? 'ohne '+an.join(', ') : '';
+}
+function schluesselAnzeige(k){
+  if(k.schluessel==='direkt') return restriktionText(k);
+  const r=restriktionText(k); return SCHLUESSEL[k.schluessel]+(r?' ('+r+')':'');
+}
+function setSchluessel(idx,val){
+  const k=store.kosten(idx); store.setKostenFeld(idx,'schluessel',val);
+  if(val==='direkt' && !k.direktEinheit && state.einheiten[0]) store.setKostenFeld(idx,'direktEinheit',state.einheiten[0].id);
+  renderKosten();
+}
 const KOSTEN_KATALOG = [
   "Aufzug",
   "Beleuchtung / Allgemeinstrom",
@@ -207,8 +221,10 @@ function renderKosten(){
     tr.innerHTML=
       '<td><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+'</span></td>'+
       '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+'" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+
-      '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug)." onchange="store.setKostenFeld('+idx+',\'schluessel\',this.value)">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button>'+
-        '<button class="teilnahme-chip'+(ausNamen.length?' aktiv':'')+'" title="Teilnehmende Einheiten festlegen" onclick="toggleKostenDetail('+k.id+')">'+(ausNamen.length?'ohne '+ausNamen.map(esc).join(', '):'alle Einheiten')+'</button>'+
+      '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug). „Direkt" ordnet die Position einer einzelnen Einheit zu 100 % zu." onchange="setSchluessel('+idx+',this.value)">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button>'+
+        (k.schluessel==='direkt'
+          ? '<select class="direkt-select" title="Diese Kosten trägt eine Einheit zu 100 %" onchange="store.setKostenFeld('+idx+',\'direktEinheit\',+this.value)">'+state.einheiten.map(x=>'<option value="'+x.id+'"'+(k.direktEinheit===x.id?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>'
+          : '<button class="teilnahme-chip'+(ausNamen.length?' aktiv':'')+'" title="Teilnehmende Einheiten festlegen" onclick="toggleKostenDetail('+k.id+')">'+(ausNamen.length?'ohne '+ausNamen.map(esc).join(', '):'alle Einheiten')+'</button>')+
         '</span></td>'+
       '<td><button class="status-toggle" onclick="toggleKostenDetail('+k.id+')" title="Status & Notiz">'+dots+'<span class="chev">'+(open?'▴':'▾')+'</span></button></td>'+
       '<td><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button></td>';
@@ -224,9 +240,11 @@ function renderKosten(){
         '<label title="Im Beleg enthaltene Vorsteuer">Vorsteuer <select onchange="updKosten('+idx+',\'vorsteuer\',+this.value)">'+vsOpts+'</select></label>'+
         '<label class="notiz-field">Notiz <input value="'+esc(k.notiz)+'" oninput="store.setKostenFeld('+idx+',\'notiz\',this.value)" placeholder="z. B. Zähler defekt"></label>'+
       '</div>'+
-      '<div class="teilnahme"><span class="teilnahme-lbl">Teilnehmende Einheiten:</span> '+
+      (k.schluessel==='direkt' ? '' :
+       '<div class="teilnahme"><span class="teilnahme-lbl">Teilnehmende Einheiten:</span> '+
         state.einheiten.map(x=>'<label class="teilnahme-item"><input type="checkbox" '+(nkTeilnahme(x,k)?'checked':'')+' onchange="toggleTeilnahme('+idx+','+x.id+',this.checked)"> '+esc(x.name)+'</label>').join('')+
-      '</div></td>';
+       '</div>')+
+      '</td>';
       tb.appendChild(d);
     }
   });
@@ -336,7 +354,7 @@ function nkRechenweg(){
   L.push('- Saldo = Anteil − geleistete Vorauszahlung.');
   L.push('');
   L.push('## Kostenpositionen');
-  state.kosten.forEach(k=>{ const an=nkAusschlussNamen(k, state.einheiten); L.push('- '+k.bez+': '+eur(k.betrag)+' · '+SCHLUESSEL[k.schluessel]+(an.length?' (ohne '+an.join(', ')+')':'')+(nkUmlageInfo(k.bez).umlagefaehig?'':' · NICHT umlagefähig')); });
+  state.kosten.forEach(k=>{ L.push('- '+k.bez+': '+eur(k.betrag)+' · '+schluesselAnzeige(k)+(nkUmlageInfo(k.bez).umlagefaehig?'':' · NICHT umlagefähig')); });
   L.push('');
   L.push('## Herleitung je Mietverhältnis');
   const ab=nkObjektAbrechnung(state.einheiten, state.kosten, state.objekt);
@@ -379,11 +397,11 @@ function renderDoc(){
   const e=sel.e, m=sel.m;
   const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, state.einheiten);
   const gew=ab.gewerblich, za=ab.zeitanteil, anteil=ab.brutto, saldo=ab.saldo;
-  let rows=ab.zeilen.map((i,ix)=>{
-    const namen=nkAusschlussNamen(state.kosten[ix], state.einheiten);
-    const sch=SCHLUESSEL[i.schluessel]+(namen.length?' (ohne '+namen.join(', ')+')':'');
-    return '<tr><td>'+i.bez+'</td><td class="num">'+eur(i.gesamt)+'</td><td>'+sch+'</td><td class="num">'+eur(i.wert)+'</td></tr>';
-  }).join('');
+  let rows=ab.zeilen.map((i,ix)=>({i,ix}))
+    .filter(o=>Math.round(o.i.anteil*100)!==0)   /* US-22/US-50: nur Positionen, die diesen Mieter betreffen */
+    .map(({i,ix})=>
+      '<tr><td>'+i.bez+'</td><td class="num">'+eur(i.gesamt)+'</td><td>'+schluesselAnzeige(state.kosten[ix])+'</td><td class="num">'+eur(i.wert)+'</td></tr>'
+    ).join('');
   const summen = gew
     ? '<tr class="total-row"><td>Zwischensumme netto</td><td></td><td></td><td class="num">'+eur(ab.netto)+'</td></tr>'+
       '<tr><td>zzgl. '+NK_UST_SATZ+' % Umsatzsteuer</td><td></td><td></td><td class="num">'+eur(ab.ust)+'</td></tr>'+
