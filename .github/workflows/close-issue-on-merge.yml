@@ -28,9 +28,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          # US-Token aus Branch-Name oder PR-Titel (z. B. US-33 oder US-33b). Erstes Vorkommen gewinnt.
-          # Optionales Buchstaben-Suffix wird mitgenommen, damit US-33b nicht als US-33 gilt.
-          token="$(printf '%s\n%s\n' "$HEAD_REF" "$PR_TITLE" | grep -oE 'US-[0-9]+[a-z]?' | head -n1 || true)"
+          # US-Token aus Branch-Name oder PR-Titel (z. B. US-33). Erstes Vorkommen gewinnt.
+          token="$(printf '%s\n%s\n' "$HEAD_REF" "$PR_TITLE" | grep -oE 'US-[0-9]+' | head -n1 || true)"
           if [ -z "${token:-}" ]; then
             echo "Kein US-Token in Branch/Titel gefunden – nichts zu tun."
             exit 0
