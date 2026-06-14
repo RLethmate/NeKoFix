@@ -33,14 +33,32 @@ function nkFactor(e, schluessel, t) {
   return t.einheiten ? (1 / t.einheiten) : 0;
 }
 
-function nkAnteilOf(e, kosten, t) {
-  return kosten.reduce((s, k) => s + (+k.betrag || 0) * nkFactor(e, k.schluessel, t), 0);
+/* US-50: Einheiten-Teilnahme je Kostenart. Eine Einheit nimmt an Kostenart k teil, wenn ihre
+   ID NICHT in k.ausgeschlossen steht (Default: alle nehmen teil). Der Verteilerfaktor wird
+   über die Summe NUR der teilnehmenden Einheiten gebildet; Nicht-Teilnehmer erhalten 0. */
+function nkTeilnahme(e, k) {
+  const aus = (k && k.ausgeschlossen) || [];
+  return aus.indexOf(e.id) < 0;
+}
+function nkFaktorFuer(e, k, einheiten) {
+  if (!nkTeilnahme(e, k)) return 0;
+  const teil = (einheiten || []).filter(x => nkTeilnahme(x, k));
+  return nkFactor(e, k.schluessel, nkTotals(teil));
+}
+function nkAusschlussNamen(k, einheiten) {
+  const aus = (k && k.ausgeschlossen) || [];
+  if (!aus.length) return [];
+  return (einheiten || []).filter(e => aus.indexOf(e.id) >= 0).map(e => e.name);
 }
 
-function nkLineItemsFor(e, kosten, t) {
-  return kosten.map(k => {
-    const f = nkFactor(e, k.schluessel, t);
-    return { bez: k.bez, gesamt: +k.betrag || 0, schluessel: k.schluessel, vorsteuer: +k.vorsteuer || 0, anteil: (+k.betrag || 0) * f };
+function nkAnteilOf(e, kosten, einheiten) {
+  return (kosten || []).reduce((s, k) => s + (+k.betrag || 0) * nkFaktorFuer(e, k, einheiten), 0);
+}
+
+function nkLineItemsFor(e, kosten, einheiten) {
+  return (kosten || []).map(k => {
+    const f = nkFaktorFuer(e, k, einheiten);
+    return { bez: k.bez, gesamt: +k.betrag || 0, schluessel: k.schluessel, vorsteuer: +k.vorsteuer || 0, faktor: f, anteil: (+k.betrag || 0) * f };
   });
 }
 
@@ -68,9 +86,8 @@ function nkMieterBetrag(items, gewerblich) {
 
 /* Eigentümer-Gesamtübersicht (US-18): je Mieter Anteil, Vorauszahlung, Saldo plus Summen. */
 function nkOwnerOverview(einheiten, kosten) {
-  const t = nkTotals(einheiten);
   const rows = einheiten.map(e => {
-    const anteil = nkAnteilOf(e, kosten, t);
+    const anteil = nkAnteilOf(e, kosten, einheiten);
     const voraus = +e.voraus || 0;
     return { name: e.name, mieter: e.mieter, anteil, voraus, saldo: anteil - voraus };
   });
@@ -267,16 +284,16 @@ function nkEsc(s) {
 /* US-32: zentrale, getestete Abrechnung eines einzelnen Mietverhältnisses.
    `t` sind die Objekt-Totals (nkTotals über ALLE Einheiten). Liefert alles, was
    Bildschirm, PDF und Rechenweg brauchen – eine Quelle der Wahrheit. */
-function nkMieterAbrechnung(e, m, kosten, objekt, t) {
+function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
   const o = objekt || {};
   const za = nkZeitanteil(m.von, m.bis, o.von, o.bis);
   const gewerblich = !!m.gewerblich;
-  const zeilen = nkLineItemsFor(e, kosten || [], t).map(i => {
+  const zeilen = nkLineItemsFor(e, kosten || [], einheiten).map(i => {
     const anteil = i.anteil * za;                 // zeitanteilig
     const wert = gewerblich ? nkNetto(anteil, i.vorsteuer) : anteil; // Anzeige je Zeile
     return {
       bez: i.bez, gesamt: i.gesamt, schluessel: i.schluessel, vorsteuer: i.vorsteuer,
-      faktor: nkFactor(e, i.schluessel, t), anteilVoll: i.anteil, anteil: anteil, wert: wert
+      faktor: i.faktor, anteilVoll: i.anteil, anteil: anteil, wert: wert
     };
   });
   const betrag = nkMieterBetrag(zeilen, gewerblich); // liest .anteil und .vorsteuer
@@ -293,13 +310,12 @@ function nkMieterAbrechnung(e, m, kosten, objekt, t) {
    Leerstand (trägt der Vermieter) plus Objekt-Summen. */
 function nkObjektAbrechnung(einheiten, kosten, objekt) {
   const E = einheiten || [], K = kosten || [];
-  const t = nkTotals(E);
   let summeAnteil = 0, summeVoraus = 0;
   const eRows = E.map(e => {
-    const unitShare = nkAnteilOf(e, K, t);
+    const unitShare = nkAnteilOf(e, K, E);
     let sumZa = 0;
     const mietverhaeltnisse = (e.mv || []).map(m => {
-      const ab = nkMieterAbrechnung(e, m, K, objekt, t);
+      const ab = nkMieterAbrechnung(e, m, K, objekt, E);
       sumZa += ab.zeitanteil; summeAnteil += ab.brutto; summeVoraus += ab.vorauszahlung;
       return ab;
     });
@@ -308,7 +324,7 @@ function nkObjektAbrechnung(einheiten, kosten, objekt) {
     summeAnteil += leerstandBetrag;
     return { name: e.name, unitShare: unitShare, mietverhaeltnisse: mietverhaeltnisse, leerstandZeitanteil: leerstandZeitanteil, leerstandBetrag: leerstandBetrag };
   });
-  return { totals: t, einheiten: eRows, summeAnteil: summeAnteil, summeVoraus: summeVoraus, summeSaldo: summeAnteil - summeVoraus };
+  return { totals: nkTotals(E), einheiten: eRows, summeAnteil: summeAnteil, summeVoraus: summeVoraus, summeSaldo: summeAnteil - summeVoraus };
 }
 
 /* US-11: ISO-Datum um ein Jahr verschieben (29.02. → 28.02. im Folgejahr). */
@@ -396,5 +412,8 @@ if (typeof module !== "undefined" && module.exports) {
     NK_LEERSTAND_EPS,
     nkFmtBetrag,
     nkParseBetrag,
+    nkTeilnahme,
+    nkFaktorFuer,
+    nkAusschlussNamen,
   };
 }
