@@ -152,6 +152,28 @@ test("Plausibilitätsprüfung: bereit / Lücken (US-14)", () => {
   assert.equal(calc.nkPlausibilitaet(ohneFlaeche).bereit, false);
 });
 
+test("Plausibilität: überschneidende Mietzeiträume > 100 % (US-47)", () => {
+  const base = {
+    objekt:{von:"2025-01-01",bis:"2025-12-31"},
+    einheiten:[{name:"EG",flaeche:70,personen:2,mv:[
+      {mieter:"A",von:"2025-01-01",bis:"2025-12-31"},
+      {mieter:"B",von:"2025-06-01",bis:"2025-12-31"}   // überlappt mit A
+    ]}],
+    kosten:[{bez:"Grundsteuer",betrag:1200,schluessel:"flaeche"}],
+    zahlung:{iban:"DE12",empfaenger:"V"}
+  };
+  const r = calc.nkPlausibilitaet(base);
+  const treffer = r.punkte.find(p => /über 100 %/.test(p.text));
+  assert.ok(treffer, "Warnung über 100 % erwartet");
+  assert.equal(treffer.level, "warn");
+  assert.ok(/EG/.test(treffer.text) && /A/.test(treffer.text) && /B/.test(treffer.text));
+  assert.equal(r.bereit, true); // Warnung blockiert den Versand nicht
+  // Ohne Überschneidung: kein solcher Hinweis, Leerstand-Warnung bleibt möglich
+  const ohne = JSON.parse(JSON.stringify(base));
+  ohne.einheiten[0].mv = [{mieter:"A",von:"2025-01-01",bis:"2025-12-31"}];
+  assert.ok(!calc.nkPlausibilitaet(ohne).punkte.some(p => /über 100 %/.test(p.text)));
+});
+
 test("Anpassung bald fällig (US-21)", () => {
   assert.equal(calc.nkBaldFaellig("2026-08-01", "2026-06-12", 3), true);
   assert.equal(calc.nkBaldFaellig("2026-12-01", "2026-06-12", 3), false);

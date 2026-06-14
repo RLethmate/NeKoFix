@@ -236,6 +236,15 @@ function nkPlausibilitaet(s) {
   let leer = false;
   E.forEach(e => { const z = (e.mv || []).reduce((a, m) => a + nkZeitanteil(m.von, m.bis, O.von, O.bis), 0); if (z < 0.999) leer = true; });
   if (leer) punkte.push({ level: "warn", text: "Leerstand vorhanden – dieser Anteil trägt der Vermieter." });
+  // US-47: Spiegelbild der Leerstand-Prüfung – Summe der Zeitanteile einer Einheit über 100 %
+  // deutet auf überschneidende Mietzeiträume (Doppelerfassung) hin.
+  E.forEach(e => {
+    const z = (e.mv || []).reduce((a, m) => a + nkZeitanteil(m.von, m.bis, O.von, O.bis), 0);
+    if (z > 1.001) {
+      const namen = (e.mv || []).map(m => (m.mieter && String(m.mieter).trim()) || "(ohne Name)").join(", ");
+      punkte.push({ level: "warn", text: "Einheit „" + e.name + "“: Summe der Zeitanteile über 100 % (" + Math.round(z * 100) + " %) – überschneidende Mietverhältnisse prüfen: " + namen + "." });
+    }
+  });
   return { bereit: !punkte.some(p => p.level === "fehler"), punkte };
 }
 
