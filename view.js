@@ -437,6 +437,8 @@ document.addEventListener('click', e=>{ const m=document.getElementById('datei_m
 /* STORAGE_KEY, ensureIds, snapshot, ladeDaten, makeFreshDaten, objektLabel, objSignatur,
    objektJahr, saveState, loadState, resetState, commit: in core.js (US-33b). */
 function setSaveStatus(t){ const el=document.getElementById('save_status'); if(el) el.textContent=t; }
+/* US-38: Persistenz-Rückmeldung aus core.js in die Statusanzeige übersetzen. */
+onPersist(function(ok){ setSaveStatus(ok ? '✓ gespeichert' : '⚠ nicht gespeichert'); });
 function renderObjektSelect(){ const sel=document.getElementById('obj_select'); if(!sel) return;
   sel.innerHTML=objekte.map((d,i)=>'<option value="'+i+'"'+(i===aktivIdx?' selected':'')+'>'+esc(objektLabel(d,i))+'</option>').join(''); }
 function renderAll(){ renderObjektSelect(); renderVorjahrBanner(); fillObjektKopf();

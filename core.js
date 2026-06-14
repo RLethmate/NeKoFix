@@ -1,7 +1,6 @@
-/* core.js – Zustand, Store und Persistenz (US-33b).
-   Geladen NACH calc.js und VOR dem View-Skript in index.html. Kein DOM-Aufbau.
-   Ausnahme: saveState ruft setSaveStatus (DOM) auf – das bleibt vorerst im View-Skript
-   (wird in US-38 getrennt) und steht zur Laufzeit zur Verfügung. */
+/* core.js – Zustand, Store und Persistenz (US-33b, US-38).
+   Geladen NACH calc.js und VOR dem View-Skript in index.html. Kein DOM-Zugriff.
+   Persistenz meldet Erfolg/Fehler über onPersist(listener); die Statusanzeige übernimmt das View. */
 
 /* ---------- In-Memory-State ---------- */
 const state = {
@@ -89,7 +88,10 @@ function makeFreshDaten(){ const von="2025-01-01", bis="2025-12-31"; return {
 function objektJahr(d){ const v=d&&d.objekt&&(d.objekt.von||d.objekt.bis); const m=String(v||'').match(/^(\d{4})/); return m?m[1]:''; }
 function objektLabel(d,i){ const addr=(d&&d.objekt&&String(d.objekt.addr||"").trim())||("Objekt "+(i+1)); const j=objektJahr(d); return j?(addr+" · "+j):addr; }
 function objSignatur(d){ const o=(d&&d.objekt)||{}; return [String(o.addr||"").trim(), o.von||"", o.bis||""].join("|"); }
-function saveState(){ try{ if(objekte.length) objekte[aktivIdx]=snapshot(); localStorage.setItem(STORAGE_KEY, JSON.stringify({ objekte, aktivIdx })); setSaveStatus('✓ gespeichert'); }catch(e){ setSaveStatus('⚠ nicht gespeichert'); } }
+/* US-38: Persistenz meldet Erfolg/Fehler über einen Listener; die DOM-Anzeige liegt im View. */
+let _persistListener = null;
+function onPersist(fn){ _persistListener = fn; }
+function saveState(){ let ok=true; try{ if(objekte.length) objekte[aktivIdx]=snapshot(); localStorage.setItem(STORAGE_KEY, JSON.stringify({ objekte, aktivIdx })); }catch(e){ ok=false; } if(_persistListener) _persistListener(ok); return ok; }
 function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return false; const o=JSON.parse(raw);
     if(o && Array.isArray(o.objekte) && o.objekte.length){ objekte=nkDedupeObjekte(o.objekte); aktivIdx=Math.max(0,Math.min(o.aktivIdx||0, objekte.length-1)); ladeDaten(objekte[aktivIdx]); return true; }
     if(o && Array.isArray(o.einheiten)){ objekte=[o]; aktivIdx=0; ladeDaten(o); return true; } /* Migration: altes Einzelformat */
