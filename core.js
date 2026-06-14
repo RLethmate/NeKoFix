@@ -61,6 +61,7 @@ const store = {
   setChronikFeld(ei,mi,ci,field,val){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik)m.chronik=[]; m.chronik[ci][field]=val; commit(); },
   // Kosten
   addKosten(bez){ if(!state.kosten.some(k=>k.bez===bez)) state.kosten.push({bez, betrag:0, schluessel:nkVorschlagSchluessel(bez)}); commit(); },
+  addKostenPos(pos){ state.kosten.push(pos); commit(); }, /* US-05: vollständige Position (z. B. Heizblock) */
   removeKosten(idx){ state.kosten.splice(idx,1); commit(); },
   setKostenFeld(idx,field,val){ state.kosten[idx][field]=val; commit(); },
   setKostenBetrag(idx,val){ state.kosten[idx].betrag=+val; commit(); },

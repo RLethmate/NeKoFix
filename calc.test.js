@@ -100,6 +100,20 @@ test("Direktkosten: 100 % auf eine Einheit (US-22)", () => {
   assert.equal(summe, 300);
 });
 
+test("Heizung: Menge→kWh, Kosten und Energiearten (US-05)", () => {
+  assert.equal(calc.nkMengeZuKwh(1000, 10), 10000);   // 1000 l Öl × 10 kWh/l
+  assert.equal(calc.nkMengeZuKwh(0, 10), 0);
+  assert.equal(calc.nkHeizkosten(1000, 0.9), 900);    // 1000 l × 0,90 €/l
+  assert.equal(calc.nkHeizkosten(0, 0.9), 0);
+  const oel = calc.nkEnergieart("heizoel");
+  assert.equal(oel.einheit, "l"); assert.equal(oel.hi, 10); assert.equal(oel.fossil, true);
+  assert.equal(calc.nkEnergieart("strom_wp").fossil, false);
+  assert.equal(calc.nkEnergieart("strom_wp").faktorTyp, "jaz");   // Wärmepumpe → Arbeitszahl
+  assert.equal(calc.nkEnergieart("erdgas_kwh").faktorTyp, "direkt"); // bereits kWh
+  assert.equal(calc.nkEnergieart("heizoel").faktorTyp, "hi");
+  assert.equal(calc.nkEnergieart("unbekannt").key, "erdgas_kwh"); // Fallback erstes Element
+});
+
 test("leere Einheitenliste führt nicht zu Division durch Null", () => {
   const t = calc.nkTotals([]);
   assert.equal(calc.nkFactor({ flaeche: 50 }, "flaeche", t), 0);

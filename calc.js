@@ -19,6 +19,24 @@ function nkParseBetrag(s) {
   return isNaN(n) ? 0 : n;
 }
 
+/* US-05: Energiearten mit typischem Heizwert Hi (kWh je Einheit) und Brennstoff-Einheit.
+   fossil = relevant für die spätere CO2-Aufteilung (US-07). Werte sind Vorbelegungen, überschreibbar. */
+/* faktorTyp: "hi" = Heizwert (kWh je Brennstoffeinheit) · "jaz" = Arbeitszahl der Wärmepumpe
+   (kWh Wärme je kWh Strom) · "direkt" = Verbrauch ist bereits in kWh, kein Faktor nötig. */
+const NK_ENERGIEARTEN = [
+  { key: "erdgas_kwh",  label: "Erdgas (kWh)",        einheit: "kWh", hi: 1,    faktorTyp: "direkt", fossil: true },
+  { key: "erdgas_m3",   label: "Erdgas (m³)",          einheit: "m³",  hi: 10.5, faktorTyp: "hi",     fossil: true },
+  { key: "heizoel",     label: "Heizöl",               einheit: "l",   hi: 10,   faktorTyp: "hi",     fossil: true },
+  { key: "fluessiggas", label: "Flüssiggas",           einheit: "l",   hi: 6.57, faktorTyp: "hi",     fossil: true },
+  { key: "pellets",     label: "Pellets",              einheit: "kg",  hi: 5,    faktorTyp: "hi",     fossil: false },
+  { key: "fernwaerme",  label: "Fernwärme",            einheit: "kWh", hi: 1,    faktorTyp: "direkt", fossil: false },
+  { key: "waerme_kwh",  label: "Wärme (kWh)",          einheit: "kWh", hi: 1,    faktorTyp: "direkt", fossil: false },
+  { key: "strom_wp",    label: "Strom (Wärmepumpe)",   einheit: "kWh", hi: 3.5,  faktorTyp: "jaz",    fossil: false }
+];
+function nkEnergieart(key) { return NK_ENERGIEARTEN.find(e => e.key === key) || NK_ENERGIEARTEN[0]; }
+function nkMengeZuKwh(menge, heizwert) { return (+menge || 0) * (+heizwert || 0); }
+function nkHeizkosten(menge, preis) { return (+menge || 0) * (+preis || 0); }
+
 function nkTotals(einheiten) {
   return {
     flaeche: einheiten.reduce((s, e) => s + (+e.flaeche || 0), 0),
@@ -416,5 +434,9 @@ if (typeof module !== "undefined" && module.exports) {
     nkTeilnahme,
     nkFaktorFuer,
     nkAusschlussNamen,
+    NK_ENERGIEARTEN,
+    nkEnergieart,
+    nkMengeZuKwh,
+    nkHeizkosten,
   };
 }
