@@ -107,7 +107,7 @@ function renderEinheiten(){
       }
       return row;
     }).join('');
-    const leerHint = lz>0.0001 ? '<div class="leer-hint">'+WARN_ICON+' Leerstand: '+Math.round(lz*100)+' % des Zeitraums (trägt der Vermieter).</div>' : '';
+    const leerHint = lz>NK_LEERSTAND_EPS ? '<div class="leer-hint">'+WARN_ICON+' Leerstand: '+Math.round(lz*100)+' % des Zeitraums (trägt der Vermieter).</div>' : '';
     box.insertAdjacentHTML('beforeend',
       '<div class="unit-card">'+
         '<div class="unit-head">'+
@@ -266,14 +266,14 @@ function computeView(){
   ab.einheiten.forEach(er=>{
     er.mietverhaeltnisse.forEach(mv=>{
       const a=mv.brutto, v=mv.vorauszahlung, s=mv.saldo;
-      const ustHint = mv.gewerblich ? ' <span class="pill">inkl. 19% USt</span>' : '';
+      const ustHint = mv.gewerblich ? ' <span class="pill">inkl. '+NK_UST_SATZ+'% USt</span>' : '';
       const tr=document.createElement('tr');
       tr.innerHTML='<td>'+esc(mv.mieter)+' <span class="pill">'+esc(er.name)+'</span>'+ustHint+'</td><td class="num">'+eur(a)+'</td><td class="num">'+eur(v)+
         '</td><td class="num '+(s>0?'neg':'pos')+'">'+(s>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(s))+'</td>'+
         '<td class="num" title="Empfehlung: Anteil ÷ 12 Monate">'+eur(nkVorschlagVorauszahlung(a))+'</td>';
       tb.appendChild(tr);
     });
-    if(er.leerstandZeitanteil>0.0001){
+    if(er.leerstandZeitanteil>NK_LEERSTAND_EPS){
       const tr=document.createElement('tr');
       tr.innerHTML='<td class="muted">Leerstand (Vermieter) <span class="pill">'+esc(er.name)+'</span></td><td class="num">'+eur(er.leerstandBetrag)+'</td><td class="num">–</td><td class="num neg">trägt Vermieter</td><td class="num">–</td>';
       tb.appendChild(tr);
@@ -315,7 +315,7 @@ function nkRechenweg(){
   L.push('  - nach Wohneinheit: Faktor = 1 ÷ Anzahl Wohneinheiten');
   L.push('- Zeitanteil = belegte Tage ÷ Tage des Abrechnungszeitraums; Mieteranteil = Einheiten-Anteil × Zeitanteil.');
   L.push('- Leerstand (nicht belegte Tage) trägt der Vermieter.');
-  L.push('- Gewerblich (USt-pflichtig): Positionen netto = Betrag ÷ (1 + Vorsteuersatz), Summe netto + 19 % USt = brutto.');
+  L.push('- Gewerblich (USt-pflichtig): Positionen netto = Betrag ÷ (1 + Vorsteuersatz), Summe netto + '+NK_UST_SATZ+' % USt = brutto.');
   L.push('- Saldo = Anteil − geleistete Vorauszahlung.');
   L.push('');
   L.push('## Kostenpositionen');
@@ -331,12 +331,12 @@ function nkRechenweg(){
       mv.zeilen.forEach(i=>{
         L.push('- '+i.bez+': '+eur(i.gesamt)+' × '+(i.faktor*100).toFixed(2)+' % = '+eur(i.anteilVoll)+' × Zeit '+(za*100).toFixed(1)+' % = '+eur(i.anteil));
       });
-      if(mv.gewerblich) L.push('- Zwischensumme netto '+eur(mv.netto)+' + 19 % USt '+eur(mv.ust)+' = '+eur(mv.brutto));
+      if(mv.gewerblich) L.push('- Zwischensumme netto '+eur(mv.netto)+' + '+NK_UST_SATZ+' % USt '+eur(mv.ust)+' = '+eur(mv.brutto));
       else L.push('- Summe Anteil: '+eur(mv.brutto));
       L.push('- Vorauszahlung '+eur(mv.vorauszahlung)+' → '+(mv.saldo>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(mv.saldo)));
       L.push('');
     });
-    if(er.leerstandZeitanteil>0.0001){ L.push('### Leerstand '+er.name+': '+(er.leerstandZeitanteil*100).toFixed(1)+' % → '+eur(er.leerstandBetrag)+' (trägt Vermieter)'); L.push(''); }
+    if(er.leerstandZeitanteil>NK_LEERSTAND_EPS){ L.push('### Leerstand '+er.name+': '+(er.leerstandZeitanteil*100).toFixed(1)+' % → '+eur(er.leerstandBetrag)+' (trägt Vermieter)'); L.push(''); }
   });
   return L.join('\n');
 }
@@ -367,7 +367,7 @@ function renderDoc(){
   ).join('');
   const summen = gew
     ? '<tr class="total-row"><td>Zwischensumme netto</td><td></td><td></td><td class="num">'+eur(ab.netto)+'</td></tr>'+
-      '<tr><td>zzgl. 19 % Umsatzsteuer</td><td></td><td></td><td class="num">'+eur(ab.ust)+'</td></tr>'+
+      '<tr><td>zzgl. '+NK_UST_SATZ+' % Umsatzsteuer</td><td></td><td></td><td class="num">'+eur(ab.ust)+'</td></tr>'+
       '<tr class="total-row"><td>Ihr Anteil (brutto)</td><td></td><td></td><td class="num">'+eur(ab.brutto)+'</td></tr>'
     : '<tr class="total-row"><td>Ihr Anteil an den Gesamtkosten</td><td></td><td></td><td class="num">'+eur(ab.brutto)+'</td></tr>';
   document.getElementById('doc').innerHTML=
