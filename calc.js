@@ -41,6 +41,7 @@ function nkTeilnahme(e, k) {
   return aus.indexOf(e.id) < 0;
 }
 function nkFaktorFuer(e, k, einheiten) {
+  if (k && k.schluessel === "direkt") return e.id === k.direktEinheit ? 1 : 0; // US-22: 100 % auf eine Einheit
   if (!nkTeilnahme(e, k)) return 0;
   const teil = (einheiten || []).filter(x => nkTeilnahme(x, k));
   return nkFactor(e, k.schluessel, nkTotals(teil));
