@@ -390,7 +390,7 @@ function renderDoc(){
 
 /* ---------- Step 6: Zahlungseingänge (US-28) ---------- */
 function monatLabel(key){ const p=String(key).split('-'); const n=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez']; return (n[(+p[1])-1]||'?')+' '+p[0]; }
-function nkMonatNK(m){ return +m.vmonat || Math.round((+m.voraus||0)/(m.vmonate||12)); }
+/* nkMonatNK nach calc.js verschoben (US-35). */
 function renderZahlungen(){
   const box=document.getElementById('zahlungen_box'); box.innerHTML='';
   alleMV().forEach(({e,m,ei,mi})=>{

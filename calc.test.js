@@ -159,6 +159,13 @@ test("Anpassung bald fällig (US-21)", () => {
   assert.equal(calc.nkBaldFaellig("", "2026-06-12", 3), false);
 });
 
+test("Monatliche NK-Vorauszahlung: Monatsbetrag bzw. Jahr ÷ Monate (US-35)", () => {
+  assert.equal(calc.nkMonatNK({ vmonat: 150 }), 150);
+  assert.equal(calc.nkMonatNK({ voraus: 1800, vmonate: 12 }), 150);
+  assert.equal(calc.nkMonatNK({ voraus: 525, vmonate: 3 }), 175);
+  assert.equal(calc.nkMonatNK({}), 0);
+});
+
 test("Soll-Monatsbetrag = Grundmiete + NK + N×Stellplatz (US-28)", () => {
   assert.equal(calc.nkSollMonat(800, 150, 1, 40), 990);
   assert.equal(calc.nkSollMonat(650, 125, 0, 0), 775);

@@ -120,6 +120,11 @@ function nkBaldFaellig(zielDatum, heuteDatum, schwelleMonate) {
 function nkSollMonat(grundmiete, nkMonat, stellAnzahl, stellPreis) {
   return (+grundmiete || 0) + (+nkMonat || 0) + (+stellAnzahl || 0) * (+stellPreis || 0);
 }
+/* US-35: monatliche NK-Vorauszahlung eines Mietverhältnisses – Monatsbetrag, sonst aus
+   Jahressumme ÷ Monate gerundet. Reine Funktion (aus view.js nach calc.js verschoben). */
+function nkMonatNK(m) {
+  return (+m.vmonat) || Math.round((+m.voraus || 0) / (m.vmonate || 12));
+}
 function nkAktiveMonate(mvVon, mvBis, pVon, pBis) {
   const a1 = nkDatum(mvVon), e1 = nkDatum(mvBis), a2 = nkDatum(pVon), e2 = nkDatum(pBis);
   if (!a1 || !e1 || !a2 || !e2) return [];
@@ -344,6 +349,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkVorschlagVorsteuer,
     nkMieterBetrag,
     nkSollMonat,
+    nkMonatNK,
     nkAktiveMonate,
     nkBaldFaellig,
     nkPlausibilitaet,
