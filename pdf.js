@@ -25,7 +25,7 @@ function buildTenantPdf(sel){
   doc.setFont(undefined,'bold');
   doc.text("Kostenart",56,y); doc.text("Gesamtkosten",380,y,{align:'right'}); doc.text(gew?"Anteil netto":"Ihr Anteil",540,y,{align:'right'});
   doc.setFont(undefined,'normal'); y+=6; doc.line(56,y,540,y); y+=14;
-  ab.zeilen.forEach((i,ix)=>{ const an=nkAusschlussNamen(state.kosten[ix], state.einheiten); const bez=i.bez+(an.length?' (ohne '+an.join(', ')+')':''); doc.text(String(bez).substring(0,52),56,y); doc.text(eur(i.gesamt),380,y,{align:'right'}); doc.text(eur(i.wert),540,y,{align:'right'}); y+=14; });
+  ab.zeilen.forEach((i,ix)=>{ if(Math.round(i.anteil*100)===0) return; /* US-22/US-50: 0-€-Zeilen weglassen */ const r=restriktionText(state.kosten[ix]); const bez=i.bez+(r?' ('+r+')':''); doc.text(String(bez).substring(0,52),56,y); doc.text(eur(i.gesamt),380,y,{align:'right'}); doc.text(eur(i.wert),540,y,{align:'right'}); y+=14; });
   y+=4; doc.line(56,y,540,y); y+=16;
   if(gew){
     doc.text("Zwischensumme netto",56,y); doc.text(eur(ab.netto),540,y,{align:'right'}); y+=14;
