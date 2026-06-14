@@ -37,6 +37,17 @@ function nkEnergieart(key) { return NK_ENERGIEARTEN.find(e => e.key === key) || 
 function nkMengeZuKwh(menge, heizwert) { return (+menge || 0) * (+heizwert || 0); }
 function nkHeizkosten(menge, preis) { return (+menge || 0) * (+preis || 0); }
 
+/* US-53: Briefanrede aus Mietverhältnis (anrede: "herr"/"frau"/sonst neutral). Bei Herr/Frau wird
+   eine bereits im Namen enthaltene Anrede entfernt (kein „Frau Frau …"). Reine Funktion. */
+function nkAnrede(m) {
+  const name = String((m && m.mieter) || "").trim();
+  const a = (m && m.anrede) || "";
+  const clean = name.replace(/^(Herrn?|Frau|Familie|Fam\.)\s+/i, "");
+  if (a === "herr") return "Sehr geehrter Herr " + clean;
+  if (a === "frau") return "Sehr geehrte Frau " + clean;
+  return "Guten Tag " + name;
+}
+
 /* US-51: IBAN-Prüfung – Länge (15–34) und ISO-7064-Prüfziffer (mod 97 == 1). Reine Funktion. */
 function nkIbanGueltig(iban) {
   const s = String(iban || "").replace(/\s+/g, "").toUpperCase();
@@ -458,5 +469,6 @@ if (typeof module !== "undefined" && module.exports) {
     nkMengeZuKwh,
     nkHeizkosten,
     nkIbanGueltig,
+    nkAnrede,
   };
 }
