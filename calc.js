@@ -77,7 +77,7 @@ function nkAnteilOf(e, kosten, einheiten) {
 function nkLineItemsFor(e, kosten, einheiten) {
   return (kosten || []).map(k => {
     const f = nkFaktorFuer(e, k, einheiten);
-    return { bez: k.bez, gesamt: +k.betrag || 0, schluessel: k.schluessel, vorsteuer: +k.vorsteuer || 0, faktor: f, anteil: (+k.betrag || 0) * f };
+    return { bez: k.bez, gesamt: +k.betrag || 0, schluessel: k.schluessel, vorsteuer: +k.vorsteuer || 0, faktor: f, anteil: (+k.betrag || 0) * f, von: k.von, bis: k.bis };
   });
 }
 
@@ -308,11 +308,14 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
   const za = nkZeitanteil(m.von, m.bis, o.von, o.bis);
   const gewerblich = !!m.gewerblich;
   const zeilen = nkLineItemsFor(e, kosten || [], einheiten).map(i => {
-    const anteil = i.anteil * za;                 // zeitanteilig
+    // US-06: hat die Position einen eigenen Zeitraum (Heizblock), Zeitanteil über DIESE Periode,
+    // sonst über den Abrechnungszeitraum.
+    const zaL = (i.von && i.bis) ? nkZeitanteil(m.von, m.bis, i.von, i.bis) : za;
+    const anteil = i.anteil * zaL;
     const wert = gewerblich ? nkNetto(anteil, i.vorsteuer) : anteil; // Anzeige je Zeile
     return {
       bez: i.bez, gesamt: i.gesamt, schluessel: i.schluessel, vorsteuer: i.vorsteuer,
-      faktor: i.faktor, anteilVoll: i.anteil, anteil: anteil, wert: wert
+      faktor: i.faktor, anteilVoll: i.anteil, anteil: anteil, wert: wert, zeitanteil: zaL
     };
   });
   const betrag = nkMieterBetrag(zeilen, gewerblich); // liest .anteil und .vorsteuer

@@ -114,6 +114,23 @@ test("Heizung: Menge→kWh, Kosten und Energiearten (US-05)", () => {
   assert.equal(calc.nkEnergieart("unbekannt").key, "erdgas_kwh"); // Fallback erstes Element
 });
 
+test("Heizblock mit Teilzeitraum: Verteilung über Blockperiode (US-06)", () => {
+  const objekt={von:"2025-01-01",bis:"2025-12-31"};
+  const einheiten=[{id:1,name:"EG",flaeche:100,personen:2,mv:[
+    {mieter:"A",von:"2025-01-01",bis:"2025-06-30",voraus:0},
+    {mieter:"B",von:"2025-07-01",bis:"2025-12-31",voraus:0}
+  ]}];
+  // Gas-Block lief nur Jan–Jun → vollständig vom Jan–Jun-Mieter zu tragen
+  const kosten=[{bez:"Gas",betrag:600,schluessel:"flaeche",von:"2025-01-01",bis:"2025-06-30"}];
+  const mvs=calc.nkObjektAbrechnung(einheiten,kosten,objekt).einheiten[0].mietverhaeltnisse;
+  assert.ok(Math.abs(mvs[0].brutto - 600) < 1e-6); // A trägt den ganzen Block
+  assert.ok(Math.abs(mvs[1].brutto - 0)   < 1e-6); // B nichts (kein Überlapp)
+  // Ohne Teilzeitraum (normale Position) splittet es nach Mietzeit über das Jahr
+  const ohne=[{bez:"Grundsteuer",betrag:1000,schluessel:"flaeche"}];
+  const mv2=calc.nkObjektAbrechnung(einheiten,ohne,objekt).einheiten[0].mietverhaeltnisse;
+  assert.ok(mv2[0].brutto > 400 && mv2[0].brutto < 600);
+});
+
 test("leere Einheitenliste führt nicht zu Division durch Null", () => {
   const t = calc.nkTotals([]);
   assert.equal(calc.nkFactor({ flaeche: 50 }, "flaeche", t), 0);
