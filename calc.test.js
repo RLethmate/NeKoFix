@@ -193,6 +193,14 @@ test("Zeitanteil tagesgenau (US-10)", () => {
   assert.equal(calc.nkZeitanteil("2024-01-01", "2024-12-31", "2025-01-01", "2025-12-31"), 0);
 });
 
+test("Zentrale Konstanten und USt-Berechnung darüber (US-37)", () => {
+  assert.equal(calc.NK_UST_SATZ, 19);
+  assert.ok(calc.NK_LEERSTAND_EPS > 0 && calc.NK_LEERSTAND_EPS < 0.01);
+  const g = calc.nkMieterBetrag([{ anteil: 119, vorsteuer: 19 }], true); // netto 100
+  assert.ok(Math.abs(g.ust - 100 * calc.NK_UST_SATZ / 100) < 1e-9);
+  assert.ok(Math.abs(g.brutto - (g.netto + g.ust)) < 1e-9);
+});
+
 test("HTML-Escaping von Freitext (US-36)", () => {
   assert.equal(calc.nkEsc("A & B"), "A &amp; B");
   assert.equal(calc.nkEsc("<script>"), "&lt;script&gt;");

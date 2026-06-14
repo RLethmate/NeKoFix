@@ -29,7 +29,7 @@ function buildTenantPdf(sel){
   y+=4; doc.line(56,y,540,y); y+=16;
   if(gew){
     doc.text("Zwischensumme netto",56,y); doc.text(eur(ab.netto),540,y,{align:'right'}); y+=14;
-    doc.text("zzgl. 19 % Umsatzsteuer",56,y); doc.text(eur(ab.ust),540,y,{align:'right'}); y+=16;
+    doc.text("zzgl. "+NK_UST_SATZ+" % Umsatzsteuer",56,y); doc.text(eur(ab.ust),540,y,{align:'right'}); y+=16;
     doc.setFont(undefined,'bold'); doc.text("Ihr Anteil (brutto)",56,y); doc.text(eur(anteil),540,y,{align:'right'}); y+=18;
   } else {
     doc.setFont(undefined,'bold'); doc.text("Ihr Anteil an den Gesamtkosten",56,y); doc.text(eur(anteil),540,y,{align:'right'}); y+=18;
@@ -62,7 +62,7 @@ function exportOwnerOverviewPdf(){
       const a=mv.brutto, v=mv.vorauszahlung, s=mv.saldo;
       doc.text((mv.mieter+" / "+er.name+(mv.gewerblich?" (gewerbl.)":"")).substring(0,38),56,y); doc.text(eur(a),330,y,{align:'right'}); doc.text(eur(v),440,y,{align:'right'}); doc.text((s>0?"+":"")+eur(s),540,y,{align:'right'}); y+=14;
     });
-    if(er.leerstandZeitanteil>0.0001){ doc.text(("Leerstand / "+er.name).substring(0,38),56,y); doc.text(eur(er.leerstandBetrag),330,y,{align:'right'}); doc.text("–",440,y,{align:'right'}); doc.text("Vermieter",540,y,{align:'right'}); y+=14; }
+    if(er.leerstandZeitanteil>NK_LEERSTAND_EPS){ doc.text(("Leerstand / "+er.name).substring(0,38),56,y); doc.text(eur(er.leerstandBetrag),330,y,{align:'right'}); doc.text("–",440,y,{align:'right'}); doc.text("Vermieter",540,y,{align:'right'}); y+=14; }
   });
   y+=4; doc.line(56,y,540,y); y+=16; doc.setFont(undefined,'bold');
   doc.text("Summe",56,y); doc.text(eur(ab.summeAnteil),330,y,{align:'right'}); doc.text(eur(ab.summeVoraus),440,y,{align:'right'}); doc.text(eur(ab.summeSaldo),540,y,{align:'right'});

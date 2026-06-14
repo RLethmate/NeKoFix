@@ -2,6 +2,10 @@
    Reine Funktionen ohne Seiteneffekte, damit sie sowohl im Browser (index.html)
    als auch in den Tests (Node) verwendet werden können. */
 
+/* US-37: zentrale fachliche Konstanten (eine Quelle statt verstreuter Magic Numbers). */
+const NK_UST_SATZ = 19;          // Umsatzsteuersatz in Prozent (gewerbliche Mieter)
+const NK_LEERSTAND_EPS = 0.0001; // Schwelle, ab der Leerstand angezeigt/ausgewiesen wird
+
 function nkTotals(einheiten) {
   return {
     flaeche: einheiten.reduce((s, e) => s + (+e.flaeche || 0), 0),
@@ -45,7 +49,7 @@ function nkMieterBetrag(items, gewerblich) {
     return { netto: b, ust: 0, brutto: b, gewerblich: false };
   }
   const netto = (items || []).reduce((s, i) => s + nkNetto(i.anteil, i.vorsteuer), 0);
-  const ust = netto * 0.19;
+  const ust = netto * (NK_UST_SATZ / 100);
   return { netto: netto, ust: ust, brutto: netto + ust, gewerblich: true };
 }
 
@@ -349,5 +353,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkMieterAbrechnung,
     nkObjektAbrechnung,
     nkEsc,
+    NK_UST_SATZ,
+    NK_LEERSTAND_EPS,
   };
 }
