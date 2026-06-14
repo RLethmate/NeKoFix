@@ -95,8 +95,8 @@ function renderEinheiten(){
         const bald=nkBaldFaellig(na, heute(), 3);
         row+='<tr class="detail-row"><td colspan="6">'+
           '<div class="detail-grid">'+
-            '<label>Urspr. Grundmiete <input class="short" type="number" value="'+vg+'" onchange="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)"></label>'+
-            '<label>Urspr. NK/Monat <input class="short" type="number" value="'+vnk+'" onchange="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)"></label>'+
+            '<label>Urspr. Grundmiete <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+'" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
+            '<label>Urspr. NK/Monat <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+'" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
             '<label>Letzte Anpassung <input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()"></label>'+
             '<label>Nächste Anpassung <input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)" onblur="renderEinheiten()"></label>'+
           '</div>'+
@@ -137,7 +137,7 @@ function addMV(ei){ store.addMv(ei); renderEinheiten(); }
 function delMV(ei,mi){ store.removeMv(ei,mi); renderEinheiten(); }
 /* US-21: Vertrag & Anpassungs-Chronik je Mietverhältnis */
 function toggleVertrag(id){ if(expandedMV.has(id)) expandedMV.delete(id); else expandedMV.add(id); renderEinheiten(); }
-function updVertrag(ei,mi,field,val,num){ store.setVertragFeld(ei,mi,field,val,num); /* Datum: Neu-Zeichnen via onblur */ }
+function updVertrag(ei,mi,field,val,num){ store.setVertragFeld(ei,mi,field, num? nkParseBetrag(val): val, num); /* Datum: Neu-Zeichnen via onblur */ }
 function addChronik(ei,mi){ store.addChronik(ei,mi); renderEinheiten(); }
 function delChronik(ei,mi,ci){ store.removeChronik(ei,mi,ci); renderEinheiten(); }
 function updChronik(ei,mi,ci,field,val){ store.setChronikFeld(ei,mi,ci,field,val); /* Datum: Neu-Zeichnen via onblur */ }
@@ -152,7 +152,7 @@ function recomputeVoraus(m){
 }
 function setVorausModus(x){ vorausModus=x; renderVoraus(); }
 function updVorausMV(ei, mi, field, val){
-  store.setMvNum(ei,mi,field,val);
+  store.setMvNum(ei,mi,field, nkParseBetrag(val));
   const m=store.mv(ei,mi); recomputeVoraus(m);
   const c=document.getElementById('gesamt-'+ei+'-'+mi); if(c) c.textContent=eur(m.voraus);
 }
@@ -171,13 +171,13 @@ function renderVoraus(){
     const notizCell='<td><input value="'+esc(m.notiz)+'" oninput="store.setMvFeld('+ei+','+mi+',\'notiz\',this.value)" placeholder="Notiz"></td>';
     if(monat){
       tr.innerHTML=kopf+
-        '<td class="num"><input class="short" type="number" value="'+m.vmonat+'" oninput="updVorausMV('+ei+','+mi+',\'vmonat\',this.value)"></td>'+
+        '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.vmonat)+'" oninput="updVorausMV('+ei+','+mi+',\'vmonat\',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+
         '<td class="num"><input class="short" type="number" value="'+m.vmonate+'" oninput="updVorausMV('+ei+','+mi+',\'vmonate\',this.value)"></td>'+
-        '<td class="num"><input class="short" type="number" value="'+m.einmal+'" oninput="updVorausMV('+ei+','+mi+',\'einmal\',this.value)"></td>'+gesamt+notizCell;
+        '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.einmal)+'" oninput="updVorausMV('+ei+','+mi+',\'einmal\',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+gesamt+notizCell;
     } else {
       tr.innerHTML=kopf+
-        '<td class="num"><input class="short" type="number" value="'+m.vjahr+'" oninput="updVorausMV('+ei+','+mi+',\'vjahr\',this.value)"></td>'+
-        '<td class="num"><input class="short" type="number" value="'+m.einmal+'" oninput="updVorausMV('+ei+','+mi+',\'einmal\',this.value)"></td>'+gesamt+notizCell;
+        '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.vjahr)+'" oninput="updVorausMV('+ei+','+mi+',\'vjahr\',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+
+        '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.einmal)+'" oninput="updVorausMV('+ei+','+mi+',\'einmal\',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+gesamt+notizCell;
     }
     tb.appendChild(tr);
   });
@@ -201,7 +201,7 @@ function renderKosten(){
     const tr=document.createElement('tr'); tr.id='krow-'+idx; if(k.vorjahr) tr.className='vorjahr';
     tr.innerHTML=
       '<td><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+'</span></td>'+
-      '<td class="num"><input class="short" type="number" value="'+k.betrag+'" oninput="updKostenBetrag('+idx+',this.value)"></td>'+
+      '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+'" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+
       '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug)." onchange="store.setKostenFeld('+idx+',\'schluessel\',this.value)">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button></span></td>'+
       '<td><button class="status-toggle" onclick="toggleKostenDetail('+k.id+')" title="Status & Notiz">'+dots+'<span class="chev">'+(open?'▴':'▾')+'</span></button></td>'+
       '<td><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button></td>';
@@ -225,7 +225,7 @@ function renderKosten(){
 }
 function updKosten(idx,field,val){ store.setKostenFeld(idx,field,val); renderKosten(); }
 /* US-11: Betrag erfassen hebt die Vorjahr-Markierung der Zeile auf */
-function updKostenBetrag(idx,val){ store.setKostenBetrag(idx,val); const k=store.kosten(idx); if(k.vorjahr){ store.setKostenFeld(idx,'vorjahr',false); const r=document.getElementById('krow-'+idx); if(r) r.classList.remove('vorjahr'); const b=r&&r.querySelector('.vorjahr-badge'); if(b) b.remove(); } }
+function updKostenBetrag(idx,val){ store.setKostenBetrag(idx, nkParseBetrag(val)); const k=store.kosten(idx); if(k.vorjahr){ store.setKostenFeld(idx,'vorjahr',false); const r=document.getElementById('krow-'+idx); if(r) r.classList.remove('vorjahr'); const b=r&&r.querySelector('.vorjahr-badge'); if(b) b.remove(); } }
 function toggleKostenDetail(id){ if(expandedKosten.has(id)) expandedKosten.delete(id); else expandedKosten.add(id); renderKosten(); }
 function setNurUngeprueft(v){ nurUngeprueft=v; renderKosten(); }
 /* US-04: Auswahl-Liste der Kostenarten; bereits übernommene ausgegraut, nicht umlagefähige mit ! */
@@ -410,10 +410,10 @@ function renderZahlungen(){
       '<div class="unit-card">'+
         '<div class="unit-head"><b>'+esc(m.mieter)+'</b> <span class="pill">'+esc(e.name)+'</span></div>'+
         '<div class="zahl-soll">'+
-          '<label class="unit-f">Grundmiete <input class="short" type="number" value="'+(m.grundmiete||0)+'" onchange="updMVNum('+ei+','+mi+',\'grundmiete\',this.value)"></label>'+
+          '<label class="unit-f">Grundmiete <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+'" onchange="updMVNum('+ei+','+mi+',\'grundmiete\',this.value)"></label>'+
           '<span class="unit-f">+ NK-Vorauszahlung '+eur(nk)+'</span>'+
           '<label class="unit-f">+ Stellplätze <input class="short" type="number" value="'+(m.stellAnzahl||0)+'" onchange="updMVNum('+ei+','+mi+',\'stellAnzahl\',this.value)"></label>'+
-          '<label class="unit-f">× <input class="short" type="number" value="'+(m.stellPreis||0)+'" onchange="updMVNum('+ei+','+mi+',\'stellPreis\',this.value)"> €</label>'+
+          '<label class="unit-f">× <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stellPreis||0)+'" onchange="updMVNum('+ei+','+mi+',\'stellPreis\',this.value)"> €</label>'+
           '<span class="zahl-summe">Soll/Monat: <b>'+eur(soll)+'</b></span>'+
         '</div>'+
         '<div class="zahl-monate">'+(chips||'<span class="hint">keine aktiven Monate im Zeitraum</span>')+'</div>'+
@@ -422,7 +422,7 @@ function renderZahlungen(){
   });
 }
 function updZahlung(ei,mi,key,checked){ store.setBezahlt(ei,mi,key,checked); renderZahlungen(); }
-function updMVNum(ei,mi,field,val){ store.setMvNum(ei,mi,field,val); renderZahlungen(); }
+function updMVNum(ei,mi,field,val){ store.setMvNum(ei,mi,field, nkParseBetrag(val)); renderZahlungen(); }
 
 /* PDF-Export (US-18) ausgelagert nach pdf.js (US-33). */
 

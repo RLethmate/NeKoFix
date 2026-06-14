@@ -77,7 +77,7 @@
   td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;}
   input,select{font-family:var(--font);font-size:14px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);width:100%;}
   input:focus,select:focus{outline:2px solid var(--primary);outline-offset:0;border-color:var(--primary);}
-  input.short{max-width:130px;text-align:right;}
+  input.short{max-width:160px;text-align:right;}  /* US-48: breit genug für z. B. 12.345,67 */
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
   .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600;}
   .nav{display:flex;justify-content:space-between;margin-top:22px;gap:10px;flex-wrap:wrap;}
@@ -131,7 +131,7 @@
   .unit-head{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:8px;}
   .unit-name{font-weight:600;max-width:200px;}
   .unit-f{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;}
-  .unit-f .short{max-width:90px;}
+  .unit-f .short{max-width:130px;}  /* US-48: Beträge in den Einheits-/Zahlungsfeldern vollständig sichtbar */
   .mv-table input[type=date]{max-width:160px;}
   .gewerbl{font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;}
   .gewerbl input{width:auto;}

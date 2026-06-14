@@ -208,6 +208,20 @@ test("Zentrale Konstanten und USt-Berechnung darüber (US-37)", () => {
   assert.ok(Math.abs(g.brutto - (g.netto + g.ust)) < 1e-9);
 });
 
+test("Betrag formatieren und parsen, deutsche Schreibweise (US-48)", () => {
+  assert.equal(calc.nkFmtBetrag(1000.1), "1.000,10");
+  assert.equal(calc.nkFmtBetrag(12345.67), "12.345,67");
+  assert.equal(calc.nkFmtBetrag(0), "0,00");
+  // Parsen: deutsches Format, US-getipptes Format, leer
+  assert.equal(calc.nkParseBetrag("1.000,10"), 1000.1);
+  assert.equal(calc.nkParseBetrag("1000,10"), 1000.1);
+  assert.equal(calc.nkParseBetrag("12.345,67"), 12345.67);
+  assert.equal(calc.nkParseBetrag("70"), 70);
+  assert.equal(calc.nkParseBetrag(""), 0);
+  // Round-Trip: Anzeige → Parsen ergibt wieder die Zahl
+  assert.equal(calc.nkParseBetrag(calc.nkFmtBetrag(1234.5)), 1234.5);
+});
+
 test("HTML-Escaping von Freitext (US-36)", () => {
   assert.equal(calc.nkEsc("A & B"), "A &amp; B");
   assert.equal(calc.nkEsc("<script>"), "&lt;script&gt;");

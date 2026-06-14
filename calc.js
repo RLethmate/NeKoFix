@@ -6,6 +6,19 @@
 const NK_UST_SATZ = 19;          // Umsatzsteuersatz in Prozent (gewerbliche Mieter)
 const NK_LEERSTAND_EPS = 0.0001; // Schwelle, ab der Leerstand angezeigt/ausgewiesen wird
 
+/* US-48: Geldbeträge in deutscher Schreibweise (Tausenderpunkt, Komma, 2 Nachkommastellen).
+   nkFmtBetrag: Zahl → "1.000,10"; nkParseBetrag: Eingabe-String → Zahl (tolerant). Reine Funktionen. */
+function nkFmtBetrag(n) {
+  return (Number(n) || 0).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function nkParseBetrag(s) {
+  let t = String(s == null ? "" : s).trim();
+  if (t === "") return 0;
+  if (t.indexOf(",") >= 0) t = t.replace(/\./g, "").replace(",", "."); // dt. Format: Punkt = Tausender, Komma = Dezimal
+  const n = parseFloat(t);
+  return isNaN(n) ? 0 : n;
+}
+
 function nkTotals(einheiten) {
   return {
     flaeche: einheiten.reduce((s, e) => s + (+e.flaeche || 0), 0),
@@ -361,5 +374,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkEsc,
     NK_UST_SATZ,
     NK_LEERSTAND_EPS,
+    nkFmtBetrag,
+    nkParseBetrag,
   };
 }
