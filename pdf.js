@@ -11,37 +11,72 @@ function ensurePdfLib(){
   }
   return true;
 }
+/* US-53: Abrechnung als amtliches PDF im DIN-Briefformat. */
 function buildTenantPdf(sel){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'pt', format:'a4'});
   const e=sel.e, m=sel.m;
   const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, state.einheiten);
+  const z=state.zahlung||{};
   const gew=ab.gewerblich, anteil=ab.brutto, saldo=ab.saldo;
-  let y=56;
-  doc.setFontSize(16); doc.text("Betriebs- und Heizkostenabrechnung",56,y); y+=24;
-  doc.setFontSize(10);
-  doc.text(state.objekt.addr+"  ·  Einheit "+e.name+(gew?"  ·  gewerblich":""),56,y); y+=14;
-  doc.text("Mieter: "+m.mieter+"   ·   Mietzeit: "+fmtDatum(m.von)+"–"+fmtDatum(m.bis)+"   ·   Zeitraum: "+zeitraumText(),56,y); y+=22;
+  const L=56, R=540, W=R-L;
+  const nl=(t)=>{ if(y>780){ doc.addPage(); y=64; } doc.text(t,L,y); y+=14; };
+  // Absenderzeile (klein)
+  doc.setFontSize(8); doc.setTextColor(110);
+  const abs=[z.empfaenger, z.anschrift].filter(Boolean).join(' · ');
+  if(abs) doc.text(abs, L, 70);
+  // Datum rechts
+  doc.setFontSize(10); doc.setTextColor(0);
+  doc.text(new Date().toLocaleDateString('de-DE'), R, 92, {align:'right'});
+  // Empfänger-Anschriftfeld
+  let y=110; doc.setFontSize(11);
+  doc.text(String(m.mieter||''), L, y); y+=14;
+  doc.text(String(e.name+' · '+state.objekt.addr), L, y);
+  // Betreff
+  y=180; doc.setFont(undefined,'bold'); doc.setFontSize(12);
+  doc.splitTextToSize('Betriebs- und Heizkostenabrechnung '+zeitraumSatz(), W).forEach(l=>{ doc.text(l,L,y); y+=16; });
+  doc.setFont(undefined,'normal'); doc.setFontSize(10);
+  // Anrede + Einleitung
+  y+=8; nl(nkAnrede(m)+','); y+=4;
+  doc.splitTextToSize('anbei erhalten Sie die Betriebs- und Heizkostenabrechnung für '+zeitraumSatz()+'. Nachstehend finden Sie die Aufstellung der Kosten, Ihren Anteil und die Verrechnung mit den geleisteten Vorauszahlungen.', W).forEach(l=>nl(l));
+  y+=10;
+  // Tabellenkopf
   doc.setFont(undefined,'bold');
-  doc.text("Kostenart",56,y); doc.text("Gesamtkosten",380,y,{align:'right'}); doc.text(gew?"Anteil netto":"Ihr Anteil",540,y,{align:'right'});
-  doc.setFont(undefined,'normal'); y+=6; doc.line(56,y,540,y); y+=14;
-  ab.zeilen.forEach((i,ix)=>{ if(Math.round(i.anteil*100)===0) return; /* US-22/US-50: 0-€-Zeilen weglassen */ const r=restriktionText(state.kosten[ix]); const bez=i.bez+(r?' ('+r+')':''); doc.text(String(bez).substring(0,52),56,y); doc.text(eur(i.gesamt),380,y,{align:'right'}); doc.text(eur(i.wert),540,y,{align:'right'}); y+=14; });
-  y+=4; doc.line(56,y,540,y); y+=16;
+  doc.text('Kostenart',L,y); doc.text('Gesamtkosten',330,y,{align:'right'}); doc.text('Schlüssel',345,y); doc.text(gew?'Anteil netto':'Ihr Anteil',R,y,{align:'right'});
+  doc.setFont(undefined,'normal'); y+=4; doc.line(L,y,R,y); y+=14;
+  ab.zeilen.forEach((i,ix)=>{
+    if(Math.round(i.anteil*100)===0) return; /* US-22/US-50: 0-€-Zeilen weglassen */
+    if(y>770){ doc.addPage(); y=64; }
+    doc.text(String(i.bez).substring(0,30),L,y);
+    doc.text(eur(i.gesamt),330,y,{align:'right'});
+    doc.setFontSize(8); doc.setTextColor(110);
+    doc.text(String(schluesselAnzeige(state.kosten[ix])).substring(0,28),345,y);
+    doc.setFontSize(10); doc.setTextColor(0);
+    doc.text(eur(i.wert),R,y,{align:'right'}); y+=14;
+  });
+  y+=4; doc.line(L,y,R,y); y+=16;
   if(gew){
-    doc.text("Zwischensumme netto",56,y); doc.text(eur(ab.netto),540,y,{align:'right'}); y+=14;
-    doc.text("zzgl. "+NK_UST_SATZ+" % Umsatzsteuer",56,y); doc.text(eur(ab.ust),540,y,{align:'right'}); y+=16;
-    doc.setFont(undefined,'bold'); doc.text("Ihr Anteil (brutto)",56,y); doc.text(eur(anteil),540,y,{align:'right'}); y+=18;
+    doc.text('Zwischensumme netto',L,y); doc.text(eur(ab.netto),R,y,{align:'right'}); y+=14;
+    doc.text('zzgl. '+NK_UST_SATZ+' % Umsatzsteuer',L,y); doc.text(eur(ab.ust),R,y,{align:'right'}); y+=16;
+    doc.setFont(undefined,'bold'); doc.text('Ihr Anteil (brutto)',L,y); doc.text(eur(anteil),R,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=16;
   } else {
-    doc.setFont(undefined,'bold'); doc.text("Ihr Anteil an den Gesamtkosten",56,y); doc.text(eur(anteil),540,y,{align:'right'}); y+=18;
+    doc.setFont(undefined,'bold'); doc.text('Ihr Anteil an den Gesamtkosten',L,y); doc.text(eur(anteil),R,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=16;
   }
-  doc.text((saldo>0?"Nachzahlung":"Guthaben")+": "+eur(Math.abs(saldo)),56,y);
-  doc.setFont(undefined,'normal'); y+=22;
-  const lines = (saldo>0
-    ? ["Bitte überweisen Sie den Betrag innerhalb von "+state.zahlung.frist+".",
-       "Empfänger: "+state.zahlung.empfaenger+"   IBAN: "+state.zahlung.iban+"   BIC: "+state.zahlung.bic,
-       "Verwendungszweck: NK "+e.name+" "+zeitraumText()]
-    : ["Das Guthaben wird Ihnen innerhalb von "+state.zahlung.frist+" erstattet."]);
-  lines.forEach(l=>{ doc.text(l,56,y); y+=14; });
+  doc.text('abzüglich Vorauszahlungen',L,y); doc.text(eur(ab.vorauszahlung),R,y,{align:'right'}); y+=16;
+  doc.setFont(undefined,'bold');
+  doc.text(saldo>0?'Nachzahlung':'Guthaben',L,y); doc.text(eur(Math.abs(saldo)),R,y,{align:'right'});
+  doc.setFont(undefined,'normal'); y+=26;
+  // Zahlungsmodalitäten
+  (saldo>0
+    ? ['Bitte überweisen Sie den Betrag innerhalb von '+(z.frist||'14 Tage nach Zugang')+' auf folgendes Konto:',
+       'Empfänger: '+(z.empfaenger||'')+'    IBAN: '+(z.iban||'')+'    BIC: '+(z.bic||''),
+       'Verwendungszweck: NK '+e.name+' '+zeitraumText()]
+    : ['Das Guthaben wird Ihnen innerhalb von '+(z.frist||'14 Tage nach Zugang')+' erstattet.']
+  ).forEach(l=>nl(l));
+  y+=8; doc.setFontSize(8); doc.setTextColor(110);
+  doc.splitTextToSize('Einwendungen gegen diese Abrechnung können Sie innerhalb von 12 Monaten nach Zugang geltend machen.', W).forEach(l=>{ if(y>790){doc.addPage();y=64;} doc.text(l,L,y); y+=11; });
+  doc.setFontSize(10); doc.setTextColor(0); y+=20;
+  nl('Mit freundlichen Grüßen'); y+=18; nl(String(z.empfaenger||''));
   return doc;
 }
 function exportTenantPdf(){ if(!ensurePdfLib())return; const sel=alleMV()[activeMieter]; if(sel) buildTenantPdf(sel).save("Abrechnung-"+pdfSafeName(sel.m.mieter)+".pdf"); }
@@ -54,7 +89,7 @@ async function sharePdfAktiv(){
   const fname="Abrechnung-"+pdfSafeName(sel.m.mieter)+".pdf";
   const email=(sel.m.email||"").trim();
   const titel="Betriebs- und Heizkostenabrechnung "+state.objekt.addr;
-  const text="Abrechnung "+zeitraumText()+(email?"\nEmpfänger: "+email:"");
+  const text=nkAnrede(sel.m)+",\n\nanbei erhalten Sie die Betriebs- und Heizkostenabrechnung für "+zeitraumSatz()+" als PDF. Bei Fragen stehe ich Ihnen gern zur Verfügung.\n\nMit freundlichen Grüßen\n"+((state.zahlung&&state.zahlung.empfaenger)||"");
   let file=null;
   try{ file=new File([doc.output("blob")], fname, {type:"application/pdf"}); }catch(e){ file=null; }
   if(file && navigator.canShare && navigator.canShare({files:[file]})){

@@ -54,6 +54,13 @@ function heute(){ return new Date().toISOString().slice(0,10); }
 const esc = nkEsc; /* US-36: Freitext-Escaping (aus calc.js) */
 function fmtDatum(s){ const p=String(s||'').split('-'); return p.length===3 ? p[2]+'.'+p[1]+'.'+p[0] : (s||''); }
 function zeitraumText(){ return fmtDatum(state.objekt.von)+' – '+fmtDatum(state.objekt.bis); }
+/* US-53: „das Jahr 2025" bei vollem Kalenderjahr, sonst „den Zeitraum …". */
+function zeitraumSatz(){
+  const v=String(state.objekt.von||''), b=String(state.objekt.bis||'');
+  const mv=v.match(/^(\d{4})-01-01$/), mb=b.match(/^(\d{4})-12-31$/);
+  if(mv && mb && mv[1]===mb[1]) return 'das Jahr '+mv[1];
+  return 'den Zeitraum '+fmtDatum(v)+' – '+fmtDatum(b);
+}
 function alleMV(){ const out=[]; state.einheiten.forEach((e,ei)=>{ (e.mv||[]).forEach((m,mi)=>{ out.push({e,m,ei,mi,za:nkZeitanteil(m.von,m.bis,state.objekt.von,state.objekt.bis)}); }); }); return out; }
 function leerstandZa(e){ const s=(e.mv||[]).reduce((a,m)=>a+nkZeitanteil(m.von,m.bis,state.objekt.von,state.objekt.bis),0); return Math.max(0,1-s); }
 
@@ -130,6 +137,7 @@ function renderEinheiten(){
             '<label>Urspr. NK/Monat <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+'" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
             '<label>Letzte Anpassung <input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()"></label>'+
             '<label>Nächste Anpassung <input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)" onblur="renderEinheiten()"></label>'+
+            '<label>Anrede <select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value="">neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select></label>'+
             '<label class="notiz-field">E-Mail <input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de"></label>'+
           '</div>'+
           '<div class="chronik-titel">Anpassungs-Chronik</div>'+chronikRows+
