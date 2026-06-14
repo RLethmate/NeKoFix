@@ -4,7 +4,7 @@
 
 /* State, Store, Persistenz: ausgelagert nach core.js (US-33b). `state`, `objekte`,
    `aktivIdx`, `store`, `commit`, `saveState/loadState` u. a. sind dort global definiert. */
-const STEPS = ["Objekt","Vorauszahlung","Kosten","Berechnung","Abrechnung","Zahlungen"];
+const STEPS = ["Objekt","Vorauszahlung","Kosten","Heizung","Berechnung","Abrechnung","Zahlungen"];
 let current = 0, activeMieter = 0;
 let vorausModus = "monatlich";
 
@@ -72,9 +72,10 @@ function go(i){
   if(i===0) renderEinheiten();   /* US-49: Ziel-Reiter beim Wechsel aus aktuellem Zustand neu zeichnen */
   if(i===1) renderVoraus();
   if(i===2) renderKosten();
-  if(i===3) computeView();
-  if(i===4) renderDoc();
-  if(i===5) renderZahlungen();
+  if(i===3) renderHeizung();     /* US-05 */
+  if(i===4) computeView();
+  if(i===5) renderDoc();
+  if(i===6) renderZahlungen();
   current=i;
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', +p.dataset.step===i));
   renderStepper();
@@ -206,6 +207,7 @@ function renderKosten(){
   ensureIds();
   const tb=document.querySelector('#tbl_kosten tbody'); tb.innerHTML='';
   state.kosten.forEach((k,idx)=>{
+    if(k.typ==='heizung') return; /* US-05: Heizpositionen werden im Reiter „Heizung" gepflegt */
     const st=k.status||'vorlaeufig', vf=k.verfuegbar||'vorhanden';
     if(k.vorsteuer===undefined) k.vorsteuer=nkVorschlagVorsteuer(k.bez);
     if(nurUngeprueft && st==='geprueft') return;
@@ -294,7 +296,75 @@ function deleteKostenRow(idx){ store.removeKosten(idx); renderKosten(); }
 function applyKostenart(idx, val){ store.setKostenart(idx,val); renderKosten(); }
 function resetSchluessel(idx){ store.resetKostenSchluessel(idx); renderKosten(); }
 
-/* ---------- Step 4 ---------- */
+/* ---------- Step 4: Heizung (US-05) ---------- */
+function heizListe(){ const out=[]; state.kosten.forEach((k,idx)=>{ if(k.typ==='heizung') out.push({k,idx}); }); return out; }
+function renderHeizung(){
+  const box=document.getElementById('heizung_box'); if(!box) return;
+  const liste=heizListe();
+  box.innerHTML = liste.length
+    ? liste.map(({k,idx})=>heizKarte(k,idx)).join('')
+    : '<p class="hint">Noch keine Heizkosten erfasst. Lege einen Heizblock an: Energieart wählen, Verbrauch (in kWh oder Menge) und Preis eintragen – die Heizkostensumme wird daraus errechnet und wie eine Kostenposition verteilt.</p>';
+}
+/* US-05: Faktor-Beschriftung je Energieart (Heizwert vs. Arbeitszahl vs. keiner). */
+function heizFaktorInfo(ea){
+  if(ea.faktorTyp==='jaz') return { show:true, verbrauch:'Verbrauch (kWh Strom)', preis:'Preis (€/kWh Strom)',
+    label:'Arbeitszahl (kWh<sub>Wärme</sub>/kWh<sub>Strom</sub>)',
+    tip:'Jahresarbeitszahl (JAZ/COP) der Wärmepumpe: erzeugte kWh Wärme je 1 kWh Strom (typisch 3–4). Wirkt nur auf die angezeigte Wärmemenge, nicht auf die Kosten.',
+    kwhLabel:'kWh Wärme' };
+  if(ea.faktorTyp==='direkt') return { show:false, verbrauch:'Verbrauch (kWh)', preis:'Preis (€/kWh)', kwhLabel:'kWh' };
+  return { show:true, verbrauch:'Verbrauch ('+ea.einheit+')', preis:'Preis (€/'+ea.einheit+')',
+    label:'Heizwert (kWh/'+ea.einheit+')',
+    tip:'Heizwert Hi: Energiegehalt je '+ea.einheit+' Brennstoff in kWh. Aus der Energieart vorbelegt, bei Bedarf laut Lieferantenrechnung überschreiben.',
+    kwhLabel:'kWh' };
+}
+function heizKarte(k,idx){
+  const ea=nkEnergieart(k.energieart);
+  const fi=heizFaktorInfo(ea);
+  const kwh=nkMengeZuKwh(k.menge, k.heizwert);
+  const eaOpts=NK_ENERGIEARTEN.map(e=>'<option value="'+e.key+'"'+(k.energieart===e.key?' selected':'')+'>'+esc(e.label)+'</option>').join('');
+  const schlOpts=['flaeche','person','einheit'].map(s=>'<option value="'+s+'"'+(k.schluessel===s?' selected':'')+'>'+SCHLUESSEL[s]+'</option>').join('');
+  const faktorFeld = fi.show
+    ? '<label title="'+fi.tip.replace(/"/g,'&quot;')+'">'+fi.label+' <input class="short" type="number" step="any" value="'+(k.heizwert||0)+'" onchange="updHeiz('+idx+',\'heizwert\',this.value)"></label>'+
+      '<span class="unit-f">= '+nkFmtBetrag(kwh)+' '+fi.kwhLabel+'</span>'
+    : '';
+  return '<div class="unit-card">'+
+    '<div class="unit-head">'+
+      '<input class="unit-name" value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)">'+
+      '<label class="unit-f">Energieart <select onchange="setEnergieart('+idx+',this.value)">'+eaOpts+'</select></label>'+
+      '<button class="row-del" title="Heizblock entfernen" onclick="delHeizblock('+idx+')" style="margin-left:auto;">×</button>'+
+    '</div>'+
+    '<div class="detail-grid">'+
+      '<label>'+fi.verbrauch+' <input class="short" type="number" step="any" value="'+(k.menge||0)+'" onchange="updHeiz('+idx+',\'menge\',this.value)"></label>'+
+      faktorFeld+
+      '<label>'+fi.preis+' <input class="short" type="number" step="any" value="'+(k.preis||0)+'" onchange="updHeiz('+idx+',\'preis\',this.value)"></label>'+
+      '<label>Verteilerschlüssel <select onchange="store.setKostenFeld('+idx+',\'schluessel\',this.value)">'+schlOpts+'</select></label>'+
+      '<span class="zahl-summe">Heizkosten: <b>'+eur(k.betrag||0)+'</b></span>'+
+    '</div>'+
+  '</div>';
+}
+function addHeizblock(){
+  const ea=NK_ENERGIEARTEN[0];
+  store.addKostenPos({ typ:'heizung', bez:'Heizung ('+ea.label+')', energieart:ea.key, einheit:ea.einheit, heizwert:ea.hi, menge:0, preis:0, betrag:0, schluessel:'flaeche' });
+  renderHeizung();
+}
+function setEnergieart(idx, key){
+  const ea=nkEnergieart(key); const k=store.kosten(idx);
+  store.setKostenFeld(idx,'energieart',key);
+  store.setKostenFeld(idx,'einheit',ea.einheit);
+  store.setKostenFeld(idx,'heizwert',ea.hi);
+  if(!k.bez || /^Heizung \(/.test(k.bez)) store.setKostenFeld(idx,'bez','Heizung ('+ea.label+')');
+  store.setKostenFeld(idx,'betrag', nkHeizkosten(k.menge, k.preis));
+  renderHeizung();
+}
+function updHeiz(idx, field, val){
+  store.setKostenFeld(idx, field, nkParseBetrag(val));
+  const k=store.kosten(idx);
+  store.setKostenFeld(idx,'betrag', nkHeizkosten(k.menge, k.preis));
+  renderHeizung();
+}
+function delHeizblock(idx){ store.removeKosten(idx); renderHeizung(); }
+
+/* ---------- Step 5 ---------- */
 function computeView(){
   const tb=document.querySelector('#tbl_ergebnis tbody'); tb.innerHTML='';
   const ab=nkObjektAbrechnung(state.einheiten, state.kosten, state.objekt);
@@ -481,7 +551,7 @@ function renderObjektSelect(){ const sel=document.getElementById('obj_select'); 
 function renderAll(){ renderObjektSelect(); renderVorjahrBanner(); fillObjektKopf();
   const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus;
   renderEinheiten(); renderVoraus(); renderKosten();
-  if(current===3) computeView(); else if(current===4) renderDoc(); else if(current===5) renderZahlungen();
+  if(current===3) renderHeizung(); else if(current===4) computeView(); else if(current===5) renderDoc(); else if(current===6) renderZahlungen();
   renderStepper(); }
 function switchObjekt(idx){ saveState(); aktivIdx=Math.max(0,Math.min(+idx,objekte.length-1)); ladeDaten(objekte[aktivIdx]); ensureIds(); renderAll(); saveState(); }
 function neuesObjekt(){ saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); saveState(); }

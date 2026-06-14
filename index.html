@@ -260,12 +260,22 @@
       <tbody></tbody>
     </table>
     <p class="hint">Der Verteilerschlüssel wird je Kostenart vorgeschlagen und ist überschreibbar (↺). Ein <b>!</b> markiert nicht umlagefähige Positionen – sie werden weiterhin verteilt, aber gewarnt.</p>
-    <div class="nav"><button class="btn-ghost" onclick="go(1)">Zurück</button><button class="btn-primary" onclick="go(3)">Berechnen</button></div>
+    <div class="nav"><button class="btn-ghost" onclick="go(1)">Zurück</button><button class="btn-primary" onclick="go(3)">Weiter zur Heizung</button></div>
   </section>
 
-  <!-- Step 4: Berechnung Übersicht -->
+  <!-- Step 4: Heizung (US-05) -->
   <section class="panel" data-step="3">
-    <h1>4 · Berechnung</h1>
+    <h1>4 · Heizung</h1>
+    <p class="sub">Heizkosten aus Verbrauch und Preis erfassen – das Ergebnis wird wie eine Kostenposition verteilt.</p>
+    <div class="legal">Erfasst wird die Gebäude-Heizkostensumme (Menge × Preis bzw. kWh × Preis), verteilt nach gewähltem Schlüssel. Eine verbrauchsgenaue Verteilung je Wohnung über Einzelzähler (Messdienst) ist nicht enthalten.</div>
+    <div id="heizung_box"></div>
+    <button class="addrow" onclick="addHeizblock()">+ Heizblock hinzufügen</button>
+    <div class="nav"><button class="btn-ghost" onclick="go(2)">Zurück</button><button class="btn-primary" onclick="go(4)">Berechnen</button></div>
+  </section>
+
+  <!-- Step 5: Berechnung Übersicht -->
+  <section class="panel" data-step="4">
+    <h1>5 · Berechnung</h1>
     <p class="sub">Verteilung aller Kosten auf die Einheiten und Saldierung mit den Vorauszahlungen.</p>
     <div class="summary-cards">
       <div class="scard"><div class="lbl">Gesamtkosten</div><div class="val" id="sum_total">–</div></div>
@@ -278,12 +288,12 @@
     </table>
     <div id="plausi_box" class="plausi"></div>
     <div style="margin-top:10px;"><button class="btn-ghost" onclick="downloadRechenweg()">Rechenweg herunterladen (.md)</button></div>
-    <div class="nav"><button class="btn-ghost" onclick="go(2)">Zurück</button><button class="btn-primary" onclick="go(4)">Abrechnung erstellen</button></div>
+    <div class="nav"><button class="btn-ghost" onclick="go(3)">Zurück</button><button class="btn-primary" onclick="go(5)">Abrechnung erstellen</button></div>
   </section>
 
-  <!-- Step 5: Abrechnung -->
-  <section class="panel" data-step="4">
-    <h1>5 · Fertige Abrechnung</h1>
+  <!-- Step 6: Abrechnung -->
+  <section class="panel" data-step="5">
+    <h1>6 · Fertige Abrechnung</h1>
     <p class="sub">Die formell korrekte Abrechnung je Mieter – druck- und versandfertig.</p>
     <div class="mieter-tabs" id="mieter_tabs"></div>
     <div class="doc" id="doc"></div>
@@ -294,7 +304,7 @@
       <li>Saldierung mit den geleisteten Vorauszahlungen</li>
       <li>Zahlungsmodalitäten: Frist, Bankverbindung, Verwendungszweck</li>
     </ul>
-    <div class="nav"><button class="btn-ghost" onclick="go(3)">Zurück</button>
+    <div class="nav"><button class="btn-ghost" onclick="go(4)">Zurück</button>
       <span class="export-actions">
         <button class="btn-ghost" onclick="exportTenantPdf()">Diese Abrechnung als PDF</button>
         <button class="btn-ghost" onclick="exportAllTenantPdfs()">Alle Mieter (Einzel-PDFs)</button>
@@ -303,12 +313,12 @@
     </div>
   </section>
 
-  <!-- Step 6: Zahlungseingänge -->
-  <section class="panel" data-step="5">
-    <h1>6 · Zahlungseingänge</h1>
+  <!-- Step 7: Zahlungseingänge -->
+  <section class="panel" data-step="6">
+    <h1>7 · Zahlungseingänge</h1>
     <p class="sub">Monatliche Soll-Mieten je Mietverhältnis abhaken und mit dem Kontoauszug abgleichen.</p>
     <div id="zahlungen_box"></div>
-    <div class="nav"><button class="btn-ghost" onclick="go(4)">Zurück</button></div>
+    <div class="nav"><button class="btn-ghost" onclick="go(5)">Zurück</button></div>
   </section>
 </div>
 
