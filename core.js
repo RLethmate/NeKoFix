@@ -26,7 +26,7 @@ const state = {
     { bez:"Hauswart",               betrag:1200, schluessel:"flaeche" },
     { bez:"Heizung & Warmwasser (Messdienst)", betrag:4800, schluessel:"flaeche" }
   ],
-  zahlung:{ frist:"14 Tage nach Zugang", iban:"DE12 3456 7890 1234 5678 00", bic:"WELADED1MST", empfaenger:"M. Vermieter" },
+  zahlung:{ frist:"14 Tage nach Zugang", iban:"DE89 3704 0044 0532 0130 00", bic:"WELADED1MST", empfaenger:"M. Vermieter", anschrift:"Musterstraße 12, 48155 Münster" },
   abrechnungStatus:"inArbeit"
 };
 /* US-30: mehrere Objekte im Speicher; `state` ist immer das aktive Objekt */
@@ -43,6 +43,7 @@ const store = {
   kosten(idx){ return state.kosten[idx]; },
   // Objekt
   setObjektFeld(field,val){ state.objekt[field]=val; commit(); },
+  setZahlungFeld(field,val){ if(!state.zahlung) state.zahlung={}; state.zahlung[field]=val; commit(); }, /* US-51 */
   setAbrechnungStatus(val){ state.abrechnungStatus=val; commit(); },
   // Einheiten
   addEinheit(){ const name=nkNaechsteEinheitName(state.einheiten.map(e=>e.name)); const id=state.einheiten.reduce((m,e)=>Math.max(m,e.id||0),0)+1; state.einheiten.push({ id, name, flaeche:0, personen:1, mv:[neuesMv()] }); commit(); },
@@ -83,7 +84,7 @@ function makeFreshDaten(){ const von="2025-01-01", bis="2025-12-31"; return {
   objekt:{ addr:"Neues Objekt", von, bis },
   einheiten:[{ id:1, name:"EG", flaeche:0, personen:1, mv:[{ mieter:"Mieter 1", von, bis, vmonat:0, vmonate:12, vjahr:0, einmal:0, voraus:0, grundmiete:0, stellAnzahl:0, stellPreis:0, bezahlt:{} }] }],
   kosten:[],
-  zahlung:{ frist:"14 Tage nach Zugang", iban:"", bic:"", empfaenger:"" },
+  zahlung:{ frist:"14 Tage nach Zugang", iban:"", bic:"", empfaenger:"", anschrift:"" },
   abrechnungStatus:"inArbeit"
 }; }
 function objektJahr(d){ const v=d&&d.objekt&&(d.objekt.von||d.objekt.bis); const m=String(v||'').match(/^(\d{4})/); return m?m[1]:''; }

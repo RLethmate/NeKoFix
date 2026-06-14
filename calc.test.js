@@ -131,6 +131,15 @@ test("Heizblock mit Teilzeitraum: Verteilung über Blockperiode (US-06)", () => 
   assert.ok(mv2[0].brutto > 400 && mv2[0].brutto < 600);
 });
 
+test("IBAN-Prüfung: Prüfziffer und Länge (US-51)", () => {
+  assert.equal(calc.nkIbanGueltig("DE89 3704 0044 0532 0130 00"), true);  // gültige Beispiel-IBAN
+  assert.equal(calc.nkIbanGueltig("DE89370400440532013000"), true);       // ohne Leerzeichen
+  assert.equal(calc.nkIbanGueltig("DE88 3704 0044 0532 0130 00"), false); // falsche Prüfziffer
+  assert.equal(calc.nkIbanGueltig("DE89 3704 0044 0532 0130"), false);    // zu kurz
+  assert.equal(calc.nkIbanGueltig(""), false);
+  assert.equal(calc.nkIbanGueltig("XX12"), false);
+});
+
 test("leere Einheitenliste führt nicht zu Division durch Null", () => {
   const t = calc.nkTotals([]);
   assert.equal(calc.nkFactor({ flaeche: 50 }, "flaeche", t), 0);
@@ -211,7 +220,7 @@ test("Plausibilitätsprüfung: bereit / Lücken (US-14)", () => {
     objekt:{von:"2025-01-01",bis:"2025-12-31"},
     einheiten:[{flaeche:70,personen:2,mv:[{mieter:"A",von:"2025-01-01",bis:"2025-12-31"}]}],
     kosten:[{bez:"Grundsteuer",betrag:1200,schluessel:"flaeche"}],
-    zahlung:{iban:"DE12",empfaenger:"V"}
+    zahlung:{iban:"DE89370400440532013000",empfaenger:"V"}
   };
   assert.equal(calc.nkPlausibilitaet(ok).bereit, true);
   const ohneIban = JSON.parse(JSON.stringify(ok)); ohneIban.zahlung.iban = "";
@@ -239,7 +248,7 @@ test("Plausibilität: überschneidende Mietzeiträume als Warnung (US-47)", () =
       {mieter:"B",von:"2025-06-30",bis:"2025-12-31"}   // 1 Tag Überschneidung
     ]}],
     kosten:[{bez:"Grundsteuer",betrag:1200,schluessel:"flaeche"}],
-    zahlung:{iban:"DE12",empfaenger:"V"}
+    zahlung:{iban:"DE89370400440532013000",empfaenger:"V"}
   };
   const r = calc.nkPlausibilitaet(base);
   const treffer = r.punkte.find(p => /überschneidende Mietzeiträume/.test(p.text));

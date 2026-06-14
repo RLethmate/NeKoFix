@@ -37,6 +37,21 @@ function nkEnergieart(key) { return NK_ENERGIEARTEN.find(e => e.key === key) || 
 function nkMengeZuKwh(menge, heizwert) { return (+menge || 0) * (+heizwert || 0); }
 function nkHeizkosten(menge, preis) { return (+menge || 0) * (+preis || 0); }
 
+/* US-51: IBAN-Prüfung – Länge (15–34) und ISO-7064-Prüfziffer (mod 97 == 1). Reine Funktion. */
+function nkIbanGueltig(iban) {
+  const s = String(iban || "").replace(/\s+/g, "").toUpperCase();
+  if (!/^[A-Z]{2}[0-9A-Z]+$/.test(s)) return false;
+  if (s.length < 15 || s.length > 34) return false;
+  const rearr = s.slice(4) + s.slice(0, 4);
+  let rem = 0;
+  for (let i = 0; i < rearr.length; i++) {
+    const c = rearr[i];
+    const code = (c >= "0" && c <= "9") ? c : String(c.charCodeAt(0) - 55); // A=10 … Z=35
+    for (let j = 0; j < code.length; j++) rem = (rem * 10 + (code.charCodeAt(j) - 48)) % 97;
+  }
+  return rem === 1;
+}
+
 function nkTotals(einheiten) {
   return {
     flaeche: einheiten.reduce((s, e) => s + (+e.flaeche || 0), 0),
@@ -271,8 +286,9 @@ function nkPlausibilitaet(s) {
     if (!(basis > 0)) punkte.push({ level: "fehler", text: "Position „" + k.bez + "“ ist nicht verteilbar (Basis für „" + k.schluessel + "“ ist 0)." });
   });
   if (K.length) punkte.push({ level: "ok", text: K.length + " Kostenposition(en), alle verteilbar." });
-  if (Z.iban && String(Z.iban).trim()) punkte.push({ level: "ok", text: "IBAN vorhanden." });
-  else punkte.push({ level: "fehler", text: "IBAN fehlt (Zahlungsangaben)." });
+  if (!(Z.iban && String(Z.iban).trim())) punkte.push({ level: "fehler", text: "IBAN fehlt (Zahlungsangaben)." });
+  else if (!nkIbanGueltig(Z.iban)) punkte.push({ level: "fehler", text: "IBAN ungültig (Prüfziffer/Länge prüfen)." });
+  else punkte.push({ level: "ok", text: "IBAN vorhanden und gültig." });
   if (!(Z.empfaenger && String(Z.empfaenger).trim())) punkte.push({ level: "fehler", text: "Empfänger der Zahlung fehlt." });
   let ohneName = 0;
   E.forEach(e => (e.mv || []).forEach(m => { if (!(m.mieter && String(m.mieter).trim())) ohneName++; }));
@@ -441,5 +457,6 @@ if (typeof module !== "undefined" && module.exports) {
     nkEnergieart,
     nkMengeZuKwh,
     nkHeizkosten,
+    nkIbanGueltig,
   };
 }

@@ -62,6 +62,11 @@
   .teilnahme-chip{background:var(--soft);border:1px solid var(--line);color:var(--muted);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;}
   .teilnahme-chip:hover{border-color:var(--primary);color:var(--primary);}
   .teilnahme-chip.aktiv{background:#fbeee6;border-color:#e6c878;color:var(--nachzahlung);}
+  .zahlungs-box{margin-top:22px;padding-top:16px;border-top:1px solid var(--line);}
+  .zahlungs-titel{font-size:15px;margin:0 0 4px;}
+  .iban-hint{font-size:12px;margin-top:4px;display:inline-block;}
+  .iban-hint.ok{color:var(--accent);}
+  .iban-hint.bad{color:var(--nachzahlung);}
   .filter-toggle{display:flex;align-items:center;gap:6px;font-size:13px;margin:0 0 8px;cursor:pointer;}
   .filter-toggle input{width:auto;}
   .wrap{max-width:920px;margin:0 auto;padding:24px 20px 64px;}
@@ -218,6 +223,19 @@
     <div id="einheiten_box" style="margin-top:16px"></div>
     <button class="addrow" onclick="addEinheit()">+ Einheit hinzufügen</button>
     <p class="hint">Je Einheit lassen sich mehrere Mietverhältnisse mit Zeitraum erfassen (Mieterwechsel, Leerstand). Kosten werden tagesgenau zeitanteilig verteilt; nicht belegte Tage trägt der Vermieter.</p>
+
+    <div class="zahlungs-box">
+      <h2 class="zahlungs-titel">Vermieter &amp; Zahlungsangaben</h2>
+      <p class="hint">Einmal pro Objekt – erscheinen auf der Abrechnung und im PDF.</p>
+      <div class="grid2">
+        <div class="field"><label>Empfänger (Vermieter)</label><input id="z_empfaenger" placeholder="z. B. M. Vermieter"></div>
+        <div class="field"><label>Anschrift (Absender)</label><input id="z_anschrift" placeholder="Straße, PLZ Ort"></div>
+        <div class="field"><label>IBAN</label><input id="z_iban" placeholder="DE.. .... .... .... .... .."><span id="z_iban_hint" class="iban-hint"></span></div>
+        <div class="field"><label>BIC</label><input id="z_bic" placeholder="optional"></div>
+        <div class="field"><label>Zahlungsfrist</label><input id="z_frist" placeholder="z. B. 14 Tage nach Zugang"></div>
+      </div>
+    </div>
+
     <div class="nav"><span></span><button class="btn-primary" onclick="go(1)">Weiter</button></div>
   </section>
 

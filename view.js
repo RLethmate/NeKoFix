@@ -87,6 +87,19 @@ function fillObjektKopf(){
   document.getElementById('obj_addr').value = state.objekt.addr;
   document.getElementById('obj_von').value = state.objekt.von;
   document.getElementById('obj_bis').value = state.objekt.bis;
+  /* US-51: Vermieter & Zahlungsangaben */
+  const z = state.zahlung || {};
+  const set = (id,v)=>{ const el=document.getElementById(id); if(el) el.value = v||''; };
+  set('z_empfaenger', z.empfaenger); set('z_anschrift', z.anschrift);
+  set('z_iban', z.iban); set('z_bic', z.bic); set('z_frist', z.frist);
+  updateIbanHint();
+}
+function updateIbanHint(){
+  const el=document.getElementById('z_iban_hint'); if(!el) return;
+  const iban=(state.zahlung&&state.zahlung.iban)||'';
+  if(!iban.trim()){ el.textContent=''; el.className='iban-hint'; return; }
+  if(nkIbanGueltig(iban)){ el.textContent='✓ IBAN gültig'; el.className='iban-hint ok'; }
+  else { el.textContent='⚠ IBAN ungültig (Prüfziffer/Länge)'; el.className='iban-hint bad'; }
 }
 function renderEinheiten(){
   ensureIds();
@@ -147,6 +160,12 @@ document.getElementById('obj_von').addEventListener('change',e=>{store.setObjekt
 document.getElementById('obj_bis').addEventListener('change',e=>{store.setObjektFeld('bis',e.target.value); renderObjektSelect();});
 document.getElementById('obj_von').addEventListener('blur',renderEinheiten);
 document.getElementById('obj_bis').addEventListener('blur',renderEinheiten);
+/* US-51: Vermieter & Zahlungsangaben */
+document.getElementById('z_empfaenger').addEventListener('input',e=>store.setZahlungFeld('empfaenger',e.target.value));
+document.getElementById('z_anschrift').addEventListener('input',e=>store.setZahlungFeld('anschrift',e.target.value));
+document.getElementById('z_iban').addEventListener('input',e=>{store.setZahlungFeld('iban',e.target.value); updateIbanHint();});
+document.getElementById('z_bic').addEventListener('input',e=>store.setZahlungFeld('bic',e.target.value));
+document.getElementById('z_frist').addEventListener('input',e=>store.setZahlungFeld('frist',e.target.value));
 
 /* Store (Zustandsmutationen) ausgelagert nach core.js (US-33b/US-34). */
 
