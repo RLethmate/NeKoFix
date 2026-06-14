@@ -130,6 +130,7 @@ function renderEinheiten(){
             '<label>Urspr. NK/Monat <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+'" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
             '<label>Letzte Anpassung <input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()"></label>'+
             '<label>Nächste Anpassung <input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)" onblur="renderEinheiten()"></label>'+
+            '<label class="notiz-field">E-Mail <input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de"></label>'+
           '</div>'+
           '<div class="chronik-titel">Anpassungs-Chronik</div>'+chronikRows+
           '<button class="addrow" onclick="addChronik('+ei+','+mi+')">+ Eintrag</button>'+
@@ -487,7 +488,7 @@ function renderDoc(){
     b.textContent=it.m.mieter+' · '+it.e.name; b.onclick=()=>{activeMieter=idx;renderDoc();};
     tabs.appendChild(b);
   });
-  const sel=list[activeMieter]; if(!sel){ document.getElementById('doc').innerHTML=''; return; }
+  const sel=list[activeMieter]; if(!sel){ document.getElementById('doc').innerHTML=''; const vb0=document.getElementById('versand_box'); if(vb0) vb0.innerHTML=''; return; }
   const e=sel.e, m=sel.m;
   const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, state.einheiten);
   const gew=ab.gewerblich, za=ab.zeitanteil, anteil=ab.brutto, saldo=ab.saldo;
@@ -517,6 +518,15 @@ function renderDoc(){
         +'Verwendungszweck: NK '+esc(e.name)+' '+zeitraumText()
       : 'Das Guthaben wird Ihnen innerhalb von '+state.zahlung.frist+' auf Ihr hinterlegtes Konto erstattet.')
     +'<br><span class="hint">Hinweis: Einwendungen können Sie innerhalb von 12 Monaten nach Zugang geltend machen.</span></div>';
+  /* US-52: Versand-Block – E-Mail (im Vertrag gepflegt) anzeigen, Senden via Web Share (Anhang). */
+  const vb=document.getElementById('versand_box');
+  if(vb){
+    const mail=(m.email||'').trim();
+    vb.innerHTML=
+      '<span class="unit-f">E-Mail: '+(mail?esc(mail):'<span class="muted">– im Reiter „Objekt" beim Vertrag eintragen –</span>')+'</span>'+
+      '<button class="btn-primary" onclick="sharePdfAktiv()">Per E-Mail senden</button>'+
+      '<span class="hint">Erzeugt das PDF und öffnet die Teilen-Funktion (mit Anhang, wo unterstützt). Wo nicht möglich, wird das PDF heruntergeladen – dann manuell anhängen.</span>';
+  }
 }
 
 /* ---------- Step 6: Zahlungseingänge (US-28) ---------- */

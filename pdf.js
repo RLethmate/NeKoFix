@@ -45,6 +45,26 @@ function buildTenantPdf(sel){
   return doc;
 }
 function exportTenantPdf(){ if(!ensurePdfLib())return; const sel=alleMV()[activeMieter]; if(sel) buildTenantPdf(sel).save("Abrechnung-"+pdfSafeName(sel.m.mieter)+".pdf"); }
+/* US-52: Abrechnungs-PDF erzeugen und teilen (Web Share API mit Datei) – Anhang, wo unterstützt;
+   sonst Fallback: herunterladen und manuell anhängen. */
+async function sharePdfAktiv(){
+  if(!ensurePdfLib()) return;
+  const sel=alleMV()[activeMieter]; if(!sel) return;
+  const doc=buildTenantPdf(sel);
+  const fname="Abrechnung-"+pdfSafeName(sel.m.mieter)+".pdf";
+  const email=(sel.m.email||"").trim();
+  const titel="Betriebs- und Heizkostenabrechnung "+state.objekt.addr;
+  const text="Abrechnung "+zeitraumText()+(email?"\nEmpfänger: "+email:"");
+  let file=null;
+  try{ file=new File([doc.output("blob")], fname, {type:"application/pdf"}); }catch(e){ file=null; }
+  if(file && navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file], title:titel, text:text}); }
+    catch(e){ /* vom Nutzer abgebrochen – nichts tun */ }
+  } else {
+    doc.save(fname);
+    alert("Teilen mit Anhang wird hier nicht unterstützt. Das PDF wurde heruntergeladen – bitte manuell an eine E-Mail"+(email?" an "+email:"")+" anhängen.");
+  }
+}
 function exportAllTenantPdfs(){ if(!ensurePdfLib())return; alleMV().forEach(sel=> buildTenantPdf(sel).save("Abrechnung-"+pdfSafeName(sel.m.mieter)+"-"+pdfSafeName(sel.e.name)+".pdf")); }
 function exportOwnerOverviewPdf(){
   if(!ensurePdfLib())return;
