@@ -323,22 +323,30 @@ function renderKosten(){
        '<div class="teilnahme"><span class="teilnahme-lbl">Teilnehmende Einheiten:</span> '+
         state.einheiten.map(x=>'<label class="teilnahme-item"><input type="checkbox" '+(nkTeilnahme(x,k)?'checked':'')+' onchange="toggleTeilnahme('+idx+','+x.id+',this.checked)"> '+esc(x.name)+'</label>').join('')+
        '</div>')+
-      (k.schluessel==='verbrauch' ?  /* US-57: Verbrauch je teilnehmender Einheit erfassen */
+      (k.schluessel==='verbrauch' ?  /* US-57/US-59: Verbrauch je Einheit + Einheit-Label (kWh/m³) */
        '<div class="teilnahme"><span class="teilnahme-lbl">Verbrauch je Einheit:</span> '+
+        '<label class="teilnahme-item">Einheit <input class="short" type="text" value="'+esc(k.einheit||'')+'" placeholder="z. B. m³" onchange="updKosten('+idx+',\'einheit\',this.value)" style="max-width:64px"></label> '+
         state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>'<label class="teilnahme-item">'+esc(x.name)+' <input class="short" type="number" step="any" value="'+((k.verbrauch&&k.verbrauch[x.id])||0)+'" onchange="updKostenVerbrauch('+idx+','+x.id+',this.value)"></label>').join('')+
-        ' <span class="unit-f">Summe: '+nkFmtBetrag(verbrauchSumme(k))+'</span></div>'
+        ' <span class="unit-f">Summe: '+nkFmtBetrag(verbrauchSumme(k))+' '+esc(k.einheit||'')+'</span></div>'
        : '')+
       '</td>';
       tb.appendChild(d);
     }
   }
+  /* US-59: Heizblöcke ausgegraut (Pflege im Heizung-Reiter) statt komplett ausblenden. */
+  function appendHeizHinweisRow(k){
+    const tr=document.createElement('tr'); tr.className='heiz-ro'; tr.title='Heizkosten werden im Reiter „Heizung" gepflegt';
+    tr.innerHTML='<td class="bez-col">'+esc(k.bez)+' <span class="pill">s. Heizung</span></td>'+
+      '<td class="num">'+eur(k.betrag||0)+'</td><td>'+schluesselAnzeige(k)+'</td><td></td><td></td>';
+    tb.appendChild(tr);
+  }
   /* US-58: Positionen nach Rubrik (feste Reihenfolge) gruppieren, je Gruppe Zwischensumme. */
-  const items=state.kosten.map((k,idx)=>({k,idx})).filter(o=>o.k.typ!=='heizung' && !(nurUngeprueft && (o.k.status||'vorlaeufig')==='geprueft'));
+  const items=state.kosten.map((k,idx)=>({k,idx})).filter(o=>!(nurUngeprueft && (o.k.status||'vorlaeufig')==='geprueft'));
   NK_RUBRIKEN.forEach(rub=>{
     const grp=items.filter(o=>nkRubrik(o.k)===rub);
     if(!grp.length) return;
     const hr=document.createElement('tr'); hr.className='rubrik-head'; hr.innerHTML='<td colspan="5">'+esc(rub)+'</td>'; tb.appendChild(hr);
-    grp.forEach(o=>appendKostenRow(o.k,o.idx));
+    grp.forEach(o=>{ if(o.k.typ==='heizung') appendHeizHinweisRow(o.k); else appendKostenRow(o.k,o.idx); });
     const sum=grp.reduce((s,o)=>s+(+o.k.betrag||0),0);
     const sr=document.createElement('tr'); sr.className='rubrik-sum'; sr.innerHTML='<td>Zwischensumme '+esc(rub)+'</td><td class="num">'+eur(sum)+'</td><td colspan="3"></td>'; tb.appendChild(sr);
   });
@@ -584,8 +592,17 @@ function nkRechenweg(){
       const za=mv.zeitanteil;
       L.push('### '+mv.mieter+' – '+er.name+(mv.gewerblich?' (gewerblich)':''));
       L.push('Mietzeit '+fmtDatum(mv.von)+'–'+fmtDatum(mv.bis)+', Zeitanteil '+(za*100).toFixed(1)+' %');
-      mv.zeilen.forEach(i=>{
-        L.push('- '+i.bez+': '+eur(i.gesamt)+' × '+(i.faktor*100).toFixed(2)+' % = '+eur(i.anteilVoll)+' × Zeit '+((i.zeitanteil!=null?i.zeitanteil:za)*100).toFixed(1)+' % = '+eur(i.anteil));
+      const fmtE=n=>(Number(n)||0).toLocaleString('de-DE',{maximumFractionDigits:2});
+      const fmtP=n=>(Number(n)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:4});
+      mv.zeilen.forEach(i=>{  // US-59: Gesamtkosten ÷ Einheiten = Preis/Einh. × Ihre Einheiten (× Zeit) = Anteil
+        const direkt=i.schluessel==='direkt';
+        const zt=(i.zeitanteil!=null?i.zeitanteil:za);
+        const zeitTxt=zt<0.999?' × Zeit '+(zt*100).toFixed(1)+' %':'';
+        if(direkt){
+          L.push('- '+i.bez+': '+eur(i.gesamt)+' direkt (100 %)'+zeitTxt+' = '+eur(i.anteil));
+        } else {
+          L.push('- '+i.bez+': '+eur(i.gesamt)+' ÷ '+fmtE(i.basis)+' '+i.einheitLabel+' = '+fmtP(i.preisJeEinheit)+' €/'+i.einheitLabel+' × '+fmtE(i.ihreEinheiten)+' '+i.einheitLabel+zeitTxt+' = '+eur(i.anteil));
+        }
       });
       const hatCo2 = mv.co2 && mv.co2.aktiv;
       const bruttoVor = (mv.bruttoVorCo2!=null) ? mv.bruttoVorCo2 : mv.brutto;
@@ -625,26 +642,36 @@ function renderDoc(){
   const e=sel.e, m=sel.m;
   const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, state.einheiten);
   const gew=ab.gewerblich, za=ab.zeitanteil, anteil=ab.brutto, saldo=ab.saldo;
-  /* US-58: nach Rubriken gruppieren, je Rubrik eine Zwischensumme (Ihr Anteil). */
+  /* US-59: Spaltenformat (Rechenweg) + US-58 Rubrik-Gruppierung mit Zwischensummen. */
+  const fmtEinh=n=>(Number(n)||0).toLocaleString('de-DE',{maximumFractionDigits:2});
+  const fmtPreis=n=>(Number(n)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:4});
+  const COLS=6, leer=c=>'<td colspan="'+c+'"></td>';
   let rows='';
   NK_RUBRIKEN.forEach(rub=>{
     const grp=ab.zeilen.map((i,ix)=>({i,ix}))
       .filter(o=>Math.round(o.i.anteil*100)!==0 && nkRubrik(state.kosten[o.ix])===rub); /* US-22/US-50 */
     if(!grp.length) return;
-    rows+='<tr class="rubrik-row"><td colspan="4">'+esc(rub)+'</td></tr>';
-    grp.forEach(({i,ix})=>{ rows+='<tr><td>'+esc(i.bez)+'</td><td class="num">'+eur(i.gesamt)+'</td><td>'+schluesselAnzeige(state.kosten[ix])+'</td><td class="num">'+eur(i.wert)+'</td></tr>'; });
+    rows+='<tr class="rubrik-row"><td colspan="'+COLS+'">'+esc(rub)+'</td></tr>';
+    grp.forEach(({i})=>{
+      const direkt=i.schluessel==='direkt';
+      const basisC=direkt?'direkt':(fmtEinh(i.basis)+' '+i.einheitLabel);
+      const preisC=direkt?'—':(fmtPreis(i.preisJeEinheit)+' €');
+      const ihreC=direkt?'100 %':(fmtEinh(i.ihreEinheiten)+' '+i.einheitLabel);
+      const zeitC=(i.zeitanteil<0.999)?' <span class="muted">(×'+Math.round(i.zeitanteil*100)+' %)</span>':'';
+      rows+='<tr><td>'+esc(i.bez)+'</td><td class="num">'+eur(i.gesamt)+'</td><td class="num">'+basisC+'</td><td class="num">'+preisC+'</td><td class="num">'+ihreC+'</td><td class="num">'+eur(i.wert)+zeitC+'</td></tr>';
+    });
     const sub=grp.reduce((s,o)=>s+o.i.wert,0);
-    rows+='<tr class="rubrik-subtotal"><td>Zwischensumme '+esc(rub)+'</td><td></td><td></td><td class="num">'+eur(sub)+'</td></tr>';
+    rows+='<tr class="rubrik-subtotal"><td>Zwischensumme '+esc(rub)+'</td>'+leer(4)+'<td class="num">'+eur(sub)+'</td></tr>';
   });
   const summen = gew
-    ? '<tr class="total-row"><td>Zwischensumme netto</td><td></td><td></td><td class="num">'+eur(ab.netto)+'</td></tr>'+
-      '<tr><td>zzgl. '+NK_UST_SATZ+' % Umsatzsteuer</td><td></td><td></td><td class="num">'+eur(ab.ust)+'</td></tr>'+
-      '<tr class="total-row"><td>Ihr Anteil (brutto)</td><td></td><td></td><td class="num">'+eur(ab.brutto)+'</td></tr>'
-    : '<tr class="total-row"><td>Ihr Anteil an den Gesamtkosten</td><td></td><td></td><td class="num">'+eur(ab.brutto)+'</td></tr>';
+    ? '<tr class="total-row"><td>Zwischensumme netto</td>'+leer(4)+'<td class="num">'+eur(ab.netto)+'</td></tr>'+
+      '<tr><td>zzgl. '+NK_UST_SATZ+' % Umsatzsteuer</td>'+leer(4)+'<td class="num">'+eur(ab.ust)+'</td></tr>'+
+      '<tr class="total-row"><td>Ihr Anteil (brutto)</td>'+leer(4)+'<td class="num">'+eur(ab.brutto)+'</td></tr>'
+    : '<tr class="total-row"><td>Ihr Anteil an den Gesamtkosten</td>'+leer(4)+'<td class="num">'+eur(ab.brutto)+'</td></tr>';
   document.getElementById('doc').innerHTML=
     '<h2>Betriebs- und Heizkostenabrechnung</h2>'+
     '<div class="meta">'+esc(state.objekt.addr)+' · Einheit '+esc(e.name)+' · Mieter: <b>'+esc(m.mieter)+'</b>'+(gew?' (gewerblich, umsatzsteuerpflichtig)':'')+'<br>Abrechnungszeitraum: '+zeitraumText()+' · Mietzeit: '+fmtDatum(m.von)+'–'+fmtDatum(m.bis)+' ('+Math.round(za*100)+' % des Zeitraums)</div>'+
-    '<table><thead><tr><th>Kostenart</th><th class="num">Gesamtkosten</th><th>Verteilerschlüssel</th><th class="num">'+(gew?'Ihr Anteil (netto)':'Ihr Anteil')+'</th></tr></thead><tbody>'+
+    '<table><thead><tr><th>Kostenart</th><th class="num">Gesamtkosten</th><th class="num">Einheiten</th><th class="num">Preis/Einh.</th><th class="num">Ihre Einheiten</th><th class="num">'+(gew?'Ihr Anteil (netto)':'Ihr Anteil')+'</th></tr></thead><tbody>'+
     rows+
     summen+
     '</tbody></table>'+
