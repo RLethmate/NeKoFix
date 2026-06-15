@@ -1,0 +1,44 @@
+name: Deploy to GitHub Pages
+
+# US-56: Bei jedem Push auf main die Build-Version automatisch setzen (Commit-Hash + Datum)
+# und die Seite über GitHub Actions deployen. Der Versions-Stempel landet zugleich in der
+# Cache-Busting-Kennung der Skripte (index.html: var v="...") und in der Anzeige (view.js).
+#
+# Einmalige Einrichtung: Settings -> Pages -> Build and deployment -> Source = "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build-Version stempeln (Cache-Busting + Anzeige)
+        run: |
+          SHA="$(git rev-parse --short HEAD)"
+          DATE="$(date +%Y-%m-%d)"
+          sed -i "s/var v=\"[^\"]*\"/var v=\"$SHA\"/" index.html
+          sed -i "s/const APP_VERSION=\"[^\"]*\"/const APP_VERSION=\"$SHA\"/" view.js
+          sed -i "s/const BUILD_DATE=\"[^\"]*\"/const BUILD_DATE=\"$DATE\"/" view.js
+          echo "Gestempelt: $SHA ($DATE)"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+      - id: deployment
+        uses: actions/deploy-pages@v4

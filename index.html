@@ -410,9 +410,10 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script src="calc.js"></script>
-<script src="core.js"></script>
-<script src="view.js"></script>
-<script src="pdf.js"></script>
+<script>
+/* US-56: lokale Skripte mit Versionskennung laden (Cache-Busting). `v` wird beim Deploy
+   automatisch auf den Commit-Hash gesetzt (siehe .github/workflows/pages.yml); lokal bleibt der Wert. */
+(function(){ var v="0.4"; ["calc.js","core.js","view.js","pdf.js"].forEach(function(f){ document.write('<script src="'+f+'?v='+encodeURIComponent(v)+'"><\/script>'); }); })();
+</script>
 </body>
 </html>
