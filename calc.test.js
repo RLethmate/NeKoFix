@@ -581,6 +581,29 @@ test("§35a: Mieteranteil je Kategorie, nur für private Mietverhältnisse", () 
   assert.equal(abG.p35a.aktiv, false);
 });
 
+test("§35a: Positionsliste je Kategorie (US-62) – Summe = Kategorie-Summe", () => {
+  const E = [{ id: 1, name: "EG", flaeche: 50, personen: 1 }, { id: 2, name: "OG", flaeche: 50, personen: 1 }];
+  const K = [
+    { bez: "Hausmeister", betrag: 1000, schluessel: "flaeche", arbeitskosten: 800 },
+    { bez: "Gartenpflege", betrag: 600, schluessel: "flaeche", arbeitskosten: 600 },
+    { bez: "Heizungswartung", betrag: 400, schluessel: "flaeche", arbeitskosten: 300 },
+    { bez: "Grundsteuer", betrag: 1200, schluessel: "flaeche" }
+  ];
+  const o = { von: "2025-01-01", bis: "2025-12-31" };
+  const ab = calc.nkMieterAbrechnung(E[0], { mieter: "A", von: o.von, bis: o.bis, voraus: 0 }, K, o, E);
+  const dl = ab.p35a.posten.filter(p => p.kategorie === "dienstleistung");
+  const hw = ab.p35a.posten.filter(p => p.kategorie === "handwerker");
+  assert.equal(dl.length, 2);   // Hausmeister + Gartenpflege
+  assert.equal(hw.length, 1);   // Heizungswartung
+  // Grundsteuer (kein arbeitskosten) erscheint nicht
+  assert.ok(!ab.p35a.posten.some(p => p.bez === "Grundsteuer"));
+  // Positionssummen = Kategorie-Summe
+  assert.ok(Math.abs(dl.reduce((s, p) => s + p.anteil, 0) - ab.p35a.dienstleistung) < 1e-9);
+  assert.ok(Math.abs(hw.reduce((s, p) => s + p.anteil, 0) - ab.p35a.handwerker) < 1e-9);
+  // EG-Anteil Hausmeister: 800 × 50/100 = 400
+  assert.ok(Math.abs(dl.find(p => p.bez === "Hausmeister").anteil - 400) < 1e-9);
+});
+
 /* US-58: Rubriken (Kostengruppen). */
 test("Rubrik: Vorschlag aus Typ/Schlüssel/Bezeichnung, Override sticht", () => {
   assert.equal(calc.nkRubrik({ bez: "Grundsteuer" }), "Betriebskosten");
