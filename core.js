@@ -68,6 +68,7 @@ const store = {
   removeKosten(idx){ state.kosten.splice(idx,1); commit(); },
   setKostenFeld(idx,field,val){ state.kosten[idx][field]=val; commit(); },
   setKostenBetrag(idx,val){ state.kosten[idx].betrag=+val; commit(); },
+  setKostenVerbrauch(idx,einheitId,val){ const k=state.kosten[idx]; if(!k.verbrauch) k.verbrauch={}; k.verbrauch[einheitId]=+val||0; commit(); }, /* US-57 */
   setKostenart(idx,val){ const k=state.kosten[idx]; k.bez=val; k.schluessel=nkVorschlagSchluessel(val); k.vorsteuer=nkVorschlagVorsteuer(val); commit(); },
   resetKostenSchluessel(idx){ const k=state.kosten[idx]; k.schluessel=nkVorschlagSchluessel(k.bez); commit(); }
 };
