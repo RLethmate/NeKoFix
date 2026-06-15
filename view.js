@@ -415,7 +415,7 @@ function heizKarte(k,idx){
   const fi=heizFaktorInfo(ea);
   const kwh=nkMengeZuKwh(k.menge, k.heizwert);
   const eaOpts=NK_ENERGIEARTEN.map(e=>'<option value="'+e.key+'"'+(k.energieart===e.key?' selected':'')+'>'+esc(e.label)+'</option>').join('');
-  const schlOpts=['flaeche','person','einheit'].map(s=>'<option value="'+s+'"'+(k.schluessel===s?' selected':'')+'>'+SCHLUESSEL[s]+'</option>').join('');
+  const schlOpts=['flaeche','person','einheit','verbrauch'].map(s=>'<option value="'+s+'"'+(k.schluessel===s?' selected':'')+'>'+SCHLUESSEL[s]+'</option>').join('');
   const faktorFeld = fi.show
     ? '<label title="'+fi.tip.replace(/"/g,'&quot;')+'">'+fi.label+' <input class="short" type="number" step="any" value="'+(k.heizwert||0)+'" onchange="updHeiz('+idx+',\'heizwert\',this.value)"></label>'+
       '<span class="unit-f">= '+nkFmtBetrag(kwh)+' '+fi.kwhLabel+'</span>'
@@ -430,9 +430,14 @@ function heizKarte(k,idx){
       '<label>'+fi.verbrauch+' <input class="short" type="number" step="any" value="'+(k.menge||0)+'" onchange="updHeiz('+idx+',\'menge\',this.value)"></label>'+
       faktorFeld+
       '<label>'+fi.preis+' <input class="short" type="number" step="any" value="'+(k.preis||0)+'" onchange="updHeiz('+idx+',\'preis\',this.value)"></label>'+
-      '<label>Verteilerschlüssel <select onchange="store.setKostenFeld('+idx+',\'schluessel\',this.value)">'+schlOpts+'</select></label>'+
+      '<label>Verteilerschlüssel <select onchange="setHeizSchluessel('+idx+',this.value)">'+schlOpts+'</select></label>'+
       '<span class="zahl-summe">Heizkosten: <b>'+eur(k.betrag||0)+'</b></span>'+
     '</div>'+
+    (k.schluessel==='verbrauch' ?  /* US-57/US-58: Verbrauch je Einheit auch im Heizung-Reiter */
+     '<div class="teilnahme"><span class="teilnahme-lbl">Verbrauch je Einheit:</span> '+
+      state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>'<label class="teilnahme-item">'+esc(x.name)+' <input class="short" type="number" step="any" value="'+((k.verbrauch&&k.verbrauch[x.id])||0)+'" onchange="updHeizVerbrauch('+idx+','+x.id+',this.value)"></label>').join('')+
+      ' <span class="unit-f">Summe: '+nkFmtBetrag(verbrauchSumme(k))+'</span></div>'
+     : '')+
     '<div class="detail-grid" title="US-06: Zeitraum, in dem dieser Heiztyp aktiv war. Leer = ganzer Abrechnungszeitraum. Bei Mieterwechsel wird der Block über diese Periode auf die anwesenden Mieter verteilt.">'+
       '<label>aktiv von <input type="date" value="'+(k.von||'')+'" onchange="store.setKostenFeld('+idx+',\'von\',this.value)"></label>'+
       '<label>aktiv bis <input type="date" value="'+(k.bis||'')+'" onchange="store.setKostenFeld('+idx+',\'bis\',this.value)"></label>'+
@@ -469,6 +474,9 @@ function updHeiz(idx, field, val){
 }
 /* US-07: CO2-Felder (kg / €) numerisch setzen, ohne die Heizkostensumme neu zu rechnen. */
 function updHeizNum(idx, field, val){ store.setKostenFeld(idx, field, nkParseBetrag(val)); renderHeizung(); }
+/* US-58: Verteilerschlüssel und Verbrauch je Einheit auch im Heizung-Reiter setzen. */
+function setHeizSchluessel(idx, val){ store.setKostenFeld(idx,'schluessel',val); renderHeizung(); }
+function updHeizVerbrauch(idx, einheitId, val){ store.setKostenVerbrauch(idx, einheitId, nkParseBetrag(val)); renderHeizung(); }
 function delHeizblock(idx){ store.removeKosten(idx); renderHeizung(); }
 
 /* US-07: gebäudeweite CO2-Summe der fossilen Heizkosten (€). */
