@@ -512,3 +512,59 @@ test("CO2: Erläuterungstext nennt den greifenden Fall", () => {
   assert.ok(/halbiert/.test(calc.nkCo2Erklaerung({ aktiv: true, fall: "wohnen", stufe: 4, spez: 24, vermieterProzent: 15, denkmal: true })));
   assert.ok(/Keine/.test(calc.nkCo2Erklaerung({ aktiv: false })));
 });
+
+/* US-58: Rubriken (Kostengruppen). */
+test("Rubrik: Vorschlag aus Typ/Schlüssel/Bezeichnung, Override sticht", () => {
+  assert.equal(calc.nkRubrik({ bez: "Grundsteuer" }), "Betriebskosten");
+  assert.equal(calc.nkRubrik({ bez: "Heizung Verbrauch", typ: "heizung" }), "Heizkosten");
+  assert.equal(calc.nkRubrik({ bez: "Warmwasser Grundkosten" }), "Warmwasserkosten");
+  assert.equal(calc.nkRubrik({ bez: "Schmutzwasser / Abwasser" }), "Kaltwasserkosten");
+  assert.equal(calc.nkRubrik({ bez: "Aufzug", schluessel: "direkt" }), "Direktkosten");
+  assert.equal(calc.nkRubrik({ bez: "Grundsteuer", rubrik: "Sonstige" }), "Sonstige"); // Override
+  assert.ok(calc.NK_RUBRIKEN.indexOf("Heizkosten") < calc.NK_RUBRIKEN.indexOf("Betriebskosten"));
+});
+
+/* US-57: verbrauchsabhängige Verteilung über erfasste Zählerstände. */
+test("Verbrauch: Faktor = Einheit-Verbrauch ÷ Gesamtverbrauch", () => {
+  const E = [{ id: 1, flaeche: 50 }, { id: 2, flaeche: 50 }];
+  const k = { schluessel: "verbrauch", verbrauch: { 1: 30, 2: 70 } };
+  assert.ok(Math.abs(calc.nkFaktorFuer(E[0], k, E) - 0.3) < 1e-9);
+  assert.ok(Math.abs(calc.nkFaktorFuer(E[1], k, E) - 0.7) < 1e-9);
+  assert.equal(calc.nkVerbrauchSumme(k, E), 100);
+});
+
+test("Verbrauch: ohne erfasste Werte Faktor 0 (nicht verteilbar)", () => {
+  const E = [{ id: 1 }, { id: 2 }];
+  const k = { schluessel: "verbrauch", verbrauch: {} };
+  assert.equal(calc.nkFaktorFuer(E[0], k, E), 0);
+  const r = calc.nkPlausibilitaet({ objekt: { von: "2025-01-01", bis: "2025-12-31" }, einheiten: E, kosten: [k], zahlung: { iban: "DE89370400440532013000", empfaenger: "X" } });
+  assert.ok(r.punkte.some(p => p.level === "fehler" && /nicht verteilbar/.test(p.text)));
+});
+
+test("Verbrauch: ausgeschlossene Einheit zählt nicht zur Summe", () => {
+  const E = [{ id: 1 }, { id: 2 }, { id: 3 }];
+  const k = { schluessel: "verbrauch", verbrauch: { 1: 10, 2: 10, 3: 10 }, ausgeschlossen: [3] };
+  assert.equal(calc.nkVerbrauchSumme(k, E), 20);
+  assert.ok(Math.abs(calc.nkFaktorFuer(E[0], k, E) - 0.5) < 1e-9);
+  assert.equal(calc.nkFaktorFuer(E[2], k, E), 0);
+});
+
+test("Verbrauch: Techem-Abnahmebeispiel (Einheit EG) trifft centgenau", () => {
+  const total = { heiz: 37595, ww: 60.0, kw: 206.1 };
+  const eg = { heiz: 12732, ww: 6.6, kw: 46.8 };
+  const E = [{ id: 1, name: "EG" }, { id: 2, name: "Rest" }];
+  const vb = (egVal, tot) => ({ 1: egVal, 2: tot - egVal });
+  const K = [
+    { bez: "Heizung-Verbrauch", betrag: 5695.72, schluessel: "verbrauch", verbrauch: vb(eg.heiz, total.heiz) },
+    { bez: "Warmwasser-Verbrauch", betrag: 1251.87, schluessel: "verbrauch", verbrauch: vb(eg.ww, total.ww) },
+    { bez: "Kaltwasser", betrag: 704.38, schluessel: "verbrauch", verbrauch: vb(eg.kw, total.kw) },
+    { bez: "Schmutzwasser", betrag: 684.65, schluessel: "verbrauch", verbrauch: vb(eg.kw, total.kw) },
+    { bez: "Gerätewartung KW", betrag: 105.63, schluessel: "verbrauch", verbrauch: vb(eg.kw, total.kw) },
+    { bez: "Verbrauchserfassung KW", betrag: 137.61, schluessel: "verbrauch", verbrauch: vb(eg.kw, total.kw) }
+  ];
+  const erwartet = [1928.92, 137.70, 159.95, 155.47, 23.99, 31.25];
+  const o = { von: "2024-05-01", bis: "2025-04-30" };
+  const m = { mieter: "EG", von: "2024-05-01", bis: "2025-04-30", voraus: 0 };
+  const ab = calc.nkMieterAbrechnung(E[0], m, K, o, E);
+  ab.zeilen.forEach((z, i) => assert.ok(Math.abs(z.anteil - erwartet[i]) < 0.01, z.bez + ": " + z.anteil.toFixed(2) + " ≠ " + erwartet[i]));
+});

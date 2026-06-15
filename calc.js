@@ -135,9 +135,18 @@ function nkTeilnahme(e, k) {
   const aus = (k && k.ausgeschlossen) || [];
   return aus.indexOf(e.id) < 0;
 }
+/* US-57: Summe der erfassten Verbräuche über die teilnehmenden Einheiten. */
+function nkVerbrauchSumme(k, einheiten) {
+  const vb = (k && k.verbrauch) || {};
+  return (einheiten || []).filter(x => nkTeilnahme(x, k)).reduce((s, x) => s + (+vb[x.id] || 0), 0);
+}
 function nkFaktorFuer(e, k, einheiten) {
   if (k && k.schluessel === "direkt") return e.id === k.direktEinheit ? 1 : 0; // US-22: 100 % auf eine Einheit
   if (!nkTeilnahme(e, k)) return 0;
+  if (k && k.schluessel === "verbrauch") { // US-57: Anteil = Einheit-Verbrauch ÷ Gesamtverbrauch
+    const total = nkVerbrauchSumme(k, einheiten);
+    return total > 0 ? ((+(k.verbrauch || {})[e.id] || 0) / total) : 0;
+  }
   const teil = (einheiten || []).filter(x => nkTeilnahme(x, k));
   return nkFactor(e, k.schluessel, nkTotals(teil));
 }
@@ -218,6 +227,21 @@ function nkVorschlagSchluessel(bez) {
     if (b.includes(key)) return sch;
   }
   return "flaeche";
+}
+
+/* US-58: Rubriken (Kostengruppen) in fester Reihenfolge wie bei Messdienst-Abrechnungen.
+   nkRubrik liefert die explizit gesetzte Rubrik (k.rubrik) oder einen Vorschlag aus Typ,
+   Schlüssel und Bezeichnung. Reine Funktion. */
+const NK_RUBRIKEN = ["Heizkosten", "Warmwasserkosten", "Kaltwasserkosten", "Betriebskosten", "Direktkosten", "Sonstige"];
+function nkRubrik(k) {
+  if (k && k.rubrik) return k.rubrik;
+  if (k && k.typ === "heizung") return "Heizkosten";
+  if (k && k.schluessel === "direkt") return "Direktkosten";
+  const b = String((k && k.bez) || "").toLowerCase();
+  if (b.includes("heiz")) return "Heizkosten";
+  if (b.includes("warmwasser")) return "Warmwasserkosten";
+  if (b.includes("kaltwasser") || b.includes("schmutzwasser") || b.includes("abwasser") || b.includes("wasser")) return "Kaltwasserkosten";
+  return "Betriebskosten";
 }
 
 /* Notizen-System (US-19): Anzahl noch nicht geprüfter Kostenpositionen. */
@@ -344,7 +368,10 @@ function nkPlausibilitaet(s) {
   else punkte.push({ level: "fehler", text: "Abrechnungszeitraum ungültig (von/bis prüfen)." });
   const t = nkTotals(E);
   K.forEach(k => {
-    const basis = k.schluessel === "flaeche" ? t.flaeche : k.schluessel === "person" ? t.personen : t.einheiten;
+    const basis = k.schluessel === "flaeche" ? t.flaeche
+      : k.schluessel === "person" ? t.personen
+      : k.schluessel === "verbrauch" ? nkVerbrauchSumme(k, E) // US-57
+      : t.einheiten;
     if (!(basis > 0)) punkte.push({ level: "fehler", text: "Position „" + k.bez + "“ ist nicht verteilbar (Basis für „" + k.schluessel + "“ ist 0)." });
   });
   if (K.length) punkte.push({ level: "ok", text: K.length + " Kostenposition(en), alle verteilbar." });
@@ -504,6 +531,8 @@ if (typeof module !== "undefined" && module.exports) {
     nkLineItemsFor,
     nkOwnerOverview,
     nkVorschlagSchluessel,
+    NK_RUBRIKEN,
+    nkRubrik,
     nkUmlageInfo,
     nkVorauszahlungGesamt,
     nkVorschlagVorauszahlung,
@@ -534,6 +563,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkParseBetrag,
     nkTeilnahme,
     nkFaktorFuer,
+    nkVerbrauchSumme,
     nkAusschlussNamen,
     NK_ENERGIEARTEN,
     nkEnergieart,

@@ -73,14 +73,46 @@
   .versand .hint{margin:0;flex-basis:100%;}
   .filter-toggle{display:flex;align-items:center;gap:6px;font-size:13px;margin:0 0 8px;cursor:pointer;}
   .filter-toggle input{width:auto;}
-  .wrap{max-width:920px;margin:0 auto;padding:24px 20px 64px;}
-  /* Stepper */
-  .stepper{display:flex;gap:6px;margin:18px 0 26px;flex-wrap:wrap;}
-  .step{flex:1;min-width:120px;font-size:12.5px;color:var(--muted);padding:10px 12px;border-radius:8px;background:var(--card);border:1px solid var(--line);display:flex;gap:8px;align-items:center;cursor:pointer;}
-  .step .n{width:22px;height:22px;border-radius:50%;background:var(--soft);color:var(--muted);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:1px solid var(--line);}
+  .wrap{max-width:1160px;margin:0 auto;padding:24px 20px 64px;display:flex;gap:22px;align-items:flex-start;}
+  /* US-54: seitliche Navigations-Lasche */
+  .sidenav{flex:0 0 212px;position:sticky;top:18px;display:flex;flex-direction:column;gap:6px;}
+  .sidenav.collapsed{flex-basis:64px;}
+  .content{flex:1;min-width:0;}
+  .nav-toggle{align-self:flex-end;border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:7px;width:30px;height:28px;padding:0;font-size:14px;line-height:1;cursor:pointer;}
+  .nav-toggle:hover{border-color:var(--primary);color:var(--primary);}
+  .sidenav.collapsed .nav-toggle{align-self:center;}
+  .nav-group{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin:10px 4px 2px;}
+  .sidenav.collapsed .nav-group{display:none;}
+  .stepper{display:flex;flex-direction:column;gap:6px;margin:0;}
+  .step{font-size:13px;color:var(--muted);padding:9px 11px;border-radius:8px;background:var(--card);border:1px solid var(--line);display:flex;gap:9px;align-items:center;cursor:pointer;}
+  .step .n{width:22px;height:22px;border-radius:50%;background:var(--soft);color:var(--muted);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:1px solid var(--line);flex:0 0 auto;}
+  .step .lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .step .abbr{display:none;font-weight:700;}
   .step.active{border-color:var(--primary);color:var(--primary);font-weight:600;box-shadow:0 1px 0 var(--primary) inset;}
   .step.active .n{background:var(--primary);color:#fff;border-color:var(--primary);}
   .step.done .n{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .sidenav.collapsed .step{justify-content:center;padding:9px 6px;}
+  .sidenav.collapsed .step .n,.sidenav.collapsed .step .lbl{display:none;}
+  .sidenav.collapsed .step .abbr{display:inline;}
+  /* US-54: dauerhafte Versand-/Plausi-Ampel */
+  .nav-plausi{margin-top:14px;border-top:1px solid var(--line);padding-top:10px;}
+  .nav-plausi-head{width:100%;display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 10px;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--ink);}
+  .nav-plausi-head .dot{width:11px;height:11px;border-radius:50%;flex:0 0 auto;}
+  .nav-plausi-head.ok{color:var(--accent);} .nav-plausi-head.ok .dot{background:var(--accent);}
+  .nav-plausi-head.bad{color:var(--nachzahlung);} .nav-plausi-head.bad .dot{background:var(--nachzahlung);}
+  .np-caret{margin-left:auto;}
+  .nav-plausi-list{margin-top:8px;display:flex;flex-direction:column;gap:2px;}
+  .nav-plausi-sub{font-size:11px;color:#b07d1a;margin-top:6px;padding-left:2px;}
+  .sidenav.collapsed .np-label,.sidenav.collapsed .np-caret,.sidenav.collapsed .nav-plausi-sub,.sidenav.collapsed .nav-plausi-list{display:none;}
+  .sidenav.collapsed .nav-plausi-head{justify-content:center;padding:8px;}
+  @media(max-width:760px){
+    .wrap{flex-direction:column;gap:14px;}
+    .sidenav{position:static;flex-basis:auto!important;width:100%;}
+    .stepper{flex-direction:row;flex-wrap:wrap;}
+    .nav-group{width:100%;}
+    .step{flex:1;min-width:84px;}
+    .nav-toggle{display:none;}
+  }
   .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:24px 26px;display:none;}
   .panel.active{display:block;animation:f .18s ease;}
   @keyframes f{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
@@ -176,8 +208,22 @@
   .warn{color:var(--nachzahlung);cursor:help;display:inline-flex;align-items:center;}
   .row-del{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:14px;line-height:1;}
   .row-del:hover{border-color:var(--nachzahlung);color:var(--nachzahlung);}
+  /* US-58: Einheiten im Reiter Objekt optisch trennen (blass + Akzentkante) */
+  .einheit-card{background:var(--soft);border-left:4px solid var(--primary);}
+  #einheiten_box .einheit-card:nth-child(even){background:#eef3f8;}
+  /* US-58: Kostenart-Spalte maximieren, übrige Spalten schmal halten */
+  #tbl_kosten td.bez-col input{width:100%;}
+  #tbl_kosten td:nth-child(2),#tbl_kosten th:nth-child(2){width:120px;}
+  #tbl_kosten td:nth-child(3),#tbl_kosten th:nth-child(3){width:270px;}
+  #tbl_kosten td:nth-child(4),#tbl_kosten th:nth-child(4){width:64px;}
+  #tbl_kosten td:nth-child(5),#tbl_kosten th:nth-child(5){width:42px;}
+  /* US-58: Rubriken-Gruppen + Zwischensummen */
+  .rubrik-head td{background:var(--primary);color:#fff;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.4px;padding:6px 10px;}
+  .rubrik-sum td{font-weight:700;background:var(--soft);border-top:1px solid var(--ink);}
+  .doc .rubrik-row td{background:var(--soft);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.3px;color:var(--primary-dark);}
+  .doc .rubrik-subtotal td{font-weight:700;border-top:1px solid var(--line);}
   @media(max-width:620px){.grid2,.summary-cards{grid-template-columns:1fr;} .tag{display:none}}
-  @media print{header.app,.stepper,.nav,.mieter-tabs,.legal{display:none!important;} .panel{display:block!important;border:none;padding:0;} body{background:#fff;}}
+  @media print{header.app,.sidenav,.stepper,.nav,.mieter-tabs,.legal{display:none!important;} .wrap{display:block;} .panel{display:block!important;border:none;padding:0;} body{background:#fff;}}
 </style>
 </head>
 <body>
@@ -210,7 +256,12 @@
 </header>
 
 <div class="wrap">
-  <div class="stepper" id="stepper"></div>
+  <aside class="sidenav" id="sidenav">
+    <button class="nav-toggle" onclick="toggleNav()" title="Navigation ein-/ausklappen" aria-label="Navigation ein-/ausklappen">«</button>
+    <div class="stepper" id="stepper"></div>
+    <div class="nav-plausi" id="nav_plausi"></div>
+  </aside>
+  <div class="content">
   <div id="vorjahr_banner"></div>
 
   <!-- Step 1: Objekt & Einheiten -->
@@ -353,6 +404,7 @@
     <div id="zahlungen_box"></div>
     <div class="nav"><button class="btn-ghost" onclick="go(5)">Zurück</button></div>
   </section>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
