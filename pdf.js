@@ -62,6 +62,13 @@ function buildTenantPdf(sel){
   } else {
     doc.setFont(undefined,'bold'); doc.text('Ihr Anteil an den Gesamtkosten',L,y); doc.text(eur(anteil),R,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=16;
   }
+  // US-07: CO2-Kostenaufteilung ausweisen (Anteil enthält den Abzug bereits).
+  if(ab.co2 && ab.co2.aktiv){
+    doc.setFontSize(9); doc.setTextColor(90);
+    nl('CO2-Kostenaufteilung (CO2KostAufG):');
+    doc.splitTextToSize('CO2-Kosten gesamt (Gebäude) '+eur(co2KostenGesamt())+', Ihr Anteil '+eur(ab.co2.kostenMieter)+'. '+nkCo2Erklaerung(ab.co2)+' Davon trägt der Vermieter – '+eur(ab.co2.abzug)+' (in Ihrem Anteil oben bereits abgezogen).', W).forEach(l=>nl(l));
+    doc.setFontSize(10); doc.setTextColor(0); y+=6;
+  }
   doc.text('abzüglich Vorauszahlungen',L,y); doc.text(eur(ab.vorauszahlung),R,y,{align:'right'}); y+=16;
   doc.setFont(undefined,'bold');
   doc.text(saldo>0?'Nachzahlung':'Guthaben',L,y); doc.text(eur(Math.abs(saldo)),R,y,{align:'right'});

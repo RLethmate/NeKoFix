@@ -175,6 +175,13 @@ document.getElementById('z_anschrift').addEventListener('input',e=>store.setZahl
 document.getElementById('z_iban').addEventListener('input',e=>{store.setZahlungFeld('iban',e.target.value); updateIbanHint();});
 document.getElementById('z_bic').addEventListener('input',e=>store.setZahlungFeld('bic',e.target.value));
 document.getElementById('z_frist').addEventListener('input',e=>store.setZahlungFeld('frist',e.target.value));
+/* US-07: CO2-Einstellungen (Denkmal-Halbierung, manueller Vermieteranteil Wohnen) */
+(function(){
+  const dk=document.getElementById('co2_denkmal');
+  if(dk) dk.addEventListener('change',e=>{ store.setObjektFeld('co2Denkmal', e.target.checked); renderCo2Settings(); });
+  const ov=document.getElementById('co2_override');
+  if(ov) ov.addEventListener('input',e=>{ const v=e.target.value; store.setObjektFeld('co2ProzentOverride', v===''?'':nkParseBetrag(v)); renderCo2Settings(); });
+})();
 
 /* Store (Zustandsmutationen) ausgelagert nach core.js (US-33b/US-34). */
 
@@ -332,6 +339,7 @@ function renderHeizung(){
   box.innerHTML = liste.length
     ? liste.map(({k,idx})=>heizKarte(k,idx)).join('')
     : '<p class="hint">Noch keine Heizkosten erfasst. Lege einen Heizblock an: Energieart wählen, Verbrauch (in kWh oder Menge) und Preis eintragen – die Heizkostensumme wird daraus errechnet und wie eine Kostenposition verteilt.</p>';
+  renderCo2Settings();
 }
 /* US-05: Faktor-Beschriftung je Energieart (Heizwert vs. Arbeitszahl vs. keiner). */
 function heizFaktorInfo(ea){
@@ -373,6 +381,13 @@ function heizKarte(k,idx){
       '<label>aktiv bis <input type="date" value="'+(k.bis||'')+'" onchange="store.setKostenFeld('+idx+',\'bis\',this.value)"></label>'+
       '<span class="unit-f">leer = ganzer Abrechnungszeitraum</span>'+
     '</div>'+
+    (ea.fossil
+      ? '<div class="detail-grid" title="US-07 (CO2KostAufG): Werte von der Brennstoffrechnung übernehmen – seit 2023 Pflichtangabe des Lieferanten.">'+
+          '<label>CO2-Emissionen (kg) <input class="short" type="number" step="any" value="'+(k.co2Kg||0)+'" onchange="updHeizNum('+idx+',\'co2Kg\',this.value)"></label>'+
+          '<label>CO2-Kosten (€) <input class="short" type="number" step="any" value="'+(k.co2Kosten||0)+'" onchange="updHeizNum('+idx+',\'co2Kosten\',this.value)"></label>'+
+          '<span class="unit-f">von der Brennstoffrechnung – Vermieteranteil wird automatisch ermittelt</span>'+
+        '</div>'
+      : '')+
   '</div>';
 }
 function addHeizblock(){
@@ -395,7 +410,39 @@ function updHeiz(idx, field, val){
   store.setKostenFeld(idx,'betrag', nkHeizkosten(k.menge, k.preis));
   renderHeizung();
 }
+/* US-07: CO2-Felder (kg / €) numerisch setzen, ohne die Heizkostensumme neu zu rechnen. */
+function updHeizNum(idx, field, val){ store.setKostenFeld(idx, field, nkParseBetrag(val)); renderHeizung(); }
 function delHeizblock(idx){ store.removeKosten(idx); renderHeizung(); }
+
+/* US-07: gebäudeweite CO2-Summe der fossilen Heizkosten (€). */
+function co2KostenGesamt(){
+  return (state.kosten||[]).reduce((s,k)=> s+((k.typ==='heizung'&&nkEnergieart(k.energieart).fossil)?(+k.co2Kosten||0):0),0);
+}
+/* US-07/AC7/AC9: kurze Erläuterung des greifenden Falls auf Gebäudeebene. Null, wenn keine
+   fossilen CO2-Kosten erfasst sind. */
+function co2GebaeudeText(){
+  const kg=nkCo2KgSumme(state.kosten), fl=nkTotals(state.einheiten).flaeche;
+  if(!(kg>0) || !(co2KostenGesamt()>0)) return null;
+  const o=state.objekt||{};
+  const spez=nkSpezCo2(kg, fl), stufe=nkCo2Stufe(spez), stufenP=nkCo2StufeProzent(spez);
+  const ovGesetzt=(o.co2ProzentOverride!=null && o.co2ProzentOverride!=='');
+  const wohnBasis=ovGesetzt? (+o.co2ProzentOverride||0) : stufenP;
+  const pct=n=>String(Math.round((+n||0)*100)/100);
+  let t='spez. Ausstoß '+nkFmtBetrag(spez)+' kg/m²·a → Stufe '+stufe+' von 10. '+
+        'Vermieteranteil Wohnen '+pct(o.co2Denkmal?wohnBasis/2:wohnBasis)+' %'+(ovGesetzt?' (manuell)':'')+'.';
+  if(alleMV().some(x=>x.m.gewerblich)) t+=' Gewerbe '+pct(o.co2Denkmal?25:50)+' % (pauschal 50/50).';
+  if(o.co2Denkmal) t+=' Denkmal-/Milieuschutz: Anteil halbiert.';
+  t+=' CO2-Kosten gesamt: '+eur(co2KostenGesamt())+'.';
+  return t;
+}
+/* US-07: Denkmal-Checkbox + Override-Feld + Info auf der Heizung-Seite aktualisieren. */
+function renderCo2Settings(){
+  const o=state.objekt||{};
+  const dk=document.getElementById('co2_denkmal'); if(dk) dk.checked=!!o.co2Denkmal;
+  const ov=document.getElementById('co2_override'); if(ov && document.activeElement!==ov) ov.value=(o.co2ProzentOverride!=null?o.co2ProzentOverride:'');
+  const info=document.getElementById('co2_settings_info');
+  if(info){ const t=co2GebaeudeText(); info.textContent = t ? ('CO2KostAufG: '+t) : 'Noch keine fossilen CO2-Kosten erfasst – sobald CO2-Menge (kg) und CO2-Kosten (€) in einem fossilen Heizblock stehen, wird hier die Stufe ermittelt.'; }
+}
 
 /* ---------- Step 5 ---------- */
 function computeView(){
@@ -423,6 +470,9 @@ function computeView(){
   const el=document.getElementById('sum_saldo');
   el.textContent=(saldo>=0?'+ ':'– ')+eur(Math.abs(saldo));
   el.className='val '+(saldo>0?'neg':'pos');
+  // US-07/AC9: kurz erläutern, welcher CO2-Fall greift.
+  const ci=document.getElementById('co2_info');
+  if(ci){ const t=co2GebaeudeText(); if(t){ ci.textContent='CO2-Kostenaufteilung (CO2KostAufG): '+t; ci.hidden=false; } else { ci.hidden=true; ci.textContent=''; } }
   renderPlausi();
 }
 /* US-14: Plausibilitätsprüfung + Rechenweg */
@@ -454,7 +504,10 @@ function nkRechenweg(){
   L.push('- Zeitanteil = belegte Tage ÷ Tage des Abrechnungszeitraums; Mieteranteil = Einheiten-Anteil × Zeitanteil.');
   L.push('- Leerstand (nicht belegte Tage) trägt der Vermieter.');
   L.push('- Gewerblich (USt-pflichtig): Positionen netto = Betrag ÷ (1 + Vorsteuersatz), Summe netto + '+NK_UST_SATZ+' % USt = brutto.');
+  L.push('- CO2-Kostenaufteilung (CO2KostAufG): Vermieteranteil aus dem spez. Ausstoß (Summe kg CO2 fossiler Heizblöcke ÷ Gebäudefläche) nach 10-Stufen-Modell; gewerblich pauschal 50 %; Denkmal-/Milieuschutz halbiert. Der Vermieteranteil wird von den fossilen Heizkosten des Mieters abgezogen.');
   L.push('- Saldo = Anteil − geleistete Vorauszahlung.');
+  const co2T=co2GebaeudeText();
+  if(co2T){ L.push(''); L.push('## CO2-Kostenaufteilung (Gebäude)'); L.push('- '+co2T); }
   L.push('');
   L.push('## Kostenpositionen');
   state.kosten.forEach(k=>{ L.push('- '+k.bez+': '+eur(k.betrag)+' · '+schluesselAnzeige(k)+(nkUmlageInfo(k.bez).umlagefaehig?'':' · NICHT umlagefähig')); });
@@ -469,8 +522,15 @@ function nkRechenweg(){
       mv.zeilen.forEach(i=>{
         L.push('- '+i.bez+': '+eur(i.gesamt)+' × '+(i.faktor*100).toFixed(2)+' % = '+eur(i.anteilVoll)+' × Zeit '+((i.zeitanteil!=null?i.zeitanteil:za)*100).toFixed(1)+' % = '+eur(i.anteil));
       });
-      if(mv.gewerblich) L.push('- Zwischensumme netto '+eur(mv.netto)+' + '+NK_UST_SATZ+' % USt '+eur(mv.ust)+' = '+eur(mv.brutto));
-      else L.push('- Summe Anteil: '+eur(mv.brutto));
+      const hatCo2 = mv.co2 && mv.co2.aktiv;
+      const bruttoVor = (mv.bruttoVorCo2!=null) ? mv.bruttoVorCo2 : mv.brutto;
+      if(mv.gewerblich) L.push('- Zwischensumme netto '+eur(mv.netto)+' + '+NK_UST_SATZ+' % USt '+eur(mv.ust)+' = '+eur(bruttoVor));
+      else L.push('- Summe Anteil'+(hatCo2?' (vor CO2)':'')+': '+eur(bruttoVor));
+      if(hatCo2){
+        L.push('- CO2-Aufteilung: '+nkCo2Erklaerung(mv.co2));
+        L.push('- CO2-Kosten Ihr Anteil '+eur(mv.co2.kostenMieter)+' × Vermieteranteil '+mv.co2.vermieterProzent+' % = Abzug '+eur(mv.co2.abzug));
+        L.push('- Summe Anteil nach CO2: '+eur(mv.brutto));
+      }
       L.push('- Vorauszahlung '+eur(mv.vorauszahlung)+' → '+(mv.saldo>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(mv.saldo)));
       L.push('');
     });
@@ -517,6 +577,12 @@ function renderDoc(){
     rows+
     summen+
     '</tbody></table>'+
+    (ab.co2.aktiv
+      ? '<div class="pay"><h3>CO2-Kostenaufteilung (CO2KostAufG)</h3>'+
+        'CO2-Kosten gesamt (Gebäude): '+eur(co2KostenGesamt())+' · Ihr Anteil: '+eur(ab.co2.kostenMieter)+'<br>'+
+        nkCo2Erklaerung(ab.co2)+'<br>'+
+        'Davon trägt der Vermieter: <b>– '+eur(ab.co2.abzug)+'</b> (in Ihrem Anteil oben bereits abgezogen).</div>'
+      : '')+
     '<div class="saldo-box"><span>'+(saldo>0?'Nachzahlung':'Guthaben')+' (Anteil '+eur(anteil)+' – Vorauszahlung '+eur(+m.voraus||0)+')</span>'+
     '<span class="'+(saldo>0?'neg':'pos')+'">'+eur(Math.abs(saldo))+'</span></div>'+
     '<div class="pay"><h3>Zahlungsmodalitäten</h3>'+
