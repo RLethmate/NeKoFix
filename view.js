@@ -636,6 +636,28 @@ function downloadRechenweg(){
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
 }
 
+/* US-62: §35a als zwei Volltabellen (Abs. 2 Dienstleistungen, Abs. 3 Handwerker). */
+function p35aTabelle(p, kat, titel, elster){
+  const rows=(p.posten||[]).filter(x=>x.kategorie===kat);
+  if(!rows.length) return '';
+  let sg=0,sa=0,sw=0,body='';
+  rows.forEach(x=>{ sg+=x.gesamt; sa+=x.arbeitskosten; sw+=x.anteil;
+    body+='<tr><td>'+esc(x.bez)+'</td><td>'+(SCHLUESSEL[x.schluessel]||esc(x.schluessel||''))+'</td><td class="num">'+eur(x.gesamt)+'</td><td class="num">'+eur(x.arbeitskosten)+'</td><td class="num">'+eur(x.anteil)+'</td></tr>'; });
+  return '<h3 class="p35a-h">'+titel+'</h3>'+
+    '<table class="p35a-tab"><thead><tr><th>Abrechnungsposten</th><th>Schlüssel</th><th class="num">Gesamtkosten</th><th class="num">dav. Arbeitskosten</th><th class="num">Ihr Anteil</th></tr></thead><tbody>'+
+    body+
+    '<tr class="total-row"><td>Gesamtsumme</td><td></td><td class="num">'+eur(sg)+'</td><td class="num">'+eur(sa)+'</td><td class="num">'+eur(sw)+'</td></tr>'+
+    '</tbody></table>'+
+    '<div class="hint">Eintrag in Elster: '+elster+'. Den Betrag „Ihr Anteil" können Sie geltend machen (20 % der Arbeitskosten, Höchstbeträge beachten).</div>';
+}
+function p35aBlock(p){
+  if(!p || !p.aktiv) return '';
+  return '<div class="pay p35a-block"><h3>Steuerlich absetzbar (§35a EStG)</h3>'+
+    '<div class="hint">Nach bestem Wissen ermittelt – keine Steuerberatung. Einzelbeträge ggf. der beigefügten Rechnung entnehmen. Steuerjahr '+NK_P35A_STEUERJAHR+'.</div>'+
+    p35aTabelle(p,'dienstleistung','§35a Abs. 2 · Haushaltsnahe Dienstleistungen',NK_P35A.dienstleistung.elster)+
+    p35aTabelle(p,'handwerker','§35a Abs. 3 · Handwerkerleistungen',NK_P35A.handwerker.elster)+
+    '</div>';
+}
 /* ---------- Step 5 ---------- */
 function renderDoc(){
   const list=alleMV();
@@ -680,6 +702,11 @@ function renderDoc(){
   document.getElementById('doc').innerHTML=
     '<h2>Betriebs- und Heizkostenabrechnung</h2>'+
     '<div class="meta">'+esc(state.objekt.addr)+' · Einheit '+esc(e.name)+' · Mieter: <b>'+esc(m.mieter)+'</b>'+(gew?' (gewerblich, umsatzsteuerpflichtig)':'')+'<br>Abrechnungszeitraum: '+zeitraumText()+' · Mietzeit: '+fmtDatum(m.von)+'–'+fmtDatum(m.bis)+' ('+Math.round(za*100)+' % des Zeitraums)</div>'+
+    '<div class="headline-box">'+  /* US-62: kompakter Ergebnis-Block (Techem-Stil) */
+      '<div class="hl-row"><span>Ihr Anteil an den Gesamtkosten</span><span>'+eur(anteil)+'</span></div>'+
+      '<div class="hl-row"><span>Ihre Vorauszahlung</span><span>'+eur(+m.voraus||0)+'</span></div>'+
+      '<div class="hl-row hl-result"><span>'+(saldo>0?'Ihre Nachzahlung':'Ihr Guthaben')+'</span><span>'+eur(Math.abs(saldo))+'</span></div>'+
+    '</div>'+
     '<table><thead><tr><th>Kostenart</th><th class="num">Gesamtkosten</th><th class="num">Einheiten</th><th class="num">Preis/Einh.</th><th class="num">Ihre Einheiten</th><th class="num">'+(gew?'Ihr Anteil (netto)':'Ihr Anteil')+'</th></tr></thead><tbody>'+
     rows+
     summen+
@@ -690,14 +717,7 @@ function renderDoc(){
         nkCo2Erklaerung(ab.co2)+'<br>'+
         'Davon trägt der Vermieter: <b>– '+eur(ab.co2.abzug)+'</b> (in Ihrem Anteil oben bereits abgezogen).</div>'
       : '')+
-    (ab.p35a.aktiv  /* US-32: §35a nur für private Mietverhältnisse */
-      ? '<div class="pay"><h3>Steuerlich absetzbar (§35a EStG)</h3>'+
-        (ab.p35a.dienstleistung>0?NK_P35A.dienstleistung.label+': <b>'+eur(ab.p35a.dienstleistung)+'</b> → '+NK_P35A.dienstleistung.elster+'<br>':'')+
-        (ab.p35a.handwerker>0?NK_P35A.handwerker.label+': <b>'+eur(ab.p35a.handwerker)+'</b> → '+NK_P35A.handwerker.elster+'<br>':'')+
-        '<span class="hint">Diesen Betrag können Sie in Ihrer Einkommensteuererklärung geltend machen (20 % der Arbeitskosten, Höchstbeträge beachten). Angaben für Steuerjahr '+NK_P35A_STEUERJAHR+' · keine Steuerberatung.</span></div>'
-      : '')+
-    '<div class="saldo-box"><span>'+(saldo>0?'Nachzahlung':'Guthaben')+' (Anteil '+eur(anteil)+' – Vorauszahlung '+eur(+m.voraus||0)+')</span>'+
-    '<span class="'+(saldo>0?'neg':'pos')+'">'+eur(Math.abs(saldo))+'</span></div>'+
+    p35aBlock(ab.p35a)+  /* US-62: zwei Volltabellen (Abs. 2 / Abs. 3), nur private MV */
     '<div class="pay"><h3>Zahlungsmodalitäten</h3>'+
     (saldo>0
       ? 'Bitte überweisen Sie den Nachzahlungsbetrag innerhalb von '+state.zahlung.frist+' auf folgendes Konto:<br>'
