@@ -756,8 +756,8 @@ function updMVNum(ei,mi,field,val){ store.setMvNum(ei,mi,field, nkParseBetrag(va
 
 /* ---------- Version / Header (US-30) ---------- */
 /* Bei jedem Release pflegen: APP_VERSION hochzählen, BUILD_DATE auf das Deploy-Datum setzen. */
-const APP_VERSION="v0.3";
-const BUILD_DATE="2026-06-13";
+const APP_VERSION="v0.4";
+const BUILD_DATE="2026-06-15";
 function toggleDateiMenu(forceClose){ const m=document.getElementById('datei_menu'); if(!m) return; m.hidden = forceClose ? true : !m.hidden; }
 document.addEventListener('click', e=>{ const m=document.getElementById('datei_menu'); if(m && !m.hidden && !e.target.closest('.menu')) m.hidden=true; });
 
