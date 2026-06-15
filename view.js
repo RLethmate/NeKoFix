@@ -756,7 +756,11 @@ function updMVNum(ei,mi,field,val){ store.setMvNum(ei,mi,field, nkParseBetrag(va
 
 /* ---------- Version / Header (US-30) ---------- */
 /* Bei jedem Release pflegen: APP_VERSION hochzählen, BUILD_DATE auf das Deploy-Datum setzen. */
-const APP_VERSION="v0.4";
+/* Versionsschema v-x.y.z: nur x (Release) wird manuell gepflegt – bei Erstauslieferung APP_MAJOR
+   auf "1" setzen. y = Gesamtzahl der Commits (vom Deploy automatisch gesetzt), z = 0.
+   APP_VERSION und BUILD_DATE werden beim Deploy automatisch gestempelt (siehe pages.yml). */
+const APP_MAJOR="0";
+const APP_VERSION="v-0.0.0 (lokal)";
 const BUILD_DATE="2026-06-15";
 function toggleDateiMenu(forceClose){ const m=document.getElementById('datei_menu'); if(!m) return; m.hidden = forceClose ? true : !m.hidden; }
 document.addEventListener('click', e=>{ const m=document.getElementById('datei_menu'); if(m && !m.hidden && !e.target.closest('.menu')) m.hidden=true; });
@@ -820,7 +824,7 @@ loadState();
 if(!objekte.length){ objekte=[snapshot()]; aktivIdx=0; } /* Erststart: Demodaten als erstes Objekt */
 ensureIds();
 renderObjektSelect();
-(function(){ const v=document.getElementById('app_version'); if(v) v.textContent=APP_VERSION+' · Build '+BUILD_DATE; })();
+(function(){ const v=document.getElementById('app_version'); if(v) v.textContent=APP_VERSION+' · '+BUILD_DATE; })();
 (function(){ if(new URLSearchParams(location.search).has('debug')){ const b=document.getElementById('btn_testdaten'); if(b) b.hidden=false; } })();
 (function(){ const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus; })();
 fillObjektKopf();
