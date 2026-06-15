@@ -552,6 +552,35 @@ test("Spaltenwerte: Techem-Beispiel EG – Preis × Einheiten trifft", () => {
   assert.ok(Math.abs(z.preisJeEinheit * z.ihreEinheiten - 284.03) < 0.01);
 });
 
+/* US-32: §35a – Kategorie-Vorschlag und Mieteranteil je Kategorie. */
+test("§35a: Kategorie-Vorschlag aus Bezeichnung, Override sticht", () => {
+  assert.equal(calc.nkP35aKategorieVorschlag("Hausmeister"), "dienstleistung");
+  assert.equal(calc.nkP35aKategorieVorschlag("Gartenpflege"), "dienstleistung");
+  assert.equal(calc.nkP35aKategorieVorschlag("Schornsteinfeger"), "handwerker");
+  assert.equal(calc.nkP35aKategorieVorschlag("Heizungswartung"), "handwerker");
+  assert.equal(calc.nkP35aKategorieVorschlag("Grundsteuer"), "");
+  assert.equal(calc.nkP35aKategorie({ bez: "Hausmeister", p35a: "keine" }), ""); // explizit keine
+  assert.equal(calc.nkP35aKategorie({ bez: "Grundsteuer", p35a: "handwerker" }), "handwerker"); // Override
+});
+
+test("§35a: Mieteranteil je Kategorie, nur für private Mietverhältnisse", () => {
+  const E = [{ id: 1, name: "EG", flaeche: 50, personen: 1 }, { id: 2, name: "OG", flaeche: 50, personen: 1 }];
+  const K = [
+    { bez: "Hausmeister", betrag: 1000, schluessel: "flaeche", arbeitskosten: 800 },          // Dienstleistung
+    { bez: "Heizungswartung", betrag: 400, schluessel: "flaeche", arbeitskosten: 300 },        // Handwerker
+    { bez: "Grundsteuer", betrag: 1200, schluessel: "flaeche" }                                 // nicht §35a
+  ];
+  const o = { von: "2025-01-01", bis: "2025-12-31" };
+  const m = { mieter: "A", von: "2025-01-01", bis: "2025-12-31", voraus: 0 };
+  const ab = calc.nkMieterAbrechnung(E[0], m, K, o, E);
+  assert.ok(Math.abs(ab.p35a.dienstleistung - 400) < 1e-9); // 800 × 50/100
+  assert.ok(Math.abs(ab.p35a.handwerker - 150) < 1e-9);     // 300 × 50/100
+  assert.equal(ab.p35a.aktiv, true);
+  // Gewerblich: kein §35a-Ausweis
+  const abG = calc.nkMieterAbrechnung(E[0], { mieter: "B", gewerblich: true, von: o.von, bis: o.bis, voraus: 0 }, K, o, E);
+  assert.equal(abG.p35a.aktiv, false);
+});
+
 /* US-58: Rubriken (Kostengruppen). */
 test("Rubrik: Vorschlag aus Typ/Schlüssel/Bezeichnung, Override sticht", () => {
   assert.equal(calc.nkRubrik({ bez: "Grundsteuer" }), "Betriebskosten");

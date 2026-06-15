@@ -317,6 +317,13 @@ function renderKosten(){
         '<label>Status <select onchange="updKosten('+idx+',\'status\',this.value)">'+so+'</select></label>'+
         '<label>Verfügbarkeit <select onchange="updKosten('+idx+',\'verfuegbar\',this.value)">'+vo+'</select></label>'+
         '<label title="Im Beleg enthaltene Vorsteuer">Vorsteuer <select onchange="updKosten('+idx+',\'vorsteuer\',+this.value)">'+vsOpts+'</select></label>'+
+        /* US-32: §35a-Kategorie + begünstigter Arbeitskosten-Anteil */
+        '<label title="Steuerlich begünstigt nach §35a EStG (haushaltsnahe Dienstleistung oder Handwerkerleistung)">§35a <select onchange="updKosten('+idx+',\'p35a\',this.value)">'+
+          '<option value="keine"'+(nkP35aKategorie(k)===''?' selected':'')+'>keine</option>'+
+          '<option value="dienstleistung"'+(nkP35aKategorie(k)==='dienstleistung'?' selected':'')+'>haushaltsnahe DL</option>'+
+          '<option value="handwerker"'+(nkP35aKategorie(k)==='handwerker'?' selected':'')+'>Handwerker</option>'+
+        '</select></label>'+
+        '<label title="Begünstigter Arbeits-/Lohnanteil inkl. USt (ohne Material)">davon Arbeitskosten € <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.arbeitskosten||0)+'" onchange="updKostenArbeit('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
         '<label class="notiz-field">Notiz <input value="'+esc(k.notiz)+'" oninput="store.setKostenFeld('+idx+',\'notiz\',this.value)" placeholder="z. B. Zähler defekt"></label>'+
       '</div>'+
       (k.schluessel==='direkt' ? '' :
@@ -354,6 +361,8 @@ function renderKosten(){
   renderPicker();
 }
 function updKosten(idx,field,val){ store.setKostenFeld(idx,field,val); renderKosten(); }
+/* US-32: begünstigten Arbeitskosten-Anteil (€) je Position setzen. */
+function updKostenArbeit(idx,val){ store.setKostenFeld(idx,'arbeitskosten', nkParseBetrag(val)); renderKosten(); }
 /* US-50: Teilnahme einer Einheit an einer Kostenart umschalten (ausgeschlossen = Liste von IDs). */
 function toggleTeilnahme(idx, einheitId, checked){
   const k=store.kosten(idx); let aus=((k.ausgeschlossen)||[]).slice();
@@ -680,6 +689,12 @@ function renderDoc(){
         'CO2-Kosten gesamt (Gebäude): '+eur(co2KostenGesamt())+' · Ihr Anteil: '+eur(ab.co2.kostenMieter)+'<br>'+
         nkCo2Erklaerung(ab.co2)+'<br>'+
         'Davon trägt der Vermieter: <b>– '+eur(ab.co2.abzug)+'</b> (in Ihrem Anteil oben bereits abgezogen).</div>'
+      : '')+
+    (ab.p35a.aktiv  /* US-32: §35a nur für private Mietverhältnisse */
+      ? '<div class="pay"><h3>Steuerlich absetzbar (§35a EStG)</h3>'+
+        (ab.p35a.dienstleistung>0?NK_P35A.dienstleistung.label+': <b>'+eur(ab.p35a.dienstleistung)+'</b> → '+NK_P35A.dienstleistung.elster+'<br>':'')+
+        (ab.p35a.handwerker>0?NK_P35A.handwerker.label+': <b>'+eur(ab.p35a.handwerker)+'</b> → '+NK_P35A.handwerker.elster+'<br>':'')+
+        '<span class="hint">Diesen Betrag können Sie in Ihrer Einkommensteuererklärung geltend machen (20 % der Arbeitskosten, Höchstbeträge beachten). Angaben für Steuerjahr '+NK_P35A_STEUERJAHR+' · keine Steuerberatung.</span></div>'
       : '')+
     '<div class="saldo-box"><span>'+(saldo>0?'Nachzahlung':'Guthaben')+' (Anteil '+eur(anteil)+' – Vorauszahlung '+eur(+m.voraus||0)+')</span>'+
     '<span class="'+(saldo>0?'neg':'pos')+'">'+eur(Math.abs(saldo))+'</span></div>'+
