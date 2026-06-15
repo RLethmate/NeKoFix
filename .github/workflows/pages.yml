@@ -28,14 +28,19 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Build-Version stempeln (Cache-Busting + Anzeige)
+        with:
+          fetch-depth: 0   # volle Historie, damit y = Commit-Anzahl korrekt ist
+      - name: Version stempeln (v-<x>.<commits>.0, Cache-Hash, Build-Datum)
         run: |
           SHA="$(git rev-parse --short HEAD)"
           DATE="$(date +%Y-%m-%d)"
+          MAJOR="$(sed -n 's/.*const APP_MAJOR=\"\([^\"]*\)\".*/\1/p' view.js)"
+          Y="$(git rev-list --count HEAD)"   # y = Gesamtzahl der Commits (kein Reset)
+          VERSION="v-${MAJOR}.${Y}.0"
+          sed -i "s/const APP_VERSION=\"[^\"]*\"/const APP_VERSION=\"$VERSION\"/" view.js
           sed -i "s/var v=\"[^\"]*\"/var v=\"$SHA\"/" index.html
-          sed -i "s/const APP_VERSION=\"[^\"]*\"/const APP_VERSION=\"$SHA\"/" view.js
           sed -i "s/const BUILD_DATE=\"[^\"]*\"/const BUILD_DATE=\"$DATE\"/" view.js
-          echo "Gestempelt: $SHA ($DATE)"
+          echo "Gestempelt: $VERSION · $DATE (Cache $SHA)"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
