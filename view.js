@@ -9,7 +9,7 @@ let current = 0, activeMieter = 0;
 let vorausModus = "monatlich";
 
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
-const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit", direkt:"Direkt (eine Einheit)" };
+const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit", verbrauch:"nach Verbrauch", direkt:"Direkt (eine Einheit)" };
 /* US-22/US-50: Kurz-Restriktion und Schlüssel-Anzeige je Kostenposition. */
 function restriktionText(k){
   if(k.schluessel==='direkt'){ const e=state.einheiten.find(x=>x.id===k.direktEinheit); return 'Direkt: '+(e?e.name:'—'); }
@@ -22,8 +22,12 @@ function schluesselAnzeige(k){
 function setSchluessel(idx,val){
   const k=store.kosten(idx); store.setKostenFeld(idx,'schluessel',val);
   if(val==='direkt' && !k.direktEinheit && state.einheiten[0]) store.setKostenFeld(idx,'direktEinheit',state.einheiten[0].id);
+  if(val==='verbrauch') expandedKosten.add(k.id); /* US-57: Verbrauch-Eingabe gleich sichtbar */
   renderKosten();
 }
+/* US-57: Summe der erfassten Verbräuche (teilnehmende Einheiten) – für Anzeige. */
+function verbrauchSumme(k){ return nkVerbrauchSumme(k, state.einheiten); }
+function updKostenVerbrauch(idx,einheitId,val){ store.setKostenVerbrauch(idx,einheitId, nkParseBetrag(val)); renderKosten(); }
 const KOSTEN_KATALOG = [
   "Aufzug",
   "Beleuchtung / Allgemeinstrom",
@@ -318,6 +322,11 @@ function renderKosten(){
        '<div class="teilnahme"><span class="teilnahme-lbl">Teilnehmende Einheiten:</span> '+
         state.einheiten.map(x=>'<label class="teilnahme-item"><input type="checkbox" '+(nkTeilnahme(x,k)?'checked':'')+' onchange="toggleTeilnahme('+idx+','+x.id+',this.checked)"> '+esc(x.name)+'</label>').join('')+
        '</div>')+
+      (k.schluessel==='verbrauch' ?  /* US-57: Verbrauch je teilnehmender Einheit erfassen */
+       '<div class="teilnahme"><span class="teilnahme-lbl">Verbrauch je Einheit:</span> '+
+        state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>'<label class="teilnahme-item">'+esc(x.name)+' <input class="short" type="number" step="any" value="'+((k.verbrauch&&k.verbrauch[x.id])||0)+'" onchange="updKostenVerbrauch('+idx+','+x.id+',this.value)"></label>').join('')+
+        ' <span class="unit-f">Summe: '+nkFmtBetrag(verbrauchSumme(k))+'</span></div>'
+       : '')+
       '</td>';
       tb.appendChild(d);
     }
