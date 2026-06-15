@@ -119,6 +119,20 @@ function buildTenantPdf(sel){
        'Verwendungszweck: NK '+e.name+' '+zeitraumText()]
     : ['Das Guthaben wird Ihnen innerhalb von '+((z.frist||'14 Tage').replace(/\s*nach Zugang/i,'').replace(/\bTage\b/,'Tagen'))+' erstattet.']
   ).forEach(l=>nl(l));
+  // US-55: GiroCode (EPC-QR) bei Nachzahlung – Überweisung per Banking-App ohne Abtippen.
+  if(saldo>0 && nkIbanGueltig(z.iban)){
+    const giro=nkGiroCode({ empfaenger:z.empfaenger, iban:z.iban, bic:z.bic, betrag:saldo, zweck:'NK '+e.name+' '+zeitraumText() });
+    let url=null;
+    if(giro && typeof qrcode!=='undefined'){
+      try{ if(qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8']) qrcode.stringToBytes=qrcode.stringToBytesFuncs['UTF-8'];
+        const qr=qrcode(0,'M'); qr.addData(giro); qr.make(); url=qr.createDataURL(4,8); }catch(e){ url=null; }
+    }
+    if(url){ y+=6; const qs=80; if(y+qs>800){ doc.addPage(); y=64; }
+      doc.addImage(url,'GIF',L,y,qs,qs);
+      doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.text('GiroCode',L+qs+12,y+14); doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(110);
+      doc.splitTextToSize('In Ihrer Banking-App scannen – Betrag, IBAN und Verwendungszweck sind hinterlegt. Bitte vor dem Absenden prüfen.', W-qs-12).forEach((l,i)=>doc.text(l,L+qs+12,y+28+i*11));
+      doc.setTextColor(0); doc.setFontSize(10); y+=qs+10; }
+  }
   y+=8; doc.setFontSize(8); doc.setTextColor(110);
   doc.splitTextToSize('Einwendungen gegen diese Abrechnung können Sie innerhalb von 12 Monaten nach Zugang geltend machen.', W).forEach(l=>{ if(y>790){doc.addPage();y=64;} doc.text(l,L,y); y+=11; });
   doc.setFontSize(10); doc.setTextColor(0); y+=20;

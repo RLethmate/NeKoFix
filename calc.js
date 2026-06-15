@@ -114,6 +114,24 @@ function nkIbanGueltig(iban) {
   return rem === 1;
 }
 
+/* US-55: GiroCode-Datensatz (EPC069-12, Version 002, UTF-8). Reine Funktion; gibt den
+   QR-Text zurück oder "" wenn IBAN fehlt/Betrag <= 0 (dann kein QR). Beträge mit Punkt. */
+function nkGiroCode(o) {
+  o = o || {};
+  const iban = String(o.iban || "").replace(/\s+/g, "").toUpperCase();
+  const betrag = +o.betrag || 0;
+  if (!iban || !(betrag > 0)) return "";
+  return [
+    "BCD", "002", "1", "SCT",
+    String(o.bic || "").replace(/\s+/g, "").toUpperCase(),
+    String(o.empfaenger || "").substring(0, 70),
+    iban,
+    "EUR" + betrag.toFixed(2),
+    "", "",
+    String(o.zweck || "").substring(0, 140)
+  ].join("\n");
+}
+
 function nkTotals(einheiten) {
   return {
     flaeche: einheiten.reduce((s, e) => s + (+e.flaeche || 0), 0),
@@ -633,6 +651,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkMengeZuKwh,
     nkHeizkosten,
     nkIbanGueltig,
+    nkGiroCode,
     nkAnrede,
     NK_CO2_STUFEN,
     nkSpezCo2,
