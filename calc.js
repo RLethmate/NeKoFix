@@ -464,6 +464,7 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
   const co2Prozent = nkCo2Vermieterprozent(spezCo2, { override: o.co2ProzentOverride, gewerblich: gewerblich, denkmal: o.co2Denkmal });
   let co2KostenMieter = 0, co2Abzug = 0;
   let p35aDienst = 0, p35aHandw = 0; // US-32: begünstigte Arbeitskosten je Kategorie (Mieteranteil)
+  const p35aPosten = []; // US-62: je Position eine Zeile (für die Volltabellen)
   const zeilen = nkLineItemsFor(e, K, einheiten).map((i, ix) => {
     const k = K[ix] || {};
     // US-06: hat die Position einen eigenen Zeitraum (Heizblock), Zeitanteil über DIESE Periode,
@@ -482,6 +483,7 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
     const p35aMieter = ((+k.arbeitskosten || 0) > 0 && p35aKat && i.gesamt > 0) ? (+k.arbeitskosten) * (anteil / i.gesamt) : 0;
     if (p35aKat === "dienstleistung") p35aDienst += p35aMieter;
     else if (p35aKat === "handwerker") p35aHandw += p35aMieter;
+    if (p35aMieter > 0) p35aPosten.push({ bez: i.bez, schluessel: i.schluessel, kategorie: p35aKat, gesamt: i.gesamt, arbeitskosten: +k.arbeitskosten || 0, anteil: p35aMieter }); // US-62
     return {
       bez: i.bez, gesamt: i.gesamt, schluessel: i.schluessel, vorsteuer: i.vorsteuer,
       faktor: i.faktor, anteilVoll: i.anteil, anteil: anteil, wert: wert, zeitanteil: zaL,
@@ -501,8 +503,8 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
       fall: gewerblich ? "gewerbe" : "wohnen", denkmal: !!o.co2Denkmal,
       aktiv: co2KostenMieter > 0
     },
-    p35a: { // US-32: nur für private Haushalte relevant
-      dienstleistung: p35aDienst, handwerker: p35aHandw,
+    p35a: { // US-32/US-62: nur für private Haushalte relevant
+      dienstleistung: p35aDienst, handwerker: p35aHandw, posten: p35aPosten,
       gewerblich: gewerblich, aktiv: !gewerblich && (p35aDienst + p35aHandw) > 0
     },
     vorauszahlung: vorauszahlung, saldo: bruttoNachCo2 - vorauszahlung

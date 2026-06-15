@@ -40,15 +40,15 @@ function buildTenantPdf(sel){
   y+=8; nl(nkAnrede(m)+','); y+=4;
   doc.splitTextToSize('anbei erhalten Sie die Betriebs- und Heizkostenabrechnung für '+zeitraumSatz()+'. Nachstehend finden Sie die Aufstellung der Kosten, Ihren Anteil und die Verrechnung mit den geleisteten Vorauszahlungen.', W).forEach(l=>nl(l));
   y+=8;
-  // US-62: kompakter Ergebnis-Block oben (Techem-Stil, 3 Zeilen)
-  doc.setFillColor(21,97,109); doc.rect(L, y, W, 54, 'F');
-  doc.setTextColor(255); let yy=y+16;
-  doc.setFont(undefined,'normal'); doc.setFontSize(10);
-  doc.text('Ihr Anteil an den Gesamtkosten', L+8, yy); doc.text(eur(anteil), R-8, yy, {align:'right'}); yy+=14;
-  doc.text('Ihre Vorauszahlung', L+8, yy); doc.text(eur(ab.vorauszahlung), R-8, yy, {align:'right'}); yy+=17;
-  doc.setFont(undefined,'bold'); doc.setFontSize(12);
-  doc.text(saldo>0?'Ihre Nachzahlung':'Ihr Guthaben', L+8, yy); doc.text(eur(Math.abs(saldo)), R-8, yy, {align:'right'});
-  doc.setTextColor(0); doc.setFont(undefined,'normal'); doc.setFontSize(10); y+=54+12;
+  // US-62: kompakter Ergebnis-Block oben (Techem-Stil, 3 Zeilen) – dezenter Kasten mit Rahmen.
+  const boxB=R-260; // schmaler Kasten links
+  doc.setDrawColor(0); doc.setLineWidth(0.8); doc.rect(L, y, boxB-L, 52, 'S');
+  let yy=y+15; doc.setTextColor(0); doc.setFont(undefined,'normal'); doc.setFontSize(10);
+  doc.text('Ihr Anteil an den Gesamtkosten', L+8, yy); doc.text(eur(anteil), boxB-8, yy, {align:'right'}); yy+=14;
+  doc.text('Ihre Vorauszahlung', L+8, yy); doc.text(eur(ab.vorauszahlung), boxB-8, yy, {align:'right'}); yy+=16;
+  doc.setFont(undefined,'bold'); doc.setFontSize(11);
+  doc.text(saldo>0?'Ihre Nachzahlung':'Ihr Guthaben', L+8, yy); doc.text(eur(Math.abs(saldo)), boxB-8, yy, {align:'right'});
+  doc.setFont(undefined,'normal'); doc.setFontSize(10); y+=52+12;
   // Tabellenkopf
   // US-59: Spaltenformat (Gesamt · Einheiten · Preis/Einh. · Ihre Einheiten · Anteil), je Rubrik gruppiert.
   const cG=250, cB=330, cP=400, cI=470; // rechte Kanten der Zahlenspalten
