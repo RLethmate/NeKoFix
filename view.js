@@ -68,16 +68,53 @@ function zeitraumSatz(){
 function alleMV(){ const out=[]; state.einheiten.forEach((e,ei)=>{ (e.mv||[]).forEach((m,mi)=>{ out.push({e,m,ei,mi,za:nkZeitanteil(m.von,m.bis,state.objekt.von,state.objekt.bis)}); }); }); return out; }
 function leerstandZa(e){ const s=(e.mv||[]).reduce((a,m)=>a+nkZeitanteil(m.von,m.bis,state.objekt.von,state.objekt.bis),0); return Math.max(0,1-s); }
 
-/* ---------- Stepper ---------- */
+/* ---------- Stepper (US-54: seitliche Lasche, Gruppen, Kürzel, Versand-Ampel) ---------- */
+const STEP_ABBR = ["OB","VZ","KO","HE","BE","AB","ZA"];
+const STEP_GROUPS = [
+  { titel:"Abrechnung erstellen", steps:[0,1,2,3,4,5] },
+  { titel:"Nachverfolgung",        steps:[6] }
+];
 function renderStepper(){
-  const el = document.getElementById('stepper'); el.innerHTML='';
-  STEPS.forEach((label,i)=>{
-    const d=document.createElement('div');
-    d.className='step'+(i===current?' active':'')+(i<current?' done':'');
-    d.innerHTML='<span class="n">'+(i+1)+'</span>'+label;
-    d.onclick=()=>go(i);
-    el.appendChild(d);
+  const el = document.getElementById('stepper'); if(!el) return; el.innerHTML='';
+  STEP_GROUPS.forEach(g=>{
+    const gt=document.createElement('div'); gt.className='nav-group'; gt.textContent=g.titel; el.appendChild(gt);
+    g.steps.forEach(i=>{
+      const d=document.createElement('div');
+      d.className='step'+(i===current?' active':'')+(i<current?' done':'');
+      d.title=STEPS[i];
+      d.innerHTML='<span class="n">'+(i+1)+'</span><span class="lbl">'+STEPS[i]+'</span><span class="abbr">'+STEP_ABBR[i]+'</span>';
+      d.onclick=()=>go(i);
+      el.appendChild(d);
+    });
   });
+  renderNavPlausi();
+}
+const NAV_KEY="nekofix-nav-collapsed";
+function updateNavToggleGlyph(){ const s=document.getElementById('sidenav'); const b=s&&s.querySelector('.nav-toggle'); if(b) b.textContent = s.classList.contains('collapsed')?'»':'«'; }
+function toggleNav(){ const s=document.getElementById('sidenav'); if(!s) return; s.classList.toggle('collapsed'); try{ localStorage.setItem(NAV_KEY, s.classList.contains('collapsed')?'1':'0'); }catch(e){} updateNavToggleGlyph(); }
+function initNav(){ const s=document.getElementById('sidenav'); if(!s) return; let c='0'; try{ c=localStorage.getItem(NAV_KEY)||'0'; }catch(e){} if(c==='1') s.classList.add('collapsed'); updateNavToggleGlyph(); }
+/* US-54: dauerhaft sichtbare Versand-/Plausi-Ampel; bereit = keine blockierenden Fehler. */
+let navPlausiOpen=false;
+function renderNavPlausi(){
+  const box=document.getElementById('nav_plausi'); if(!box) return;
+  const r=nkPlausibilitaet(state);
+  const fehler=r.punkte.filter(p=>p.level==='fehler').length;
+  const warn=r.punkte.filter(p=>p.level==='warn').length;
+  const kurz=r.bereit ? '✓ Versandfertig' : (fehler+' offene'+(fehler===1?'r Punkt':' Punkte'));
+  const symMap={ok:'✓',warn:'!',fehler:'✗'};
+  let html='<button class="nav-plausi-head '+(r.bereit?'ok':'bad')+'" onclick="toggleNavPlausi()" title="Plausibilitätsprüfung – klicken für Details">'+
+    '<span class="dot"></span><span class="np-label">'+kurz+'</span><span class="np-caret">'+(navPlausiOpen?'▴':'▾')+'</span></button>';
+  if(navPlausiOpen){
+    html+='<div class="nav-plausi-list">'+r.punkte.map(p=>'<div class="plausi-item '+p.level+'">'+symMap[p.level]+' '+p.text+'</div>').join('')+'</div>';
+  } else if(warn>0){
+    html+='<div class="nav-plausi-sub">'+warn+' Hinweis'+(warn===1?'':'e')+'</div>';
+  }
+  box.innerHTML=html;
+}
+function toggleNavPlausi(){
+  const s=document.getElementById('sidenav');
+  if(s && s.classList.contains('collapsed')){ s.classList.remove('collapsed'); try{ localStorage.setItem(NAV_KEY,'0'); }catch(e){} }
+  navPlausiOpen=!navPlausiOpen; renderNavPlausi();
 }
 function go(i){
   if(i===0) renderEinheiten();   /* US-49: Ziel-Reiter beim Wechsel aus aktuellem Zustand neu zeichnen */
@@ -737,5 +774,9 @@ renderObjektSelect();
 (function(){ if(new URLSearchParams(location.search).has('debug')){ const b=document.getElementById('btn_testdaten'); if(b) b.hidden=false; } })();
 (function(){ const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus; })();
 fillObjektKopf();
+initNav(); /* US-54: gespeicherten Klapp-Zustand der Lasche anwenden */
 renderEinheiten(); renderVoraus(); renderKosten(); renderStepper(); go(0);
 saveState();
+/* US-54: Versand-Ampel live aktualisieren, sobald sich Eingaben ändern. */
+document.addEventListener('input', renderNavPlausi);
+document.addEventListener('change', renderNavPlausi);
