@@ -292,6 +292,15 @@
     <div class="legal">Erfasst wird die Gebäude-Heizkostensumme (Menge × Preis bzw. kWh × Preis), verteilt nach gewähltem Schlüssel. Bei Heizungswechsel mehrere Blöcke mit „aktiv von/bis" anlegen – jeder Block wird über seine Periode auf die anwesenden Mieter verteilt. Ist eine Blockperiode nicht voll durch Mietverhältnisse gedeckt, trägt die Differenz der Vermieter. Eine verbrauchsgenaue Verteilung je Wohnung über Einzelzähler (Messdienst) ist nicht enthalten.</div>
     <div id="heizung_box"></div>
     <button class="addrow" onclick="addHeizblock()">+ Heizblock hinzufügen</button>
+    <div class="zahlungs-box" id="co2_box">
+      <h2 class="zahlungs-titel">CO2-Kostenaufteilung (CO2KostAufG)</h2>
+      <p class="hint">Gilt seit 2023 für fossile Heizung. Der Vermieteranteil ergibt sich automatisch aus dem spezifischen CO2-Ausstoß (kg/m²·a) des Gebäudes; gewerbliche Mietverhältnisse: pauschal 50/50.</p>
+      <div class="grid2">
+        <div class="field"><label><input type="checkbox" id="co2_denkmal"> Sanierung rechtlich eingeschränkt (Denkmal-/Milieuschutz) – halbiert den Vermieteranteil</label></div>
+        <div class="field"><label>Vermieteranteil Wohnen manuell (%)</label><input id="co2_override" type="number" step="any" placeholder="leer = automatisch aus Stufe"></div>
+      </div>
+      <div id="co2_settings_info" class="legal"></div>
+    </div>
     <div class="nav"><button class="btn-ghost" onclick="go(2)">Zurück</button><button class="btn-primary" onclick="go(4)">Berechnen</button></div>
   </section>
 
@@ -308,6 +317,7 @@
       <thead><tr><th>Mieter</th><th class="num">Anteil</th><th class="num">Vorauszahlung</th><th class="num">Saldo</th><th class="num">Empf. €/Monat</th></tr></thead>
       <tbody></tbody>
     </table>
+    <div id="co2_info" class="legal" hidden></div>
     <div id="plausi_box" class="plausi"></div>
     <div style="margin-top:10px;"><button class="btn-ghost" onclick="downloadRechenweg()">Rechenweg herunterladen (.md)</button></div>
     <div class="nav"><button class="btn-ghost" onclick="go(3)">Zurück</button><button class="btn-primary" onclick="go(5)">Abrechnung erstellen</button></div>

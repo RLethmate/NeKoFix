@@ -445,3 +445,70 @@ test("Umlagefähigkeit je Kostenart (US-04)", () => {
   assert.equal(calc.nkUmlageInfo("Kabel-/Fernsehsignal").umlagefaehig, false);
   assert.ok(calc.nkUmlageInfo("Kabel-/Fernsehsignal").grund.length > 0);
 });
+
+/* US-07: CO2-Kostenaufteilung (CO2KostAufG). */
+test("CO2: spezifischer Ausstoß = kg / Fläche", () => {
+  assert.equal(calc.nkSpezCo2(2400, 100), 24);
+  assert.equal(calc.nkSpezCo2(2400, 0), 0); // Schutz vor Division durch 0
+});
+
+test("CO2: 10-Stufen-Modell – Grenzen und Vermieteranteil", () => {
+  assert.equal(calc.nkCo2StufeProzent(11.9), 0);   // < 12
+  assert.equal(calc.nkCo2StufeProzent(12), 10);    // 12 bis < 17
+  assert.equal(calc.nkCo2StufeProzent(24), 30);    // 22 bis < 27
+  assert.equal(calc.nkCo2StufeProzent(51.9), 80);  // 47 bis < 52
+  assert.equal(calc.nkCo2StufeProzent(52), 95);    // >= 52
+  assert.equal(calc.nkCo2Stufe(11.9), 1);
+  assert.equal(calc.nkCo2Stufe(24), 4);
+  assert.equal(calc.nkCo2Stufe(60), 10);
+});
+
+test("CO2: Vermieteranteil – Gewerbe 50/50, Override, Denkmal halbiert", () => {
+  assert.equal(calc.nkCo2Vermieterprozent(24, {}), 30);                       // Wohnen, Stufe
+  assert.equal(calc.nkCo2Vermieterprozent(24, { gewerblich: true }), 50);     // Gewerbe pauschal
+  assert.equal(calc.nkCo2Vermieterprozent(24, { override: 40 }), 40);         // manuell überschrieben
+  assert.equal(calc.nkCo2Vermieterprozent(24, { denkmal: true }), 15);        // 30 / 2
+  assert.equal(calc.nkCo2Vermieterprozent(24, { gewerblich: true, denkmal: true }), 25); // 50 / 2
+});
+
+test("CO2: kg-Summe zählt nur fossile Heizblöcke", () => {
+  const k = [
+    { typ: "heizung", energieart: "erdgas_kwh", co2Kg: 2400 }, // fossil
+    { typ: "heizung", energieart: "strom_wp",   co2Kg: 999 },  // WP – zählt nicht
+    { bez: "Grundsteuer", betrag: 1200, schluessel: "flaeche" } // keine Heizung
+  ];
+  assert.equal(calc.nkCo2KgSumme(k), 2400);
+});
+
+test("CO2: Abzug reduziert den Mieterbetrag (Wohnen)", () => {
+  const E = [{ id: 1, flaeche: 50, personen: 1 }, { id: 2, flaeche: 50, personen: 1 }];
+  const K = [{ bez: "Heizung", betrag: 2000, schluessel: "flaeche", typ: "heizung", energieart: "erdgas_kwh", co2Kg: 2400, co2Kosten: 300 }];
+  const o = { von: "2025-01-01", bis: "2025-12-31" };
+  const m = { mieter: "A", von: "2025-01-01", bis: "2025-12-31", voraus: 0 };
+  const ab = calc.nkMieterAbrechnung(E[0], m, K, o, E);
+  assert.equal(ab.co2.stufe, 4);
+  assert.equal(ab.co2.vermieterProzent, 30);
+  assert.ok(Math.abs(ab.co2.kostenMieter - 150) < 1e-9); // 300 × 1000/2000
+  assert.ok(Math.abs(ab.co2.abzug - 45) < 1e-9);         // 150 × 30 %
+  assert.ok(Math.abs(ab.bruttoVorCo2 - 1000) < 1e-9);
+  assert.ok(Math.abs(ab.brutto - 955) < 1e-9);           // 1000 − 45
+  assert.equal(ab.co2.aktiv, true);
+});
+
+test("CO2: ohne fossile Heizung keine Aufteilung", () => {
+  const E = [{ id: 1, flaeche: 100, personen: 1 }];
+  const K = [{ bez: "Grundsteuer", betrag: 1200, schluessel: "flaeche" }];
+  const o = { von: "2025-01-01", bis: "2025-12-31" };
+  const m = { mieter: "A", von: "2025-01-01", bis: "2025-12-31", voraus: 0 };
+  const ab = calc.nkMieterAbrechnung(E[0], m, K, o, E);
+  assert.equal(ab.co2.aktiv, false);
+  assert.equal(ab.co2.abzug, 0);
+  assert.equal(ab.brutto, ab.bruttoVorCo2);
+});
+
+test("CO2: Erläuterungstext nennt den greifenden Fall", () => {
+  assert.ok(/Wohngeb/.test(calc.nkCo2Erklaerung({ aktiv: true, fall: "wohnen", stufe: 4, spez: 24, vermieterProzent: 30, denkmal: false })));
+  assert.ok(/Gewerbe/.test(calc.nkCo2Erklaerung({ aktiv: true, fall: "gewerbe", vermieterProzent: 50, denkmal: false })));
+  assert.ok(/halbiert/.test(calc.nkCo2Erklaerung({ aktiv: true, fall: "wohnen", stufe: 4, spez: 24, vermieterProzent: 15, denkmal: true })));
+  assert.ok(/Keine/.test(calc.nkCo2Erklaerung({ aktiv: false })));
+});

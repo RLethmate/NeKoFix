@@ -4,7 +4,7 @@
 
 /* ---------- In-Memory-State ---------- */
 const state = {
-  objekt: { addr:"Musterstraße 12, 48155 Münster", von:"2025-01-01", bis:"2025-12-31" },
+  objekt: { addr:"Musterstraße 12, 48155 Münster", von:"2025-01-01", bis:"2025-12-31", co2Denkmal:false, co2ProzentOverride:"" },
   einheiten: [
     { id:1, name:"EG links", flaeche:70, personen:2, mv:[
       { mieter:"Familie Becker", von:"2025-01-01", bis:"2025-12-31", vmonat:150, vmonate:12, vjahr:1800, einmal:0, voraus:1800, grundmiete:800, stellAnzahl:1, stellPreis:40, bezahlt:{}, vertragGrundmiete:760, vertragNK:140, letzteAnpassung:"2025-09-01", naechsteAnpassung:"2026-09-01", chronik:[{datum:"2025-09-01",text:"Indexmiete +5 % (Grundmiete 760 → 800 €)"}] }
@@ -24,7 +24,9 @@ const state = {
     { bez:"Gebäudeversicherung",    betrag:600,  schluessel:"flaeche" },
     { bez:"Beleuchtung / Allgemeinstrom", betrag:300, schluessel:"flaeche" },
     { bez:"Hauswart",               betrag:1200, schluessel:"flaeche" },
-    { bez:"Heizung & Warmwasser (Messdienst)", betrag:4800, schluessel:"flaeche" }
+    { bez:"Heizung & Warmwasser (Messdienst)", betrag:4800, schluessel:"flaeche" },
+    /* US-05/06/07: fossiler Heizblock mit CO2-Angaben von der Brennstoffrechnung (Demo). */
+    { bez:"Heizung (Erdgas)", typ:"heizung", energieart:"erdgas_kwh", einheit:"kWh", heizwert:1, menge:30000, preis:0.12, betrag:3600, schluessel:"flaeche", co2Kg:6030, co2Kosten:330 }
   ],
   zahlung:{ frist:"14 Tage nach Zugang", iban:"DE89 3704 0044 0532 0130 00", bic:"WELADED1MST", empfaenger:"M. Vermieter", anschrift:"Musterstraße 12, 48155 Münster" },
   abrechnungStatus:"inArbeit"

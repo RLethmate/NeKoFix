@@ -37,6 +37,57 @@ function nkEnergieart(key) { return NK_ENERGIEARTEN.find(e => e.key === key) || 
 function nkMengeZuKwh(menge, heizwert) { return (+menge || 0) * (+heizwert || 0); }
 function nkHeizkosten(menge, preis) { return (+menge || 0) * (+preis || 0); }
 
+/* US-07: CO2-Kostenaufteilung nach CO2KostAufG (seit 2023).
+   Wohngebäude: 10-Stufen-Modell nach spez. Ausstoß (kg CO2/m²·a) → Vermieteranteil %.
+   Nichtwohngebäude (gewerblich): pauschal 50/50. Denkmal-/Milieuschutz: Anteil halbiert.
+   Datengrundlage sind CO2-Menge (kg) und CO2-Kosten (€) von der Brennstoffrechnung. */
+const NK_CO2_STUFEN = [
+  { bis: 12,       vermieter: 0  }, // < 12 kg/m²·a
+  { bis: 17,       vermieter: 10 },
+  { bis: 22,       vermieter: 20 },
+  { bis: 27,       vermieter: 30 },
+  { bis: 32,       vermieter: 40 },
+  { bis: 37,       vermieter: 50 },
+  { bis: 42,       vermieter: 60 },
+  { bis: 47,       vermieter: 70 },
+  { bis: 52,       vermieter: 80 },
+  { bis: Infinity, vermieter: 95 }  // >= 52 kg/m²·a
+];
+function nkSpezCo2(kgSumme, flaecheSumme) {
+  return (+flaecheSumme > 0) ? (+kgSumme || 0) / (+flaecheSumme) : 0;
+}
+function nkCo2Stufe(spez) {
+  for (let i = 0; i < NK_CO2_STUFEN.length; i++) if ((+spez || 0) < NK_CO2_STUFEN[i].bis) return i + 1;
+  return NK_CO2_STUFEN.length;
+}
+function nkCo2StufeProzent(spez) {
+  for (const s of NK_CO2_STUFEN) if ((+spez || 0) < s.bis) return s.vermieter;
+  return 95;
+}
+/* Effektiver Vermieteranteil in % für ein Mietverhältnis: gewerblich → 50 (statt Stufe);
+   override (falls gesetzt) ersetzt den Stufenwert (nur Wohnen); denkmal → Ergebnis halbiert. */
+function nkCo2Vermieterprozent(spez, opts) {
+  const o = opts || {};
+  let p = (o.override != null && o.override !== "") ? (+o.override || 0) : nkCo2StufeProzent(spez);
+  if (o.gewerblich) p = 50;
+  if (o.denkmal) p = p / 2;
+  return p;
+}
+/* Summe der CO2-Emissionen (kg) über alle fossilen Heizblöcke. */
+function nkCo2KgSumme(kosten) {
+  return (kosten || []).reduce((s, k) =>
+    s + ((k.typ === "heizung" && nkEnergieart(k.energieart).fossil) ? (+k.co2Kg || 0) : 0), 0);
+}
+/* AC7/AC9: Klartext-Erläuterung, welcher Fall greift. co2 = Teilobjekt aus nkMieterAbrechnung. */
+function nkCo2Erklaerung(co2) {
+  if (!co2 || !co2.aktiv) return "Keine CO2-Aufteilung (keine fossile Heizung in diesem Mietverhältnis).";
+  let s = (co2.fall === "gewerbe")
+    ? "Gewerbe (Nichtwohngebäude): pauschale 50/50-Aufteilung. Vermieteranteil " + co2.vermieterProzent + " %."
+    : "Wohngebäude, Stufe " + co2.stufe + " von 10 (" + nkFmtBetrag(co2.spez) + " kg/m²·a). Vermieteranteil " + co2.vermieterProzent + " %.";
+  if (co2.denkmal) s += " Anteil wegen Denkmal-/Milieuschutz halbiert.";
+  return s;
+}
+
 /* US-53: Briefanrede aus Mietverhältnis (anrede: "herr"/"frau"/sonst neutral). Bei Herr/Frau wird
    eine bereits im Namen enthaltene Anrede entfernt (kein „Frau Frau …"). Reine Funktion. */
 function nkAnrede(m) {
@@ -334,24 +385,44 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
   const o = objekt || {};
   const za = nkZeitanteil(m.von, m.bis, o.von, o.bis);
   const gewerblich = !!m.gewerblich;
-  const zeilen = nkLineItemsFor(e, kosten || [], einheiten).map(i => {
+  const K = kosten || [];
+  // US-07: gebäudeweite CO2-Grundgrößen und effektiver Vermieteranteil dieses Mietverhältnisses.
+  const flaecheSumme = nkTotals(einheiten || []).flaeche;
+  const spezCo2 = nkSpezCo2(nkCo2KgSumme(K), flaecheSumme);
+  const co2Prozent = nkCo2Vermieterprozent(spezCo2, { override: o.co2ProzentOverride, gewerblich: gewerblich, denkmal: o.co2Denkmal });
+  let co2KostenMieter = 0, co2Abzug = 0;
+  const zeilen = nkLineItemsFor(e, K, einheiten).map((i, ix) => {
+    const k = K[ix] || {};
     // US-06: hat die Position einen eigenen Zeitraum (Heizblock), Zeitanteil über DIESE Periode,
     // sonst über den Abrechnungszeitraum.
     const zaL = (i.von && i.bis) ? nkZeitanteil(m.von, m.bis, i.von, i.bis) : za;
     const anteil = i.anteil * zaL;
     const wert = gewerblich ? nkNetto(anteil, i.vorsteuer) : anteil; // Anzeige je Zeile
+    // US-07: Mieteranteil an den CO2-Kosten dieses fossilen Heizblocks und der vom Vermieter
+    // getragene (= dem Mieter erlassene) Betrag. Nur fossile Heizblöcke mit CO2-Kosten zählen.
+    const istFossilCo2 = k.typ === "heizung" && nkEnergieart(k.energieart).fossil && (+k.co2Kosten || 0) > 0;
+    const co2Anteil = (istFossilCo2 && i.gesamt > 0) ? (+k.co2Kosten) * (anteil / i.gesamt) : 0;
+    co2KostenMieter += co2Anteil;
+    co2Abzug += co2Anteil * co2Prozent / 100;
     return {
       bez: i.bez, gesamt: i.gesamt, schluessel: i.schluessel, vorsteuer: i.vorsteuer,
       faktor: i.faktor, anteilVoll: i.anteil, anteil: anteil, wert: wert, zeitanteil: zaL
     };
   });
   const betrag = nkMieterBetrag(zeilen, gewerblich); // liest .anteil und .vorsteuer
+  const bruttoNachCo2 = betrag.brutto - co2Abzug;    // US-07: Vermieteranteil entlastet den Mieter
   const vorauszahlung = +m.voraus || 0;
   return {
     einheit: e.name, mieter: m.mieter, gewerblich: gewerblich,
     von: m.von, bis: m.bis, zeitanteil: za, zeilen: zeilen,
-    netto: betrag.netto, ust: betrag.ust, brutto: betrag.brutto,
-    vorauszahlung: vorauszahlung, saldo: betrag.brutto - vorauszahlung
+    netto: betrag.netto, ust: betrag.ust, bruttoVorCo2: betrag.brutto, brutto: bruttoNachCo2,
+    co2: {
+      spez: spezCo2, stufe: nkCo2Stufe(spezCo2), vermieterProzent: co2Prozent,
+      kostenMieter: co2KostenMieter, abzug: co2Abzug,
+      fall: gewerblich ? "gewerbe" : "wohnen", denkmal: !!o.co2Denkmal,
+      aktiv: co2KostenMieter > 0
+    },
+    vorauszahlung: vorauszahlung, saldo: bruttoNachCo2 - vorauszahlung
   };
 }
 
@@ -470,5 +541,12 @@ if (typeof module !== "undefined" && module.exports) {
     nkHeizkosten,
     nkIbanGueltig,
     nkAnrede,
+    NK_CO2_STUFEN,
+    nkSpezCo2,
+    nkCo2Stufe,
+    nkCo2StufeProzent,
+    nkCo2Vermieterprozent,
+    nkCo2KgSumme,
+    nkCo2Erklaerung,
   };
 }
