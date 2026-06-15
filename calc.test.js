@@ -140,6 +140,23 @@ test("IBAN-Prüfung: Prüfziffer und Länge (US-51)", () => {
   assert.equal(calc.nkIbanGueltig("XX12"), false);
 });
 
+test("GiroCode-Datensatz EPC069-12 (US-55)", () => {
+  const s = calc.nkGiroCode({ empfaenger: "M. Vermieter", iban: "DE89 3704 0044 0532 0130 00", bic: "WELADED1MST", betrag: 1038.01, zweck: "NK EG 2024" });
+  const lines = s.split("\n");
+  assert.equal(lines[0], "BCD");
+  assert.equal(lines[1], "002");
+  assert.equal(lines[2], "1");
+  assert.equal(lines[3], "SCT");
+  assert.equal(lines[4], "WELADED1MST");
+  assert.equal(lines[5], "M. Vermieter");
+  assert.equal(lines[6], "DE89370400440532013000"); // ohne Leerzeichen
+  assert.equal(lines[7], "EUR1038.01");              // Punkt, 2 Nachkommastellen
+  assert.equal(lines[10], "NK EG 2024");
+  // Kein QR ohne IBAN oder ohne positiven Betrag
+  assert.equal(calc.nkGiroCode({ iban: "", betrag: 100 }), "");
+  assert.equal(calc.nkGiroCode({ iban: "DE89370400440532013000", betrag: 0 }), "");
+});
+
 test("Briefanrede neutral/Herr/Frau (US-53)", () => {
   assert.equal(calc.nkAnrede({mieter:"Sahin", anrede:"frau"}), "Sehr geehrte Frau Sahin");
   assert.equal(calc.nkAnrede({mieter:"Frau Sahin", anrede:"frau"}), "Sehr geehrte Frau Sahin"); // kein „Frau Frau"
