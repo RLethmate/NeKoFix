@@ -268,6 +268,27 @@ function nkRubrik(k) {
   return "Betriebskosten";
 }
 
+/* US-32: §35a EStG – begünstigter Arbeitskosten-Anteil je Position, getrennt nach
+   haushaltsnahen Dienstleistungen und Handwerkerleistungen. Elster-Zeilen als pflegbarer
+   Referenztext (Steuerjahr), da sich die Formularzeilen jährlich ändern können.
+   Hinweis: keine Steuerberatung; gilt nur für private (nicht gewerbliche) Mietverhältnisse. */
+const NK_P35A_STEUERJAHR = "2024";
+const NK_P35A = {
+  dienstleistung: { label: "Haushaltsnahe Dienstleistungen", elster: "Anlage Haushaltsnahe Aufwendungen, Zeile 5", satz: 20, maxErmaessigung: 4000 },
+  handwerker:     { label: "Handwerkerleistungen", elster: "Anlage Haushaltsnahe Aufwendungen, Zeilen 6–9 (Summe in Zeile 9)", satz: 20, maxErmaessigung: 1200 }
+};
+function nkP35aKategorieVorschlag(bez) {
+  const b = String(bez || "").toLowerCase();
+  if (/(wartung|reparatur|schornstein|instandhalt|instandsetz)/.test(b)) return "handwerker";
+  if (/(hauswart|hausmeister|garten|reinig|winterdienst|treppen)/.test(b)) return "dienstleistung";
+  return "";
+}
+/* Effektive Kategorie: explizit gesetzt (k.p35a) sticht; "keine" = nicht begünstigt; sonst Vorschlag. */
+function nkP35aKategorie(k) {
+  if (k && k.p35a) return k.p35a === "keine" ? "" : k.p35a;
+  return nkP35aKategorieVorschlag(k && k.bez);
+}
+
 /* Notizen-System (US-19): Anzahl noch nicht geprüfter Kostenpositionen. */
 function nkUngeprueftAnzahl(kosten) {
   return (kosten || []).filter(k => (k.status || "vorlaeufig") !== "geprueft").length;
@@ -442,6 +463,7 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
   const spezCo2 = nkSpezCo2(nkCo2KgSumme(K), flaecheSumme);
   const co2Prozent = nkCo2Vermieterprozent(spezCo2, { override: o.co2ProzentOverride, gewerblich: gewerblich, denkmal: o.co2Denkmal });
   let co2KostenMieter = 0, co2Abzug = 0;
+  let p35aDienst = 0, p35aHandw = 0; // US-32: begünstigte Arbeitskosten je Kategorie (Mieteranteil)
   const zeilen = nkLineItemsFor(e, K, einheiten).map((i, ix) => {
     const k = K[ix] || {};
     // US-06: hat die Position einen eigenen Zeitraum (Heizblock), Zeitanteil über DIESE Periode,
@@ -455,6 +477,11 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
     const co2Anteil = (istFossilCo2 && i.gesamt > 0) ? (+k.co2Kosten) * (anteil / i.gesamt) : 0;
     co2KostenMieter += co2Anteil;
     co2Abzug += co2Anteil * co2Prozent / 100;
+    // US-32: Mieteranteil am begünstigten Arbeitskosten-Anteil dieser Position (gleiche Verteilung).
+    const p35aKat = nkP35aKategorie(k);
+    const p35aMieter = ((+k.arbeitskosten || 0) > 0 && p35aKat && i.gesamt > 0) ? (+k.arbeitskosten) * (anteil / i.gesamt) : 0;
+    if (p35aKat === "dienstleistung") p35aDienst += p35aMieter;
+    else if (p35aKat === "handwerker") p35aHandw += p35aMieter;
     return {
       bez: i.bez, gesamt: i.gesamt, schluessel: i.schluessel, vorsteuer: i.vorsteuer,
       faktor: i.faktor, anteilVoll: i.anteil, anteil: anteil, wert: wert, zeitanteil: zaL,
@@ -473,6 +500,10 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
       kostenMieter: co2KostenMieter, abzug: co2Abzug,
       fall: gewerblich ? "gewerbe" : "wohnen", denkmal: !!o.co2Denkmal,
       aktiv: co2KostenMieter > 0
+    },
+    p35a: { // US-32: nur für private Haushalte relevant
+      dienstleistung: p35aDienst, handwerker: p35aHandw,
+      gewerblich: gewerblich, aktiv: !gewerblich && (p35aDienst + p35aHandw) > 0
     },
     vorauszahlung: vorauszahlung, saldo: bruttoNachCo2 - vorauszahlung
   };
@@ -559,6 +590,10 @@ if (typeof module !== "undefined" && module.exports) {
     NK_RUBRIKEN,
     nkRubrik,
     nkSchluesselEinheit,
+    NK_P35A,
+    NK_P35A_STEUERJAHR,
+    nkP35aKategorieVorschlag,
+    nkP35aKategorie,
     nkUmlageInfo,
     nkVorauszahlungGesamt,
     nkVorschlagVorauszahlung,

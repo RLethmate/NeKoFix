@@ -84,7 +84,16 @@ function buildTenantPdf(sel){
   doc.text('abzüglich Vorauszahlungen',L,y); doc.text(eur(ab.vorauszahlung),R,y,{align:'right'}); y+=16;
   doc.setFont(undefined,'bold');
   doc.text(saldo>0?'Nachzahlung':'Guthaben',L,y); doc.text(eur(Math.abs(saldo)),R,y,{align:'right'});
-  doc.setFont(undefined,'normal'); y+=26;
+  doc.setFont(undefined,'normal'); y+=24;
+  // US-32: §35a-Ausweis (nur private Mietverhältnisse)
+  if(ab.p35a && ab.p35a.aktiv){
+    doc.setFont(undefined,'bold'); nl('Steuerlich absetzbar (§35a EStG):'); doc.setFont(undefined,'normal');
+    doc.setFontSize(9); doc.setTextColor(90);
+    if(ab.p35a.dienstleistung>0) doc.splitTextToSize(NK_P35A.dienstleistung.label+': '+eur(ab.p35a.dienstleistung)+' → '+NK_P35A.dienstleistung.elster, W).forEach(l=>nl(l));
+    if(ab.p35a.handwerker>0) doc.splitTextToSize(NK_P35A.handwerker.label+': '+eur(ab.p35a.handwerker)+' → '+NK_P35A.handwerker.elster, W).forEach(l=>nl(l));
+    doc.splitTextToSize('Diesen Betrag können Sie in Ihrer Einkommensteuererklärung geltend machen (20 % der Arbeitskosten, Höchstbeträge beachten). Steuerjahr '+NK_P35A_STEUERJAHR+', keine Steuerberatung.', W).forEach(l=>nl(l));
+    doc.setFontSize(10); doc.setTextColor(0); y+=6;
+  }
   // Zahlungsmodalitäten
   (saldo>0
     ? ['Bitte überweisen Sie den Betrag innerhalb von '+(z.frist||'14 Tage nach Zugang')+' auf folgendes Konto:',
