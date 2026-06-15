@@ -160,10 +160,34 @@ function nkAnteilOf(e, kosten, einheiten) {
   return (kosten || []).reduce((s, k) => s + (+k.betrag || 0) * nkFaktorFuer(e, k, einheiten), 0);
 }
 
+/* US-59: Anzeige-Einheit je Verteilerschlüssel (kurz, ohne Zusatztext). Bei Verbrauch aus der
+   Position (k.einheit), z. B. „kWh" oder „m³". */
+function nkSchluesselEinheit(k) {
+  const s = k && k.schluessel;
+  if (s === "flaeche") return "m²";
+  if (s === "person") return "Pers.";
+  if (s === "einheit") return "Whg.";
+  if (s === "verbrauch") return (k && k.einheit) || "Einh.";
+  return ""; // direkt
+}
 function nkLineItemsFor(e, kosten, einheiten) {
   return (kosten || []).map(k => {
     const f = nkFaktorFuer(e, k, einheiten);
-    return { bez: k.bez, gesamt: +k.betrag || 0, schluessel: k.schluessel, vorsteuer: +k.vorsteuer || 0, faktor: f, anteil: (+k.betrag || 0) * f, von: k.von, bis: k.bis };
+    const gesamt = +k.betrag || 0;
+    const teil = (einheiten || []).filter(x => nkTeilnahme(x, k));
+    // US-59: Spaltenwerte für den Rechenweg (Gesamteinheiten, Ihre Einheiten, Preis je Einheit).
+    let basis = 0, ihre = 0;
+    if (k.schluessel === "flaeche") { basis = nkTotals(teil).flaeche; ihre = nkTeilnahme(e, k) ? (+e.flaeche || 0) : 0; }
+    else if (k.schluessel === "person") { basis = nkTotals(teil).personen; ihre = nkTeilnahme(e, k) ? (+e.personen || 0) : 0; }
+    else if (k.schluessel === "einheit") { basis = nkTotals(teil).einheiten; ihre = nkTeilnahme(e, k) ? 1 : 0; }
+    else if (k.schluessel === "verbrauch") { basis = nkVerbrauchSumme(k, einheiten); ihre = nkTeilnahme(e, k) ? (+(k.verbrauch || {})[e.id] || 0) : 0; }
+    else if (k.schluessel === "direkt") { basis = 0; ihre = (e.id === k.direktEinheit) ? 1 : 0; }
+    const preisJeEinheit = basis > 0 ? gesamt / basis : 0;
+    return {
+      bez: k.bez, gesamt: gesamt, schluessel: k.schluessel, vorsteuer: +k.vorsteuer || 0,
+      faktor: f, anteil: gesamt * f, von: k.von, bis: k.bis,
+      basis: basis, ihreEinheiten: ihre, preisJeEinheit: preisJeEinheit, einheitLabel: nkSchluesselEinheit(k)
+    };
   });
 }
 
@@ -433,7 +457,8 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
     co2Abzug += co2Anteil * co2Prozent / 100;
     return {
       bez: i.bez, gesamt: i.gesamt, schluessel: i.schluessel, vorsteuer: i.vorsteuer,
-      faktor: i.faktor, anteilVoll: i.anteil, anteil: anteil, wert: wert, zeitanteil: zaL
+      faktor: i.faktor, anteilVoll: i.anteil, anteil: anteil, wert: wert, zeitanteil: zaL,
+      basis: i.basis, ihreEinheiten: i.ihreEinheiten, preisJeEinheit: i.preisJeEinheit, einheitLabel: i.einheitLabel // US-59
     };
   });
   const betrag = nkMieterBetrag(zeilen, gewerblich); // liest .anteil und .vorsteuer
@@ -533,6 +558,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkVorschlagSchluessel,
     NK_RUBRIKEN,
     nkRubrik,
+    nkSchluesselEinheit,
     nkUmlageInfo,
     nkVorauszahlungGesamt,
     nkVorschlagVorauszahlung,

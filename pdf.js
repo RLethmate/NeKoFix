@@ -41,28 +41,32 @@ function buildTenantPdf(sel){
   doc.splitTextToSize('anbei erhalten Sie die Betriebs- und Heizkostenabrechnung für '+zeitraumSatz()+'. Nachstehend finden Sie die Aufstellung der Kosten, Ihren Anteil und die Verrechnung mit den geleisteten Vorauszahlungen.', W).forEach(l=>nl(l));
   y+=10;
   // Tabellenkopf
-  doc.setFont(undefined,'bold');
-  doc.text('Kostenart',L,y); doc.text('Gesamtkosten',330,y,{align:'right'}); doc.text('Schlüssel',345,y); doc.text(gew?'Anteil netto':'Ihr Anteil',R,y,{align:'right'});
-  doc.setFont(undefined,'normal'); y+=4; doc.line(L,y,R,y); y+=14;
-  // US-58: Positionen nach Rubrik gruppieren, je Rubrik eine Zwischensumme.
+  // US-59: Spaltenformat (Gesamt · Einheiten · Preis/Einh. · Ihre Einheiten · Anteil), je Rubrik gruppiert.
+  const cG=250, cB=330, cP=400, cI=470; // rechte Kanten der Zahlenspalten
+  const fmtE=n=>(Number(n)||0).toLocaleString('de-DE',{maximumFractionDigits:2});
+  const fmtP=n=>(Number(n)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:4});
+  doc.setFont(undefined,'bold'); doc.setFontSize(8);
+  doc.text('Kostenart',L,y); doc.text('Gesamt',cG,y,{align:'right'}); doc.text('Einh.',cB,y,{align:'right'}); doc.text('Preis',cP,y,{align:'right'}); doc.text('Ihre Einh.',cI,y,{align:'right'}); doc.text(gew?'Anteil netto':'Anteil',R,y,{align:'right'});
+  doc.setFont(undefined,'normal'); doc.setFontSize(10); y+=4; doc.line(L,y,R,y); y+=13;
   NK_RUBRIKEN.forEach(rub=>{
     const grp=ab.zeilen.map((i,ix)=>({i,ix})).filter(o=>Math.round(o.i.anteil*100)!==0 && nkRubrik(state.kosten[o.ix])===rub);
     if(!grp.length) return;
     if(y>755){ doc.addPage(); y=64; }
-    doc.setFont(undefined,'bold'); doc.text(rub,L,y); doc.setFont(undefined,'normal'); y+=14;
+    doc.setFont(undefined,'bold'); doc.setFontSize(9); doc.text(rub,L,y); doc.setFont(undefined,'normal'); doc.setFontSize(8); y+=13;
     let sub=0;
-    grp.forEach(({i,ix})=>{
-      if(y>770){ doc.addPage(); y=64; }
-      doc.text(String(i.bez).substring(0,28),L+12,y);
-      doc.text(eur(i.gesamt),330,y,{align:'right'});
-      doc.setFontSize(8); doc.setTextColor(110);
-      doc.text(String(schluesselAnzeige(state.kosten[ix])).substring(0,26),345,y);
-      doc.setFontSize(10); doc.setTextColor(0);
-      doc.text(eur(i.wert),R,y,{align:'right'}); y+=13; sub+=i.wert;
+    grp.forEach(({i})=>{
+      if(y>772){ doc.addPage(); y=64; }
+      const direkt=i.schluessel==='direkt';
+      doc.text(String(i.bez).substring(0,26),L+10,y);
+      doc.text(eur(i.gesamt),cG,y,{align:'right'});
+      doc.text(direkt?'direkt':(fmtE(i.basis)+' '+i.einheitLabel),cB,y,{align:'right'});
+      doc.text(direkt?'—':fmtP(i.preisJeEinheit),cP,y,{align:'right'});
+      doc.text(direkt?'100 %':(fmtE(i.ihreEinheiten)+' '+i.einheitLabel),cI,y,{align:'right'});
+      doc.text(eur(i.wert)+(i.zeitanteil<0.999?' (×'+Math.round(i.zeitanteil*100)+'%)':''),R,y,{align:'right'}); y+=12; sub+=i.wert;
     });
-    doc.setFont(undefined,'bold'); doc.text('Zwischensumme '+rub,L+12,y); doc.text(eur(sub),R,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=16;
+    doc.setFont(undefined,'bold'); doc.text('Zwischensumme '+rub,L+10,y); doc.text(eur(sub),R,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=15;
   });
-  y+=2; doc.line(L,y,R,y); y+=16;
+  doc.setFontSize(10); y+=2; doc.line(L,y,R,y); y+=16;
   if(gew){
     doc.text('Zwischensumme netto',L,y); doc.text(eur(ab.netto),R,y,{align:'right'}); y+=14;
     doc.text('zzgl. '+NK_UST_SATZ+' % Umsatzsteuer',L,y); doc.text(eur(ab.ust),R,y,{align:'right'}); y+=16;

@@ -513,6 +513,45 @@ test("CO2: Erläuterungstext nennt den greifenden Fall", () => {
   assert.ok(/Keine/.test(calc.nkCo2Erklaerung({ aktiv: false })));
 });
 
+/* US-59: Spaltenwerte für den Rechenweg (Gesamteinheiten, Preis je Einheit, Einheit-Label). */
+test("Spaltenwerte: Fläche – Basis, Ihre Einheiten, Preis je Einheit", () => {
+  const E = [{ id: 1, flaeche: 86.1, personen: 1 }, { id: 2, flaeche: 384.5, personen: 6 }];
+  const k = [{ bez: "Grundsteuer", betrag: 1552.44, schluessel: "flaeche" }];
+  const z = calc.nkLineItemsFor(E[0], k, E)[0];
+  assert.ok(Math.abs(z.basis - 470.6) < 1e-9);
+  assert.ok(Math.abs(z.ihreEinheiten - 86.1) < 1e-9);
+  assert.ok(Math.abs(z.preisJeEinheit - 1552.44 / 470.6) < 1e-9);
+  assert.equal(z.einheitLabel, "m²");
+  // Preis × Ihre Einheiten = Anteil
+  assert.ok(Math.abs(z.preisJeEinheit * z.ihreEinheiten - z.anteil) < 1e-6);
+});
+
+test("Spaltenwerte: Verbrauch nutzt Einheit-Label der Position", () => {
+  const E = [{ id: 1 }, { id: 2 }];
+  const k = [{ bez: "Wasser", betrag: 600, schluessel: "verbrauch", einheit: "m³", verbrauch: { 1: 40, 2: 60 } }];
+  const z = calc.nkLineItemsFor(E[0], k, E)[0];
+  assert.equal(z.basis, 100);
+  assert.equal(z.ihreEinheiten, 40);
+  assert.ok(Math.abs(z.preisJeEinheit - 6) < 1e-9);
+  assert.equal(z.einheitLabel, "m³");
+});
+
+test("Spaltenwerte: Einheit-Labels je Schlüssel", () => {
+  assert.equal(calc.nkSchluesselEinheit({ schluessel: "flaeche" }), "m²");
+  assert.equal(calc.nkSchluesselEinheit({ schluessel: "person" }), "Pers.");
+  assert.equal(calc.nkSchluesselEinheit({ schluessel: "einheit" }), "Whg.");
+  assert.equal(calc.nkSchluesselEinheit({ schluessel: "verbrauch", einheit: "kWh" }), "kWh");
+  assert.equal(calc.nkSchluesselEinheit({ schluessel: "direkt" }), "");
+});
+
+test("Spaltenwerte: Techem-Beispiel EG – Preis × Einheiten trifft", () => {
+  const E = [{ id: 1, name: "EG", flaeche: 86.1 }, { id: 2, name: "Rest", flaeche: 384.5 }];
+  // Grundsteuer nach Fläche: Preis/Einheit × 86,1 m² = 284,03
+  const k = [{ bez: "Grundsteuer", betrag: 1552.44, schluessel: "flaeche" }];
+  const z = calc.nkLineItemsFor(E[0], k, E)[0];
+  assert.ok(Math.abs(z.preisJeEinheit * z.ihreEinheiten - 284.03) < 0.01);
+});
+
 /* US-58: Rubriken (Kostengruppen). */
 test("Rubrik: Vorschlag aus Typ/Schlüssel/Bezeichnung, Override sticht", () => {
   assert.equal(calc.nkRubrik({ bez: "Grundsteuer" }), "Betriebskosten");
