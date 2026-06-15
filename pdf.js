@@ -39,7 +39,16 @@ function buildTenantPdf(sel){
   // Anrede + Einleitung
   y+=8; nl(nkAnrede(m)+','); y+=4;
   doc.splitTextToSize('anbei erhalten Sie die Betriebs- und Heizkostenabrechnung für '+zeitraumSatz()+'. Nachstehend finden Sie die Aufstellung der Kosten, Ihren Anteil und die Verrechnung mit den geleisteten Vorauszahlungen.', W).forEach(l=>nl(l));
-  y+=10;
+  y+=8;
+  // US-62: kompakter Ergebnis-Block oben (Techem-Stil, 3 Zeilen)
+  doc.setFillColor(21,97,109); doc.rect(L, y, W, 54, 'F');
+  doc.setTextColor(255); let yy=y+16;
+  doc.setFont(undefined,'normal'); doc.setFontSize(10);
+  doc.text('Ihr Anteil an den Gesamtkosten', L+8, yy); doc.text(eur(anteil), R-8, yy, {align:'right'}); yy+=14;
+  doc.text('Ihre Vorauszahlung', L+8, yy); doc.text(eur(ab.vorauszahlung), R-8, yy, {align:'right'}); yy+=17;
+  doc.setFont(undefined,'bold'); doc.setFontSize(12);
+  doc.text(saldo>0?'Ihre Nachzahlung':'Ihr Guthaben', L+8, yy); doc.text(eur(Math.abs(saldo)), R-8, yy, {align:'right'});
+  doc.setTextColor(0); doc.setFont(undefined,'normal'); doc.setFontSize(10); y+=54+12;
   // Tabellenkopf
   // US-59: Spaltenformat (Gesamt · Einheiten · Preis/Einh. · Ihre Einheiten · Anteil), je Rubrik gruppiert.
   const cG=250, cB=330, cP=400, cI=470; // rechte Kanten der Zahlenspalten
@@ -81,18 +90,27 @@ function buildTenantPdf(sel){
     doc.splitTextToSize('CO2-Kosten gesamt (Gebäude) '+eur(co2KostenGesamt())+', Ihr Anteil '+eur(ab.co2.kostenMieter)+'. '+nkCo2Erklaerung(ab.co2)+' Davon trägt der Vermieter – '+eur(ab.co2.abzug)+' (in Ihrem Anteil oben bereits abgezogen).', W).forEach(l=>nl(l));
     doc.setFontSize(10); doc.setTextColor(0); y+=6;
   }
-  doc.text('abzüglich Vorauszahlungen',L,y); doc.text(eur(ab.vorauszahlung),R,y,{align:'right'}); y+=16;
-  doc.setFont(undefined,'bold');
-  doc.text(saldo>0?'Nachzahlung':'Guthaben',L,y); doc.text(eur(Math.abs(saldo)),R,y,{align:'right'});
-  doc.setFont(undefined,'normal'); y+=24;
-  // US-32: §35a-Ausweis (nur private Mietverhältnisse)
+  // Vorauszahlung/Saldo stehen bereits im Ergebnis-Block oben (US-62) – hier nicht wiederholen.
+  y+=4;
+  // US-62: §35a als zwei Volltabellen (nur private Mietverhältnisse)
+  function p35aTab(kat, titel, elster){
+    const rows=(ab.p35a.posten||[]).filter(x=>x.kategorie===kat);
+    if(!rows.length) return;
+    if(y>735){ doc.addPage(); y=64; }
+    doc.setFont(undefined,'bold'); doc.setFontSize(9); doc.text(titel,L,y); doc.setFont(undefined,'normal'); doc.setFontSize(8);
+    doc.text('Gesamtkosten',360,y,{align:'right'}); doc.text('dav. Arbeitsk.',450,y,{align:'right'}); doc.text('Ihr Anteil',R,y,{align:'right'}); y+=4; doc.line(L,y,R,y); y+=12;
+    let sg=0,sa=0,sw=0;
+    rows.forEach(x=>{ if(y>775){doc.addPage();y=64;} sg+=x.gesamt;sa+=x.arbeitskosten;sw+=x.anteil;
+      doc.text(String(x.bez).substring(0,34),L,y); doc.text(eur(x.gesamt),360,y,{align:'right'}); doc.text(eur(x.arbeitskosten),450,y,{align:'right'}); doc.text(eur(x.anteil),R,y,{align:'right'}); y+=12; });
+    doc.setFont(undefined,'bold'); doc.text('Gesamtsumme',L,y); doc.text(eur(sg),360,y,{align:'right'}); doc.text(eur(sa),450,y,{align:'right'}); doc.text(eur(sw),R,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=12;
+    doc.setFontSize(8); doc.setTextColor(110); doc.splitTextToSize('Eintrag in Elster: '+elster+'.', W).forEach(l=>nl(l)); doc.setTextColor(0); doc.setFontSize(10); y+=4;
+  }
   if(ab.p35a && ab.p35a.aktiv){
-    doc.setFont(undefined,'bold'); nl('Steuerlich absetzbar (§35a EStG):'); doc.setFont(undefined,'normal');
-    doc.setFontSize(9); doc.setTextColor(90);
-    if(ab.p35a.dienstleistung>0) doc.splitTextToSize(NK_P35A.dienstleistung.label+': '+eur(ab.p35a.dienstleistung)+' → '+NK_P35A.dienstleistung.elster, W).forEach(l=>nl(l));
-    if(ab.p35a.handwerker>0) doc.splitTextToSize(NK_P35A.handwerker.label+': '+eur(ab.p35a.handwerker)+' → '+NK_P35A.handwerker.elster, W).forEach(l=>nl(l));
-    doc.splitTextToSize('Diesen Betrag können Sie in Ihrer Einkommensteuererklärung geltend machen (20 % der Arbeitskosten, Höchstbeträge beachten). Steuerjahr '+NK_P35A_STEUERJAHR+', keine Steuerberatung.', W).forEach(l=>nl(l));
-    doc.setFontSize(10); doc.setTextColor(0); y+=6;
+    if(y>700){ doc.addPage(); y=64; }
+    doc.setFont(undefined,'bold'); doc.setFontSize(10); nl('Steuerlich absetzbar (§35a EStG)'); doc.setFont(undefined,'normal');
+    doc.setFontSize(8); doc.setTextColor(110); doc.splitTextToSize('Nach bestem Wissen ermittelt – keine Steuerberatung. Einzelbeträge ggf. der beigefügten Rechnung entnehmen. Steuerjahr '+NK_P35A_STEUERJAHR+'.', W).forEach(l=>nl(l)); doc.setTextColor(0); doc.setFontSize(10); y+=4;
+    p35aTab('dienstleistung','§35a Abs. 2 · Haushaltsnahe Dienstleistungen', NK_P35A.dienstleistung.elster);
+    p35aTab('handwerker','§35a Abs. 3 · Handwerkerleistungen', NK_P35A.handwerker.elster);
   }
   // Zahlungsmodalitäten
   (saldo>0
