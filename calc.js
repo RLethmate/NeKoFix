@@ -229,6 +229,21 @@ function nkVorschlagSchluessel(bez) {
   return "flaeche";
 }
 
+/* US-58: Rubriken (Kostengruppen) in fester Reihenfolge wie bei Messdienst-Abrechnungen.
+   nkRubrik liefert die explizit gesetzte Rubrik (k.rubrik) oder einen Vorschlag aus Typ,
+   Schlüssel und Bezeichnung. Reine Funktion. */
+const NK_RUBRIKEN = ["Heizkosten", "Warmwasserkosten", "Kaltwasserkosten", "Betriebskosten", "Direktkosten", "Sonstige"];
+function nkRubrik(k) {
+  if (k && k.rubrik) return k.rubrik;
+  if (k && k.typ === "heizung") return "Heizkosten";
+  if (k && k.schluessel === "direkt") return "Direktkosten";
+  const b = String((k && k.bez) || "").toLowerCase();
+  if (b.includes("heiz")) return "Heizkosten";
+  if (b.includes("warmwasser")) return "Warmwasserkosten";
+  if (b.includes("kaltwasser") || b.includes("schmutzwasser") || b.includes("abwasser") || b.includes("wasser")) return "Kaltwasserkosten";
+  return "Betriebskosten";
+}
+
 /* Notizen-System (US-19): Anzahl noch nicht geprüfter Kostenpositionen. */
 function nkUngeprueftAnzahl(kosten) {
   return (kosten || []).filter(k => (k.status || "vorlaeufig") !== "geprueft").length;
@@ -516,6 +531,8 @@ if (typeof module !== "undefined" && module.exports) {
     nkLineItemsFor,
     nkOwnerOverview,
     nkVorschlagSchluessel,
+    NK_RUBRIKEN,
+    nkRubrik,
     nkUmlageInfo,
     nkVorauszahlungGesamt,
     nkVorschlagVorauszahlung,
