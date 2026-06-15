@@ -208,6 +208,20 @@
   .warn{color:var(--nachzahlung);cursor:help;display:inline-flex;align-items:center;}
   .row-del{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:14px;line-height:1;}
   .row-del:hover{border-color:var(--nachzahlung);color:var(--nachzahlung);}
+  /* US-58: Einheiten im Reiter Objekt optisch trennen (blass + Akzentkante) */
+  .einheit-card{background:var(--soft);border-left:4px solid var(--primary);}
+  #einheiten_box .einheit-card:nth-child(even){background:#eef3f8;}
+  /* US-58: Kostenart-Spalte maximieren, übrige Spalten schmal halten */
+  #tbl_kosten td.bez-col input{width:100%;}
+  #tbl_kosten td:nth-child(2),#tbl_kosten th:nth-child(2){width:120px;}
+  #tbl_kosten td:nth-child(3),#tbl_kosten th:nth-child(3){width:270px;}
+  #tbl_kosten td:nth-child(4),#tbl_kosten th:nth-child(4){width:64px;}
+  #tbl_kosten td:nth-child(5),#tbl_kosten th:nth-child(5){width:42px;}
+  /* US-58: Rubriken-Gruppen + Zwischensummen */
+  .rubrik-head td{background:var(--primary);color:#fff;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.4px;padding:6px 10px;}
+  .rubrik-sum td{font-weight:700;background:var(--soft);border-top:1px solid var(--ink);}
+  .doc .rubrik-row td{background:var(--soft);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.3px;color:var(--primary-dark);}
+  .doc .rubrik-subtotal td{font-weight:700;border-top:1px solid var(--line);}
   @media(max-width:620px){.grid2,.summary-cards{grid-template-columns:1fr;} .tag{display:none}}
   @media print{header.app,.sidenav,.stepper,.nav,.mieter-tabs,.legal{display:none!important;} .wrap{display:block;} .panel{display:block!important;border:none;padding:0;} body{background:#fff;}}
 </style>

@@ -162,8 +162,8 @@ function renderEinheiten(){
         '<td><span class="bez-cell"><input value="'+esc(m.mieter)+'" oninput="updMV('+ei+','+mi+',\'mieter\',this.value)">'+badge+'</span></td>'+
         '<td><input type="date" value="'+m.von+'" onchange="updMV('+ei+','+mi+',\'von\',this.value)" onblur="renderEinheiten()"></td>'+
         '<td><input type="date" value="'+m.bis+'" onchange="updMV('+ei+','+mi+',\'bis\',this.value)" onblur="renderEinheiten()"></td>'+
-        '<td title="gewerblich / umsatzsteuerpflichtig"><label class="gewerbl"><input type="checkbox" '+(m.gewerblich?'checked':'')+' onchange="updMV('+ei+','+mi+',\'gewerblich\',this.checked)"> gewerbl.</label></td>'+
-        '<td><button class="status-toggle" onclick="toggleVertrag('+m.id+')">Vertrag '+(open?'▴':'▾')+'</button></td>'+
+        '<td title="gewerblich / umsatzsteuerpflichtig"><label class="gewerbl"><input type="checkbox" '+(m.gewerblich?'checked':'')+' onchange="updMV('+ei+','+mi+',\'gewerblich\',this.checked)"> ja</label></td>'+
+        '<td><button class="status-toggle" onclick="toggleVertrag('+m.id+')">'+(open?'weniger ▴':'mehr ▾')+'</button></td>'+
         '<td><button class="row-del" title="Mietverhältnis entfernen" onclick="delMV('+ei+','+mi+')">×</button></td>'+
         '</tr>';
       if(open){
@@ -190,7 +190,7 @@ function renderEinheiten(){
     }).join('');
     const leerHint = lz>NK_LEERSTAND_EPS ? '<div class="leer-hint">'+WARN_ICON+' Leerstand: '+Math.round(lz*100)+' % des Zeitraums (trägt der Vermieter).</div>' : '';
     box.insertAdjacentHTML('beforeend',
-      '<div class="unit-card">'+
+      '<div class="unit-card einheit-card">'+
         '<div class="unit-head">'+
           '<input class="unit-name" value="'+esc(e.name)+'" oninput="updEinheit('+ei+',\'name\',this.value)">'+
           '<label class="unit-f">Fläche m² <input class="short" type="number" value="'+e.flaeche+'" oninput="updEinheit('+ei+',\'flaeche\',this.value)"></label>'+
@@ -282,11 +282,10 @@ function renderVoraus(){
 function renderKosten(){
   ensureIds();
   const tb=document.querySelector('#tbl_kosten tbody'); tb.innerHTML='';
-  state.kosten.forEach((k,idx)=>{
-    if(k.typ==='heizung') return; /* US-05: Heizpositionen werden im Reiter „Heizung" gepflegt */
+  /* US-58: eine Kostenzeile (+ Detail) anhängen. */
+  function appendKostenRow(k, idx){
     const st=k.status||'vorlaeufig', vf=k.verfuegbar||'vorhanden';
     if(k.vorsteuer===undefined) k.vorsteuer=nkVorschlagVorsteuer(k.bez);
-    if(nurUngeprueft && st==='geprueft') return;
     let opts='';
     for(const key in SCHLUESSEL){ opts+='<option value="'+key+'"'+(k.schluessel===key?' selected':'')+'>'+SCHLUESSEL[key]+'</option>'; }
     const info = nkUmlageInfo(k.bez);
@@ -297,12 +296,12 @@ function renderKosten(){
     const ausNamen=nkAusschlussNamen(k, state.einheiten);
     const tr=document.createElement('tr'); tr.id='krow-'+idx; if(k.vorjahr) tr.className='vorjahr';
     tr.innerHTML=
-      '<td><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+'</span></td>'+
+      '<td class="bez-col"><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+'</span></td>'+
       '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+'" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+
       '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug). „Direkt" ordnet die Position einer einzelnen Einheit zu 100 % zu." onchange="setSchluessel('+idx+',this.value)">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button>'+
         (k.schluessel==='direkt'
           ? '<select class="direkt-select" title="Diese Kosten trägt eine Einheit zu 100 %" onchange="store.setKostenFeld('+idx+',\'direktEinheit\',+this.value)">'+state.einheiten.map(x=>'<option value="'+x.id+'"'+(k.direktEinheit===x.id?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>'
-          : '<button class="teilnahme-chip'+(ausNamen.length?' aktiv':'')+'" title="Teilnehmende Einheiten festlegen" onclick="toggleKostenDetail('+k.id+')">'+(ausNamen.length?'ohne '+ausNamen.map(esc).join(', '):'alle Einheiten')+'</button>')+
+          : '<button class="teilnahme-chip'+(ausNamen.length?' aktiv':'')+'" title="Teilnehmende Einheiten festlegen" onclick="toggleKostenDetail('+k.id+')">'+(ausNamen.length?'ohne '+ausNamen.map(esc).join(', '):'alle')+'</button>')+
         '</span></td>'+
       '<td><button class="status-toggle" onclick="toggleKostenDetail('+k.id+')" title="Status & Notiz">'+dots+'<span class="chev">'+(open?'▴':'▾')+'</span></button></td>'+
       '<td><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button></td>';
@@ -311,8 +310,10 @@ function renderKosten(){
       let so=''; for(const key in STATUS_BELEG){ so+='<option value="'+key+'"'+(st===key?' selected':'')+'>'+STATUS_BELEG[key]+'</option>'; }
       let vo=''; for(const key in VERFUEGBAR){ vo+='<option value="'+key+'"'+(vf===key?' selected':'')+'>'+VERFUEGBAR[key]+'</option>'; }
       let vsOpts=''; [0,7,19].forEach(s=>{ vsOpts+='<option value="'+s+'"'+((+k.vorsteuer||0)===s?' selected':'')+'>'+s+' %</option>'; });
+      const ro=NK_RUBRIKEN.map(r=>'<option value="'+r+'"'+(nkRubrik(k)===r?' selected':'')+'>'+r+'</option>').join('');
       const d=document.createElement('tr'); d.className='detail-row';
       d.innerHTML='<td colspan="5"><div class="detail-grid">'+
+        '<label>Rubrik <select onchange="updKosten('+idx+',\'rubrik\',this.value)">'+ro+'</select></label>'+
         '<label>Status <select onchange="updKosten('+idx+',\'status\',this.value)">'+so+'</select></label>'+
         '<label>Verfügbarkeit <select onchange="updKosten('+idx+',\'verfuegbar\',this.value)">'+vo+'</select></label>'+
         '<label title="Im Beleg enthaltene Vorsteuer">Vorsteuer <select onchange="updKosten('+idx+',\'vorsteuer\',+this.value)">'+vsOpts+'</select></label>'+
@@ -330,6 +331,16 @@ function renderKosten(){
       '</td>';
       tb.appendChild(d);
     }
+  }
+  /* US-58: Positionen nach Rubrik (feste Reihenfolge) gruppieren, je Gruppe Zwischensumme. */
+  const items=state.kosten.map((k,idx)=>({k,idx})).filter(o=>o.k.typ!=='heizung' && !(nurUngeprueft && (o.k.status||'vorlaeufig')==='geprueft'));
+  NK_RUBRIKEN.forEach(rub=>{
+    const grp=items.filter(o=>nkRubrik(o.k)===rub);
+    if(!grp.length) return;
+    const hr=document.createElement('tr'); hr.className='rubrik-head'; hr.innerHTML='<td colspan="5">'+esc(rub)+'</td>'; tb.appendChild(hr);
+    grp.forEach(o=>appendKostenRow(o.k,o.idx));
+    const sum=grp.reduce((s,o)=>s+(+o.k.betrag||0),0);
+    const sr=document.createElement('tr'); sr.className='rubrik-sum'; sr.innerHTML='<td>Zwischensumme '+esc(rub)+'</td><td class="num">'+eur(sum)+'</td><td colspan="3"></td>'; tb.appendChild(sr);
   });
   const uc=document.getElementById('ungeprueft_count'); if(uc){ const n=nkUngeprueftAnzahl(state.kosten); uc.textContent = n? ' — '+n+' offen' : ' — alle geprüft'; }
   renderPicker();
@@ -606,11 +617,17 @@ function renderDoc(){
   const e=sel.e, m=sel.m;
   const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, state.einheiten);
   const gew=ab.gewerblich, za=ab.zeitanteil, anteil=ab.brutto, saldo=ab.saldo;
-  let rows=ab.zeilen.map((i,ix)=>({i,ix}))
-    .filter(o=>Math.round(o.i.anteil*100)!==0)   /* US-22/US-50: nur Positionen, die diesen Mieter betreffen */
-    .map(({i,ix})=>
-      '<tr><td>'+i.bez+'</td><td class="num">'+eur(i.gesamt)+'</td><td>'+schluesselAnzeige(state.kosten[ix])+'</td><td class="num">'+eur(i.wert)+'</td></tr>'
-    ).join('');
+  /* US-58: nach Rubriken gruppieren, je Rubrik eine Zwischensumme (Ihr Anteil). */
+  let rows='';
+  NK_RUBRIKEN.forEach(rub=>{
+    const grp=ab.zeilen.map((i,ix)=>({i,ix}))
+      .filter(o=>Math.round(o.i.anteil*100)!==0 && nkRubrik(state.kosten[o.ix])===rub); /* US-22/US-50 */
+    if(!grp.length) return;
+    rows+='<tr class="rubrik-row"><td colspan="4">'+esc(rub)+'</td></tr>';
+    grp.forEach(({i,ix})=>{ rows+='<tr><td>'+esc(i.bez)+'</td><td class="num">'+eur(i.gesamt)+'</td><td>'+schluesselAnzeige(state.kosten[ix])+'</td><td class="num">'+eur(i.wert)+'</td></tr>'; });
+    const sub=grp.reduce((s,o)=>s+o.i.wert,0);
+    rows+='<tr class="rubrik-subtotal"><td>Zwischensumme '+esc(rub)+'</td><td></td><td></td><td class="num">'+eur(sub)+'</td></tr>';
+  });
   const summen = gew
     ? '<tr class="total-row"><td>Zwischensumme netto</td><td></td><td></td><td class="num">'+eur(ab.netto)+'</td></tr>'+
       '<tr><td>zzgl. '+NK_UST_SATZ+' % Umsatzsteuer</td><td></td><td></td><td class="num">'+eur(ab.ust)+'</td></tr>'+

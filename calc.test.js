@@ -513,6 +513,17 @@ test("CO2: Erläuterungstext nennt den greifenden Fall", () => {
   assert.ok(/Keine/.test(calc.nkCo2Erklaerung({ aktiv: false })));
 });
 
+/* US-58: Rubriken (Kostengruppen). */
+test("Rubrik: Vorschlag aus Typ/Schlüssel/Bezeichnung, Override sticht", () => {
+  assert.equal(calc.nkRubrik({ bez: "Grundsteuer" }), "Betriebskosten");
+  assert.equal(calc.nkRubrik({ bez: "Heizung Verbrauch", typ: "heizung" }), "Heizkosten");
+  assert.equal(calc.nkRubrik({ bez: "Warmwasser Grundkosten" }), "Warmwasserkosten");
+  assert.equal(calc.nkRubrik({ bez: "Schmutzwasser / Abwasser" }), "Kaltwasserkosten");
+  assert.equal(calc.nkRubrik({ bez: "Aufzug", schluessel: "direkt" }), "Direktkosten");
+  assert.equal(calc.nkRubrik({ bez: "Grundsteuer", rubrik: "Sonstige" }), "Sonstige"); // Override
+  assert.ok(calc.NK_RUBRIKEN.indexOf("Heizkosten") < calc.NK_RUBRIKEN.indexOf("Betriebskosten"));
+});
+
 /* US-57: verbrauchsabhängige Verteilung über erfasste Zählerstände. */
 test("Verbrauch: Faktor = Einheit-Verbrauch ÷ Gesamtverbrauch", () => {
   const E = [{ id: 1, flaeche: 50 }, { id: 2, flaeche: 50 }];

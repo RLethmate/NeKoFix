@@ -44,17 +44,25 @@ function buildTenantPdf(sel){
   doc.setFont(undefined,'bold');
   doc.text('Kostenart',L,y); doc.text('Gesamtkosten',330,y,{align:'right'}); doc.text('Schlüssel',345,y); doc.text(gew?'Anteil netto':'Ihr Anteil',R,y,{align:'right'});
   doc.setFont(undefined,'normal'); y+=4; doc.line(L,y,R,y); y+=14;
-  ab.zeilen.forEach((i,ix)=>{
-    if(Math.round(i.anteil*100)===0) return; /* US-22/US-50: 0-€-Zeilen weglassen */
-    if(y>770){ doc.addPage(); y=64; }
-    doc.text(String(i.bez).substring(0,30),L,y);
-    doc.text(eur(i.gesamt),330,y,{align:'right'});
-    doc.setFontSize(8); doc.setTextColor(110);
-    doc.text(String(schluesselAnzeige(state.kosten[ix])).substring(0,28),345,y);
-    doc.setFontSize(10); doc.setTextColor(0);
-    doc.text(eur(i.wert),R,y,{align:'right'}); y+=14;
+  // US-58: Positionen nach Rubrik gruppieren, je Rubrik eine Zwischensumme.
+  NK_RUBRIKEN.forEach(rub=>{
+    const grp=ab.zeilen.map((i,ix)=>({i,ix})).filter(o=>Math.round(o.i.anteil*100)!==0 && nkRubrik(state.kosten[o.ix])===rub);
+    if(!grp.length) return;
+    if(y>755){ doc.addPage(); y=64; }
+    doc.setFont(undefined,'bold'); doc.text(rub,L,y); doc.setFont(undefined,'normal'); y+=14;
+    let sub=0;
+    grp.forEach(({i,ix})=>{
+      if(y>770){ doc.addPage(); y=64; }
+      doc.text(String(i.bez).substring(0,28),L+12,y);
+      doc.text(eur(i.gesamt),330,y,{align:'right'});
+      doc.setFontSize(8); doc.setTextColor(110);
+      doc.text(String(schluesselAnzeige(state.kosten[ix])).substring(0,26),345,y);
+      doc.setFontSize(10); doc.setTextColor(0);
+      doc.text(eur(i.wert),R,y,{align:'right'}); y+=13; sub+=i.wert;
+    });
+    doc.setFont(undefined,'bold'); doc.text('Zwischensumme '+rub,L+12,y); doc.text(eur(sub),R,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=16;
   });
-  y+=4; doc.line(L,y,R,y); y+=16;
+  y+=2; doc.line(L,y,R,y); y+=16;
   if(gew){
     doc.text('Zwischensumme netto',L,y); doc.text(eur(ab.netto),R,y,{align:'right'}); y+=14;
     doc.text('zzgl. '+NK_UST_SATZ+' % Umsatzsteuer',L,y); doc.text(eur(ab.ust),R,y,{align:'right'}); y+=16;
