@@ -170,7 +170,7 @@ function renderEinheiten(){
         const vg=(m.vertragGrundmiete!==undefined?m.vertragGrundmiete:(m.grundmiete||0));
         const vnk=(m.vertragNK!==undefined?m.vertragNK:(m.vmonat||0));
         const chronik=m.chronik||[];
-        const chronikRows=chronik.map((c,ci)=>'<div class="chronik-row"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"><input value="'+esc(c.text)+'" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value)" placeholder="Was wurde angepasst?"><button class="row-del" onclick="delChronik('+ei+','+mi+','+ci+')">×</button></div>').join('');
+        const chronikRows=chronik.map((c,ci)=>'<div class="chronik-row"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea><button class="row-del" onclick="delChronik('+ei+','+mi+','+ci+')">×</button></div>').join('');
         const bald=nkBaldFaellig(na, heute(), 3);
         row+='<tr class="detail-row"><td colspan="6">'+
           '<div class="detail-grid">'+
@@ -203,7 +203,11 @@ function renderEinheiten(){
         (nkUeberlappungTageEinheit(e)>0 ? '<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Überschneidende Mietzeiträume: '+nkUeberlappungTageEinheit(e)+' Tag(e) doppelt belegt – bitte Zeiträume prüfen.</div>' : '')+
       '</div>');
   });
+  /* US-66: Chronik-Textfelder initial an ihren Inhalt anpassen. */
+  document.querySelectorAll('#einheiten_box .chronik-notiz').forEach(autoGrow);
 }
+/* US-66: Textarea-Höhe an den Inhalt anpassen (auto-grow). */
+function autoGrow(el){ if(!el) return; el.style.height='auto'; el.style.height=(el.scrollHeight)+'px'; }
 document.getElementById('obj_addr').addEventListener('input',e=>{store.setObjektFeld('addr',e.target.value); renderObjektSelect();});
 /* Datum nur in den Zustand schreiben; Neu-Zeichnen erst beim Verlassen (sonst wirft type=date beim Tippen der Jahreszahl raus). */
 document.getElementById('obj_von').addEventListener('change',e=>{store.setObjektFeld('von',e.target.value); renderObjektSelect();});
