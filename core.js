@@ -82,16 +82,17 @@ function ensureIds(){
 }
 /* aktives Objekt als reine Daten herausziehen / in `state` laden */
 function snapshot(){ return { objekt:state.objekt, einheiten:state.einheiten, kosten:state.kosten, zahlung:state.zahlung, abrechnungStatus:state.abrechnungStatus, vorjahr:!!state.vorjahr }; }
-function ladeDaten(d){ state.objekt=d.objekt; state.einheiten=d.einheiten||[]; state.kosten=d.kosten||[]; state.zahlung=d.zahlung||{}; state.abrechnungStatus=d.abrechnungStatus||"inArbeit"; state.vorjahr=!!d.vorjahr; }
+function ladeDaten(d){ state.objekt=d.objekt; state.einheiten=d.einheiten||[]; state.kosten=d.kosten||[]; state.zahlung=d.zahlung||{}; state.abrechnungStatus=d.abrechnungStatus||"inArbeit"; state.vorjahr=!!d.vorjahr; if(state.objekt && !state.objekt.name) state.objekt.name=state.objekt.addr||""; /* US-65: Objektname aus Adresse vorbelegen, danach stabil */ }
 function makeFreshDaten(){ const von="2025-01-01", bis="2025-12-31"; return {
-  objekt:{ addr:"Neues Objekt", von, bis },
+  objekt:{ addr:"Neues Objekt", name:"Neues Objekt", von, bis },
   einheiten:[{ id:1, name:"EG", flaeche:0, personen:1, mv:[{ mieter:"Mieter 1", von, bis, vmonat:0, vmonate:12, vjahr:0, einmal:0, voraus:0, grundmiete:0, stellAnzahl:0, stellPreis:0, bezahlt:{} }] }],
   kosten:[],
   zahlung:{ frist:"14 Tage nach Zugang", iban:"", bic:"", empfaenger:"", anschrift:"" },
   abrechnungStatus:"inArbeit"
 }; }
 function objektJahr(d){ const v=d&&d.objekt&&(d.objekt.von||d.objekt.bis); const m=String(v||'').match(/^(\d{4})/); return m?m[1]:''; }
-function objektLabel(d,i){ const addr=(d&&d.objekt&&String(d.objekt.addr||"").trim())||("Objekt "+(i+1)); const j=objektJahr(d); return j?(addr+" · "+j):addr; }
+/* US-65: Combobox zeigt den Objekt-/Dateinamen (name), nicht das Live-Adressfeld. Fallback: Adresse. */
+function objektLabel(d,i){ const nm=(d&&d.objekt&&String((d.objekt.name||d.objekt.addr)||"").trim())||("Objekt "+(i+1)); const j=objektJahr(d); return j?(nm+" · "+j):nm; }
 function objSignatur(d){ const o=(d&&d.objekt)||{}; return [String(o.addr||"").trim(), o.von||"", o.bis||""].join("|"); }
 /* US-38: Persistenz meldet Erfolg/Fehler über einen Listener; die DOM-Anzeige liegt im View. */
 let _persistListener = null;

@@ -208,7 +208,7 @@ function renderEinheiten(){
 }
 /* US-66: Textarea-Höhe an den Inhalt anpassen (auto-grow). */
 function autoGrow(el){ if(!el) return; el.style.height='auto'; el.style.height=(el.scrollHeight)+'px'; }
-document.getElementById('obj_addr').addEventListener('input',e=>{store.setObjektFeld('addr',e.target.value); renderObjektSelect();});
+document.getElementById('obj_addr').addEventListener('input',e=>{store.setObjektFeld('addr',e.target.value);}); /* US-65: Adresse ändert NICHT den Objektnamen im Header (ComboBox) – nur "Speichern unter" benennt um */
 /* Datum nur in den Zustand schreiben; Neu-Zeichnen erst beim Verlassen (sonst wirft type=date beim Tippen der Jahreszahl raus). */
 document.getElementById('obj_von').addEventListener('change',e=>{store.setObjektFeld('von',e.target.value); renderObjektSelect();});
 document.getElementById('obj_bis').addEventListener('change',e=>{store.setObjektFeld('bis',e.target.value); renderObjektSelect();});
@@ -817,7 +817,7 @@ async function exportObjekt(){
       /* US-65: „Speichern unter" benennt das Objekt nach dem gewählten Dateinamen um
          (NeKoFix-Präfix und angehängtes Jahr werden ignoriert). */
       const neuerName=String(handle.name||'').replace(/\.json$/i,'').replace(/^NeKoFix-/i,'').replace(/-\d{4}$/,'').trim();
-      if(neuerName && neuerName!==state.objekt.addr){ store.setObjektFeld('addr', neuerName); renderObjektSelect(); fillObjektKopf(); }
+      if(neuerName && neuerName!==state.objekt.name){ store.setObjektFeld('name', neuerName); renderObjektSelect(); } /* US-65: Objektname (Header) folgt dem Dateinamen, Adressfeld bleibt unberührt */
       setSaveStatus('✓ Datei gespeichert: '+handle.name);
       return;
     }catch(e){ if(e && e.name==='AbortError') return; /* vom Nutzer abgebrochen */ }
@@ -865,6 +865,7 @@ window.addEventListener('beforeunload', saveState);
 /* ---------- Init ---------- */
 loadState();
 if(!objekte.length){ objekte=[snapshot()]; aktivIdx=0; } /* Erststart: Demodaten als erstes Objekt */
+if(state.objekt && !state.objekt.name) state.objekt.name=state.objekt.addr||""; /* US-65: Objektname (Header) aus Adresse vorbelegen, danach stabil */
 ensureIds();
 renderObjektSelect();
 (function(){ const v=document.getElementById('app_version'); if(v) v.textContent=APP_VERSION+' · '+BUILD_DATE; })();
