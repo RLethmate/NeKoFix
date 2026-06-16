@@ -792,9 +792,9 @@ document.addEventListener('click', e=>{ const m=document.getElementById('datei_m
 /* ---------- View: Objektwahl, Render-Orchestrierung, Header ---------- */
 /* STORAGE_KEY, ensureIds, snapshot, ladeDaten, makeFreshDaten, objektLabel, objSignatur,
    objektJahr, saveState, loadState, resetState, commit: in core.js (US-33b). */
-function setSaveStatus(t){ const el=document.getElementById('save_status'); if(el) el.textContent=t; }
+function setSaveStatus(t){ const el=document.getElementById('save_status'); if(el){ el.textContent=t; el.title='Automatische Speicherung im Browser (localStorage). „Aktuelles Objekt sichern …" speichert zusätzlich als Datei.'; } }
 /* US-38: Persistenz-Rückmeldung aus core.js in die Statusanzeige übersetzen. */
-onPersist(function(ok){ setSaveStatus(ok ? '✓ gespeichert' : '⚠ nicht gespeichert'); });
+onPersist(function(ok){ setSaveStatus(ok ? '✓ automatisch gespeichert' : '⚠ nicht gespeichert'); });
 function renderObjektSelect(){ const sel=document.getElementById('obj_select'); if(!sel) return;
   sel.innerHTML=objekte.map((d,i)=>'<option value="'+i+'"'+(i===aktivIdx?' selected':'')+'>'+esc(objektLabel(d,i))+'</option>').join(''); }
 function renderAll(){ renderObjektSelect(); renderVorjahrBanner(); fillObjektKopf();
@@ -804,10 +804,25 @@ function renderAll(){ renderObjektSelect(); renderVorjahrBanner(); fillObjektKop
   renderStepper(); }
 function switchObjekt(idx){ saveState(); aktivIdx=Math.max(0,Math.min(+idx,objekte.length-1)); ladeDaten(objekte[aktivIdx]); ensureIds(); renderAll(); saveState(); }
 function neuesObjekt(){ saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); saveState(); }
-function exportObjekt(){ const d=snapshot(); const name=objektLabel(d,aktivIdx).replace(/[^\wäöüÄÖÜß.\- ]/g,'_').trim()||'Objekt'; const jahr=objektJahr(d);
-  const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json;charset=utf-8'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='NeKoFix-'+name+(jahr?'-'+jahr:'')+'.json'; /* AC4: Jahr im Dateinamen */
-  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href); }
+/* US-65: Objekt als Datei sichern – echter Speicherdialog (File System Access API), wo
+   unterstützt; sonst Download-Fallback. Dateiname wird aus „Objekt/Adresse" vorgeschlagen. */
+async function exportObjekt(){
+  const d=snapshot(); const name=objektLabel(d,aktivIdx).replace(/[^\wäöüÄÖÜß.\- ]/g,'_').trim()||'Objekt'; const jahr=objektJahr(d);
+  const dateiname='NeKoFix-'+name+(jahr?'-'+jahr:'')+'.json';
+  const json=JSON.stringify(d,null,2);
+  if(window.showSaveFilePicker){
+    try{
+      const handle=await window.showSaveFilePicker({ suggestedName:dateiname, types:[{description:'NeKoFix-Objekt (JSON)', accept:{'application/json':['.json']}}] });
+      const w=await handle.createWritable(); await w.write(json); await w.close();
+      setSaveStatus('✓ Datei gespeichert');
+      return;
+    }catch(e){ if(e && e.name==='AbortError') return; /* vom Nutzer abgebrochen */ }
+  }
+  /* Fallback (Firefox/Safari): Download in den Browser-Download-Ordner. */
+  const blob=new Blob([json],{type:'application/json;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=dateiname;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+}
 /* US-11: Folgejahr aus dem aktiven Objekt anlegen */
 function neuesJahrAusVorjahr(){
   const jahrAlt=objektJahr(snapshot()); const jahrNeu=jahrAlt?(+jahrAlt+1):'';
