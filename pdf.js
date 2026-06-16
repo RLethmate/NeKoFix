@@ -113,15 +113,16 @@ function buildTenantPdf(sel){
     p35aTab('handwerker','§35a Abs. 3 · Handwerkerleistungen', NK_P35A.handwerker.elster);
   }
   // Zahlungsmodalitäten
+  const vzweck='NK-Abr. '+(state.objekt.addr||'')+'-'+e.name+'-'+m.mieter+'-'+zeitraumText(); // US-55: Verwendungszweck
   (saldo>0
     ? ['Bitte überweisen Sie den Betrag innerhalb von '+(z.frist||'14 Tage nach Zugang')+' auf folgendes Konto:',
        'Empfänger: '+(z.empfaenger||'')+'    IBAN: '+(z.iban||'')+'    BIC: '+(z.bic||''),
-       'Verwendungszweck: NK '+e.name+' '+zeitraumText()]
+       'Verwendungszweck: '+vzweck]
     : ['Das Guthaben wird Ihnen innerhalb von '+((z.frist||'14 Tage').replace(/\s*nach Zugang/i,'').replace(/\bTage\b/,'Tagen'))+' erstattet.']
   ).forEach(l=>nl(l));
   // US-55: GiroCode (EPC-QR) bei Nachzahlung – Überweisung per Banking-App ohne Abtippen.
   if(saldo>0 && nkIbanGueltig(z.iban)){
-    const giro=nkGiroCode({ empfaenger:z.empfaenger, iban:z.iban, bic:z.bic, betrag:saldo, zweck:'NK '+e.name+' '+zeitraumText() });
+    const giro=nkGiroCode({ empfaenger:z.empfaenger, iban:z.iban, bic:z.bic, betrag:saldo, zweck:vzweck });
     let url=null;
     if(giro && typeof qrcode!=='undefined'){
       try{ if(qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8']) qrcode.stringToBytes=qrcode.stringToBytesFuncs['UTF-8'];
