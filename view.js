@@ -814,7 +814,11 @@ async function exportObjekt(){
     try{
       const handle=await window.showSaveFilePicker({ suggestedName:dateiname, types:[{description:'NeKoFix-Objekt (JSON)', accept:{'application/json':['.json']}}] });
       const w=await handle.createWritable(); await w.write(json); await w.close();
-      setSaveStatus('✓ Datei gespeichert');
+      /* US-65: „Speichern unter" benennt das Objekt nach dem gewählten Dateinamen um
+         (NeKoFix-Präfix und angehängtes Jahr werden ignoriert). */
+      const neuerName=String(handle.name||'').replace(/\.json$/i,'').replace(/^NeKoFix-/i,'').replace(/-\d{4}$/,'').trim();
+      if(neuerName && neuerName!==state.objekt.addr){ store.setObjektFeld('addr', neuerName); renderObjektSelect(); fillObjektKopf(); }
+      setSaveStatus('✓ Datei gespeichert: '+handle.name);
       return;
     }catch(e){ if(e && e.name==='AbortError') return; /* vom Nutzer abgebrochen */ }
   }
