@@ -176,6 +176,10 @@ function renderEinheiten(){
           '<div class="detail-grid">'+
             '<label>Urspr. Grundmiete <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+'" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
             '<label>Urspr. NK/Monat <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+'" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
+            /* US-67: aktuell gültige Miete + Stellplätze (vormals im Reiter „Zahlungen") */
+            '<label>Aktuelle Grundmiete <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+'" oninput="updVertrag('+ei+','+mi+',\'grundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
+            '<label>Stellplätze (Anzahl) <input class="short" type="number" min="0" value="'+(m.stellAnzahl||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellAnzahl\',this.value,1)"></label>'+
+            '<label>Preis je Stellplatz <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stellPreis||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellPreis\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
             '<label>Letzte Anpassung <input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()"></label>'+
             '<label>Nächste Anpassung <input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)" onblur="renderEinheiten()"></label>'+
             '<label>Anrede <select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value="">neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select></label>'+
@@ -762,19 +766,20 @@ function renderZahlungen(){
       '<div class="unit-card">'+
         '<div class="unit-head"><b>'+esc(m.mieter)+'</b> <span class="pill">'+esc(e.name)+'</span></div>'+
         '<div class="zahl-soll">'+
-          '<label class="unit-f">Grundmiete <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+'" onchange="updMVNum('+ei+','+mi+',\'grundmiete\',this.value)"></label>'+
+          /* US-67: Miete/Stellplätze werden im Reiter „Objekt" → Vertrag gepflegt; hier nur Anzeige. */
+          '<span class="unit-f">Grundmiete '+eur(m.grundmiete||0)+'</span>'+
           '<span class="unit-f">+ NK-Vorauszahlung '+eur(nk)+'</span>'+
-          '<label class="unit-f">+ Stellplätze <input class="short" type="number" value="'+(m.stellAnzahl||0)+'" onchange="updMVNum('+ei+','+mi+',\'stellAnzahl\',this.value)"></label>'+
-          '<label class="unit-f">× <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stellPreis||0)+'" onchange="updMVNum('+ei+','+mi+',\'stellPreis\',this.value)"> €</label>'+
+          '<span class="unit-f">+ Stellplätze '+(m.stellAnzahl||0)+' × '+eur(m.stellPreis||0)+'</span>'+
           '<span class="zahl-summe">Soll/Monat: <b>'+eur(soll)+'</b></span>'+
         '</div>'+
+        '<div class="hint" style="margin:2px 0 6px;">Grundmiete und Stellplätze werden im Reiter „Objekt" → Vertrag („mehr…") bearbeitet.</div>'+
         '<div class="zahl-monate">'+(chips||'<span class="hint">keine aktiven Monate im Zeitraum</span>')+'</div>'+
         '<div class="leer-hint" style="margin-top:8px;">'+status+'</div>'+
       '</div>');
   });
 }
 function updZahlung(ei,mi,key,checked){ store.setBezahlt(ei,mi,key,checked); renderZahlungen(); }
-function updMVNum(ei,mi,field,val){ store.setMvNum(ei,mi,field, nkParseBetrag(val)); renderZahlungen(); }
+/* US-67: updMVNum entfernt – Miete/Stellplätze werden jetzt im Vertrag (updVertrag) gepflegt. */
 
 /* PDF-Export (US-18) ausgelagert nach pdf.js (US-33). */
 
