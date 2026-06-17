@@ -724,3 +724,28 @@ test("nkIndexFrequenzGueltig: ganze Jahre >= 1", () => {
   assert.equal(calc.nkIndexFrequenzGueltig(1.5), false);
   assert.equal(calc.nkIndexFrequenzGueltig(-1), false);
 });
+
+test("nkIndexAnpassungLoeschen: Eintrag entfernen, Original unverändert", () => {
+  const orig = [
+    { datum: "2026-05-01", prozent: 2, alteMiete: 1000, neueMiete: 1020 },
+    { datum: "2027-05-01", prozent: 2, alteMiete: 1020, neueMiete: 1040 },
+  ];
+  const ohneLetzten = calc.nkIndexAnpassungLoeschen(orig, 1);
+  assert.equal(ohneLetzten.length, 1);
+  assert.equal(orig.length, 2);                       // Original bleibt unangetastet
+  assert.equal(calc.nkIndexAktuelleMiete(1000, ohneLetzten), 1020);
+  const leer = calc.nkIndexAnpassungLoeschen(ohneLetzten, 0);
+  assert.equal(leer.length, 0);
+  assert.equal(calc.nkIndexAktuelleMiete(1000, leer), 1000); // zurück zur Ausgangsmiete
+});
+test("nkIndexAnpassungLoeschen: ungültiger Index ändert nichts", () => {
+  const arr = [{ neueMiete: 1020 }];
+  assert.equal(calc.nkIndexAnpassungLoeschen(arr, 5).length, 1);
+  assert.equal(calc.nkIndexAnpassungLoeschen(arr, -1).length, 1);
+  assert.equal(calc.nkIndexAnpassungLoeschen(null, 0).length, 0);
+});
+test("nkIndexNaechsteAnpassung: nach Löschen aller Anpassungen wieder erster Termin", () => {
+  // zwei festgesetzt -> nächster Termin einzug+3J; nach Löschen (0) wieder einzug+1J
+  assert.equal(calc.nkIndexNaechsteAnpassung("2026-06-17", 1, 2), "2029-06-17");
+  assert.equal(calc.nkIndexNaechsteAnpassung("2026-06-17", 1, 0), "2027-06-17");
+});

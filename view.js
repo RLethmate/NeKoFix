@@ -275,6 +275,15 @@ function indexFestsetzen(ei,mi){
   store.setChronikFeld(ei,mi,ci,'text','Indexmiete +'+nkFmtBetrag(proz)+' % ('+nkFmtBetrag(basis)+' € → '+neue+' €, Index '+(monat||'')+')');
   renderEinheiten();
 }
+function indexAnpassungLoeschen(ei,mi,idx){
+  if(!confirm('Diese festgesetzte Anpassung wirklich löschen?')) return;
+  const m=store.mv(ei,mi);
+  const liste=nkIndexAnpassungLoeschen(m.idxAnpassungen, idx);
+  store.setMvFeld(ei,mi,'idxAnpassungen', liste);
+  /* Grundmiete (Soll) auf die nun zuletzt gültige Miete bzw. Ausgangsmiete zurücksetzen */
+  store.setMvNum(ei,mi,'grundmiete', nkIndexAktuelleMiete(m.idxAusgangsmiete, liste));
+  renderEinheiten();
+}
 function indexBlock(m,ei,mi){
   const typ=m.mhTyp||'';
   let h='<div class="index-block">'+
@@ -293,13 +302,13 @@ function indexBlock(m,ei,mi){
     const neue=nkIndexNeueMiete(basis, proz);
     const monat=nkIndexVerwendeterMonat(naechste);
     h+='<div class="detail-grid">'+
-      '<label>Einzug / Beginn <input type="date" value="'+(m.idxEinzug||'')+'" onchange="updIdx('+ei+','+mi+',\'idxEinzug\',this.value)"></label>'+
+      '<label>Einzug / Beginn <input type="date" value="'+(m.idxEinzug||'')+'" onchange="store.setMvFeld('+ei+','+mi+',\'idxEinzug\',this.value)" onblur="renderEinheiten()"></label>'+
       '<label>Ausgangsmiete <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.idxAusgangsmiete||0)+'" onchange="updIdxNum('+ei+','+mi+',\'idxAusgangsmiete\',this.value)"></label>'+
       '<label>alle <input class="short" type="number" min="1" step="1" value="'+(m.idxFrequenz||1)+'" onchange="updIdxNum('+ei+','+mi+',\'idxFrequenz\',this.value)"> Jahre</label>'+
       '<label>Indexveränderung % <input class="short" type="text" inputmode="decimal" value="'+(proz?nkFmtBetrag(proz):'')+'" placeholder="z. B. 2,3" onchange="updIdxNum('+ei+','+mi+',\'idxProzent\',this.value)"></label>'+
     '</div>';
     if(!nkIndexFrequenzGueltig(m.idxFrequenz||1)) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Frequenz muss eine ganze Zahl ab 1 Jahr sein (§ 557b).</div>';
-    h+='<div class="leer-hint" style="margin-top:4px;">Nächste Anpassung: <b>'+fmtDatum(naechste)+'</b>'+
+    h+='<div style="font-size:12px;margin-top:4px;color:'+(faellig?'var(--nachzahlung)':'var(--muted)')+';">Nächste Anpassung: <b>'+fmtDatum(naechste)+'</b>'+
       (faellig?' <span style="color:var(--nachzahlung);">'+WARN_ICON+' fällig</span>':(bald?' <span>'+WARN_ICON+' bald fällig</span>':''))+
       ' · verwendeter Index: '+(monat||'—')+'</div>';
     h+='<div class="index-vorschau">Basismiete '+eur(basis)+' + '+nkFmtBetrag(proz)+' % ('+eur(erh)+') = <b>'+eur(neue)+'</b> <span class="hint">(abgerundet auf volle Euro)</span></div>';
@@ -307,7 +316,7 @@ function indexBlock(m,ei,mi){
     const hist=(m.idxAnpassungen||[]);
     if(hist.length){
       h+='<div class="chronik-titel">Festgesetzte Anpassungen</div>';
-      h+=hist.map(a=>'<div class="index-hist">'+fmtDatum(a.datum)+': '+eur(a.alteMiete)+' +'+nkFmtBetrag(a.prozent)+' % → <b>'+eur(a.neueMiete)+'</b>'+(a.monat?' (Index '+a.monat+')':'')+'</div>').join('');
+      h+=hist.map((a,i)=>'<div class="index-hist">'+fmtDatum(a.datum)+': '+eur(a.alteMiete)+' +'+nkFmtBetrag(a.prozent)+' % → <b>'+eur(a.neueMiete)+'</b>'+(a.monat?' (Index '+a.monat+')':'')+' <button class="row-del" title="Anpassung löschen" onclick="indexAnpassungLoeschen('+ei+','+mi+','+i+')">×</button></div>').join('');
     }
   }
   h+='</div>';
