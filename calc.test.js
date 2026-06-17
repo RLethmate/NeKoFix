@@ -756,3 +756,19 @@ test("nkIndexBasisMonat: Einzugsmonat bzw. letzter verwendeter Monat", () => {
   assert.equal(calc.nkIndexBasisMonat("2025-05-01", [{ monat: "2026-03" }, { monat: "2027-02" }]), "2027-02");
   assert.equal(calc.nkIndexBasisMonat("", []), "");
 });
+
+/* ---------- Staffelmiete (US-70, § 557a) ---------- */
+test("nkStaffelNeueMiete: feste Erhöhung um Eurobetrag (Cent-genau)", () => {
+  assert.equal(calc.nkStaffelNeueMiete(1000, 25), 1025);
+  assert.equal(calc.nkStaffelNeueMiete(1020.5, 25), 1045.5);
+  assert.equal(calc.nkStaffelNeueMiete(1000, 0), 1000);
+  assert.equal(calc.nkStaffelNeueMiete(0, 30), 30);
+});
+test("Staffelmiete: Verkettung über nkIndexAktuelleMiete + Terminierung", () => {
+  // Beginn 2025-01-01, alle 2 Jahre, +25 €
+  const s1 = calc.nkStaffelNeueMiete(1000, 25);                 // 1025
+  const anp = [{ datum: "2027-01-01", betrag: 25, alteMiete: 1000, neueMiete: s1 }];
+  assert.equal(calc.nkIndexAktuelleMiete(1000, anp), 1025);
+  assert.equal(calc.nkStaffelNeueMiete(calc.nkIndexAktuelleMiete(1000, anp), 25), 1050);
+  assert.equal(calc.nkIndexNaechsteAnpassung("2025-01-01", 2, anp.length), "2029-01-01");
+});

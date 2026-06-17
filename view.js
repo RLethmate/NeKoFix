@@ -251,6 +251,11 @@ function updMhTyp(ei,mi,val){
     if(m.idxAusgangsmiete===undefined||m.idxAusgangsmiete==='') store.setMvNum(ei,mi,'idxAusgangsmiete', +m.grundmiete||0);
     if(!m.idxFrequenz) store.setMvNum(ei,mi,'idxFrequenz',1);
   }
+  if(val==='staffel'){
+    if(!m.stafBeginn) store.setMvFeld(ei,mi,'stafBeginn', m.von||state.objekt.von||'');
+    if(m.stafAusgangsmiete===undefined||m.stafAusgangsmiete==='') store.setMvNum(ei,mi,'stafAusgangsmiete', +m.grundmiete||0);
+    if(!m.stafFrequenz) store.setMvNum(ei,mi,'stafFrequenz',1);
+  }
   renderEinheiten();
 }
 function updIdx(ei,mi,field,val){ store.setMvFeld(ei,mi,field,val); renderEinheiten(); }
@@ -286,21 +291,13 @@ function indexAnpassungLoeschen(ei,mi,idx){
   store.setMvNum(ei,mi,'grundmiete', nkIndexAktuelleMiete(m.idxAusgangsmiete, liste));
   renderEinheiten();
 }
-function indexAnpassungLoeschen(ei,mi,idx){
-  if(!confirm('Diese festgesetzte Anpassung wirklich löschen?')) return;
-  const m=store.mv(ei,mi);
-  const liste=nkIndexAnpassungLoeschen(m.idxAnpassungen, idx);
-  store.setMvFeld(ei,mi,'idxAnpassungen', liste);
-  /* Grundmiete (Soll) auf die nun zuletzt gültige Miete bzw. Ausgangsmiete zurücksetzen */
-  store.setMvNum(ei,mi,'grundmiete', nkIndexAktuelleMiete(m.idxAusgangsmiete, liste));
-  renderEinheiten();
-}
 function indexBlock(m,ei,mi){
   const typ=m.mhTyp||'';
   let h='<div class="index-block">'+
     '<label>Mieterhöhung <select onchange="updMhTyp('+ei+','+mi+',this.value)">'+
       '<option value=""'+(typ===''?' selected':'')+'>— keine —</option>'+
       '<option value="index"'+(typ==='index'?' selected':'')+'>Index (§ 557b)</option>'+
+      '<option value="staffel"'+(typ==='staffel'?' selected':'')+'>Staffel (§ 557a)</option>'+
     '</select></label>';
   if(typ==='index'){
     const anz=(m.idxAnpassungen||[]).length;
@@ -332,8 +329,59 @@ function indexBlock(m,ei,mi){
       h+=hist.map((a,i)=>'<div class="index-hist">'+fmtDatum(a.datum)+': '+eur(a.alteMiete)+' +'+nkFmtBetrag(a.prozent)+' % → <b>'+eur(a.neueMiete)+'</b>'+(a.monat?' (Index '+(a.basisMonat?a.basisMonat+'→':'')+a.monat+')':'')+' <button class="row-del" title="Anpassung löschen" onclick="indexAnpassungLoeschen('+ei+','+mi+','+i+')">×</button></div>').join('');
     }
   }
+  if(typ==='staffel'){
+    const anz=(m.stafAnpassungen||[]).length;
+    const naechste=nkIndexNaechsteAnpassung(m.stafBeginn, m.stafFrequenz, anz);
+    const faellig=nkIndexFaellig(naechste, heute());
+    const bald=nkBaldFaellig(naechste, heute(), 3);
+    const basis=nkIndexAktuelleMiete(m.stafAusgangsmiete, m.stafAnpassungen);
+    const betrag=+m.stafBetrag||0;
+    const neue=nkStaffelNeueMiete(basis, betrag);
+    h+='<div class="detail-grid">'+
+      '<label>Beginn <input type="date" value="'+(m.stafBeginn||'')+'" onchange="store.setMvFeld('+ei+','+mi+',\'stafBeginn\',this.value)" onblur="renderEinheiten()"></label>'+
+      '<label>Ausgangsmiete <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stafAusgangsmiete||0)+'" onchange="updIdxNum('+ei+','+mi+',\'stafAusgangsmiete\',this.value)"></label>'+
+      '<label>Erhöhung je Staffel € <input class="short" type="text" inputmode="decimal" value="'+(betrag?nkFmtBetrag(betrag):'')+'" placeholder="z. B. 25,00" onchange="updIdxNum('+ei+','+mi+',\'stafBetrag\',this.value)"></label>'+
+      '<label>alle <input class="short" type="number" min="1" step="1" value="'+(m.stafFrequenz||1)+'" onchange="updIdxNum('+ei+','+mi+',\'stafFrequenz\',this.value)"> Jahre</label>'+
+    '</div>';
+    if(!nkIndexFrequenzGueltig(m.stafFrequenz||1)) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Frequenz muss eine ganze Zahl ab 1 Jahr sein (§ 557a).</div>';
+    h+='<div style="font-size:12px;margin-top:4px;color:'+(faellig?'var(--nachzahlung)':'var(--muted)')+';">Nächste Staffel: <b>'+fmtDatum(naechste)+'</b>'+
+      (faellig?' <span style="color:var(--nachzahlung);">'+WARN_ICON+' fällig</span>':(bald?' <span>'+WARN_ICON+' bald fällig</span>':''))+'</div>';
+    h+='<div class="index-vorschau">Aktuelle Miete '+eur(basis)+' + '+eur(betrag)+' = <b>'+eur(neue)+'</b></div>';
+    h+='<button class="addrow" onclick="staffelFestsetzen('+ei+','+mi+')">Staffel festsetzen</button>';
+    const hist=(m.stafAnpassungen||[]);
+    if(hist.length){
+      h+='<div class="chronik-titel">Festgesetzte Staffeln</div>';
+      h+=hist.map((a,i)=>'<div class="index-hist">'+fmtDatum(a.datum)+': '+eur(a.alteMiete)+' + '+eur(a.betrag)+' → <b>'+eur(a.neueMiete)+'</b> <button class="row-del" title="Staffel löschen" onclick="staffelAnpassungLoeschen('+ei+','+mi+','+i+')">×</button></div>').join('');
+    }
+  }
   h+='</div>';
   return h;
+}
+/* US-70: Staffelmiete – Festsetzen/Einfrieren und Löschen analog zur Indexmiete. */
+function staffelFestsetzen(ei,mi){
+  const m=store.mv(ei,mi);
+  const betrag=+m.stafBetrag||0;
+  if(!betrag){ alert('Bitte zuerst den Erhöhungsbetrag in € eintragen.'); return; }
+  const anz=(m.stafAnpassungen||[]).length;
+  const datum=nkIndexNaechsteAnpassung(m.stafBeginn, m.stafFrequenz, anz);
+  const basis=nkIndexAktuelleMiete(m.stafAusgangsmiete, m.stafAnpassungen);
+  const neue=nkStaffelNeueMiete(basis, betrag);
+  const liste=(m.stafAnpassungen||[]).concat([{datum, betrag, alteMiete:basis, neueMiete:neue}]);
+  store.setMvFeld(ei,mi,'stafAnpassungen', liste);
+  store.setMvNum(ei,mi,'grundmiete', neue);   /* neue Miete wird wirksam (Soll/Monat) */
+  store.addChronik(ei,mi);
+  const ci=store.mv(ei,mi).chronik.length-1;
+  store.setChronikFeld(ei,mi,ci,'datum',datum);
+  store.setChronikFeld(ei,mi,ci,'text','Staffelmiete +'+nkFmtBetrag(betrag)+' € ('+nkFmtBetrag(basis)+' € → '+nkFmtBetrag(neue)+' €)');
+  renderEinheiten();
+}
+function staffelAnpassungLoeschen(ei,mi,idx){
+  if(!confirm('Diese festgesetzte Staffel wirklich löschen?')) return;
+  const m=store.mv(ei,mi);
+  const liste=nkIndexAnpassungLoeschen(m.stafAnpassungen, idx);
+  store.setMvFeld(ei,mi,'stafAnpassungen', liste);
+  store.setMvNum(ei,mi,'grundmiete', nkIndexAktuelleMiete(m.stafAusgangsmiete, liste));
+  renderEinheiten();
 }
 function addChronik(ei,mi){ store.addChronik(ei,mi); renderEinheiten(); }
 function delChronik(ei,mi,ci){ if(!confirm('Diesen Chronik-Eintrag wirklich löschen?')) return; store.removeChronik(ei,mi,ci); renderEinheiten(); }
