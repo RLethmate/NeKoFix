@@ -805,3 +805,25 @@ test("nkMonatDE: YYYY-MM in deutsche Reihenfolge MM-YYYY", () => {
   assert.equal(calc.nkMonatDE(""), "");
   assert.equal(calc.nkMonatDE("kaputt"), "");
 });
+
+/* ---------- Zahlungen unterjährig (US-74) ---------- */
+test("nkIndexMieteAm: gültige Miete je Datum (letzte Anpassung <= Datum)", () => {
+  const anp=[{datum:"2025-05-01",neueMiete:1020},{datum:"2026-05-01",neueMiete:1040}];
+  assert.equal(calc.nkIndexMieteAm(1000, anp, "2025-01-15"), 1000);
+  assert.equal(calc.nkIndexMieteAm(1000, anp, "2025-05-01"), 1020);
+  assert.equal(calc.nkIndexMieteAm(1000, anp, "2026-06-01"), 1040);
+});
+test("nkMieteAm: Staffel/Index/keine", () => {
+  const staf={mhTyp:"staffel",stafBeginn:"2020-01-01",stafEnde:"2026-01-01",stafFrequenz:1,stafAusgangsmiete:1000,stafBetrag:10};
+  assert.equal(calc.nkMieteAm(staf,"2019-06-01"),1000);
+  assert.equal(calc.nkMieteAm(staf,"2021-06-01"),1010);
+  const idx={mhTyp:"index",idxAusgangsmiete:1000,idxAnpassungen:[{datum:"2025-05-01",neueMiete:1020}]};
+  assert.equal(calc.nkMieteAm(idx,"2025-06-01"),1020);
+  assert.equal(calc.nkMieteAm({grundmiete:800},"2025-06-01"),800);
+});
+test("nkZahlStatus: offen/teilweise/bezahlt", () => {
+  assert.equal(calc.nkZahlStatus(0,1190),"offen");
+  assert.equal(calc.nkZahlStatus(500,1190),"teilweise");
+  assert.equal(calc.nkZahlStatus(1190,1190),"bezahlt");
+  assert.equal(calc.nkZahlStatus(1200,1190),"bezahlt");
+});
