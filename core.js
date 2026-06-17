@@ -38,7 +38,7 @@ const STORAGE_KEY="nekofix-state-v1";
 /* ---------- US-34: dünne Zustands-Schicht (Store) ----------
    Einziger Ort, der tief in `state` schreibt, und löst zentral über commit() das
    Speichern aus. Rendering bleibt in der UI-Schicht (Handler rufen renderX()). */
-function neuesMv(){ return {mieter:"Neuer Mieter",von:state.objekt.von,bis:state.objekt.bis,vmonat:0,vmonate:12,vjahr:0,einmal:0,voraus:0,grundmiete:0,stellAnzahl:0,stellPreis:0,bezahlt:{}}; }
+function neuesMv(){ return {mieter:"Neuer Mieter",von:state.objekt.von,bis:state.objekt.bis,laeuft:true,vmonat:0,vmonate:12,vjahr:0,einmal:0,voraus:0,grundmiete:0,stellAnzahl:0,stellPreis:0,bezahlt:{}}; }
 const store = {
   // Lesezugriffe
   mv(ei,mi){ return state.einheiten[ei].mv[mi]; },
