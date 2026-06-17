@@ -286,6 +286,15 @@ function indexAnpassungLoeschen(ei,mi,idx){
   store.setMvNum(ei,mi,'grundmiete', nkIndexAktuelleMiete(m.idxAusgangsmiete, liste));
   renderEinheiten();
 }
+function indexAnpassungLoeschen(ei,mi,idx){
+  if(!confirm('Diese festgesetzte Anpassung wirklich löschen?')) return;
+  const m=store.mv(ei,mi);
+  const liste=nkIndexAnpassungLoeschen(m.idxAnpassungen, idx);
+  store.setMvFeld(ei,mi,'idxAnpassungen', liste);
+  /* Grundmiete (Soll) auf die nun zuletzt gültige Miete bzw. Ausgangsmiete zurücksetzen */
+  store.setMvNum(ei,mi,'grundmiete', nkIndexAktuelleMiete(m.idxAusgangsmiete, liste));
+  renderEinheiten();
+}
 function indexBlock(m,ei,mi){
   const typ=m.mhTyp||'';
   let h='<div class="index-block">'+
