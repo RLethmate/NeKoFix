@@ -185,6 +185,7 @@ function renderEinheiten(){
             '<label>Anrede <select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value="">neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select></label>'+
             '<label class="notiz-field">E-Mail <input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de"></label>'+
           '</div>'+
+          indexBlock(m,ei,mi)+ /* US-68: Indexmiete-Bereich */
           '<div class="chronik-titel">Anpassungs-Chronik</div>'+chronikRows+
           '<button class="addrow" onclick="addChronik('+ei+','+mi+')">+ Eintrag</button>'+
           (bald?'<div class="leer-hint" style="margin-top:6px;">'+WARN_ICON+' Nächste Anpassung am '+fmtDatum(na)+' – in Kürze fällig.</div>':'')+
@@ -241,6 +242,77 @@ function delMV(ei,mi){ store.removeMv(ei,mi); renderEinheiten(); }
 /* US-21: Vertrag & Anpassungs-Chronik je Mietverhältnis */
 function toggleVertrag(id){ if(expandedMV.has(id)) expandedMV.delete(id); else expandedMV.add(id); renderEinheiten(); }
 function updVertrag(ei,mi,field,val,num){ store.setVertragFeld(ei,mi,field, num? nkParseBetrag(val): val, num); /* Datum: Neu-Zeichnen via onblur */ }
+/* US-68: Indexmiete – Mieterhöhungstyp, Eingabe und Einfrieren je Mietverhältnis. */
+function updMhTyp(ei,mi,val){
+  const m=store.mv(ei,mi);
+  store.setMvFeld(ei,mi,'mhTyp',val);
+  if(val==='index'){
+    if(!m.idxEinzug) store.setMvFeld(ei,mi,'idxEinzug', m.von||state.objekt.von||'');
+    if(m.idxAusgangsmiete===undefined||m.idxAusgangsmiete==='') store.setMvNum(ei,mi,'idxAusgangsmiete', +m.grundmiete||0);
+    if(!m.idxFrequenz) store.setMvNum(ei,mi,'idxFrequenz',1);
+  }
+  renderEinheiten();
+}
+function updIdx(ei,mi,field,val){ store.setMvFeld(ei,mi,field,val); renderEinheiten(); }
+function updIdxNum(ei,mi,field,val){ store.setMvNum(ei,mi,field, nkParseBetrag(val)); renderEinheiten(); }
+function indexFestsetzen(ei,mi){
+  const m=store.mv(ei,mi);
+  const proz=+m.idxProzent||0;
+  if(!proz){ alert('Bitte zuerst die Indexveränderung in % eintragen.'); return; }
+  const anz=(m.idxAnpassungen||[]).length;
+  const datum=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
+  const basis=nkIndexAktuelleMiete(m.idxAusgangsmiete, m.idxAnpassungen);
+  const neue=nkIndexNeueMiete(basis, proz);
+  const monat=nkIndexVerwendeterMonat(datum);
+  const liste=(m.idxAnpassungen||[]).concat([{datum, prozent:proz, alteMiete:basis, neueMiete:neue, monat}]);
+  store.setMvFeld(ei,mi,'idxAnpassungen', liste);
+  store.setMvNum(ei,mi,'grundmiete', neue);   /* neue Miete wird wirksam (Soll/Monat) */
+  store.setMvFeld(ei,mi,'idxProzent','');
+  /* Anpassungs-Chronik (US-21) mitschreiben */
+  store.addChronik(ei,mi);
+  const ci=store.mv(ei,mi).chronik.length-1;
+  store.setChronikFeld(ei,mi,ci,'datum',datum);
+  store.setChronikFeld(ei,mi,ci,'text','Indexmiete +'+nkFmtBetrag(proz)+' % ('+nkFmtBetrag(basis)+' € → '+neue+' €, Index '+(monat||'')+')');
+  renderEinheiten();
+}
+function indexBlock(m,ei,mi){
+  const typ=m.mhTyp||'';
+  let h='<div class="index-block">'+
+    '<label>Mieterhöhung <select onchange="updMhTyp('+ei+','+mi+',this.value)">'+
+      '<option value=""'+(typ===''?' selected':'')+'>— keine —</option>'+
+      '<option value="index"'+(typ==='index'?' selected':'')+'>Index (§ 557b)</option>'+
+    '</select></label>';
+  if(typ==='index'){
+    const anz=(m.idxAnpassungen||[]).length;
+    const naechste=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
+    const faellig=nkIndexFaellig(naechste, heute());
+    const bald=nkBaldFaellig(naechste, heute(), 3);
+    const basis=nkIndexAktuelleMiete(m.idxAusgangsmiete, m.idxAnpassungen);
+    const proz=+m.idxProzent||0;
+    const erh=nkIndexErhoehungsbetrag(basis, proz);
+    const neue=nkIndexNeueMiete(basis, proz);
+    const monat=nkIndexVerwendeterMonat(naechste);
+    h+='<div class="detail-grid">'+
+      '<label>Einzug / Beginn <input type="date" value="'+(m.idxEinzug||'')+'" onchange="updIdx('+ei+','+mi+',\'idxEinzug\',this.value)"></label>'+
+      '<label>Ausgangsmiete <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.idxAusgangsmiete||0)+'" onchange="updIdxNum('+ei+','+mi+',\'idxAusgangsmiete\',this.value)"></label>'+
+      '<label>alle <input class="short" type="number" min="1" step="1" value="'+(m.idxFrequenz||1)+'" onchange="updIdxNum('+ei+','+mi+',\'idxFrequenz\',this.value)"> Jahre</label>'+
+      '<label>Indexveränderung % <input class="short" type="text" inputmode="decimal" value="'+(proz?nkFmtBetrag(proz):'')+'" placeholder="z. B. 2,3" onchange="updIdxNum('+ei+','+mi+',\'idxProzent\',this.value)"></label>'+
+    '</div>';
+    if(!nkIndexFrequenzGueltig(m.idxFrequenz||1)) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Frequenz muss eine ganze Zahl ab 1 Jahr sein (§ 557b).</div>';
+    h+='<div class="leer-hint" style="margin-top:4px;">Nächste Anpassung: <b>'+fmtDatum(naechste)+'</b>'+
+      (faellig?' <span style="color:var(--nachzahlung);">'+WARN_ICON+' fällig</span>':(bald?' <span>'+WARN_ICON+' bald fällig</span>':''))+
+      ' · verwendeter Index: '+(monat||'—')+'</div>';
+    h+='<div class="index-vorschau">Basismiete '+eur(basis)+' + '+nkFmtBetrag(proz)+' % ('+eur(erh)+') = <b>'+eur(neue)+'</b> <span class="hint">(abgerundet auf volle Euro)</span></div>';
+    h+='<button class="addrow" onclick="indexFestsetzen('+ei+','+mi+')">Anpassung festsetzen</button>';
+    const hist=(m.idxAnpassungen||[]);
+    if(hist.length){
+      h+='<div class="chronik-titel">Festgesetzte Anpassungen</div>';
+      h+=hist.map(a=>'<div class="index-hist">'+fmtDatum(a.datum)+': '+eur(a.alteMiete)+' +'+nkFmtBetrag(a.prozent)+' % → <b>'+eur(a.neueMiete)+'</b>'+(a.monat?' (Index '+a.monat+')':'')+'</div>').join('');
+    }
+  }
+  h+='</div>';
+  return h;
+}
 function addChronik(ei,mi){ store.addChronik(ei,mi); renderEinheiten(); }
 function delChronik(ei,mi,ci){ store.removeChronik(ei,mi,ci); renderEinheiten(); }
 function updChronik(ei,mi,ci,field,val){ store.setChronikFeld(ei,mi,ci,field,val); /* Datum: Neu-Zeichnen via onblur */ }

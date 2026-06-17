@@ -676,3 +676,51 @@ test("Verbrauch: Techem-Abnahmebeispiel (Einheit EG) trifft centgenau", () => {
   const ab = calc.nkMieterAbrechnung(E[0], m, K, o, E);
   ab.zeilen.forEach((z, i) => assert.ok(Math.abs(z.anteil - erwartet[i]) < 0.01, z.bez + ": " + z.anteil.toFixed(2) + " ≠ " + erwartet[i]));
 });
+
+/* ---------- Indexmiete (US-68, § 557b) ---------- */
+test("nkIndexErhoehungsbetrag: roher Betrag aus Prozent", () => {
+  assert.equal(calc.nkIndexErhoehungsbetrag(800, 2.3).toFixed(2), "18.40");
+  assert.equal(calc.nkIndexErhoehungsbetrag(0, 5), 0);
+  assert.equal(calc.nkIndexErhoehungsbetrag(800, 0), 0);
+});
+test("nkIndexNeueMiete: erhöht und auf volle Euro ABGERUNDET", () => {
+  assert.equal(calc.nkIndexNeueMiete(800, 2.3), 818);   // 818,40 -> 818
+  assert.equal(calc.nkIndexNeueMiete(835, 5), 876);     // 876,75 -> 876
+  assert.equal(calc.nkIndexNeueMiete(818, 3), 842);     // 842,54 -> 842 (Verkettung)
+  assert.equal(calc.nkIndexNeueMiete(1000, 2), 1020);   // exakt 1020,00
+  assert.equal(calc.nkIndexNeueMiete(1000, 1.999), 1019); // 1019,99 -> 1019
+  assert.equal(calc.nkIndexNeueMiete(836, 0), 836);     // kein Float-Artefakt
+});
+test("nkIndexAktuelleMiete: letzte festgesetzte Miete bzw. Ausgangsmiete", () => {
+  assert.equal(calc.nkIndexAktuelleMiete(800, []), 800);
+  assert.equal(calc.nkIndexAktuelleMiete(800, [{ neueMiete: 818 }, { neueMiete: 842 }]), 842);
+  assert.equal(calc.nkIndexAktuelleMiete(800, null), 800);
+});
+test("nkPlusJahre: Jahre addieren inkl. Schaltjahr-Korrektur", () => {
+  assert.equal(calc.nkPlusJahre("2025-01-01", 2), "2027-01-01");
+  assert.equal(calc.nkPlusJahre("2024-02-29", 1), "2025-02-28");
+  assert.equal(calc.nkPlusJahre("2025-05-15", 0), "2025-05-15");
+});
+test("nkIndexNaechsteAnpassung: ab Einzug in N-Jahres-Schritten", () => {
+  assert.equal(calc.nkIndexNaechsteAnpassung("2025-01-01", 1, 0), "2026-01-01");
+  assert.equal(calc.nkIndexNaechsteAnpassung("2025-01-01", 1, 2), "2028-01-01");
+  assert.equal(calc.nkIndexNaechsteAnpassung("2025-01-01", 2, 0), "2027-01-01");
+  assert.equal(calc.nkIndexNaechsteAnpassung("2025-01-01", 2, 1), "2029-01-01");
+});
+test("nkIndexFaellig: heute >= nächster Anpassungstermin", () => {
+  assert.equal(calc.nkIndexFaellig("2026-01-01", "2026-05-01"), true);
+  assert.equal(calc.nkIndexFaellig("2026-01-01", "2026-01-01"), true);
+  assert.equal(calc.nkIndexFaellig("2026-01-01", "2025-12-31"), false);
+});
+test("nkIndexVerwendeterMonat: aktuellster verfügbarer (Fälligkeit minus 2 Monate)", () => {
+  assert.equal(calc.nkIndexVerwendeterMonat("2026-05-01"), "2026-03");
+  assert.equal(calc.nkIndexVerwendeterMonat("2026-01-15"), "2025-11");
+  assert.equal(calc.nkIndexVerwendeterMonat(""), "");
+});
+test("nkIndexFrequenzGueltig: ganze Jahre >= 1", () => {
+  assert.equal(calc.nkIndexFrequenzGueltig(1), true);
+  assert.equal(calc.nkIndexFrequenzGueltig(2), true);
+  assert.equal(calc.nkIndexFrequenzGueltig(0), false);
+  assert.equal(calc.nkIndexFrequenzGueltig(1.5), false);
+  assert.equal(calc.nkIndexFrequenzGueltig(-1), false);
+});

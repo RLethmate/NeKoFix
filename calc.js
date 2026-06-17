@@ -408,6 +408,60 @@ function nkVorschlagVorauszahlung(anteil) {
   return Math.round((+anteil || 0) / 12);
 }
 
+/* ---------- Indexmiete (US-68, § 557b BGB). Reine Funktionen. ----------
+   Die Indexveränderung wird als PROZENTSATZ angegeben (Eingabe in %): die prozentuale
+   Veränderung des Verbraucherpreisindex zwischen dem Basismonat (letzte Festsetzung bzw.
+   Einzug) und dem verwendeten Monat. Für den Regelfall jährlicher Anpassung entspricht das
+   der Veränderung zum Vorjahr; der Destatis-Wertsicherungsrechner liefert genau diesen Wert.
+   Neue Miete = Basismiete erhöht um den Prozentsatz, danach auf VOLLE EURO ABGERUNDET
+   (kein Cent-Betrag, Wunsch Vermieter). Mehrere Anpassungen verketten über die jeweils
+   zuletzt festgesetzte Miete (rechtlicher Normalfall). */
+const NK_INDEX_MIN_JAHRE = 1; /* § 557b Abs. 2: Miete muss mind. ein Jahr unverändert bleiben */
+function nkPlusJahre(d, n) {
+  const m = String(d || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return d;
+  const y = (+m[1]) + (Math.floor(+n) || 0);
+  let day = +m[3];
+  if (m[2] === "02" && day === 29) day = 28; /* Schaltjahr-Korrektur */
+  return y + "-" + m[2] + "-" + String(day).padStart(2, "0");
+}
+function nkIndexFrequenzGueltig(n) {
+  const x = +n;
+  return Number.isFinite(x) && x >= NK_INDEX_MIN_JAHRE && Math.floor(x) === x;
+}
+function nkIndexErhoehungsbetrag(basisMiete, prozent) {
+  return (+basisMiete || 0) * ((+prozent || 0) / 100);
+}
+function nkIndexNeueMiete(basisMiete, prozent) {
+  const roh = (+basisMiete || 0) + nkIndexErhoehungsbetrag(basisMiete, prozent);
+  const cent = Math.round(roh * 100) / 100; /* Float-Artefakte vor dem Abrunden glätten */
+  return Math.floor(cent);
+}
+function nkIndexAktuelleMiete(ausgangsmiete, anpassungen) {
+  const arr = Array.isArray(anpassungen) ? anpassungen : [];
+  if (arr.length) return +arr[arr.length - 1].neueMiete || 0;
+  return +ausgangsmiete || 0;
+}
+function nkIndexNaechsteAnpassung(einzug, frequenzJahre, anzahlFestgesetzt) {
+  const n = Math.max(NK_INDEX_MIN_JAHRE, Math.floor(+frequenzJahre) || NK_INDEX_MIN_JAHRE);
+  const k = Math.max(0, Math.floor(+anzahlFestgesetzt) || 0) + 1;
+  return nkPlusJahre(einzug, n * k);
+}
+function nkIndexFaellig(naechsteAnpassung, heute) {
+  const ziel = nkDatum(naechsteAnpassung), h = nkDatum(heute);
+  if (!ziel || !h) return false;
+  return h >= ziel;
+}
+/* Aktuellster verfügbarer Indexmonat zum Fälligkeitstermin: der Monatswert wird erst Mitte
+   des Folgemonats veröffentlicht, daher zwei Monate zurück (z. B. Fälligkeit Mai → März).
+   Rückgabe als "YYYY-MM". */
+function nkIndexVerwendeterMonat(faelligkeit) {
+  const d = nkDatum(faelligkeit);
+  if (!d) return "";
+  const dd = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 2, 1));
+  return dd.getUTCFullYear() + "-" + String(dd.getUTCMonth() + 1).padStart(2, "0");
+}
+
 /* Umlagefähigkeit je Kostenart (US-04). Reine Funktion; gibt Vorschlag + Begründung zurück.
    Nicht umlagefähig: Verwaltung, Instandhaltung/Reparatur, Rücklagen sowie das
    Kabel-/Fernsehsignal (seit 01.07.2024). Unbekanntes gilt vorsichtshalber als umlagefähig. */
@@ -660,5 +714,14 @@ if (typeof module !== "undefined" && module.exports) {
     nkCo2Vermieterprozent,
     nkCo2KgSumme,
     nkCo2Erklaerung,
+    NK_INDEX_MIN_JAHRE,
+    nkPlusJahre,
+    nkIndexFrequenzGueltig,
+    nkIndexErhoehungsbetrag,
+    nkIndexNeueMiete,
+    nkIndexAktuelleMiete,
+    nkIndexNaechsteAnpassung,
+    nkIndexFaellig,
+    nkIndexVerwendeterMonat,
   };
 }
