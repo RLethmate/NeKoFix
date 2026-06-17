@@ -467,6 +467,22 @@ function nkIndexAnpassungLoeschen(anpassungen, idx) {
   if (idx >= 0 && idx < arr.length) arr.splice(idx, 1);
   return arr;
 }
+/* Basis-Indexmonat für die nächste Anpassung: der bei der letzten Festsetzung verwendete
+   Monat, sonst der Einzugsmonat. Rückgabe "YYYY-MM". */
+function nkIndexBasisMonat(einzug, anpassungen) {
+  const arr = Array.isArray(anpassungen) ? anpassungen : [];
+  if (arr.length && arr[arr.length - 1].monat) return arr[arr.length - 1].monat;
+  const m = String(einzug || "").match(/^(\d{4})-(\d{2})/);
+  return m ? (m[1] + "-" + m[2]) : "";
+}
+
+/* ---------- Staffelmiete (US-70, § 557a BGB). Reine Funktion. ----------
+   Feste Erhöhung um einen Eurobetrag: neue Miete = bisherige Miete + Betrag (Cent-genau).
+   Terminierung, „aktuelle Miete" und Löschen nutzen dieselben Funktionen wie die Indexmiete
+   (nkIndexNaechsteAnpassung, nkIndexAktuelleMiete, nkIndexFaellig, nkIndexAnpassungLoeschen). */
+function nkStaffelNeueMiete(basisMiete, betrag) {
+  return Math.round(((+basisMiete || 0) + (+betrag || 0)) * 100) / 100;
+}
 
 /* Umlagefähigkeit je Kostenart (US-04). Reine Funktion; gibt Vorschlag + Begründung zurück.
    Nicht umlagefähig: Verwaltung, Instandhaltung/Reparatur, Rücklagen sowie das
@@ -730,5 +746,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkIndexFaellig,
     nkIndexVerwendeterMonat,
     nkIndexAnpassungLoeschen,
+    nkIndexBasisMonat,
+    nkStaffelNeueMiete,
   };
 }
