@@ -749,3 +749,10 @@ test("nkIndexNaechsteAnpassung: nach Löschen aller Anpassungen wieder erster Te
   assert.equal(calc.nkIndexNaechsteAnpassung("2026-06-17", 1, 2), "2029-06-17");
   assert.equal(calc.nkIndexNaechsteAnpassung("2026-06-17", 1, 0), "2027-06-17");
 });
+
+test("nkIndexBasisMonat: Einzugsmonat bzw. letzter verwendeter Monat", () => {
+  assert.equal(calc.nkIndexBasisMonat("2025-05-01", []), "2025-05");
+  assert.equal(calc.nkIndexBasisMonat("2025-05-01", [{ monat: "2026-03" }]), "2026-03");
+  assert.equal(calc.nkIndexBasisMonat("2025-05-01", [{ monat: "2026-03" }, { monat: "2027-02" }]), "2027-02");
+  assert.equal(calc.nkIndexBasisMonat("", []), "");
+});
