@@ -178,7 +178,7 @@ function renderEinheiten(){
           '<div class="detail-grid">'+
             /* US-72: Miete-Felder nur ohne aktiven Mieterhöhungstyp; bei Index/Staffel kommt die Miete aus dem Block. */
             (m.mhTyp?'':'<label>Miete bei Einzug <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+'" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>')+
-            '<label>Urspr. NK/Monat <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+'" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
+            (m.mhTyp?'':'<label>Urspr. NK/Monat <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+'" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>')+
             (m.mhTyp?'':'<label>Aktuelle Grundmiete <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+'" oninput="updVertrag('+ei+','+mi+',\'grundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>')+
             '<label>Stellplätze (Anzahl) <input class="short" type="number" min="0" value="'+(m.stellAnzahl||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellAnzahl\',this.value,1)"></label>'+
             '<label>Preis je Stellplatz <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stellPreis||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellPreis\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
@@ -402,7 +402,7 @@ function staffelSync(ei,mi){
 }
 /* Staffel-Parameter ändern – schützt eingefrorene Ankündigungen, deren Stichtag durch die
    Änderung aus dem Plan fiele: Rückfrage mit 3 Ausgängen (Verwerfen / Löschen / Behalten). */
-function staffelParamAendern(ei,mi,field,val,isNum){
+function staffelParamAendern(ei,mi,field,val,isNum,render){
   const m=store.mv(ei,mi);
   const neuVal = isNum ? nkParseBetrag(val) : val;
   const altSet = new Set(nkStaffelPlan(m.stafBeginn,m.stafEnde,m.stafFrequenz,m.stafAusgangsmiete,m.stafBetrag).map(s=>s.datum));
@@ -412,7 +412,7 @@ function staffelParamAendern(ei,mi,field,val,isNum){
   const verwaist = Object.keys(ang).filter(d=> ang[d]&&typeof ang[d]==='object'&&ang[d].snapshot && altSet.has(d) && !neuSet.has(d));
   if(verwaist.length){
     if(!confirm(verwaist.length+' versendete (eingefrorene) Ankündigung(en) liegen nach dieser Änderung nicht mehr im Staffelplan.\n\nOK = Änderung durchführen\nAbbrechen = Änderung verwerfen')){
-      renderEinheiten(); return; /* Verwerfen */
+      renderEinheiten(); return; /* Verwerfen – Feld zurücksetzen */
     }
     if(!confirm('Versendete Ankündigungen behalten?\n\nOK = behalten (werden separat als Beleg gelistet)\nAbbrechen = löschen')){
       const map=Object.assign({},ang); verwaist.forEach(d=>delete map[d]); store.setMvFeld(ei,mi,'stafAngekuendigt',map); /* Löschen */
@@ -420,10 +420,10 @@ function staffelParamAendern(ei,mi,field,val,isNum){
   }
   if(isNum) store.setMvNum(ei,mi,field,+neuVal); else store.setMvFeld(ei,mi,field,neuVal);
   staffelSync(ei,mi);
-  renderEinheiten();
+  if(render) renderEinheiten(); /* Datumsfelder zeichnen erst via onblur neu (sonst kein Tippen der Jahreszahl) */
 }
-function updStaf(ei,mi,field,val){ staffelParamAendern(ei,mi,field,val,true); }
-function updStafDatum(ei,mi,field,val){ staffelParamAendern(ei,mi,field,val,false); }
+function updStaf(ei,mi,field,val){ staffelParamAendern(ei,mi,field,val,true,true); }
+function updStafDatum(ei,mi,field,val){ staffelParamAendern(ei,mi,field,val,false,false); }
 function staffelOrphanPdf(ei,mi,datum){
   if(typeof ensurePdfLib==='function' && !ensurePdfLib()) return;
   const m=store.mv(ei,mi); const ang=(m.stafAngekuendigt||{})[datum];
