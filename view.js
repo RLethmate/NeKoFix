@@ -156,7 +156,9 @@ function renderEinheiten(){
     const lz = leerstandZa(e);
     const mvRows = e.mv.map((m,mi)=>{
       const na=m.naechsteAnpassung||'';
-      const badge = nkBaldFaellig(na, heute(), 3) ? ' <span class="warn" title="Mieterhöhung bald fällig ('+fmtDatum(na)+')">'+WARN_ICON+'</span>' : '';
+      const badge = m.mhTyp
+        ? (mhWarnung(m) ? ' <span class="warn" title="Mieterhöhung fällig – Ankündigung noch nicht verschickt">'+WARN_ICON+'</span>' : '')
+        : (nkBaldFaellig(na, heute(), 3) ? ' <span class="warn" title="Mieterhöhung bald fällig ('+fmtDatum(na)+')">'+WARN_ICON+'</span>' : '');
       const open = expandedMV.has(m.id);
       let row='<tr>'+
         '<td><span class="bez-cell"><input value="'+esc(m.mieter)+'" oninput="updMV('+ei+','+mi+',\'mieter\',this.value)">'+badge+'</span></td>'+
@@ -174,21 +176,21 @@ function renderEinheiten(){
         const bald=nkBaldFaellig(na, heute(), 3);
         row+='<tr class="detail-row"><td colspan="6">'+
           '<div class="detail-grid">'+
-            '<label>Urspr. Grundmiete <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+'" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
+            /* US-72: Miete-Felder nur ohne aktiven Mieterhöhungstyp; bei Index/Staffel kommt die Miete aus dem Block. */
+            (m.mhTyp?'':'<label>Miete bei Einzug <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+'" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>')+
             '<label>Urspr. NK/Monat <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+'" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
-            /* US-67: aktuell gültige Miete + Stellplätze (vormals im Reiter „Zahlungen") */
-            '<label>Aktuelle Grundmiete <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+'" oninput="updVertrag('+ei+','+mi+',\'grundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
+            (m.mhTyp?'':'<label>Aktuelle Grundmiete <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+'" oninput="updVertrag('+ei+','+mi+',\'grundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>')+
             '<label>Stellplätze (Anzahl) <input class="short" type="number" min="0" value="'+(m.stellAnzahl||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellAnzahl\',this.value,1)"></label>'+
             '<label>Preis je Stellplatz <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stellPreis||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellPreis\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
-            '<label>Letzte Anpassung <input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()"></label>'+
-            '<label>Nächste Anpassung <input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)" onblur="renderEinheiten()"></label>'+
+            (m.mhTyp?'':'<label>Letzte Anpassung <input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()"></label>')+
+            (m.mhTyp?'':'<label>Nächste Anpassung <input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)" onblur="renderEinheiten()"></label>')+
             '<label>Anrede <select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value="">neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select></label>'+
             '<label class="notiz-field">E-Mail <input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de"></label>'+
           '</div>'+
           indexBlock(m,ei,mi)+ /* US-68: Indexmiete-Bereich */
           '<div class="chronik-titel">Anpassungs-Chronik</div>'+chronikRows+
           '<button class="addrow" onclick="addChronik('+ei+','+mi+')">+ Eintrag</button>'+
-          (bald?'<div class="leer-hint" style="margin-top:6px;">'+WARN_ICON+' Nächste Anpassung am '+fmtDatum(na)+' – in Kürze fällig.</div>':'')+
+          ((bald && !m.mhTyp)?'<div class="leer-hint" style="margin-top:6px;">'+WARN_ICON+' Nächste Anpassung am '+fmtDatum(na)+' – in Kürze fällig.</div>':'')+ /* US-72: Relikt nur ohne aktiven Mieterhöhungstyp */
         '</td></tr>';
       }
       return row;
@@ -242,7 +244,8 @@ function delMV(ei,mi){ store.removeMv(ei,mi); renderEinheiten(); }
 /* US-21: Vertrag & Anpassungs-Chronik je Mietverhältnis */
 function toggleVertrag(id){ if(expandedMV.has(id)) expandedMV.delete(id); else expandedMV.add(id); renderEinheiten(); }
 function updVertrag(ei,mi,field,val,num){ store.setVertragFeld(ei,mi,field, num? nkParseBetrag(val): val, num); /* Datum: Neu-Zeichnen via onblur */ }
-/* US-68: Indexmiete – Mieterhöhungstyp, Eingabe und Einfrieren je Mietverhältnis. */
+/* US-68/US-70 (Redesign): Mieterhöhung als Stichtag-Modell. */
+const NK_MONATSNAMEN=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 function updMhTyp(ei,mi,val){
   const m=store.mv(ei,mi);
   store.setMvFeld(ei,mi,'mhTyp',val);
@@ -255,12 +258,27 @@ function updMhTyp(ei,mi,val){
     if(!m.stafBeginn) store.setMvFeld(ei,mi,'stafBeginn', m.von||state.objekt.von||'');
     if(m.stafAusgangsmiete===undefined||m.stafAusgangsmiete==='') store.setMvNum(ei,mi,'stafAusgangsmiete', +m.grundmiete||0);
     if(!m.stafFrequenz) store.setMvNum(ei,mi,'stafFrequenz',1);
+    staffelSync(ei,mi);
   }
   renderEinheiten();
 }
 function updIdx(ei,mi,field,val){ store.setMvFeld(ei,mi,field,val); renderEinheiten(); }
 function updIdxNum(ei,mi,field,val){ store.setMvNum(ei,mi,field, nkParseBetrag(val)); renderEinheiten(); }
-function indexFestsetzen(ei,mi){
+/* Indexstand-Monat in Monat/Jahr getrennt pflegen (behebt das „Jahr fest"-Problem von type=month). */
+function updIdxMonatTeil(ei,mi,which,teil,val){
+  const m=store.mv(ei,mi);
+  const anz=(m.idxAnpassungen||[]).length;
+  const field = which==='vor' ? 'idxVorMonat' : 'idxIndexMonat';
+  const def = which==='vor'
+    ? nkIndexBasisMonat(m.idxEinzug, m.idxAnpassungen)
+    : nkIndexVerwendeterMonat(nkIndexNaechsteAnpassung(m.idxEinzug,m.idxFrequenz,anz));
+  const cur=(m[field]||def||'').split('-'); let yy=cur[0]||'', mm=cur[1]||'';
+  if(teil==='m') mm=String(val).padStart(2,'0'); else yy=String(val);
+  store.setMvFeld(ei,mi,field, yy+'-'+mm);
+  renderEinheiten();
+}
+/* US-68: nächste Index-Anpassung übernehmen – die Liste rückt eins weiter. */
+function indexUebernehmen(ei,mi){
   const m=store.mv(ei,mi);
   const proz=+m.idxProzent||0;
   if(!proz){ alert('Bitte zuerst die Indexveränderung in % eintragen.'); return; }
@@ -268,14 +286,14 @@ function indexFestsetzen(ei,mi){
   const datum=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
   const basis=nkIndexAktuelleMiete(m.idxAusgangsmiete, m.idxAnpassungen);
   const neue=nkIndexNeueMiete(basis, proz);
-  const monat=m.idxIndexMonat||nkIndexVerwendeterMonat(datum); /* vom Nutzer gewählter Indexmonat, sonst Vorschlag */
-  const basisMonat=nkIndexBasisMonat(m.idxEinzug, m.idxAnpassungen);
+  const monat=m.idxIndexMonat||nkIndexVerwendeterMonat(datum);
+  const basisMonat=m.idxVorMonat||nkIndexBasisMonat(m.idxEinzug, m.idxAnpassungen);
   const liste=(m.idxAnpassungen||[]).concat([{datum, prozent:proz, alteMiete:basis, neueMiete:neue, monat, basisMonat}]);
   store.setMvFeld(ei,mi,'idxAnpassungen', liste);
-  store.setMvNum(ei,mi,'grundmiete', neue);   /* neue Miete wird wirksam (Soll/Monat) */
+  store.setMvNum(ei,mi,'grundmiete', neue);
   store.setMvFeld(ei,mi,'idxProzent','');
-  store.setMvFeld(ei,mi,'idxIndexMonat',''); /* Auswahl zurücksetzen; nächster Vorschlag automatisch */
-  /* Anpassungs-Chronik (US-21) mitschreiben */
+  store.setMvFeld(ei,mi,'idxIndexMonat','');
+  store.setMvFeld(ei,mi,'idxVorMonat','');
   store.addChronik(ei,mi);
   const ci=store.mv(ei,mi).chronik.length-1;
   store.setChronikFeld(ei,mi,ci,'datum',datum);
@@ -283,13 +301,175 @@ function indexFestsetzen(ei,mi){
   renderEinheiten();
 }
 function indexAnpassungLoeschen(ei,mi,idx){
-  if(!confirm('Diese festgesetzte Anpassung wirklich löschen?')) return;
+  if(!confirm('Diese Anpassung wirklich löschen?')) return;
   const m=store.mv(ei,mi);
   const liste=nkIndexAnpassungLoeschen(m.idxAnpassungen, idx);
   store.setMvFeld(ei,mi,'idxAnpassungen', liste);
-  /* Grundmiete (Soll) auf die nun zuletzt gültige Miete bzw. Ausgangsmiete zurücksetzen */
   store.setMvNum(ei,mi,'grundmiete', nkIndexAktuelleMiete(m.idxAusgangsmiete, liste));
   renderEinheiten();
+}
+/* US-72: offene Mieterhöhung? (fälliger/bald fälliger Stichtag ohne verschickte Ankündigung)
+   – steuert das Warn-Dreieck hinter dem Mieternamen, auch bei zugeklapptem Vertrag. */
+function mhWarnung(m){
+  if(!m || !m.mhTyp) return false;
+  const h=heute();
+  if(m.mhTyp==='index'){
+    const st=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, (m.idxAnpassungen||[]).length);
+    return nkIndexFaellig(st,h) || nkBaldFaellig(st,h,3);
+  }
+  if(m.mhTyp==='staffel'){
+    const plan=nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag);
+    const ang=m.stafAngekuendigt||{};
+    return plan.some(s=> (nkIndexFaellig(s.datum,h)||nkBaldFaellig(s.datum,h,3)) && !ang[s.datum]);
+  }
+  return false;
+}
+/* US-69: vollständiges, self-contained Anschreiben-Datenobjekt (für PDF + Einfrieren). */
+function mhDatenBasis(ei,mi){
+  const m=store.mv(ei,mi), e=state.einheiten[ei], z=state.zahlung||{};
+  return {
+    anredeText: nkAnrede(m), mieter:String(m.mieter||''),
+    empfZeile2: (e.name||'')+' · '+(state.objekt.addr||''),
+    objektAddr:String(state.objekt.addr||''), einheitName:String(e.name||''),
+    vermieter:String(z.empfaenger||''), vermieterAnschrift:String(z.anschrift||''),
+    iban:String(z.iban||''), bic:String(z.bic||''),
+    stellAnzahl:+m.stellAnzahl||0, stellPreis:+m.stellPreis||0, nk:nkMonatNK(m)
+  };
+}
+function mhDatenIndex(ei,mi,idx){ /* idx==null => offene (pending) Anpassung */
+  const m=store.mv(ei,mi);
+  let datum,stichtag1,alteMiete,prozent,monatVon,monatBis,neueMiete;
+  if(idx==null){
+    const anz=(m.idxAnpassungen||[]).length;
+    datum=nkIndexNaechsteAnpassung(m.idxEinzug,m.idxFrequenz,anz);
+    stichtag1=anz?m.idxAnpassungen[anz-1].datum:(m.idxEinzug||'');
+    alteMiete=nkIndexAktuelleMiete(m.idxAusgangsmiete,m.idxAnpassungen);
+    prozent=+m.idxProzent||0;
+    monatVon=m.idxVorMonat||nkIndexBasisMonat(m.idxEinzug,m.idxAnpassungen);
+    monatBis=m.idxIndexMonat||nkIndexVerwendeterMonat(datum);
+    neueMiete=nkIndexNeueMiete(alteMiete,prozent);
+  } else {
+    const a=m.idxAnpassungen[idx];
+    datum=a.datum; stichtag1=idx>0?m.idxAnpassungen[idx-1].datum:(m.idxEinzug||'');
+    alteMiete=a.alteMiete; prozent=a.prozent; monatVon=a.basisMonat; monatBis=a.monat; neueMiete=a.neueMiete;
+  }
+  return Object.assign(mhDatenBasis(ei,mi), {typ:'index', stichtag:datum, stichtag1,
+    alteMiete, prozent, monatVon, monatBis, rohNeu:alteMiete+nkIndexErhoehungsbetrag(alteMiete,prozent),
+    neueMiete, frist:nkMitteilungsfrist(datum)});
+}
+function mhDatenStaffel(ei,mi,datum,alteMiete,neueMiete,betrag){
+  return Object.assign(mhDatenBasis(ei,mi), {typ:'staffel', stichtag:datum,
+    alteMiete:+alteMiete, neueMiete:+neueMiete, betrag:+betrag});
+}
+/* Unterschiede zwischen eingefrorenem Schnappschuss und aktuellem Stand (für die Warnung). */
+function mhDiff(snap, live){
+  const o=[];
+  if((+snap.stellAnzahl||0)!==(+live.stellAnzahl||0)) o.push('Stellplätze: '+(+snap.stellAnzahl||0)+' → '+(+live.stellAnzahl||0));
+  if((+snap.stellPreis||0)!==(+live.stellPreis||0)) o.push('Preis je Stellplatz: '+eur(snap.stellPreis||0)+' → '+eur(live.stellPreis||0));
+  if((+snap.nk||0)!==(+live.nk||0)) o.push('NK-Vorauszahlung: '+eur(snap.nk||0)+' → '+eur(live.nk||0));
+  if((snap.mieter||'')!==(live.mieter||'')) o.push('Mieter: '+(snap.mieter||'')+' → '+(live.mieter||''));
+  if((snap.vermieter||'')!==(live.vermieter||'')) o.push('Vermieter: '+(snap.vermieter||'')+' → '+(live.vermieter||''));
+  if((snap.vermieterAnschrift||'')!==(live.vermieterAnschrift||'')) o.push('Vermieter-Anschrift geändert');
+  if((snap.empfZeile2||'')!==(live.empfZeile2||'')) o.push('Mieter-/Objektanschrift geändert');
+  return o;
+}
+function mhEntfernenBestaetigt(datumVerschickt, snap, live){
+  const diff=mhDiff(snap, live);
+  const txt='Das Anschreiben wurde am '+(datumVerschickt?fmtDatum(datumVerschickt):'—')+' als verschickt markiert und eingefroren.\n\n'+
+    (diff.length?('Seither geändert:\n- '+diff.join('\n- ')+'\n\n'):'')+
+    'Wenn du den Haken entfernst, wird der eingefrorene Stand verworfen; ein neu erzeugtes PDF entspricht dann nicht mehr dem versendeten Schreiben. Fortfahren?';
+  return confirm(txt);
+}
+function indexAnkuendigung(ei,mi,idx,checked){
+  const m=store.mv(ei,mi);
+  const liste=(m.idxAnpassungen||[]).slice();
+  const a=Object.assign({}, liste[idx]);
+  if(checked){
+    a.angekuendigt=heute(); a.ankSnapshot=mhDatenIndex(ei,mi,idx);
+  } else {
+    if(a.ankSnapshot && !mhEntfernenBestaetigt(a.angekuendigt, a.ankSnapshot, mhDatenIndex(ei,mi,idx))){ renderEinheiten(); return; }
+    a.angekuendigt=''; delete a.ankSnapshot;
+  }
+  liste[idx]=a;
+  store.setMvFeld(ei,mi,'idxAnpassungen', liste);
+  renderEinheiten();
+}
+/* US-70: Staffel – gültige Miete automatisch aus dem Plan ableiten und als Soll setzen. */
+function staffelSync(ei,mi){
+  const m=store.mv(ei,mi);
+  const plan=nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag);
+  store.setMvNum(ei,mi,'grundmiete', nkStaffelMieteAm(plan, m.stafAusgangsmiete, heute()));
+}
+/* Staffel-Parameter ändern – schützt eingefrorene Ankündigungen, deren Stichtag durch die
+   Änderung aus dem Plan fiele: Rückfrage mit 3 Ausgängen (Verwerfen / Löschen / Behalten). */
+function staffelParamAendern(ei,mi,field,val,isNum){
+  const m=store.mv(ei,mi);
+  const neuVal = isNum ? nkParseBetrag(val) : val;
+  const altSet = new Set(nkStaffelPlan(m.stafBeginn,m.stafEnde,m.stafFrequenz,m.stafAusgangsmiete,m.stafBetrag).map(s=>s.datum));
+  const probe = Object.assign({}, m, {[field]: isNum?+neuVal:neuVal});
+  const neuSet = new Set(nkStaffelPlan(probe.stafBeginn,probe.stafEnde,probe.stafFrequenz,probe.stafAusgangsmiete,probe.stafBetrag).map(s=>s.datum));
+  const ang = m.stafAngekuendigt||{};
+  const verwaist = Object.keys(ang).filter(d=> ang[d]&&typeof ang[d]==='object'&&ang[d].snapshot && altSet.has(d) && !neuSet.has(d));
+  if(verwaist.length){
+    if(!confirm(verwaist.length+' versendete (eingefrorene) Ankündigung(en) liegen nach dieser Änderung nicht mehr im Staffelplan.\n\nOK = Änderung durchführen\nAbbrechen = Änderung verwerfen')){
+      renderEinheiten(); return; /* Verwerfen */
+    }
+    if(!confirm('Versendete Ankündigungen behalten?\n\nOK = behalten (werden separat als Beleg gelistet)\nAbbrechen = löschen')){
+      const map=Object.assign({},ang); verwaist.forEach(d=>delete map[d]); store.setMvFeld(ei,mi,'stafAngekuendigt',map); /* Löschen */
+    } /* sonst: behalten */
+  }
+  if(isNum) store.setMvNum(ei,mi,field,+neuVal); else store.setMvFeld(ei,mi,field,neuVal);
+  staffelSync(ei,mi);
+  renderEinheiten();
+}
+function updStaf(ei,mi,field,val){ staffelParamAendern(ei,mi,field,val,true); }
+function updStafDatum(ei,mi,field,val){ staffelParamAendern(ei,mi,field,val,false); }
+function staffelOrphanPdf(ei,mi,datum){
+  if(typeof ensurePdfLib==='function' && !ensurePdfLib()) return;
+  const m=store.mv(ei,mi); const ang=(m.stafAngekuendigt||{})[datum];
+  if(ang && ang.snapshot) buildMieterhoehungPdf(ang.snapshot).save('Mieterhoehung-'+pdfSafeName(m.mieter)+'.pdf');
+}
+function staffelOrphanLoeschen(ei,mi,datum){
+  if(!confirm('Diesen versendeten Ankündigungs-Beleg wirklich löschen?')) return;
+  const m=store.mv(ei,mi); const map=Object.assign({}, m.stafAngekuendigt||{}); delete map[datum];
+  store.setMvFeld(ei,mi,'stafAngekuendigt',map); renderEinheiten();
+}
+function staffelPlanRow(m,datum){
+  const plan=nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag);
+  return plan.find(s=>s.datum===datum)||{datum, alteMiete:0, neueMiete:0};
+}
+function staffelAnkuendigung(ei,mi,datum,checked){
+  const m=store.mv(ei,mi);
+  const map=Object.assign({}, m.stafAngekuendigt||{});
+  const r=staffelPlanRow(m,datum);
+  const live=mhDatenStaffel(ei,mi,datum,r.alteMiete,r.neueMiete,(r.neueMiete-r.alteMiete));
+  if(checked){
+    map[datum]={datum:heute(), snapshot:live};
+  } else {
+    const cur=map[datum];
+    if(cur && typeof cur==='object' && cur.snapshot && !mhEntfernenBestaetigt(cur.datum, cur.snapshot, live)){ renderEinheiten(); return; }
+    delete map[datum];
+  }
+  store.setMvFeld(ei,mi,'stafAngekuendigt',map);
+  renderEinheiten();
+}
+/* US-69: Mieterhöhungs-Anschreiben als PDF (eingefrorener Schnappschuss, sonst Live-Daten). */
+function indexAnschreibenPdf(ei,mi){
+  if(typeof ensurePdfLib==='function' && !ensurePdfLib()) return;
+  const m=store.mv(ei,mi);
+  if(!(+m.idxProzent||0)){ alert('Bitte zuerst die Indexveränderung in % eintragen.'); return; }
+  buildMieterhoehungPdf(mhDatenIndex(ei,mi,null)).save('Mieterhoehung-'+pdfSafeName(m.mieter)+'.pdf');
+}
+function indexAnschreibenPdfRow(ei,mi,idx){
+  if(typeof ensurePdfLib==='function' && !ensurePdfLib()) return;
+  const m=store.mv(ei,mi); const a=(m.idxAnpassungen||[])[idx]; if(!a) return;
+  buildMieterhoehungPdf(a.ankSnapshot || mhDatenIndex(ei,mi,idx)).save('Mieterhoehung-'+pdfSafeName(m.mieter)+'.pdf');
+}
+function staffelAnschreibenPdf(ei,mi,datum,alteMiete,neueMiete,betrag){
+  if(typeof ensurePdfLib==='function' && !ensurePdfLib()) return;
+  const m=store.mv(ei,mi); const ang=(m.stafAngekuendigt||{})[datum];
+  const daten=(ang && typeof ang==='object' && ang.snapshot) ? ang.snapshot : mhDatenStaffel(ei,mi,datum,alteMiete,neueMiete,betrag);
+  buildMieterhoehungPdf(daten).save('Mieterhoehung-'+pdfSafeName(m.mieter)+'.pdf');
 }
 function indexBlock(m,ei,mi){
   const typ=m.mhTyp||'';
@@ -301,87 +481,108 @@ function indexBlock(m,ei,mi){
     '</select></label>';
   if(typ==='index'){
     const anz=(m.idxAnpassungen||[]).length;
-    const naechste=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
-    const faellig=nkIndexFaellig(naechste, heute());
-    const bald=nkBaldFaellig(naechste, heute(), 3);
+    const stichtag2=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
+    const stichtag1=anz ? m.idxAnpassungen[anz-1].datum : (m.idxEinzug||'');
+    const faellig=nkIndexFaellig(stichtag2, heute());
+    const bald=nkBaldFaellig(stichtag2, heute(), 3);
+    const frist=nkMitteilungsfrist(stichtag2);
     const basis=nkIndexAktuelleMiete(m.idxAusgangsmiete, m.idxAnpassungen);
     const proz=+m.idxProzent||0;
     const erh=nkIndexErhoehungsbetrag(basis, proz);
     const neue=nkIndexNeueMiete(basis, proz);
-    const monatGewaehlt=m.idxIndexMonat||nkIndexVerwendeterMonat(naechste); /* Vorschlag, vom Nutzer überschreibbar */
+    const monatGewaehlt=m.idxIndexMonat||nkIndexVerwendeterMonat(stichtag2);
     const basisMonat=nkIndexBasisMonat(m.idxEinzug, m.idxAnpassungen);
+    const mg=monatGewaehlt.split('-'); const my=mg[0]||'', mm=mg[1]||'';
     h+='<div class="detail-grid">'+
-      '<label>Einzug / Beginn <input type="date" value="'+(m.idxEinzug||'')+'" onchange="store.setMvFeld('+ei+','+mi+',\'idxEinzug\',this.value)" onblur="renderEinheiten()"></label>'+
-      '<label>Ausgangsmiete <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.idxAusgangsmiete||0)+'" onchange="updIdxNum('+ei+','+mi+',\'idxAusgangsmiete\',this.value)"></label>'+
+      '<label>Beginn / Einzug <input type="date" value="'+(m.idxEinzug||'')+'" onchange="store.setMvFeld('+ei+','+mi+',\'idxEinzug\',this.value)" onblur="renderEinheiten()"></label>'+
+      '<label>Miete bei Einzug <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.idxAusgangsmiete||0)+'" onchange="updIdxNum('+ei+','+mi+',\'idxAusgangsmiete\',this.value)"></label>'+
       '<label>alle <input class="short" type="number" min="1" step="1" value="'+(m.idxFrequenz||1)+'" onchange="updIdxNum('+ei+','+mi+',\'idxFrequenz\',this.value)"> Jahre</label>'+
-      '<label>Indexstand-Monat <input type="month" value="'+monatGewaehlt+'" onchange="store.setMvFeld('+ei+','+mi+',\'idxIndexMonat\',this.value)" onblur="renderEinheiten()"></label>'+
-      '<label>Indexveränderung % <input class="short" type="text" inputmode="decimal" value="'+(proz?nkFmtBetrag(proz):'')+'" placeholder="z. B. 2,3" onchange="updIdxNum('+ei+','+mi+',\'idxProzent\',this.value)"></label>'+
     '</div>';
     if(!nkIndexFrequenzGueltig(m.idxFrequenz||1)) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Frequenz muss eine ganze Zahl ab 1 Jahr sein (§ 557b).</div>';
-    h+='<div style="font-size:12px;margin-top:4px;color:'+(faellig?'var(--nachzahlung)':'var(--muted)')+';">Nächste Anpassung: <b>'+fmtDatum(naechste)+'</b>'+
-      (faellig?' <span style="color:var(--nachzahlung);">'+WARN_ICON+' fällig</span>':(bald?' <span>'+WARN_ICON+' bald fällig</span>':''))+
-      ' · Indexvergleich: '+(basisMonat||'—')+' → '+(monatGewaehlt||'—')+'</div>';
-    h+='<div class="index-vorschau">Basismiete '+eur(basis)+' + '+nkFmtBetrag(proz)+' % ('+eur(erh)+') = <b>'+eur(neue)+'</b> <span class="hint">(abgerundet auf volle Euro)</span></div>';
-    h+='<button class="addrow" onclick="indexFestsetzen('+ei+','+mi+')">Anpassung festsetzen</button>';
+    h+='<div class="mh-aktuell">Aktuell gültige Miete: <b>'+eur(basis)+'</b></div>';
+    /* Bisherige Anpassungen – „Ankündigung verschickt" in eigener Zeile */
     const hist=(m.idxAnpassungen||[]);
     if(hist.length){
-      h+='<div class="chronik-titel">Festgesetzte Anpassungen</div>';
-      h+=hist.map((a,i)=>'<div class="index-hist">'+fmtDatum(a.datum)+': '+eur(a.alteMiete)+' +'+nkFmtBetrag(a.prozent)+' % → <b>'+eur(a.neueMiete)+'</b>'+(a.monat?' (Index '+(a.basisMonat?a.basisMonat+'→':'')+a.monat+')':'')+' <button class="row-del" title="Anpassung löschen" onclick="indexAnpassungLoeschen('+ei+','+mi+','+i+')">×</button></div>').join('');
+      h+='<div class="chronik-titel">Bisherige Anpassungen</div>';
+      h+=hist.map((a,i)=>{
+        const ang=!!a.angekuendigt;
+        return '<div class="index-hist">'+
+          '<div class="ih-text">'+fmtDatum(a.datum)+': '+eur(a.alteMiete)+' × (1 + '+nkFmtBetrag(a.prozent)+' %) = <b>'+eur(a.neueMiete)+'</b>'+(a.monat?' (VPI '+(a.basisMonat?nkMonatDE(a.basisMonat)+'→':'')+nkMonatDE(a.monat)+')':'')+' <button class="row-del" title="Anpassung löschen" onclick="indexAnpassungLoeschen('+ei+','+mi+','+i+')">×</button></div>'+
+          '<div class="ih-actions"><label class="staffel-ank"'+(ang&&typeof a.angekuendigt==='string'?' title="verschickt am '+fmtDatum(a.angekuendigt)+'"':'')+'><input type="checkbox" '+(ang?'checked':'')+' onchange="indexAnkuendigung('+ei+','+mi+','+i+',this.checked)"> Ankündigung verschickt</label>'+
+          ' <button class="addrow" onclick="indexAnschreibenPdfRow('+ei+','+mi+','+i+')">Ankündigung als PDF</button></div>'+
+        '</div>';
+      }).join('');
     }
+    /* Fälligkeits-Warnung – außerhalb der Box */
+    h+='<div class="mh-titel" style="color:'+(faellig?'var(--nachzahlung)':'inherit')+';">Nächste Erhöhung zum <b>'+fmtDatum(stichtag2)+'</b>'+
+      (faellig?' <span style="color:var(--nachzahlung);">'+WARN_ICON+' fällig</span>':(bald?' <span>'+WARN_ICON+' bald fällig</span>':''))+
+      ' <span class="info" title="Mitteilungsfrist in Textform (§ 557b): '+(frist?fmtDatum(frist):'—')+'">ⓘ</span></div>';
+    /* Box „Neue Anpassung": vorheriger Index → Folge-Index → % → Formel */
+    const vorMonat=m.idxVorMonat||basisMonat; const vp=vorMonat.split('-'); const vmy=vp[0]||'', vmm=vp[1]||'';
+    const rohNeu=basis+erh;
+    h+='<div class="index-naechste">'+
+      '<div class="chronik-titel">Neue Anpassung</div>'+
+      '<div class="mh-input-row">'+
+        '<label>Vorheriger Index<span class="mh-monyear">'+
+          '<select class="mh-month" onchange="updIdxMonatTeil('+ei+','+mi+',\'vor\',\'m\',this.value)">'+NK_MONATSNAMEN.map((nm,idx)=>{const v=String(idx+1).padStart(2,'0');return '<option value="'+v+'"'+(vmm===v?' selected':'')+'>'+nm+'</option>';}).join('')+'</select>'+
+          '<input class="mh-year" type="number" min="2000" max="2100" value="'+vmy+'" onchange="updIdxMonatTeil('+ei+','+mi+',\'vor\',\'y\',this.value)">'+
+        '</span></label>'+
+        '<label>Folge-Index vom<span class="mh-monyear">'+
+          '<select class="mh-month" onchange="updIdxMonatTeil('+ei+','+mi+',\'folge\',\'m\',this.value)">'+NK_MONATSNAMEN.map((nm,idx)=>{const v=String(idx+1).padStart(2,'0');return '<option value="'+v+'"'+(mm===v?' selected':'')+'>'+nm+'</option>';}).join('')+'</select>'+
+          '<input class="mh-year" type="number" min="2000" max="2100" value="'+my+'" onchange="updIdxMonatTeil('+ei+','+mi+',\'folge\',\'y\',this.value)">'+
+        '</span></label>'+
+        '<label>Veränderung %<input class="short" type="text" inputmode="decimal" value="'+(proz?nkFmtBetrag(proz):'')+'" placeholder="z. B. 2,0" onchange="updIdxNum('+ei+','+mi+',\'idxProzent\',this.value)"></label>'+
+      '</div>'+
+      '<div class="mh-formel">'+eur(basis)+' × (1 + '+nkFmtBetrag(proz)+' %) = '+eur(rohNeu)+' → <b title="abgerundet auf volle Euro">'+eur(neue)+'</b> <span class="hint">(abgerundet)</span>'+
+        ' <button class="addrow" onclick="indexUebernehmen('+ei+','+mi+')">Anpassung übernehmen</button>'+
+        ' <button class="addrow" onclick="indexAnschreibenPdf('+ei+','+mi+')">Ankündigung als PDF</button></div>'+
+    '</div>';
   }
   if(typ==='staffel'){
-    const anz=(m.stafAnpassungen||[]).length;
-    const naechste=nkIndexNaechsteAnpassung(m.stafBeginn, m.stafFrequenz, anz);
-    const faellig=nkIndexFaellig(naechste, heute());
-    const bald=nkBaldFaellig(naechste, heute(), 3);
-    const basis=nkIndexAktuelleMiete(m.stafAusgangsmiete, m.stafAnpassungen);
-    const betrag=+m.stafBetrag||0;
-    const neue=nkStaffelNeueMiete(basis, betrag);
+    const plan=nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag);
+    const aktuell=nkStaffelMieteAm(plan, m.stafAusgangsmiete, heute());
+    const ang=m.stafAngekuendigt||{};
     h+='<div class="detail-grid">'+
-      '<label>Beginn <input type="date" value="'+(m.stafBeginn||'')+'" onchange="store.setMvFeld('+ei+','+mi+',\'stafBeginn\',this.value)" onblur="renderEinheiten()"></label>'+
-      '<label>Ausgangsmiete <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stafAusgangsmiete||0)+'" onchange="updIdxNum('+ei+','+mi+',\'stafAusgangsmiete\',this.value)"></label>'+
-      '<label>Erhöhung je Staffel € <input class="short" type="text" inputmode="decimal" value="'+(betrag?nkFmtBetrag(betrag):'')+'" placeholder="z. B. 25,00" onchange="updIdxNum('+ei+','+mi+',\'stafBetrag\',this.value)"></label>'+
-      '<label>alle <input class="short" type="number" min="1" step="1" value="'+(m.stafFrequenz||1)+'" onchange="updIdxNum('+ei+','+mi+',\'stafFrequenz\',this.value)"> Jahre</label>'+
+      '<label>Beginn <input type="date" value="'+(m.stafBeginn||'')+'" onchange="updStafDatum('+ei+','+mi+',\'stafBeginn\',this.value)" onblur="renderEinheiten()"></label>'+
+      '<label>Enddatum <input type="date" value="'+(m.stafEnde||'')+'" onchange="updStafDatum('+ei+','+mi+',\'stafEnde\',this.value)" onblur="renderEinheiten()"></label>'+
+      '<label>Miete bei Beginn <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stafAusgangsmiete||0)+'" onchange="updStaf('+ei+','+mi+',\'stafAusgangsmiete\',this.value)"></label>'+
+      '<label>Erhöhung je Staffel € <input class="short" type="text" inputmode="decimal" value="'+((+m.stafBetrag||0)?nkFmtBetrag(m.stafBetrag):'')+'" placeholder="z. B. 25,00" onchange="updStaf('+ei+','+mi+',\'stafBetrag\',this.value)"></label>'+
+      '<label>alle <input class="short" type="number" min="1" step="1" value="'+(m.stafFrequenz||1)+'" onchange="updStaf('+ei+','+mi+',\'stafFrequenz\',this.value)"> Jahre</label>'+
     '</div>';
+    if(!m.stafEnde) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Bitte ein Enddatum der Staffelvereinbarung angeben.</div>';
     if(!nkIndexFrequenzGueltig(m.stafFrequenz||1)) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Frequenz muss eine ganze Zahl ab 1 Jahr sein (§ 557a).</div>';
-    h+='<div style="font-size:12px;margin-top:4px;color:'+(faellig?'var(--nachzahlung)':'var(--muted)')+';">Nächste Staffel: <b>'+fmtDatum(naechste)+'</b>'+
-      (faellig?' <span style="color:var(--nachzahlung);">'+WARN_ICON+' fällig</span>':(bald?' <span>'+WARN_ICON+' bald fällig</span>':''))+'</div>';
-    h+='<div class="index-vorschau">Aktuelle Miete '+eur(basis)+' + '+eur(betrag)+' = <b>'+eur(neue)+'</b></div>';
-    h+='<button class="addrow" onclick="staffelFestsetzen('+ei+','+mi+')">Staffel festsetzen</button>';
-    const hist=(m.stafAnpassungen||[]);
-    if(hist.length){
-      h+='<div class="chronik-titel">Festgesetzte Staffeln</div>';
-      h+=hist.map((a,i)=>'<div class="index-hist">'+fmtDatum(a.datum)+': '+eur(a.alteMiete)+' + '+eur(a.betrag)+' → <b>'+eur(a.neueMiete)+'</b> <button class="row-del" title="Staffel löschen" onclick="staffelAnpassungLoeschen('+ei+','+mi+','+i+')">×</button></div>').join('');
+    h+='<div class="mh-aktuell">Aktuell gültige Miete: <b>'+eur(aktuell)+'</b></div>';
+    if(plan.length){
+      h+='<div class="chronik-titel">Staffelplan</div>';
+      h+=plan.map(s=>{
+        const erreicht=nkIndexFaellig(s.datum, heute());
+        const av=ang[s.datum]; const istAng=!!av;
+        const angDatum=(av&&typeof av==='object')?av.datum:av; /* alt: String, neu: {datum,snapshot} */
+        const warn=erreicht && !istAng;
+        return '<div class="index-hist'+(warn?' staffel-warn':'')+'">'+
+          '<div class="ih-text">'+fmtDatum(s.datum)+': '+eur(s.alteMiete)+' + '+eur(s.neueMiete-s.alteMiete)+' = <b>'+eur(s.neueMiete)+'</b>'+
+          (warn?' <span style="color:var(--nachzahlung);">'+WARN_ICON+' fällig</span>':'')+'</div>'+
+          '<div class="ih-actions"><label class="staffel-ank"'+(istAng&&angDatum?' title="verschickt am '+fmtDatum(angDatum)+'"':'')+'><input type="checkbox" '+(istAng?'checked':'')+' onchange="staffelAnkuendigung('+ei+','+mi+',\''+s.datum+'\',this.checked)"> Ankündigung verschickt</label>'+
+          ' <button class="addrow" onclick="staffelAnschreibenPdf('+ei+','+mi+',\''+s.datum+'\','+s.alteMiete+','+s.neueMiete+','+(s.neueMiete-s.alteMiete)+')">Ankündigung als PDF</button></div>'+
+        '</div>';
+      }).join('');
+    } else if(m.stafEnde){
+      h+='<div class="hint">Keine Stichtage im Zeitraum.</div>';
+    }
+    /* Behaltene versendete Ankündigungen, deren Stichtag nicht (mehr) im Plan liegt. */
+    const planSet=new Set(plan.map(s=>s.datum));
+    const orphans=Object.keys(ang).filter(d=> ang[d]&&typeof ang[d]==='object'&&ang[d].snapshot && !planSet.has(d)).sort();
+    if(orphans.length){
+      h+='<div class="chronik-titel">Versendete Ankündigungen außerhalb des aktuellen Plans</div>';
+      h+=orphans.map(d=>{ const snap=ang[d].snapshot; return '<div class="index-hist">'+
+        '<div class="ih-text">'+fmtDatum(d)+': → <b>'+eur(snap.neueMiete)+'</b> <span class="hint">(verschickt am '+fmtDatum(ang[d].datum)+')</span></div>'+
+        '<div class="ih-actions"><button class="addrow" onclick="staffelOrphanPdf('+ei+','+mi+',\''+d+'\')">Ankündigung als PDF</button>'+
+        ' <button class="row-del" title="Beleg löschen" onclick="staffelOrphanLoeschen('+ei+','+mi+',\''+d+'\')">×</button></div>'+
+      '</div>'; }).join('');
     }
   }
   h+='</div>';
   return h;
-}
-/* US-70: Staffelmiete – Festsetzen/Einfrieren und Löschen analog zur Indexmiete. */
-function staffelFestsetzen(ei,mi){
-  const m=store.mv(ei,mi);
-  const betrag=+m.stafBetrag||0;
-  if(!betrag){ alert('Bitte zuerst den Erhöhungsbetrag in € eintragen.'); return; }
-  const anz=(m.stafAnpassungen||[]).length;
-  const datum=nkIndexNaechsteAnpassung(m.stafBeginn, m.stafFrequenz, anz);
-  const basis=nkIndexAktuelleMiete(m.stafAusgangsmiete, m.stafAnpassungen);
-  const neue=nkStaffelNeueMiete(basis, betrag);
-  const liste=(m.stafAnpassungen||[]).concat([{datum, betrag, alteMiete:basis, neueMiete:neue}]);
-  store.setMvFeld(ei,mi,'stafAnpassungen', liste);
-  store.setMvNum(ei,mi,'grundmiete', neue);   /* neue Miete wird wirksam (Soll/Monat) */
-  store.addChronik(ei,mi);
-  const ci=store.mv(ei,mi).chronik.length-1;
-  store.setChronikFeld(ei,mi,ci,'datum',datum);
-  store.setChronikFeld(ei,mi,ci,'text','Staffelmiete +'+nkFmtBetrag(betrag)+' € ('+nkFmtBetrag(basis)+' € → '+nkFmtBetrag(neue)+' €)');
-  renderEinheiten();
-}
-function staffelAnpassungLoeschen(ei,mi,idx){
-  if(!confirm('Diese festgesetzte Staffel wirklich löschen?')) return;
-  const m=store.mv(ei,mi);
-  const liste=nkIndexAnpassungLoeschen(m.stafAnpassungen, idx);
-  store.setMvFeld(ei,mi,'stafAnpassungen', liste);
-  store.setMvNum(ei,mi,'grundmiete', nkIndexAktuelleMiete(m.stafAusgangsmiete, liste));
-  renderEinheiten();
 }
 function addChronik(ei,mi){ store.addChronik(ei,mi); renderEinheiten(); }
 function delChronik(ei,mi,ci){ if(!confirm('Diesen Chronik-Eintrag wirklich löschen?')) return; store.removeChronik(ei,mi,ci); renderEinheiten(); }

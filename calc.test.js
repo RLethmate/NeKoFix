@@ -772,3 +772,36 @@ test("Staffelmiete: Verkettung über nkIndexAktuelleMiete + Terminierung", () =>
   assert.equal(calc.nkStaffelNeueMiete(calc.nkIndexAktuelleMiete(1000, anp), 25), 1050);
   assert.equal(calc.nkIndexNaechsteAnpassung("2025-01-01", 2, anp.length), "2029-01-01");
 });
+
+/* ---------- Stichtag-Modell (US-68/US-70 Redesign) ---------- */
+test("nkStichtage: alle Termine Beginn+k×N bis Enddatum", () => {
+  assert.deepEqual(calc.nkStichtage("2020-01-01", "2026-01-01", 1),
+    ["2021-01-01","2022-01-01","2023-01-01","2024-01-01","2025-01-01","2026-01-01"]);
+  assert.deepEqual(calc.nkStichtage("2020-01-01", "2026-01-01", 2),
+    ["2022-01-01","2024-01-01","2026-01-01"]);
+  assert.deepEqual(calc.nkStichtage("2020-01-01", "", 1), []); // ohne Enddatum keine Liste
+});
+test("nkStaffelPlan: Zeilen mit alter/neuer Miete je Stichtag", () => {
+  const p = calc.nkStaffelPlan("2020-01-01", "2023-01-01", 1, 1000, 10);
+  assert.equal(p.length, 3);
+  assert.deepEqual(p[0], { nr:1, datum:"2021-01-01", alteMiete:1000, neueMiete:1010 });
+  assert.deepEqual(p[2], { nr:3, datum:"2023-01-01", alteMiete:1020, neueMiete:1030 });
+});
+test("nkStaffelMieteAm: gültige Miete zum Datum", () => {
+  const p = calc.nkStaffelPlan("2020-01-01", "2026-01-01", 1, 1000, 10);
+  assert.equal(calc.nkStaffelMieteAm(p, 1000, "2019-06-01"), 1000); // vor erstem Stichtag
+  assert.equal(calc.nkStaffelMieteAm(p, 1000, "2021-06-01"), 1010);
+  assert.equal(calc.nkStaffelMieteAm(p, 1000, "2026-06-17"), 1060); // alle 6 erreicht
+});
+test("nkMitteilungsfrist: letzter Tag zwei Monate vor Stichtag", () => {
+  assert.equal(calc.nkMitteilungsfrist("2027-05-01"), "2027-03-31");
+  assert.equal(calc.nkMitteilungsfrist("2027-01-01"), "2026-11-30");
+  assert.equal(calc.nkMitteilungsfrist(""), "");
+});
+
+test("nkMonatDE: YYYY-MM in deutsche Reihenfolge MM-YYYY", () => {
+  assert.equal(calc.nkMonatDE("2022-03"), "03-2022");
+  assert.equal(calc.nkMonatDE("2020-11"), "11-2020");
+  assert.equal(calc.nkMonatDE(""), "");
+  assert.equal(calc.nkMonatDE("kaputt"), "");
+});
