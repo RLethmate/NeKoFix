@@ -58,6 +58,8 @@ const store = {
   setMvNum(ei,mi,field,val){ state.einheiten[ei].mv[mi][field]=+val; commit(); },
   setVertragFeld(ei,mi,field,val,num){ state.einheiten[ei].mv[mi][field]= num?(+val):val; commit(); },
   setBezahlt(ei,mi,key,checked){ const m=state.einheiten[ei].mv[mi]; if(!m.bezahlt)m.bezahlt={}; m.bezahlt[key]=checked; commit(); },
+  setErhalten(ei,mi,key,val){ const m=state.einheiten[ei].mv[mi]; if(!m.erhalten)m.erhalten={}; m.erhalten[key]=+val||0; commit(); }, /* US-74 */
+  setSollSnap(ei,mi,key,val){ const m=state.einheiten[ei].mv[mi]; if(!m.sollSnap)m.sollSnap={}; m.sollSnap[key]=+val||0; commit(); }, /* US-74: Soll bei bezahltem Monat einfrieren */
   // Chronik
   addChronik(ei,mi){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik)m.chronik=[]; m.chronik.push({datum:state.objekt.von||'',text:''}); commit(); },
   removeChronik(ei,mi,ci){ state.einheiten[ei].mv[mi].chronik.splice(ci,1); commit(); },

@@ -539,6 +539,30 @@ function nkMonatDE(ym) {
   return m ? (m[2] + "-" + m[1]) : "";
 }
 
+/* ---------- Zahlungen unterjährig (US-74). Reine Funktionen. ----------
+   Gültige Nettokaltmiete eines Mietverhältnisses zu einem Datum (Index/Staffel/keine). */
+function nkIndexMieteAm(ausgangsmiete, anpassungen, datum) {
+  const arr = Array.isArray(anpassungen) ? anpassungen : [];
+  const d = nkDatum(datum);
+  let miete = +ausgangsmiete || 0;
+  if (!d) return miete;
+  arr.forEach(a => { const ad = nkDatum(a.datum); if (ad && ad <= d) miete = +a.neueMiete || miete; });
+  return miete;
+}
+function nkMieteAm(m, datum) {
+  if (!m) return 0;
+  if (m.mhTyp === "staffel") return nkStaffelMieteAm(nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag), m.stafAusgangsmiete, datum);
+  if (m.mhTyp === "index") return nkIndexMieteAm(m.idxAusgangsmiete, m.idxAnpassungen, datum);
+  return +m.grundmiete || 0;
+}
+/* Zahlstatus eines Monats aus erhaltenem Betrag und Soll. */
+function nkZahlStatus(erhalten, soll) {
+  const e = +erhalten || 0, s = +soll || 0;
+  if (e <= 0) return "offen";
+  if (e + 0.005 >= s) return "bezahlt";
+  return "teilweise";
+}
+
 /* Umlagefähigkeit je Kostenart (US-04). Reine Funktion; gibt Vorschlag + Begründung zurück.
    Nicht umlagefähig: Verwaltung, Instandhaltung/Reparatur, Rücklagen sowie das
    Kabel-/Fernsehsignal (seit 01.07.2024). Unbekanntes gilt vorsichtshalber als umlagefähig. */
@@ -810,5 +834,8 @@ if (typeof module !== "undefined" && module.exports) {
     nkStaffelMieteAm,
     nkMitteilungsfrist,
     nkMonatDE,
+    nkIndexMieteAm,
+    nkMieteAm,
+    nkZahlStatus,
   };
 }

@@ -1098,38 +1098,61 @@ function renderDoc(){
 /* ---------- Step 6: Zahlungseingänge (US-28) ---------- */
 function monatLabel(key){ const p=String(key).split('-'); const n=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez']; return (n[(+p[1])-1]||'?')+' '+p[0]; }
 /* nkMonatNK nach calc.js verschoben (US-35). */
+/* US-74: Soll je Monat aus der in diesem Monat gültigen Miete; eingefrorenes Soll hat Vorrang. */
+function monatSoll(m, key){
+  const snap=m.sollSnap||{};
+  if(key in snap) return +snap[key];
+  return nkSollMonat(nkMieteAm(m, key+'-01'), nkMonatNK(m), m.stellAnzahl, m.stellPreis);
+}
+function monatErhalten(m, key, soll){
+  const erh=m.erhalten||{}, bez=m.bezahlt||{};
+  if(key in erh) return +erh[key];
+  return bez[key] ? soll : 0; /* Migration: alte „bezahlt"-Haken gelten als voll bezahlt */
+}
 function renderZahlungen(){
   const box=document.getElementById('zahlungen_box'); box.innerHTML='';
   alleMV().forEach(({e,m,ei,mi})=>{
-    if(!m.bezahlt) m.bezahlt={};
-    const nk=nkMonatNK(m);
-    const soll=nkSollMonat(m.grundmiete, nk, m.stellAnzahl, m.stellPreis);
     const monate=nkAktiveMonate(m.von, nkMvEnde(m,state.objekt.bis), state.objekt.von, state.objekt.bis);
-    const offen=monate.filter(k=>!m.bezahlt[k]);
-    const chips=monate.map(k=>{
-      const paid=!!m.bezahlt[k];
-      return '<label class="zahl-monat'+(paid?' paid':'')+'"><input type="checkbox" '+(paid?'checked':'')+' onchange="updZahlung('+ei+','+mi+',\''+k+'\',this.checked)"> '+monatLabel(k)+' · '+eur(soll)+'</label>';
+    let sumSoll=0, sumErh=0;
+    const rows=monate.map(k=>{
+      const soll=monatSoll(m,k);
+      const erhalten=monatErhalten(m,k,soll);
+      const st=nkZahlStatus(erhalten, soll);
+      sumSoll+=soll; sumErh+=erhalten;
+      return '<div class="zahl-monat '+st+'">'+
+        '<span class="zm-label">'+monatLabel(k)+'</span>'+
+        '<span class="zm-soll">Soll '+eur(soll)+'</span>'+
+        '<label class="zm-erh">erhalten <input class="short" type="text" inputmode="decimal" value="'+(erhalten?nkFmtBetrag(erhalten):'')+'" placeholder="'+nkFmtBetrag(soll)+'" onchange="updErhalten('+ei+','+mi+',\''+k+'\',this.value)"></label>'+
+        '<button class="addrow zm-add" title="Teilzahlung hinzufügen" onclick="addTeilzahlung('+ei+','+mi+',\''+k+'\')">+</button>'+
+      '</div>';
     }).join('');
-    const status = offen.length
-      ? '<span style="color:var(--nachzahlung)">'+offen.length+' von '+monate.length+' Monaten offen · '+eur(offen.length*soll)+' ausstehend</span>'
-      : '<span style="color:var(--accent)">alle '+monate.length+' Monate eingegangen</span>';
+    const offenBetrag=Math.max(0, Math.round((sumSoll-sumErh)*100)/100);
+    const summary='Soll gesamt '+eur(sumSoll)+' · erhalten '+eur(sumErh)+' · '+(offenBetrag>0?'<span style="color:var(--nachzahlung)">offen '+eur(offenBetrag)+'</span>':'<span style="color:var(--accent)">vollständig</span>');
     box.insertAdjacentHTML('beforeend',
       '<div class="unit-card">'+
         '<div class="unit-head"><b>'+esc(m.mieter)+'</b> <span class="pill">'+esc(e.name)+'</span></div>'+
-        '<div class="zahl-soll">'+
-          /* US-67: Miete/Stellplätze werden im Reiter „Objekt" → Vertrag gepflegt; hier nur Anzeige. */
-          '<span class="unit-f">Grundmiete '+eur(m.grundmiete||0)+'</span>'+
-          '<span class="unit-f">+ NK-Vorauszahlung '+eur(nk)+'</span>'+
-          '<span class="unit-f">+ Stellplätze '+(m.stellAnzahl||0)+' × '+eur(m.stellPreis||0)+'</span>'+
-          '<span class="zahl-summe">Soll/Monat: <b>'+eur(soll)+'</b></span>'+
-        '</div>'+
-        '<div class="hint" style="margin:2px 0 6px;">Grundmiete und Stellplätze werden im Reiter „Objekt" → Vertrag („mehr…") bearbeitet.</div>'+
-        '<div class="zahl-monate">'+(chips||'<span class="hint">keine aktiven Monate im Zeitraum</span>')+'</div>'+
-        '<div class="leer-hint" style="margin-top:8px;">'+status+'</div>'+
+        '<div class="hint" style="margin:2px 0 6px;">Soll je Monat aus der jeweils gültigen Miete; „erhalten" frei erfassbar (auch Teilzahlungen). Voll bezahlte Monate frieren ihr Soll ein.</div>'+
+        '<div class="zahl-monate">'+(rows||'<span class="hint">keine aktiven Monate im Zeitraum</span>')+'</div>'+
+        '<div class="leer-hint" style="margin-top:8px;">'+summary+'</div>'+
       '</div>');
   });
 }
-function updZahlung(ei,mi,key,checked){ store.setBezahlt(ei,mi,key,checked); renderZahlungen(); }
+function updErhalten(ei,mi,key,val){
+  const betrag=nkParseBetrag(val);
+  store.setErhalten(ei,mi,key,betrag);
+  const m=store.mv(ei,mi); const snap=m.sollSnap||{};
+  if(!(key in snap)){ /* Soll einfrieren, sobald der Monat voll bezahlt ist */
+    const soll=nkSollMonat(nkMieteAm(m, key+'-01'), nkMonatNK(m), m.stellAnzahl, m.stellPreis);
+    if(betrag>0 && nkZahlStatus(betrag, soll)==='bezahlt') store.setSollSnap(ei,mi,key, soll);
+  }
+  renderZahlungen();
+}
+function addTeilzahlung(ei,mi,key){
+  const eingabe=prompt('Teilzahlung in € hinzufügen:'); if(eingabe==null) return;
+  const add=nkParseBetrag(eingabe); if(!add) return;
+  const m=store.mv(ei,mi); const erh=(m.erhalten&&key in m.erhalten)?+m.erhalten[key]:0;
+  updErhalten(ei,mi,key, nkFmtBetrag(erh+add));
+}
 /* US-67: updMVNum entfernt – Miete/Stellplätze werden jetzt im Vertrag (updVertrag) gepflegt. */
 
 /* PDF-Export (US-18) ausgelagert nach pdf.js (US-33). */

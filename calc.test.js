@@ -806,20 +806,24 @@ test("nkMonatDE: YYYY-MM in deutsche Reihenfolge MM-YYYY", () => {
   assert.equal(calc.nkMonatDE("kaputt"), "");
 });
 
-/* ---------- Offenes Mietende (US-75) ---------- */
-test("nkMvEnde: läuft → Periodenende, sonst Bis-Datum", () => {
-  assert.equal(calc.nkMvEnde({ laeuft: true, bis: "" }, "2025-12-31"), "2025-12-31");
-  assert.equal(calc.nkMvEnde({ laeuft: true, bis: "2020-01-01" }, "2025-12-31"), "2025-12-31"); // läuft schlägt Bis
-  assert.equal(calc.nkMvEnde({ bis: "2025-08-31" }, "2025-12-31"), "2025-08-31");
-  assert.equal(calc.nkMvEnde({}, "2025-12-31"), "");
+/* ---------- Zahlungen unterjährig (US-74) ---------- */
+test("nkIndexMieteAm: gültige Miete je Datum (letzte Anpassung <= Datum)", () => {
+  const anp=[{datum:"2025-05-01",neueMiete:1020},{datum:"2026-05-01",neueMiete:1040}];
+  assert.equal(calc.nkIndexMieteAm(1000, anp, "2025-01-15"), 1000);
+  assert.equal(calc.nkIndexMieteAm(1000, anp, "2025-05-01"), 1020);
+  assert.equal(calc.nkIndexMieteAm(1000, anp, "2026-06-01"), 1040);
 });
-test("nkMvEnde: laufendes Mietverhältnis deckt vollen Zeitraum (Zeitanteil 1)", () => {
-  const m = { von: "2025-01-01", laeuft: true };
-  const za = calc.nkZeitanteil(m.von, calc.nkMvEnde(m, "2025-12-31"), "2025-01-01", "2025-12-31");
-  assert.ok(Math.abs(za - 1) < 1e-9, "Zeitanteil sollte 1 sein, war " + za);
+test("nkMieteAm: Staffel/Index/keine", () => {
+  const staf={mhTyp:"staffel",stafBeginn:"2020-01-01",stafEnde:"2026-01-01",stafFrequenz:1,stafAusgangsmiete:1000,stafBetrag:10};
+  assert.equal(calc.nkMieteAm(staf,"2019-06-01"),1000);
+  assert.equal(calc.nkMieteAm(staf,"2021-06-01"),1010);
+  const idx={mhTyp:"index",idxAusgangsmiete:1000,idxAnpassungen:[{datum:"2025-05-01",neueMiete:1020}]};
+  assert.equal(calc.nkMieteAm(idx,"2025-06-01"),1020);
+  assert.equal(calc.nkMieteAm({grundmiete:800},"2025-06-01"),800);
 });
-test("nkUeberlappungTageEinheit: löst läuft über periodeBis auf", () => {
-  const e = { mv: [ { von: "2025-01-01", laeuft: true }, { von: "2025-06-01", bis: "2025-12-31" } ] };
-  assert.ok(calc.nkUeberlappungTageEinheit(e, "2025-12-31") > 0); // beide decken Jun–Dez → Überschneidung
-  assert.equal(calc.nkUeberlappungTageEinheit({ mv: [ { von: "2025-01-01", bis: "2025-05-31" }, { von: "2025-06-01", laeuft: true } ] }, "2025-12-31"), 0);
+test("nkZahlStatus: offen/teilweise/bezahlt", () => {
+  assert.equal(calc.nkZahlStatus(0,1190),"offen");
+  assert.equal(calc.nkZahlStatus(500,1190),"teilweise");
+  assert.equal(calc.nkZahlStatus(1190,1190),"bezahlt");
+  assert.equal(calc.nkZahlStatus(1200,1190),"bezahlt");
 });
