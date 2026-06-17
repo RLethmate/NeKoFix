@@ -542,6 +542,8 @@ function indexBlock(m,ei,mi){
     const plan=nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag);
     const aktuell=nkStaffelMieteAm(plan, m.stafAusgangsmiete, heute());
     const ang=m.stafAngekuendigt||{};
+    /* Beginn/Enddatum koppeln: Zeitraum max. 15 Jahre, sonst kein (riesiger) Plan + Hinweis. */
+    const spanZuGross = (function(){ const e=nkDatum(m.stafEnde); return !!(e && nkDatum(m.stafBeginn) && e > nkDatum(nkPlusJahre(m.stafBeginn,15))); })();
     h+='<div class="detail-grid">'+
       '<label>Beginn <input type="date" value="'+(m.stafBeginn||'')+'" onchange="updStafDatum('+ei+','+mi+',\'stafBeginn\',this.value)" onblur="renderEinheiten()"></label>'+
       '<label>Enddatum <input type="date" value="'+(m.stafEnde||'')+'" onchange="updStafDatum('+ei+','+mi+',\'stafEnde\',this.value)" onblur="renderEinheiten()"></label>'+
@@ -551,8 +553,10 @@ function indexBlock(m,ei,mi){
     '</div>';
     if(!m.stafEnde) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Bitte ein Enddatum der Staffelvereinbarung angeben.</div>';
     if(!nkIndexFrequenzGueltig(m.stafFrequenz||1)) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Frequenz muss eine ganze Zahl ab 1 Jahr sein (§ 557a).</div>';
-    h+='<div class="mh-aktuell">Aktuell gültige Miete: <b>'+eur(aktuell)+'</b></div>';
-    if(plan.length){
+    h+='<div class="mh-aktuell">Aktuell gültige Miete: <b>'+(spanZuGross?'—':eur(aktuell))+'</b></div>';
+    if(spanZuGross){
+      h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Der Zeitraum zwischen Beginn und Enddatum darf höchstens 15 Jahre betragen. Bitte Beginn und Enddatum prüfen.</div>';
+    } else if(plan.length){
       h+='<div class="chronik-titel">Staffelplan</div>';
       h+=plan.map(s=>{
         const erreicht=nkIndexFaellig(s.datum, heute());

@@ -204,7 +204,7 @@ function buildMieterhoehungPdf(a){
   par('Bitte passen Sie Ihren Dauerauftrag zum '+fmtDatum(a.stichtag)+' entsprechend an.'); y+=4;
   // US-55: GiroCode (EPC-QR) – Einrichtung in der Banking-App ohne Abtippen.
   if(nkIbanGueltig(a.iban) && gesamtNeu>0){
-    const giro=nkGiroCode({ empfaenger:a.vermieter, iban:a.iban, bic:a.bic, betrag:gesamtNeu, zweck:'Miete '+(a.objektAddr||'')+'-'+(a.einheitName||'')+'-'+(a.mieter||'')+'ab-'+fmtDatum(a.stichtag) });
+    const giro=nkGiroCode({ empfaenger:a.vermieter, iban:a.iban, bic:a.bic, betrag:gesamtNeu, zweck:'Miete '+(a.objektAddr||'')+'-'+(a.einheitName||'')+'-'+(a.mieter||'')+' ab '+fmtDatum(a.stichtag) });
     let url=null;
     if(giro && typeof qrcode!=='undefined'){
       try{ if(qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8']) qrcode.stringToBytes=qrcode.stringToBytesFuncs['UTF-8'];
