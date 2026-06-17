@@ -484,6 +484,56 @@ function nkStaffelNeueMiete(basisMiete, betrag) {
   return Math.round(((+basisMiete || 0) + (+betrag || 0)) * 100) / 100;
 }
 
+/* ---------- Stichtag-Modell (US-68/US-70 Redesign 2026-06-16). Reine Funktionen. ----------
+   Stichtage einer Vereinbarung: Beginn + k × N Jahre (k = 1,2,…) bis einschließlich Enddatum.
+   Ohne gültiges Enddatum leere Liste (die Indexmiete rückt stattdessen einzeln weiter). */
+function nkStichtage(beginn, ende, frequenzJahre) {
+  const n = Math.max(1, Math.floor(+frequenzJahre) || 1);
+  const out = [];
+  const b = nkDatum(beginn), e = nkDatum(ende);
+  if (!b || !e) return out;
+  for (let k = 1; k <= 400; k++) {
+    const d = nkPlusJahre(beginn, n * k);
+    if (nkDatum(d) > e) break;
+    out.push(d);
+  }
+  return out;
+}
+/* Vollständiger Staffelplan: je Stichtag eine Zeile mit Datum, bisheriger und neuer Miete
+   (Miete zu Staffel k = Ausgangsmiete + k × Betrag). */
+function nkStaffelPlan(beginn, ende, frequenzJahre, ausgangsmiete, betrag) {
+  const a = +ausgangsmiete || 0, bt = +betrag || 0;
+  return nkStichtage(beginn, ende, frequenzJahre).map((d, i) => ({
+    nr: i + 1, datum: d,
+    alteMiete: nkStaffelNeueMiete(a, bt * i),
+    neueMiete: nkStaffelNeueMiete(a, bt * (i + 1))
+  }));
+}
+/* Aktuell gültige Staffelmiete zum Datum: neue Miete des letzten erreichten Stichtags,
+   sonst die Ausgangsmiete. */
+function nkStaffelMieteAm(plan, ausgangsmiete, heute) {
+  const h = nkDatum(heute);
+  let cur = +ausgangsmiete || 0;
+  (Array.isArray(plan) ? plan : []).forEach(s => {
+    const sd = nkDatum(s.datum);
+    if (h && sd && sd <= h) cur = s.neueMiete;
+  });
+  return cur;
+}
+/* Mitteilungsfrist (§ 557b Abs. 3): letzter Tag des Monats zwei Monate vor dem Stichtag
+   (z. B. Stichtag 2027-05-01 → 2027-03-31). Rückgabe "YYYY-MM-DD". */
+function nkMitteilungsfrist(stichtag) {
+  const d = nkDatum(stichtag);
+  if (!d) return "";
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 0));
+  return last.toISOString().slice(0, 10);
+}
+/* Indexmonat "YYYY-MM" in deutscher Reihenfolge "MM-YYYY". Leer bleibt leer. */
+function nkMonatDE(ym) {
+  const m = String(ym || "").match(/^(\d{4})-(\d{2})$/);
+  return m ? (m[2] + "-" + m[1]) : "";
+}
+
 /* Umlagefähigkeit je Kostenart (US-04). Reine Funktion; gibt Vorschlag + Begründung zurück.
    Nicht umlagefähig: Verwaltung, Instandhaltung/Reparatur, Rücklagen sowie das
    Kabel-/Fernsehsignal (seit 01.07.2024). Unbekanntes gilt vorsichtshalber als umlagefähig. */
@@ -748,5 +798,10 @@ if (typeof module !== "undefined" && module.exports) {
     nkIndexAnpassungLoeschen,
     nkIndexBasisMonat,
     nkStaffelNeueMiete,
+    nkStichtage,
+    nkStaffelPlan,
+    nkStaffelMieteAm,
+    nkMitteilungsfrist,
+    nkMonatDE,
   };
 }

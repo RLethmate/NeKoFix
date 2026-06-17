@@ -4,6 +4,12 @@
    Rechenkern (nkMieterAbrechnung, nkObjektAbrechnung, nkTotals). Erfordert jsPDF. */
 
 function pdfSafeName(s){ return String(s).replace(/[^\wäöüÄÖÜß .-]/g,'_').trim(); }
+/* "YYYY-MM" → ausgeschriebener Monat + Jahr, z. B. "Januar 2025". */
+function pdfMonatLang(ym){
+  const mm=String(ym||'').match(/^(\d{4})-(\d{2})$/); if(!mm) return '';
+  const namen=(typeof NK_MONATSNAMEN!=='undefined')?NK_MONATSNAMEN:['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  return (namen[(+mm[2])-1]||mm[2])+' '+mm[1];
+}
 function ensurePdfLib(){
   if(!(window.jspdf && window.jspdf.jsPDF)){
     alert("Die PDF-Bibliothek konnte nicht geladen werden. Bitte Internetverbindung prüfen, einen evtl. Adblocker deaktivieren und die Seite neu laden.");
@@ -141,6 +147,79 @@ function buildTenantPdf(sel){
   return doc;
 }
 function exportTenantPdf(){ if(!ensurePdfLib())return; const sel=alleMV()[activeMieter]; if(sel) buildTenantPdf(sel).save("Abrechnung-"+pdfSafeName(sel.m.mieter)+".pdf"); }
+/* US-69: Mieterhöhungs-Anschreiben als DIN-Brief (Index § 557b oder Staffel § 557a).
+   `a` = {typ:'index'|'staffel', stichtag, stichtag1, alteMiete, neueMiete, prozent, rohNeu,
+   betrag, monatVon, monatBis, frist}. Briefkopf/Adresse wie buildTenantPdf (US-53). */
+function buildMieterhoehungPdf(a){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const L=56, R=540, W=R-L; let y;
+  const nl=(t)=>{ if(y>780){doc.addPage(); y=64;} doc.text(t,L,y); y+=14; };
+  const par=(t)=>{ doc.splitTextToSize(t,W).forEach(l=>nl(l)); };
+  const idx = a.typ==='index';
+  const stell=(+a.stellAnzahl||0)*(+a.stellPreis||0); const nk=+a.nk||0;
+  // Briefkopf (alle Werte aus a – self-contained, auch für eingefrorene Schnappschüsse)
+  doc.setFontSize(8); doc.setTextColor(110);
+  const abs=[a.vermieter, a.vermieterAnschrift].filter(Boolean).join(' · ');
+  if(abs) doc.text(abs, L, 70);
+  doc.setFontSize(10); doc.setTextColor(0);
+  doc.text(new Date().toLocaleDateString('de-DE'), R, 92, {align:'right'});
+  y=110; doc.setFontSize(11);
+  doc.text(String(a.mieter||''), L, y); y+=14;
+  doc.text(String(a.empfZeile2||''), L, y);
+  // Betreff
+  y=180; doc.setFont(undefined,'bold'); doc.setFontSize(12);
+  const betreff = idx ? 'Mietanpassung nach Indexmietvereinbarung (§ 557b BGB)' : 'Mietanpassung nach Staffelmietvereinbarung (§ 557a BGB)';
+  doc.splitTextToSize(betreff, W).forEach(l=>{ doc.text(l,L,y); y+=16; });
+  doc.setFont(undefined,'normal'); doc.setFontSize(10);
+  y+=8; nl((a.anredeText||'Guten Tag')+','); y+=4;
+  if(idx){
+    const erh=a.alteMiete*(a.prozent/100);
+    par('wie angekündigt, informiere ich Sie hiermit über die vereinbarte Anpassung der Nettokaltmiete nach § 557b BGB.'); y+=6;
+    par('Die Ausgangsmiete beträgt mit Stichtag '+(a.stichtag1?fmtDatum(a.stichtag1):'—')+': '+nkFmtBetrag(a.alteMiete)+' EUR.'); y+=6;
+    par('Gemäß Angabe des Statistischen Bundesamts beträgt die prozentuale Veränderung vom Indexstand des Monats '+pdfMonatLang(a.monatVon)+' bis zum gewählten Indexstand des Monats '+pdfMonatLang(a.monatBis)+': '+nkFmtBetrag(a.prozent)+' %.'); y+=2;
+    doc.setTextColor(80); doc.setFontSize(8); nl('https://www.destatis.de/DE/Themen/Wirtschaft/Preise/Verbraucherpreisindex/Methoden/Internetprogramm.html'); doc.setFontSize(10); doc.setTextColor(0); y+=6;
+    nl(nkFmtBetrag(a.alteMiete)+' EUR * '+nkFmtBetrag(a.prozent)+' % = '+nkFmtBetrag(erh)+' EUR'); y+=6;
+    par('Somit setzt sich die Monatsmiete wie folgt zusammen (neue Nettokaltmiete auf volle Euro abgerundet):');
+  } else {
+    par('wie angekündigt, informiere ich Sie hiermit über die vertraglich vereinbarte Anpassung der Nettokaltmiete nach § 557a BGB (Staffelmiete).'); y+=6;
+    par('Die bisherige Nettokaltmiete beträgt: '+nkFmtBetrag(a.alteMiete)+' EUR.');
+    par('Zum '+fmtDatum(a.stichtag)+' erhöht sie sich vereinbarungsgemäß um '+nkFmtBetrag(a.betrag)+' EUR.'); y+=6;
+    par('Somit setzt sich die Monatsmiete wie folgt zusammen:');
+  }
+  // Zusammensetzung der monatlichen Miete (bisher / neu)
+  y+=12; if(y>720){ doc.addPage(); y=64; }
+  doc.setFont(undefined,'bold'); doc.text('Zusammensetzung der monatlichen Miete', L, y); doc.setFont(undefined,'normal'); y+=14;
+  const cBis=440, cNeu=R;
+  doc.setFontSize(8); doc.setTextColor(110);
+  doc.text('bisher', cBis, y, {align:'right'}); doc.text('neu', cNeu, y, {align:'right'});
+  doc.setFontSize(10); doc.setTextColor(0); y+=4; doc.line(L,y,R,y); y+=14;
+  const zeile=(label,bis,neu)=>{ doc.text(String(label),L,y); doc.text(eur(bis),cBis,y,{align:'right'}); doc.text(eur(neu),cNeu,y,{align:'right'}); y+=14; };
+  zeile('Nettokaltmiete', a.alteMiete, a.neueMiete);
+  if(stell>0) zeile('Stellplatz ('+(+a.stellAnzahl||0)+' × '+nkFmtBetrag(a.stellPreis)+' EUR)', stell, stell);
+  if(nk>0) zeile('Nebenkosten-Vorauszahlung', nk, nk);
+  y+=2; doc.line(L,y,R,y); y+=14;
+  const gesamtNeu=a.neueMiete+stell+nk;
+  doc.setFont(undefined,'bold'); doc.text('Gesamtmiete monatlich',L,y); doc.text(eur(a.alteMiete+stell+nk),cBis,y,{align:'right'}); doc.text(eur(gesamtNeu),cNeu,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=20;
+  par('Bitte passen Sie Ihren Dauerauftrag zum '+fmtDatum(a.stichtag)+' entsprechend an.'); y+=4;
+  // US-55: GiroCode (EPC-QR) – Einrichtung in der Banking-App ohne Abtippen.
+  if(nkIbanGueltig(a.iban) && gesamtNeu>0){
+    const giro=nkGiroCode({ empfaenger:a.vermieter, iban:a.iban, bic:a.bic, betrag:gesamtNeu, zweck:'Miete '+(a.objektAddr||'')+'-'+(a.einheitName||'')+'-'+(a.mieter||'')+'ab-'+fmtDatum(a.stichtag) });
+    let url=null;
+    if(giro && typeof qrcode!=='undefined'){
+      try{ if(qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8']) qrcode.stringToBytes=qrcode.stringToBytesFuncs['UTF-8'];
+        const qr=qrcode(0,'M'); qr.addData(giro); qr.make(); url=qr.createDataURL(4,8); }catch(e){ url=null; }
+    }
+    if(url){ y+=6; const qs=80; if(y+qs>800){ doc.addPage(); y=64; }
+      doc.addImage(url,'GIF',L,y,qs,qs);
+      doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.text('GiroCode',L+qs+12,y+14); doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(110);
+      doc.splitTextToSize('In Ihrer Banking-App scannen – IBAN, neue Gesamtmiete und Verwendungszweck sind hinterlegt. Bitte vor dem Einrichten prüfen.', W-qs-12).forEach((l,i)=>doc.text(l,L+qs+12,y+28+i*11));
+      doc.setTextColor(0); doc.setFontSize(10); y+=qs+10; }
+  }
+  par('Für Rückfragen stehe ich gerne zur Verfügung.'); y+=10;
+  nl('Mit freundlichen Grüßen'); y+=18; nl(String(a.vermieter||''));
+  return doc;
+}
 /* US-52: Abrechnungs-PDF erzeugen und teilen (Web Share API mit Datei) – Anhang, wo unterstützt;
    sonst Fallback: herunterladen und manuell anhängen. */
 async function sharePdfAktiv(){

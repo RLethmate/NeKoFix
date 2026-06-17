@@ -200,7 +200,25 @@
   .index-block{margin-top:10px;padding-top:8px;border-top:1px dashed var(--border,#d4d4d4);}
   .index-block>label{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;}
   .index-vorschau{font-size:13px;margin:6px 0;}
-  .index-hist{font-size:12px;color:var(--muted);margin:2px 0;}
+  .index-hist{font-size:12px;color:var(--muted);margin:6px 0;}
+  .index-hist .ih-text{}
+  .ih-actions{display:flex;align-items:center;justify-content:flex-start;gap:10px;margin-top:2px;}
+  .staffel-ank{display:inline-flex;align-items:center;gap:5px;}
+  .mh-formel{font-size:13px;margin-top:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .index-naechste{display:block;border:1px solid var(--border,#d4d4d4);border-radius:6px;padding:10px;margin:8px 0;}
+  .index-naechste.warn{border-color:var(--nachzahlung);}
+  .mh-aktuell{font-size:12px;color:var(--muted);margin:6px 0;}
+  .mh-titel{margin-bottom:2px;}
+  .mh-sub{font-size:12px;color:var(--muted);margin:3px 0;}
+  .mh-input-row{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end;margin:8px 0;}
+  .mh-input-row label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);}
+  .mh-input-row .addrow{align-self:flex-end;}
+  .mh-monyear{display:flex;gap:6px;}
+  .mh-month{min-width:120px;}
+  .mh-year{width:84px;text-align:right;}
+  .info{cursor:help;color:var(--accent,#0a7);font-weight:700;}
+  .staffel-ank{font-size:11px;color:var(--muted);}
+  .index-hist.staffel-warn .ih-text{color:var(--nachzahlung);}
   .chronik-row{display:flex;gap:8px;align-items:center;margin:4px 0;}
   .chronik-row input[type=date]{max-width:150px;}
   .chronik-row input:not([type=date]){flex:1;}
@@ -434,7 +452,13 @@
 <script>
 /* US-56: lokale Skripte mit Versionskennung laden (Cache-Busting). `v` wird beim Deploy
    automatisch auf den Commit-Hash gesetzt (siehe .github/workflows/pages.yml); lokal bleibt der Wert. */
-(function(){ var v="0.4"; ["calc.js","core.js","view.js","pdf.js"].forEach(function(f){ document.write('<script src="'+f+'?v='+encodeURIComponent(v)+'"><\/script>'); }); })();
+(function(){ var v="0.4"; var files=["calc.js","core.js","view.js","pdf.js"];
+  if(document.readyState==="loading"){ /* normaler Parse (Browser/Pages): schnellster Weg */
+    files.forEach(function(f){ document.write('<script src="'+f+'?v='+encodeURIComponent(v)+'"><\/script>'); });
+  } else { /* Fallback (eingebettete Webview/nach dem Parsen): geordnetes Nachladen */
+    (function load(i){ if(i>=files.length) return; var s=document.createElement("script"); s.src=files[i]+"?v="+encodeURIComponent(v); s.async=false; s.onload=function(){ load(i+1); }; document.head.appendChild(s); })(0);
+  }
+})();
 </script>
 </body>
 </html>
