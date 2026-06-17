@@ -384,14 +384,19 @@ function nkUeberlappungsTage(von1, bis1, von2, bis2) {
   if (end < start) return 0;
   return Math.round((end - start) / 86400000) + 1;
 }
+/* US-75: effektives Ende eines Mietverhältnisses. „läuft" (offenes Ende) → Ende des
+   Abrechnungszeitraums; sonst das eingetragene Bis-Datum. Reine Funktion. */
+function nkMvEnde(m, periodeBis) {
+  return (m && m.laeuft) ? (periodeBis || "") : ((m && m.bis) || "");
+}
 /* US-47: Gesamtzahl der Tage, an denen sich Mietverhältnisse derselben Einheit überschneiden
-   (Summe über alle Paare). 0 = keine Überschneidung. */
-function nkUeberlappungTageEinheit(e) {
+   (Summe über alle Paare). 0 = keine Überschneidung. periodeBis löst „läuft" auf. */
+function nkUeberlappungTageEinheit(e, periodeBis) {
   const mv = (e && e.mv) || [];
   let tage = 0;
   for (let i = 0; i < mv.length; i++)
     for (let j = i + 1; j < mv.length; j++)
-      tage += nkUeberlappungsTage(mv[i].von, mv[i].bis, mv[j].von, mv[j].bis);
+      tage += nkUeberlappungsTage(mv[i].von, nkMvEnde(mv[i], periodeBis), mv[j].von, nkMvEnde(mv[j], periodeBis));
   return tage;
 }
 function nkZeitanteil(mvVon, mvBis, pVon, pBis) {
@@ -574,12 +579,12 @@ function nkPlausibilitaet(s) {
   const nu = K.filter(k => !nkUmlageInfo(k.bez).umlagefaehig);
   if (nu.length) punkte.push({ level: "warn", text: nu.length + " nicht umlagefähige Position(en) enthalten (z. B. „" + nu[0].bez + "“)." });
   let leer = false;
-  E.forEach(e => { const z = (e.mv || []).reduce((a, m) => a + nkZeitanteil(m.von, m.bis, O.von, O.bis), 0); if (z < 0.999) leer = true; });
+  E.forEach(e => { const z = (e.mv || []).reduce((a, m) => a + nkZeitanteil(m.von, nkMvEnde(m, O.bis), O.von, O.bis), 0); if (z < 0.999) leer = true; });
   if (leer) punkte.push({ level: "warn", text: "Leerstand vorhanden – dieser Anteil trägt der Vermieter." });
   // US-47: Spiegelbild der Leerstand-Prüfung – Summe der Zeitanteile einer Einheit über 100 %
   // deutet auf überschneidende Mietzeiträume (Doppelerfassung) hin.
   E.forEach(e => {
-    const tage = nkUeberlappungTageEinheit(e);
+    const tage = nkUeberlappungTageEinheit(e, O.bis);
     if (tage > 0) {
       const namen = (e.mv || []).map(m => (m.mieter && String(m.mieter).trim()) || "(ohne Name)").join(", ");
       punkte.push({ level: "warn", text: "Einheit „" + e.name + "“: überschneidende Mietzeiträume – " + tage + " Tag(e) doppelt belegt; Mietverhältnisse prüfen: " + namen + "." });
@@ -599,7 +604,8 @@ function nkEsc(s) {
    Bildschirm, PDF und Rechenweg brauchen – eine Quelle der Wahrheit. */
 function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
   const o = objekt || {};
-  const za = nkZeitanteil(m.von, m.bis, o.von, o.bis);
+  const mvBis = nkMvEnde(m, o.bis); // US-75: „läuft" → Ende des Abrechnungszeitraums
+  const za = nkZeitanteil(m.von, mvBis, o.von, o.bis);
   const gewerblich = !!m.gewerblich;
   const K = kosten || [];
   // US-07: gebäudeweite CO2-Grundgrößen und effektiver Vermieteranteil dieses Mietverhältnisses.
@@ -613,7 +619,7 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
     const k = K[ix] || {};
     // US-06: hat die Position einen eigenen Zeitraum (Heizblock), Zeitanteil über DIESE Periode,
     // sonst über den Abrechnungszeitraum.
-    const zaL = (i.von && i.bis) ? nkZeitanteil(m.von, m.bis, i.von, i.bis) : za;
+    const zaL = (i.von && i.bis) ? nkZeitanteil(m.von, mvBis, i.von, i.bis) : za;
     const anteil = i.anteil * zaL;
     const wert = gewerblich ? nkNetto(anteil, i.vorsteuer) : anteil; // Anzeige je Zeile
     // US-07: Mieteranteil an den CO2-Kosten dieses fossilen Heizblocks und der vom Vermieter
@@ -639,7 +645,7 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
   const vorauszahlung = +m.voraus || 0;
   return {
     einheit: e.name, mieter: m.mieter, gewerblich: gewerblich,
-    von: m.von, bis: m.bis, zeitanteil: za, zeilen: zeilen,
+    von: m.von, bis: mvBis, zeitanteil: za, zeilen: zeilen,
     netto: betrag.netto, ust: betrag.ust, bruttoVorCo2: betrag.brutto, brutto: bruttoNachCo2,
     co2: {
       spez: spezCo2, stufe: nkCo2Stufe(spezCo2), vermieterProzent: co2Prozent,
@@ -699,7 +705,7 @@ function nkVorjahrUebernehmen(src) {
   const altBis = o.bis;
   const objekt = Object.assign({}, o, { von: nkPlusJahr(o.von), bis: nkPlusJahr(o.bis) });
   const einheiten = (s.einheiten || []).map(e => {
-    const aktive = (e.mv || []).filter(m => !altBis || !m.bis || m.bis >= altBis);
+    const aktive = (e.mv || []).filter(m => m.laeuft || !altBis || !m.bis || m.bis >= altBis);
     const mv = aktive.map(m => {
       const monat = +m.vmonat || 0;
       return Object.assign({}, m, {
@@ -746,6 +752,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkTageInklusive,
     nkUeberlappungsTage,
     nkUeberlappungTageEinheit,
+    nkMvEnde,
     nkZeitanteil,
     nkNaechsteEinheitName,
     nkParseState,

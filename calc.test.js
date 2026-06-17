@@ -805,3 +805,21 @@ test("nkMonatDE: YYYY-MM in deutsche Reihenfolge MM-YYYY", () => {
   assert.equal(calc.nkMonatDE(""), "");
   assert.equal(calc.nkMonatDE("kaputt"), "");
 });
+
+/* ---------- Offenes Mietende (US-75) ---------- */
+test("nkMvEnde: läuft → Periodenende, sonst Bis-Datum", () => {
+  assert.equal(calc.nkMvEnde({ laeuft: true, bis: "" }, "2025-12-31"), "2025-12-31");
+  assert.equal(calc.nkMvEnde({ laeuft: true, bis: "2020-01-01" }, "2025-12-31"), "2025-12-31"); // läuft schlägt Bis
+  assert.equal(calc.nkMvEnde({ bis: "2025-08-31" }, "2025-12-31"), "2025-08-31");
+  assert.equal(calc.nkMvEnde({}, "2025-12-31"), "");
+});
+test("nkMvEnde: laufendes Mietverhältnis deckt vollen Zeitraum (Zeitanteil 1)", () => {
+  const m = { von: "2025-01-01", laeuft: true };
+  const za = calc.nkZeitanteil(m.von, calc.nkMvEnde(m, "2025-12-31"), "2025-01-01", "2025-12-31");
+  assert.ok(Math.abs(za - 1) < 1e-9, "Zeitanteil sollte 1 sein, war " + za);
+});
+test("nkUeberlappungTageEinheit: löst läuft über periodeBis auf", () => {
+  const e = { mv: [ { von: "2025-01-01", laeuft: true }, { von: "2025-06-01", bis: "2025-12-31" } ] };
+  assert.ok(calc.nkUeberlappungTageEinheit(e, "2025-12-31") > 0); // beide decken Jun–Dez → Überschneidung
+  assert.equal(calc.nkUeberlappungTageEinheit({ mv: [ { von: "2025-01-01", bis: "2025-05-31" }, { von: "2025-06-01", laeuft: true } ] }, "2025-12-31"), 0);
+});

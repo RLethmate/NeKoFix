@@ -65,8 +65,8 @@ function zeitraumSatz(){
   if(mv && mb && mv[1]===mb[1]) return mv[1];
   return 'den Zeitraum '+fmtDatum(v)+' – '+fmtDatum(b);
 }
-function alleMV(){ const out=[]; state.einheiten.forEach((e,ei)=>{ (e.mv||[]).forEach((m,mi)=>{ out.push({e,m,ei,mi,za:nkZeitanteil(m.von,m.bis,state.objekt.von,state.objekt.bis)}); }); }); return out; }
-function leerstandZa(e){ const s=(e.mv||[]).reduce((a,m)=>a+nkZeitanteil(m.von,m.bis,state.objekt.von,state.objekt.bis),0); return Math.max(0,1-s); }
+function alleMV(){ const out=[]; state.einheiten.forEach((e,ei)=>{ (e.mv||[]).forEach((m,mi)=>{ out.push({e,m,ei,mi,za:nkZeitanteil(m.von,nkMvEnde(m,state.objekt.bis),state.objekt.von,state.objekt.bis)}); }); }); return out; }
+function leerstandZa(e){ const s=(e.mv||[]).reduce((a,m)=>a+nkZeitanteil(m.von,nkMvEnde(m,state.objekt.bis),state.objekt.von,state.objekt.bis),0); return Math.max(0,1-s); }
 
 /* ---------- Stepper (US-54: seitliche Lasche, Gruppen, Kürzel, Versand-Ampel) ---------- */
 const STEP_ABBR = ["OB","VZ","KO","HE","BE","AB","ZA"];
@@ -163,7 +163,10 @@ function renderEinheiten(){
       let row='<tr>'+
         '<td><span class="bez-cell"><input value="'+esc(m.mieter)+'" oninput="updMV('+ei+','+mi+',\'mieter\',this.value)">'+badge+'</span></td>'+
         '<td><input type="date" value="'+m.von+'" onchange="updMV('+ei+','+mi+',\'von\',this.value)" onblur="renderEinheiten()"></td>'+
-        '<td><input type="date" value="'+m.bis+'" onchange="updMV('+ei+','+mi+',\'bis\',this.value)" onblur="renderEinheiten()"></td>'+
+        '<td>'+(m.laeuft
+            ? '<span class="hint" title="laufendes Mietverhältnis – Ende = Abrechnungszeitraum">läuft</span>'
+            : '<input type="date" value="'+(m.bis||'')+'" onchange="updMV('+ei+','+mi+',\'bis\',this.value)" onblur="renderEinheiten()">')+
+          ' <label class="laeuft-lbl" title="läuft (offenes Ende)"><input type="checkbox" '+(m.laeuft?'checked':'')+' onchange="updMVLaeuft('+ei+','+mi+',this.checked)"> läuft</label></td>'+
         '<td title="gewerblich / umsatzsteuerpflichtig"><label class="gewerbl"><input type="checkbox" '+(m.gewerblich?'checked':'')+' onchange="updMV('+ei+','+mi+',\'gewerblich\',this.checked)"> ja</label></td>'+
         '<td><button class="status-toggle" onclick="toggleVertrag('+m.id+')">'+(open?'weniger ▴':'mehr ▾')+'</button></td>'+
         '<td><button class="row-del" title="Mietverhältnis entfernen" onclick="delMV('+ei+','+mi+')">×</button></td>'+
@@ -207,7 +210,7 @@ function renderEinheiten(){
         '<table class="mv-table"><thead><tr><th>Mieter</th><th>von</th><th>bis</th><th>gewerbl.</th><th>Vertrag</th><th></th></tr></thead><tbody>'+mvRows+'</tbody></table>'+
         '<button class="addrow" onclick="addMV('+ei+')">+ Mietverhältnis</button>'+
         leerHint+
-        (nkUeberlappungTageEinheit(e)>0 ? '<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Überschneidende Mietzeiträume: '+nkUeberlappungTageEinheit(e)+' Tag(e) doppelt belegt – bitte Zeiträume prüfen.</div>' : '')+
+        (nkUeberlappungTageEinheit(e, state.objekt.bis)>0 ? '<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Überschneidende Mietzeiträume: '+nkUeberlappungTageEinheit(e, state.objekt.bis)+' Tag(e) doppelt belegt – bitte Zeiträume prüfen.</div>' : '')+
       '</div>');
   });
   /* US-66: Chronik-Textfelder initial an ihren Inhalt anpassen. */
@@ -239,6 +242,7 @@ document.getElementById('z_frist').addEventListener('input',e=>store.setZahlungF
 
 function updEinheit(ei,field,val){ store.setEinheitFeld(ei,field,val); }
 function updMV(ei,mi,field,val){ store.setMvFeld(ei,mi,field,val); /* Datum: Neu-Zeichnen via onblur, nicht beim Tippen */ }
+function updMVLaeuft(ei,mi,checked){ store.setMvFeld(ei,mi,'laeuft', !!checked); renderEinheiten(); } /* US-75: offenes Ende */
 function addMV(ei){ store.addMv(ei); renderEinheiten(); }
 function delMV(ei,mi){ store.removeMv(ei,mi); renderEinheiten(); }
 /* US-21: Vertrag & Anpassungs-Chronik je Mietverhältnis */
@@ -1056,7 +1060,7 @@ function renderDoc(){
     : '<tr class="total-row"><td>Ihr Anteil an den Gesamtkosten</td>'+leer(4)+'<td class="num">'+eur(ab.brutto)+'</td></tr>';
   document.getElementById('doc').innerHTML=
     '<h2>Betriebs- und Heizkostenabrechnung</h2>'+
-    '<div class="meta">'+esc(state.objekt.addr)+' · Einheit '+esc(e.name)+' · Mieter: <b>'+esc(m.mieter)+'</b>'+(gew?' (gewerblich, umsatzsteuerpflichtig)':'')+'<br>Abrechnungszeitraum: '+zeitraumText()+' · Mietzeit: '+fmtDatum(m.von)+'–'+fmtDatum(m.bis)+' ('+Math.round(za*100)+' % des Zeitraums)</div>'+
+    '<div class="meta">'+esc(state.objekt.addr)+' · Einheit '+esc(e.name)+' · Mieter: <b>'+esc(m.mieter)+'</b>'+(gew?' (gewerblich, umsatzsteuerpflichtig)':'')+'<br>Abrechnungszeitraum: '+zeitraumText()+' · Mietzeit: '+fmtDatum(m.von)+'–'+fmtDatum(nkMvEnde(m,state.objekt.bis))+(m.laeuft?' (läuft)':'')+' ('+Math.round(za*100)+' % des Zeitraums)</div>'+
     '<div class="headline-box">'+  /* US-62: kompakter Ergebnis-Block (Techem-Stil) */
       '<div class="hl-row"><span>Ihr Anteil an den Gesamtkosten</span><span>'+eur(anteil)+'</span></div>'+
       '<div class="hl-row"><span>Ihre Vorauszahlung</span><span>'+eur(+m.voraus||0)+'</span></div>'+
@@ -1100,7 +1104,7 @@ function renderZahlungen(){
     if(!m.bezahlt) m.bezahlt={};
     const nk=nkMonatNK(m);
     const soll=nkSollMonat(m.grundmiete, nk, m.stellAnzahl, m.stellPreis);
-    const monate=nkAktiveMonate(m.von, m.bis, state.objekt.von, state.objekt.bis);
+    const monate=nkAktiveMonate(m.von, nkMvEnde(m,state.objekt.bis), state.objekt.von, state.objekt.bis);
     const offen=monate.filter(k=>!m.bezahlt[k]);
     const chips=monate.map(k=>{
       const paid=!!m.bezahlt[k];
