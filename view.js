@@ -100,6 +100,12 @@ const NAV_KEY="nekofix-nav-collapsed";
 function updateNavToggleGlyph(){ const s=document.getElementById('sidenav'); const b=s&&s.querySelector('.nav-toggle'); if(b) b.textContent = s.classList.contains('collapsed')?'»':'«'; }
 function toggleNav(){ const s=document.getElementById('sidenav'); if(!s) return; s.classList.toggle('collapsed'); try{ localStorage.setItem(NAV_KEY, s.classList.contains('collapsed')?'1':'0'); }catch(e){} updateNavToggleGlyph(); }
 function initNav(){ const s=document.getElementById('sidenav'); if(!s) return; let c='0'; try{ c=localStorage.getItem(NAV_KEY)||'0'; }catch(e){} if(c==='1') s.classList.add('collapsed'); updateNavToggleGlyph(); }
+/* US-80: Dokument-Anker – Info-Lasche je Schritt, global gemerkter Einklapp-Zustand
+   (eigener LS-Key, objektübergreifend). Einmal zugeklappt bleibt sie überall zu. */
+const DOK_KEY="nekofix-dok-zu";
+function dokZu(){ try{ return localStorage.getItem(DOK_KEY)==="1"; }catch(e){ return false; } }
+function applyDokAnker(){ document.body.classList.toggle('dok-zu', dokZu()); }
+function toggleDokAnker(){ const v=!dokZu(); try{ localStorage.setItem(DOK_KEY, v?"1":"0"); }catch(e){} applyDokAnker(); }
 /* US-54: dauerhaft sichtbare Versand-/Plausi-Ampel; bereit = keine blockierenden Fehler. */
 let navPlausiOpen=false;
 function renderNavPlausi(){
@@ -1284,6 +1290,7 @@ renderObjektSelect();
 (function(){ const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus; })();
 fillObjektKopf();
 initNav(); /* US-54: gespeicherten Klapp-Zustand der Lasche anwenden */
+applyDokAnker(); /* US-80: gespeicherten Einklapp-Zustand der Dokument-Anker anwenden */
 renderEinheiten(); renderVoraus(); renderKosten(); renderStepper(); go(0);
 saveState();
 /* US-54: Versand-Ampel live aktualisieren, sobald sich Eingaben ändern. */
