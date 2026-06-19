@@ -559,6 +559,7 @@ function nkMieteAm(m, datum) {
 function nkZahlStatus(erhalten, soll) {
   const e = +erhalten || 0, s = +soll || 0;
   if (e <= 0) return "offen";
+  if (e > s + 0.005) return "ueberzahlt";
   if (e + 0.005 >= s) return "bezahlt";
   return "teilweise";
 }

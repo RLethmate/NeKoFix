@@ -1147,7 +1147,7 @@ function renderZahlungen(){
         '<span class="zm-label">'+monatLabel(k)+'</span>'+
         '<span class="zm-soll">Soll '+eur(soll)+'</span>'+
         '<label class="zm-erh">erhalten <input class="short" type="text" inputmode="decimal" value="'+(erhalten?nkFmtBetrag(erhalten):'')+'" placeholder="'+nkFmtBetrag(soll)+'" onchange="updErhalten('+ei+','+mi+',\''+k+'\',this.value)"></label>'+
-        '<button class="addrow zm-add" title="Teilzahlung hinzufügen" onclick="addTeilzahlung('+ei+','+mi+',\''+k+'\')">+</button>'+
+        '<button class="zm-pruef'+(st==='bezahlt'||st==='ueberzahlt'?' aktiv':'')+'" title="Monat als geprüft markieren (setzt erhalten = Soll); erneut klicken hebt es wieder auf" onclick="toggleGeprueft('+ei+','+mi+',\''+k+'\')">geprüft</button>'+
       '</div>';
     }).join('');
     const offenBetrag=Math.max(0, Math.round((sumSoll-sumErh)*100)/100);
@@ -1165,17 +1165,25 @@ function updErhalten(ei,mi,key,val){
   const betrag=nkParseBetrag(val);
   store.setErhalten(ei,mi,key,betrag);
   const m=store.mv(ei,mi); const snap=m.sollSnap||{};
-  if(!(key in snap)){ /* Soll einfrieren, sobald der Monat voll bezahlt ist */
+  if(!(key in snap)){ /* Soll einfrieren, sobald der Monat voll beglichen ist (bezahlt oder überzahlt) */
     const soll=nkSollMonat(nkMieteAm(m, key+'-01'), nkMonatNK(m), m.stellAnzahl, m.stellPreis);
-    if(betrag>0 && nkZahlStatus(betrag, soll)==='bezahlt') store.setSollSnap(ei,mi,key, soll);
+    if(betrag+0.005>=soll && soll>0) store.setSollSnap(ei,mi,key, soll);
   }
   renderZahlungen();
 }
-function addTeilzahlung(ei,mi,key){
-  const eingabe=prompt('Teilzahlung in € hinzufügen:'); if(eingabe==null) return;
-  const add=nkParseBetrag(eingabe); if(!add) return;
-  const m=store.mv(ei,mi); const erh=(m.erhalten&&key in m.erhalten)?+m.erhalten[key]:0;
-  updErhalten(ei,mi,key, nkFmtBetrag(erh+add));
+/* US-74: „geprüft"-Toggle. Markiert den Monat als geprüft = voll beglichen (erhalten = Soll);
+   erneuter Klick auf einen bereits beglichenen Monat hebt es wieder auf (erhalten leer, Soll
+   wird wieder live berechnet). Beliebige Teilbeträge werden direkt im „erhalten"-Feld erfasst. */
+function toggleGeprueft(ei,mi,key){
+  const m=store.mv(ei,mi);
+  const soll=monatSoll(m,key);
+  const erh=monatErhalten(m,key,soll);
+  if(soll>0 && erh+0.005>=soll){ /* bereits beglichen => Häkchen entfernen */
+    store.clearSollSnap(ei,mi,key);
+    updErhalten(ei,mi,key,'');
+  } else { /* als geprüft/voll beglichen markieren */
+    updErhalten(ei,mi,key, nkFmtBetrag(soll));
+  }
 }
 /* US-67: updMVNum entfernt – Miete/Stellplätze werden jetzt im Vertrag (updVertrag) gepflegt. */
 

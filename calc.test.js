@@ -821,9 +821,12 @@ test("nkMieteAm: Staffel/Index/keine", () => {
   assert.equal(calc.nkMieteAm(idx,"2025-06-01"),1020);
   assert.equal(calc.nkMieteAm({grundmiete:800},"2025-06-01"),800);
 });
-test("nkZahlStatus: offen/teilweise/bezahlt", () => {
+test("nkZahlStatus: offen/teilweise/bezahlt/ueberzahlt", () => {
   assert.equal(calc.nkZahlStatus(0,1190),"offen");
-  assert.equal(calc.nkZahlStatus(500,1190),"teilweise");
-  assert.equal(calc.nkZahlStatus(1190,1190),"bezahlt");
-  assert.equal(calc.nkZahlStatus(1200,1190),"bezahlt");
+  assert.equal(calc.nkZahlStatus(-5,1190),"offen");        // leer/negativ => offen (rot)
+  assert.equal(calc.nkZahlStatus(500,1190),"teilweise");    // < Soll => rot
+  assert.equal(calc.nkZahlStatus(1190,1190),"bezahlt");     // = Soll => grün
+  assert.equal(calc.nkZahlStatus(1190.004,1190),"bezahlt"); // Cent-Toleranz bleibt bezahlt
+  assert.equal(calc.nkZahlStatus(1200,1190),"ueberzahlt");  // > Soll => blau
+  assert.equal(calc.nkZahlStatus(1190.02,1190),"ueberzahlt");// knapp über Toleranz => überzahlt
 });

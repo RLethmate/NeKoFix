@@ -60,6 +60,7 @@ const store = {
   setBezahlt(ei,mi,key,checked){ const m=state.einheiten[ei].mv[mi]; if(!m.bezahlt)m.bezahlt={}; m.bezahlt[key]=checked; commit(); },
   setErhalten(ei,mi,key,val){ const m=state.einheiten[ei].mv[mi]; if(!m.erhalten)m.erhalten={}; m.erhalten[key]=+val||0; commit(); }, /* US-74 */
   setSollSnap(ei,mi,key,val){ const m=state.einheiten[ei].mv[mi]; if(!m.sollSnap)m.sollSnap={}; m.sollSnap[key]=+val||0; commit(); }, /* US-74: Soll bei bezahltem Monat einfrieren */
+  clearSollSnap(ei,mi,key){ const m=state.einheiten[ei].mv[mi]; if(m.sollSnap&&key in m.sollSnap){ delete m.sollSnap[key]; commit(); } }, /* US-74: Einfrieren aufheben (z. B. beim Ent-Haken von „geprüft") */
   // Chronik
   addChronik(ei,mi){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik)m.chronik=[]; m.chronik.push({datum:state.objekt.von||'',text:''}); commit(); },
   removeChronik(ei,mi,ci){ state.einheiten[ei].mv[mi].chronik.splice(ci,1); commit(); },

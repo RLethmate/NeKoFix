@@ -10,6 +10,7 @@
     --primary-dark:#0E454E;
     --accent:#2A9D8F;       /* Guthaben/positiv */
     --nachzahlung:#B4541E;  /* Nachzahlung – ruhiges Terrakotta */
+    --ueberzahlt:#2F6FED;   /* überzahlt – Blau (mehr als Soll erhalten) */
     --ink:#1d2733;
     --muted:#5b6b7b;
     --bg:#eef2f3;
@@ -192,14 +193,19 @@
   .zahl-summe{font-size:13px;margin-left:auto;}
   .zahl-monate{display:flex;flex-direction:column;gap:6px;}
   .zahl-monat{font-size:13px;border:1px solid var(--line);border-left-width:4px;border-radius:7px;padding:6px 10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
-  .zahl-monat.offen{border-left-color:var(--nachzahlung);}
-  .zahl-monat.teilweise{border-left-color:#b8860b;}
+  /* US-74: < Soll oder leer => rot, = Soll => grün, > Soll => blau */
+  .zahl-monat.offen{border-left-color:var(--nachzahlung);background:#fcf3ef;}
+  .zahl-monat.teilweise{border-left-color:var(--nachzahlung);background:#fcf3ef;}
   .zahl-monat.bezahlt{border-left-color:var(--accent);background:#f3faf6;}
+  .zahl-monat.ueberzahlt{border-left-color:var(--ueberzahlt);background:#eef3fd;}
   .zm-label{min-width:80px;font-weight:600;}
   .zm-soll{color:var(--muted);min-width:120px;}
   .zm-erh{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;}
   .zm-erh input{max-width:120px;}
   .zm-add{padding:2px 8px;}
+  /* US-74: „geprüft"-Toggle – aktiv, wenn der Monat voll beglichen ist */
+  .zm-pruef{padding:2px 10px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--muted);cursor:pointer;font-size:12px;white-space:nowrap;}
+  .zm-pruef.aktiv{border-color:var(--accent);background:var(--accent);color:#fff;}
   .leer-hint{font-size:12px;color:var(--nachzahlung);display:flex;align-items:center;gap:6px;margin-top:8px;}
   .chronik-titel{font-size:12px;color:var(--muted);font-weight:600;margin:10px 0 4px;}
   /* US-68: Indexmiete-Bereich */
@@ -314,6 +320,7 @@
   <!-- Step 1: Objekt & Einheiten -->
   <section class="panel" data-step="0">
     <h1>1 · Objekt &amp; Einheiten</h1>
+    <div class="dok-anker">Das brauchst du jetzt: <b>Mietvertrag (Wohnungsgrößen) bzw. Grundriss</b><button class="dok-x" onclick="toggleDokAnker()" title="Dokument-Hinweise ausblenden">ausblenden</button></div>
     <p class="sub">Grunddaten des Hauses und der Wohneinheiten – Basis für jede Verteilung.</p>
     <div class="legal">Recht (V11): Für die Betriebskostenverteilung zählt die <b>tatsächliche</b> Wohnfläche, nicht die im Mietvertrag vereinbarte.</div>
     <div class="grid2">
