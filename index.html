@@ -10,6 +10,7 @@
     --primary-dark:#0E454E;
     --accent:#2A9D8F;       /* Guthaben/positiv */
     --nachzahlung:#B4541E;  /* Nachzahlung – ruhiges Terrakotta */
+    --ueberzahlt:#2F6FED;   /* überzahlt – Blau (mehr als Soll erhalten) */
     --ink:#1d2733;
     --muted:#5b6b7b;
     --bg:#eef2f3;
@@ -121,9 +122,25 @@
   .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:24px 26px;display:none;}
   .panel.active{display:block;animation:f .18s ease;}
   @keyframes f{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-  h1{font-size:20px;margin:0 0 4px;}
+  h1{font-size:20px;margin:0 0 4px;display:flex;align-items:center;}
   .sub{color:var(--muted);font-size:14px;margin:0 0 20px;}
   .legal{font-size:12px;color:var(--primary);background:var(--soft);border-left:3px solid var(--primary);padding:8px 12px;border-radius:6px;margin:0 0 18px;}
+  /* US-80: Dokument-Anker (Info-Lasche je Schritt) – dezent abgesetzt, global einklappbar */
+  .dok-anker{display:flex;align-items:center;gap:9px;margin:0 0 16px;padding:9px 12px;background:#eef3f1;border:1px solid #d4e2dc;border-left:3px solid var(--accent);border-radius:8px;font-size:13px;color:var(--ink);}
+  .dok-anker .dok-ico{flex:0 0 auto;font-size:15px;line-height:1;color:var(--accent);}
+  .dok-anker .dok-text{flex:1;}
+  .dok-anker .dok-text b{color:var(--primary-dark);}
+  .dok-toggle{flex:0 0 auto;background:none;border:0;cursor:pointer;color:var(--muted);padding:3px 6px;border-radius:6px;display:inline-flex;align-items:center;line-height:1;}
+  .dok-toggle:hover{background:rgba(42,157,143,.14);color:var(--primary-dark);}
+  .dok-chev{font-size:12px;}
+  /* eingeklappt (global gemerkt): volle Lasche verschwindet, kleiner Schalter in der Überschrift */
+  /* Mini-Schalter sitzt rechtsbündig in der Überschrift; sein Pfeil liegt auf gleicher x-Position
+     wie der Pfeil der aufgeklappten Lasche (Box-Padding 12 + Toggle-Padding 6 = 18px Einzug). */
+  .dok-mini{display:none;margin-left:auto;margin-right:12px;align-items:center;gap:6px;background:none;border:0;padding:0 6px 0 0;font-size:14px;line-height:1;font-weight:400;color:var(--muted);cursor:pointer;}
+  .dok-mini .dok-i{color:var(--accent);}
+  .dok-mini:hover{color:var(--primary-dark);}
+  body.dok-zu .dok-anker{display:none;}
+  body.dok-zu .dok-mini{display:inline-flex;}
   table{width:100%;border-collapse:collapse;margin:8px 0 4px;}
   th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle;}
   th{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;}
@@ -192,14 +209,19 @@
   .zahl-summe{font-size:13px;margin-left:auto;}
   .zahl-monate{display:flex;flex-direction:column;gap:6px;}
   .zahl-monat{font-size:13px;border:1px solid var(--line);border-left-width:4px;border-radius:7px;padding:6px 10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
-  .zahl-monat.offen{border-left-color:var(--nachzahlung);}
-  .zahl-monat.teilweise{border-left-color:#b8860b;}
+  /* US-74: < Soll oder leer => rot, = Soll => grün, > Soll => blau */
+  .zahl-monat.offen{border-left-color:var(--nachzahlung);background:#fcf3ef;}
+  .zahl-monat.teilweise{border-left-color:var(--nachzahlung);background:#fcf3ef;}
   .zahl-monat.bezahlt{border-left-color:var(--accent);background:#f3faf6;}
+  .zahl-monat.ueberzahlt{border-left-color:var(--ueberzahlt);background:#eef3fd;}
   .zm-label{min-width:80px;font-weight:600;}
   .zm-soll{color:var(--muted);min-width:120px;}
   .zm-erh{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;}
   .zm-erh input{max-width:120px;}
   .zm-add{padding:2px 8px;}
+  /* US-74: „geprüft"-Toggle – aktiv, wenn der Monat voll beglichen ist */
+  .zm-pruef{padding:2px 10px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--muted);cursor:pointer;font-size:12px;white-space:nowrap;}
+  .zm-pruef.aktiv{border-color:var(--accent);background:var(--accent);color:#fff;}
   .leer-hint{font-size:12px;color:var(--nachzahlung);display:flex;align-items:center;gap:6px;margin-top:8px;}
   .chronik-titel{font-size:12px;color:var(--muted);font-weight:600;margin:10px 0 4px;}
   /* US-68: Indexmiete-Bereich */
@@ -313,7 +335,8 @@
 
   <!-- Step 1: Objekt & Einheiten -->
   <section class="panel" data-step="0">
-    <h1>1 · Objekt &amp; Einheiten</h1>
+    <h1>1 · Objekt &amp; Einheiten<button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
+    <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Mietvertrag (Wohnungsgrößen) bzw. Grundriss</b></span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Grunddaten des Hauses und der Wohneinheiten – Basis für jede Verteilung.</p>
     <div class="legal">Recht (V11): Für die Betriebskostenverteilung zählt die <b>tatsächliche</b> Wohnfläche, nicht die im Mietvertrag vereinbarte.</div>
     <div class="grid2">
@@ -324,7 +347,7 @@
     </div>
     <div id="einheiten_box" style="margin-top:16px"></div>
     <button class="addrow" onclick="addEinheit()">+ Einheit hinzufügen</button>
-    <p class="hint">Je Einheit lassen sich mehrere Mietverhältnisse mit Zeitraum erfassen (Mieterwechsel, Leerstand). Kosten werden tagesgenau zeitanteilig verteilt; nicht belegte Tage trägt der Vermieter.</p>
+    <p class="hint">Hier nur die physischen Einheiten (Fläche, Personen). Mieter, Vertrag und Mieterhöhung folgen im nächsten Schritt „Mieter &amp; Vertrag".</p>
 
     <div class="zahlungs-box">
       <h2 class="zahlungs-titel">Vermieter &amp; Zahlungsangaben</h2>
@@ -338,7 +361,16 @@
       </div>
     </div>
 
-    <div class="nav"><span></span><button class="btn-primary" onclick="go(1)">Weiter</button></div>
+    <div class="nav"><span></span><button class="btn-primary" onclick="go(7)">Weiter zu Mieter &amp; Vertrag</button></div>
+  </section>
+
+  <!-- Step: Mieter & Vertrag (US-81; wird in der Schrittleiste direkt nach Objekt angezeigt) -->
+  <section class="panel" data-step="7">
+    <h1>Mieter &amp; Vertrag<button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
+    <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Mietvertrag</b> (Namen, Mietzeit, Kaltmiete, NK-Vorauszahlung, Staffel/Index)</span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
+    <p class="sub">Je Einheit: Mieter, Mietzeit, Kaltmiete, NK-Vorauszahlung, Stellplätze und Mieterhöhung (Index/Staffel).</p>
+    <div id="mieter_vertrag_box"></div>
+    <div class="nav"><button class="btn-ghost" onclick="go(0)">Zurück</button><button class="btn-primary" onclick="go(1)">Weiter</button></div>
   </section>
 
   <!-- Step 2: Mieter & Vorauszahlung -->
@@ -355,12 +387,13 @@
       <tbody></tbody>
     </table>
     <p class="hint">Gesamt = (Monatsbetrag × Monate bzw. Jahressumme) + Einmalzahlung.</p>
-    <div class="nav"><button class="btn-ghost" onclick="go(0)">Zurück</button><button class="btn-primary" onclick="go(2)">Weiter</button></div>
+    <div class="nav"><button class="btn-ghost" onclick="go(7)">Zurück</button><button class="btn-primary" onclick="go(2)">Weiter</button></div>
   </section>
 
   <!-- Step 3: Kosten -->
   <section class="panel" data-step="2">
-    <h1>3 · Kosten erfassen</h1>
+    <h1>3 · Kosten erfassen<button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
+    <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Rechnungen der Dienstleister</b> (Grundsteuer, Versicherung, Hauswart, Müll …)</span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Umlagefähige Betriebskosten und die Heizkostensumme vom Messdienst.</p>
     <div class="legal">Recht (V07): Positionen orientieren sich am BetrKV-Katalog. Kabel-/Fernsehsignal ist seit 01.07.2024 nicht mehr umlagefähig. Heizkosten werden als Summe vom Messdienst übernommen.</div>
     <div class="kosten-add" id="kosten_add">
@@ -385,7 +418,8 @@
 
   <!-- Step 4: Heizung (US-05) -->
   <section class="panel" data-step="3">
-    <h1>4 · Heizung</h1>
+    <h1>4 · Heizung<button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
+    <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Abrechnung des Messdienstes</b> (Techem/Kalo/Brunata)</span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Heizkosten aus Verbrauch und Preis erfassen – das Ergebnis wird wie eine Kostenposition verteilt.</p>
     <div class="legal">Erfasst wird die Gebäude-Heizkostensumme (Menge × Preis bzw. kWh × Preis), verteilt nach gewähltem Schlüssel. Bei Heizungswechsel mehrere Blöcke mit „aktiv von/bis" anlegen – jeder Block wird über seine Periode auf die anwesenden Mieter verteilt. Ist eine Blockperiode nicht voll durch Mietverhältnisse gedeckt, trägt die Differenz der Vermieter. Eine verbrauchsgenaue Verteilung je Wohnung über Einzelzähler (Messdienst) ist nicht enthalten.</div>
     <div id="heizung_box"></div>
@@ -446,7 +480,8 @@
 
   <!-- Step 7: Zahlungseingänge -->
   <section class="panel" data-step="6">
-    <h1>7 · Zahlungseingänge</h1>
+    <h1>7 · Zahlungseingänge<button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
+    <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Kontoauszüge</b></span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Monatliche Soll-Mieten je Mietverhältnis abhaken und mit dem Kontoauszug abgleichen.</p>
     <div id="zahlungen_box"></div>
     <div class="nav"><button class="btn-ghost" onclick="go(5)">Zurück</button></div>

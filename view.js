@@ -4,7 +4,9 @@
 
 /* State, Store, Persistenz: ausgelagert nach core.js (US-33b). `state`, `objekte`,
    `aktivIdx`, `store`, `commit`, `saveState/loadState` u. a. sind dort global definiert. */
-const STEPS = ["Objekt","Vorauszahlung","Kosten","Heizung","Berechnung","Abrechnung","Zahlungen"];
+/* US-81: „Mieter & Vertrag" als Index 7 angehängt (keine Umnummerierung der bestehenden
+   data-step/go()-Indizes); die Anzeige-Reihenfolge steuert STEP_GROUPS. */
+const STEPS = ["Objekt","Vorauszahlung","Kosten","Heizung","Berechnung","Abrechnung","Zahlungen","Mieter & Vertrag"];
 let current = 0, activeMieter = 0;
 let vorausModus = "monatlich";
 
@@ -69,20 +71,25 @@ function alleMV(){ const out=[]; state.einheiten.forEach((e,ei)=>{ (e.mv||[]).fo
 function leerstandZa(e){ const s=(e.mv||[]).reduce((a,m)=>a+nkZeitanteil(m.von,nkMvEnde(m,state.objekt.bis),state.objekt.von,state.objekt.bis),0); return Math.max(0,1-s); }
 
 /* ---------- Stepper (US-54: seitliche Lasche, Gruppen, Kürzel, Versand-Ampel) ---------- */
-const STEP_ABBR = ["OB","VZ","KO","HE","BE","AB","ZA"];
+const STEP_ABBR = ["OB","VZ","KO","HE","BE","AB","ZA","MV"];
+/* Anzeige-Reihenfolge: Objekt → Mieter & Vertrag (7) → Vorauszahlung → Kosten → … */
 const STEP_GROUPS = [
-  { titel:"Abrechnung erstellen", steps:[0,1,2,3,4,5] },
+  { titel:"Abrechnung erstellen", steps:[0,7,1,2,3,4,5] },
   { titel:"Nachverfolgung",        steps:[6] }
 ];
 function renderStepper(){
   const el = document.getElementById('stepper'); if(!el) return; el.innerHTML='';
+  /* Nummer und „done"-Status nach Anzeige-Position (nicht nach numerischem Index). */
+  const order=[]; STEP_GROUPS.forEach(g=>g.steps.forEach(i=>order.push(i)));
+  const curPos=order.indexOf(current);
   STEP_GROUPS.forEach(g=>{
     const gt=document.createElement('div'); gt.className='nav-group'; gt.textContent=g.titel; el.appendChild(gt);
     g.steps.forEach(i=>{
+      const pos=order.indexOf(i);
       const d=document.createElement('div');
-      d.className='step'+(i===current?' active':'')+(i<current?' done':'');
+      d.className='step'+(i===current?' active':'')+((curPos>=0 && pos<curPos)?' done':'');
       d.title=STEPS[i];
-      d.innerHTML='<span class="n">'+(i+1)+'</span><span class="lbl">'+STEPS[i]+'</span><span class="abbr">'+STEP_ABBR[i]+'</span>';
+      d.innerHTML='<span class="n">'+(pos+1)+'</span><span class="lbl">'+STEPS[i]+'</span><span class="abbr">'+STEP_ABBR[i]+'</span>';
       d.onclick=()=>go(i);
       el.appendChild(d);
     });
@@ -93,6 +100,12 @@ const NAV_KEY="nekofix-nav-collapsed";
 function updateNavToggleGlyph(){ const s=document.getElementById('sidenav'); const b=s&&s.querySelector('.nav-toggle'); if(b) b.textContent = s.classList.contains('collapsed')?'»':'«'; }
 function toggleNav(){ const s=document.getElementById('sidenav'); if(!s) return; s.classList.toggle('collapsed'); try{ localStorage.setItem(NAV_KEY, s.classList.contains('collapsed')?'1':'0'); }catch(e){} updateNavToggleGlyph(); }
 function initNav(){ const s=document.getElementById('sidenav'); if(!s) return; let c='0'; try{ c=localStorage.getItem(NAV_KEY)||'0'; }catch(e){} if(c==='1') s.classList.add('collapsed'); updateNavToggleGlyph(); }
+/* US-80: Dokument-Anker – Info-Lasche je Schritt, global gemerkter Einklapp-Zustand
+   (eigener LS-Key, objektübergreifend). Einmal zugeklappt bleibt sie überall zu. */
+const DOK_KEY="nekofix-dok-zu";
+function dokZu(){ try{ return localStorage.getItem(DOK_KEY)==="1"; }catch(e){ return false; } }
+function applyDokAnker(){ document.body.classList.toggle('dok-zu', dokZu()); }
+function toggleDokAnker(){ const v=!dokZu(); try{ localStorage.setItem(DOK_KEY, v?"1":"0"); }catch(e){} applyDokAnker(); }
 /* US-54: dauerhaft sichtbare Versand-/Plausi-Ampel; bereit = keine blockierenden Fehler. */
 let navPlausiOpen=false;
 function renderNavPlausi(){
@@ -118,6 +131,7 @@ function toggleNavPlausi(){
 }
 function go(i){
   if(i===0) renderEinheiten();   /* US-49: Ziel-Reiter beim Wechsel aus aktuellem Zustand neu zeichnen */
+  if(i===7) renderMieterVertrag(); /* US-81 */
   if(i===1) renderVoraus();
   if(i===2) renderKosten();
   if(i===3) renderHeizung();     /* US-05 */
@@ -149,12 +163,26 @@ function updateIbanHint(){
   if(nkIbanGueltig(iban)){ el.textContent='✓ IBAN gültig'; el.className='iban-hint ok'; }
   else { el.textContent='⚠ IBAN ungültig (Prüfziffer/Länge)'; el.className='iban-hint bad'; }
 }
+/* US-81: Objekt-Reiter zeigt nur noch die physischen Einheiten (Name, m², Personen). */
 function renderEinheiten(){
   ensureIds();
   const box = document.getElementById('einheiten_box'); box.innerHTML='';
   state.einheiten.forEach((e,ei)=>{
-    const lz = leerstandZa(e);
-    const mvRows = e.mv.map((m,mi)=>{
+    box.insertAdjacentHTML('beforeend',
+      '<div class="unit-card einheit-card">'+
+        '<div class="unit-head">'+
+          '<input class="unit-name" value="'+esc(e.name)+'" oninput="updEinheit('+ei+',\'name\',this.value)">'+
+          '<label class="unit-f">Fläche m² <input class="short" type="number" value="'+e.flaeche+'" oninput="updEinheit('+ei+',\'flaeche\',this.value)"></label>'+
+          '<label class="unit-f">Personen <input class="short" type="number" value="'+e.personen+'" oninput="updEinheit('+ei+',\'personen\',this.value)"></label>'+
+          '<button class="row-del" title="Einheit entfernen" onclick="delEinheit('+ei+')" style="margin-left:auto;">×</button>'+
+        '</div>'+
+      '</div>');
+  });
+  renderMieterVertrag(); /* hält den Mieter-&-Vertrag-Reiter konsistent (gekoppelt) */
+}
+/* US-81: Mietverhältnis-Zeilen (Mieter, Zeitraum, Vertrag-Detail) einer Einheit. */
+function mvZeilen(e, ei){
+  return e.mv.map((m,mi)=>{
       const na=m.naechsteAnpassung||'';
       const badge = m.mhTyp
         ? (mhWarnung(m) ? ' <span class="warn" title="Mieterhöhung fällig – Ankündigung noch nicht verschickt">'+WARN_ICON+'</span>' : '')
@@ -198,23 +226,25 @@ function renderEinheiten(){
       }
       return row;
     }).join('');
+}
+/* US-81: Reiter "Mieter & Vertrag" - je Einheit die Mietverhaeltnisse samt Vertrag-Detail. */
+function renderMieterVertrag(){
+  ensureIds();
+  const box = document.getElementById('mieter_vertrag_box'); if(!box) return; box.innerHTML='';
+  state.einheiten.forEach((e,ei)=>{
+    const lz = leerstandZa(e);
     const leerHint = lz>NK_LEERSTAND_EPS ? '<div class="leer-hint">'+WARN_ICON+' Leerstand: '+Math.round(lz*100)+' % des Zeitraums (trägt der Vermieter).</div>' : '';
     box.insertAdjacentHTML('beforeend',
       '<div class="unit-card einheit-card">'+
-        '<div class="unit-head">'+
-          '<input class="unit-name" value="'+esc(e.name)+'" oninput="updEinheit('+ei+',\'name\',this.value)">'+
-          '<label class="unit-f">Fläche m² <input class="short" type="number" value="'+e.flaeche+'" oninput="updEinheit('+ei+',\'flaeche\',this.value)"></label>'+
-          '<label class="unit-f">Personen <input class="short" type="number" value="'+e.personen+'" oninput="updEinheit('+ei+',\'personen\',this.value)"></label>'+
-          '<button class="row-del" title="Einheit entfernen" onclick="delEinheit('+ei+')" style="margin-left:auto;">×</button>'+
-        '</div>'+
-        '<table class="mv-table"><thead><tr><th>Mieter</th><th>von</th><th>bis</th><th>läuft</th><th>gewerbl.</th><th>Vertrag</th><th></th></tr></thead><tbody>'+mvRows+'</tbody></table>'+
+        '<div class="unit-head"><b>'+esc(e.name)+'</b> <span class="pill">'+(+e.flaeche||0)+' m² · '+(+e.personen||0)+' Pers.</span></div>'+
+        '<table class="mv-table"><thead><tr><th>Mieter</th><th>von</th><th>bis</th><th>läuft</th><th>gewerbl.</th><th>Vertrag</th><th></th></tr></thead><tbody>'+mvZeilen(e,ei)+'</tbody></table>'+
         '<button class="addrow" onclick="addMV('+ei+')">+ Mietverhältnis</button>'+
         leerHint+
         (nkUeberlappungTageEinheit(e, state.objekt.bis)>0 ? '<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Überschneidende Mietzeiträume: '+nkUeberlappungTageEinheit(e, state.objekt.bis)+' Tag(e) doppelt belegt – bitte Zeiträume prüfen.</div>' : '')+
       '</div>');
   });
   /* US-66: Chronik-Textfelder initial an ihren Inhalt anpassen. */
-  document.querySelectorAll('#einheiten_box .chronik-notiz').forEach(autoGrow);
+  document.querySelectorAll('#mieter_vertrag_box .chronik-notiz').forEach(autoGrow);
 }
 /* US-66: Textarea-Höhe an den Inhalt anpassen (auto-grow). */
 function autoGrow(el){ if(!el) return; el.style.height='auto'; el.style.height=(el.scrollHeight)+'px'; }
@@ -1123,7 +1153,7 @@ function renderZahlungen(){
         '<span class="zm-label">'+monatLabel(k)+'</span>'+
         '<span class="zm-soll">Soll '+eur(soll)+'</span>'+
         '<label class="zm-erh">erhalten <input class="short" type="text" inputmode="decimal" value="'+(erhalten?nkFmtBetrag(erhalten):'')+'" placeholder="'+nkFmtBetrag(soll)+'" onchange="updErhalten('+ei+','+mi+',\''+k+'\',this.value)"></label>'+
-        '<button class="addrow zm-add" title="Teilzahlung hinzufügen" onclick="addTeilzahlung('+ei+','+mi+',\''+k+'\')">+</button>'+
+        '<button class="zm-pruef'+(st==='bezahlt'||st==='ueberzahlt'?' aktiv':'')+'" title="Monat als geprüft markieren (setzt erhalten = Soll); erneut klicken hebt es wieder auf" onclick="toggleGeprueft('+ei+','+mi+',\''+k+'\')">geprüft</button>'+
       '</div>';
     }).join('');
     const offenBetrag=Math.max(0, Math.round((sumSoll-sumErh)*100)/100);
@@ -1141,17 +1171,25 @@ function updErhalten(ei,mi,key,val){
   const betrag=nkParseBetrag(val);
   store.setErhalten(ei,mi,key,betrag);
   const m=store.mv(ei,mi); const snap=m.sollSnap||{};
-  if(!(key in snap)){ /* Soll einfrieren, sobald der Monat voll bezahlt ist */
+  if(!(key in snap)){ /* Soll einfrieren, sobald der Monat voll beglichen ist (bezahlt oder überzahlt) */
     const soll=nkSollMonat(nkMieteAm(m, key+'-01'), nkMonatNK(m), m.stellAnzahl, m.stellPreis);
-    if(betrag>0 && nkZahlStatus(betrag, soll)==='bezahlt') store.setSollSnap(ei,mi,key, soll);
+    if(betrag+0.005>=soll && soll>0) store.setSollSnap(ei,mi,key, soll);
   }
   renderZahlungen();
 }
-function addTeilzahlung(ei,mi,key){
-  const eingabe=prompt('Teilzahlung in € hinzufügen:'); if(eingabe==null) return;
-  const add=nkParseBetrag(eingabe); if(!add) return;
-  const m=store.mv(ei,mi); const erh=(m.erhalten&&key in m.erhalten)?+m.erhalten[key]:0;
-  updErhalten(ei,mi,key, nkFmtBetrag(erh+add));
+/* US-74: „geprüft"-Toggle. Markiert den Monat als geprüft = voll beglichen (erhalten = Soll);
+   erneuter Klick auf einen bereits beglichenen Monat hebt es wieder auf (erhalten leer, Soll
+   wird wieder live berechnet). Beliebige Teilbeträge werden direkt im „erhalten"-Feld erfasst. */
+function toggleGeprueft(ei,mi,key){
+  const m=store.mv(ei,mi);
+  const soll=monatSoll(m,key);
+  const erh=monatErhalten(m,key,soll);
+  if(soll>0 && erh+0.005>=soll){ /* bereits beglichen => Häkchen entfernen */
+    store.clearSollSnap(ei,mi,key);
+    updErhalten(ei,mi,key,'');
+  } else { /* als geprüft/voll beglichen markieren */
+    updErhalten(ei,mi,key, nkFmtBetrag(soll));
+  }
 }
 /* US-67: updMVNum entfernt – Miete/Stellplätze werden jetzt im Vertrag (updVertrag) gepflegt. */
 
@@ -1252,6 +1290,7 @@ renderObjektSelect();
 (function(){ const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus; })();
 fillObjektKopf();
 initNav(); /* US-54: gespeicherten Klapp-Zustand der Lasche anwenden */
+applyDokAnker(); /* US-80: gespeicherten Einklapp-Zustand der Dokument-Anker anwenden */
 renderEinheiten(); renderVoraus(); renderKosten(); renderStepper(); go(0);
 saveState();
 /* US-54: Versand-Ampel live aktualisieren, sobald sich Eingaben ändern. */
