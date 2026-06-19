@@ -4,7 +4,9 @@
 
 /* State, Store, Persistenz: ausgelagert nach core.js (US-33b). `state`, `objekte`,
    `aktivIdx`, `store`, `commit`, `saveState/loadState` u. a. sind dort global definiert. */
-const STEPS = ["Objekt","Vorauszahlung","Kosten","Heizung","Berechnung","Abrechnung","Zahlungen"];
+/* US-81: „Mieter & Vertrag" als Index 7 angehängt (keine Umnummerierung der bestehenden
+   data-step/go()-Indizes); die Anzeige-Reihenfolge steuert STEP_GROUPS. */
+const STEPS = ["Objekt","Vorauszahlung","Kosten","Heizung","Berechnung","Abrechnung","Zahlungen","Mieter & Vertrag"];
 let current = 0, activeMieter = 0;
 let vorausModus = "monatlich";
 
@@ -69,20 +71,25 @@ function alleMV(){ const out=[]; state.einheiten.forEach((e,ei)=>{ (e.mv||[]).fo
 function leerstandZa(e){ const s=(e.mv||[]).reduce((a,m)=>a+nkZeitanteil(m.von,nkMvEnde(m,state.objekt.bis),state.objekt.von,state.objekt.bis),0); return Math.max(0,1-s); }
 
 /* ---------- Stepper (US-54: seitliche Lasche, Gruppen, Kürzel, Versand-Ampel) ---------- */
-const STEP_ABBR = ["OB","VZ","KO","HE","BE","AB","ZA"];
+const STEP_ABBR = ["OB","VZ","KO","HE","BE","AB","ZA","MV"];
+/* Anzeige-Reihenfolge: Objekt → Mieter & Vertrag (7) → Vorauszahlung → Kosten → … */
 const STEP_GROUPS = [
-  { titel:"Abrechnung erstellen", steps:[0,1,2,3,4,5] },
+  { titel:"Abrechnung erstellen", steps:[0,7,1,2,3,4,5] },
   { titel:"Nachverfolgung",        steps:[6] }
 ];
 function renderStepper(){
   const el = document.getElementById('stepper'); if(!el) return; el.innerHTML='';
+  /* Nummer und „done"-Status nach Anzeige-Position (nicht nach numerischem Index). */
+  const order=[]; STEP_GROUPS.forEach(g=>g.steps.forEach(i=>order.push(i)));
+  const curPos=order.indexOf(current);
   STEP_GROUPS.forEach(g=>{
     const gt=document.createElement('div'); gt.className='nav-group'; gt.textContent=g.titel; el.appendChild(gt);
     g.steps.forEach(i=>{
+      const pos=order.indexOf(i);
       const d=document.createElement('div');
-      d.className='step'+(i===current?' active':'')+(i<current?' done':'');
+      d.className='step'+(i===current?' active':'')+((curPos>=0 && pos<curPos)?' done':'');
       d.title=STEPS[i];
-      d.innerHTML='<span class="n">'+(i+1)+'</span><span class="lbl">'+STEPS[i]+'</span><span class="abbr">'+STEP_ABBR[i]+'</span>';
+      d.innerHTML='<span class="n">'+(pos+1)+'</span><span class="lbl">'+STEPS[i]+'</span><span class="abbr">'+STEP_ABBR[i]+'</span>';
       d.onclick=()=>go(i);
       el.appendChild(d);
     });
@@ -118,6 +125,7 @@ function toggleNavPlausi(){
 }
 function go(i){
   if(i===0) renderEinheiten();   /* US-49: Ziel-Reiter beim Wechsel aus aktuellem Zustand neu zeichnen */
+  if(i===7) renderMieterVertrag(); /* US-81 */
   if(i===1) renderVoraus();
   if(i===2) renderKosten();
   if(i===3) renderHeizung();     /* US-05 */
@@ -149,12 +157,26 @@ function updateIbanHint(){
   if(nkIbanGueltig(iban)){ el.textContent='✓ IBAN gültig'; el.className='iban-hint ok'; }
   else { el.textContent='⚠ IBAN ungültig (Prüfziffer/Länge)'; el.className='iban-hint bad'; }
 }
+/* US-81: Objekt-Reiter zeigt nur noch die physischen Einheiten (Name, m², Personen). */
 function renderEinheiten(){
   ensureIds();
   const box = document.getElementById('einheiten_box'); box.innerHTML='';
   state.einheiten.forEach((e,ei)=>{
-    const lz = leerstandZa(e);
-    const mvRows = e.mv.map((m,mi)=>{
+    box.insertAdjacentHTML('beforeend',
+      '<div class="unit-card einheit-card">'+
+        '<div class="unit-head">'+
+          '<input class="unit-name" value="'+esc(e.name)+'" oninput="updEinheit('+ei+',\'name\',this.value)">'+
+          '<label class="unit-f">Fläche m² <input class="short" type="number" value="'+e.flaeche+'" oninput="updEinheit('+ei+',\'flaeche\',this.value)"></label>'+
+          '<label class="unit-f">Personen <input class="short" type="number" value="'+e.personen+'" oninput="updEinheit('+ei+',\'personen\',this.value)"></label>'+
+          '<button class="row-del" title="Einheit entfernen" onclick="delEinheit('+ei+')" style="margin-left:auto;">×</button>'+
+        '</div>'+
+      '</div>');
+  });
+  renderMieterVertrag(); /* hält den Mieter-&-Vertrag-Reiter konsistent (gekoppelt) */
+}
+/* US-81: Mietverhältnis-Zeilen (Mieter, Zeitraum, Vertrag-Detail) einer Einheit. */
+function mvZeilen(e, ei){
+  return e.mv.map((m,mi)=>{
       const na=m.naechsteAnpassung||'';
       const badge = m.mhTyp
         ? (mhWarnung(m) ? ' <span class="warn" title="Mieterhöhung fällig – Ankündigung noch nicht verschickt">'+WARN_ICON+'</span>' : '')
@@ -198,23 +220,25 @@ function renderEinheiten(){
       }
       return row;
     }).join('');
+}
+/* US-81: Reiter "Mieter & Vertrag" - je Einheit die Mietverhaeltnisse samt Vertrag-Detail. */
+function renderMieterVertrag(){
+  ensureIds();
+  const box = document.getElementById('mieter_vertrag_box'); if(!box) return; box.innerHTML='';
+  state.einheiten.forEach((e,ei)=>{
+    const lz = leerstandZa(e);
     const leerHint = lz>NK_LEERSTAND_EPS ? '<div class="leer-hint">'+WARN_ICON+' Leerstand: '+Math.round(lz*100)+' % des Zeitraums (trägt der Vermieter).</div>' : '';
     box.insertAdjacentHTML('beforeend',
       '<div class="unit-card einheit-card">'+
-        '<div class="unit-head">'+
-          '<input class="unit-name" value="'+esc(e.name)+'" oninput="updEinheit('+ei+',\'name\',this.value)">'+
-          '<label class="unit-f">Fläche m² <input class="short" type="number" value="'+e.flaeche+'" oninput="updEinheit('+ei+',\'flaeche\',this.value)"></label>'+
-          '<label class="unit-f">Personen <input class="short" type="number" value="'+e.personen+'" oninput="updEinheit('+ei+',\'personen\',this.value)"></label>'+
-          '<button class="row-del" title="Einheit entfernen" onclick="delEinheit('+ei+')" style="margin-left:auto;">×</button>'+
-        '</div>'+
-        '<table class="mv-table"><thead><tr><th>Mieter</th><th>von</th><th>bis</th><th>läuft</th><th>gewerbl.</th><th>Vertrag</th><th></th></tr></thead><tbody>'+mvRows+'</tbody></table>'+
+        '<div class="unit-head"><b>'+esc(e.name)+'</b> <span class="pill">'+(+e.flaeche||0)+' m² · '+(+e.personen||0)+' Pers.</span></div>'+
+        '<table class="mv-table"><thead><tr><th>Mieter</th><th>von</th><th>bis</th><th>läuft</th><th>gewerbl.</th><th>Vertrag</th><th></th></tr></thead><tbody>'+mvZeilen(e,ei)+'</tbody></table>'+
         '<button class="addrow" onclick="addMV('+ei+')">+ Mietverhältnis</button>'+
         leerHint+
         (nkUeberlappungTageEinheit(e, state.objekt.bis)>0 ? '<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Überschneidende Mietzeiträume: '+nkUeberlappungTageEinheit(e, state.objekt.bis)+' Tag(e) doppelt belegt – bitte Zeiträume prüfen.</div>' : '')+
       '</div>');
   });
   /* US-66: Chronik-Textfelder initial an ihren Inhalt anpassen. */
-  document.querySelectorAll('#einheiten_box .chronik-notiz').forEach(autoGrow);
+  document.querySelectorAll('#mieter_vertrag_box .chronik-notiz').forEach(autoGrow);
 }
 /* US-66: Textarea-Höhe an den Inhalt anpassen (auto-grow). */
 function autoGrow(el){ if(!el) return; el.style.height='auto'; el.style.height=(el.scrollHeight)+'px'; }

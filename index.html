@@ -324,7 +324,7 @@
     </div>
     <div id="einheiten_box" style="margin-top:16px"></div>
     <button class="addrow" onclick="addEinheit()">+ Einheit hinzufügen</button>
-    <p class="hint">Je Einheit lassen sich mehrere Mietverhältnisse mit Zeitraum erfassen (Mieterwechsel, Leerstand). Kosten werden tagesgenau zeitanteilig verteilt; nicht belegte Tage trägt der Vermieter.</p>
+    <p class="hint">Hier nur die physischen Einheiten (Fläche, Personen). Mieter, Vertrag und Mieterhöhung folgen im nächsten Schritt „Mieter &amp; Vertrag".</p>
 
     <div class="zahlungs-box">
       <h2 class="zahlungs-titel">Vermieter &amp; Zahlungsangaben</h2>
@@ -338,7 +338,15 @@
       </div>
     </div>
 
-    <div class="nav"><span></span><button class="btn-primary" onclick="go(1)">Weiter</button></div>
+    <div class="nav"><span></span><button class="btn-primary" onclick="go(7)">Weiter zu Mieter &amp; Vertrag</button></div>
+  </section>
+
+  <!-- Step: Mieter & Vertrag (US-81; wird in der Schrittleiste direkt nach Objekt angezeigt) -->
+  <section class="panel" data-step="7">
+    <h1>Mieter &amp; Vertrag</h1>
+    <p class="sub">Je Einheit: Mieter, Mietzeit, Kaltmiete, NK-Vorauszahlung, Stellplätze und Mieterhöhung (Index/Staffel).</p>
+    <div id="mieter_vertrag_box"></div>
+    <div class="nav"><button class="btn-ghost" onclick="go(0)">Zurück</button><button class="btn-primary" onclick="go(1)">Weiter</button></div>
   </section>
 
   <!-- Step 2: Mieter & Vorauszahlung -->
@@ -355,7 +363,7 @@
       <tbody></tbody>
     </table>
     <p class="hint">Gesamt = (Monatsbetrag × Monate bzw. Jahressumme) + Einmalzahlung.</p>
-    <div class="nav"><button class="btn-ghost" onclick="go(0)">Zurück</button><button class="btn-primary" onclick="go(2)">Weiter</button></div>
+    <div class="nav"><button class="btn-ghost" onclick="go(7)">Zurück</button><button class="btn-primary" onclick="go(2)">Weiter</button></div>
   </section>
 
   <!-- Step 3: Kosten -->
