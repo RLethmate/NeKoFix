@@ -216,6 +216,7 @@
   .zahl-monat.ueberzahlt{border-left-color:var(--ueberzahlt);background:#eef3fd;}
   .zm-label{min-width:80px;font-weight:600;}
   .zm-soll{color:var(--muted);min-width:120px;}
+  .zm-soll[title]{cursor:help;text-decoration:underline dotted;text-underline-offset:2px;} /* US-77: Soll-Aufschlüsselung als Tooltip */
   .zm-erh{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;}
   .zm-erh input{max-width:120px;}
   .zm-add{padding:2px 8px;}
@@ -375,8 +376,9 @@
 
   <!-- Step 2: Mieter & Vorauszahlung -->
   <section class="panel" data-step="1">
-    <h1>2 · Vorauszahlungen</h1>
-    <p class="sub">Die geleisteten Vorauszahlungen je Mieter – am Ende mit dem Anteil saldiert.</p>
+    <h1>2 · Vorauszahlungen (Soll)</h1>
+    <p class="sub">Die vereinbarten monatlichen NK-Vorauszahlungen je Mieter (Soll) – am Ende mit dem Anteil saldiert.</p>
+    <div class="legal">Soll-Basis: Saldiert wird mit den <b>vereinbarten</b> Vorauszahlungen. Tatsächliche Zahlungseingänge und Rückstände führst du getrennt im Reiter „Zahlungseingänge (Ist)".</div>
     <div class="legal">Recht (V07 / § 556 BGB): Die Saldierung der Vorauszahlungen ist eine formelle Pflichtangabe der Abrechnung.</div>
     <div class="voraus-modus">
       <label><input type="radio" name="vmodus" value="monatlich" checked onclick="setVorausModus('monatlich')"> Monatsbetrag × Monate</label>
@@ -451,6 +453,7 @@
     </table>
     <div id="co2_info" class="legal" hidden></div>
     <div id="plausi_box" class="plausi"></div>
+    <div class="legal">Saldiert wird mit den <b>vereinbarten (Soll-)Vorauszahlungen</b>. Tatsächliche Zahlungsausfälle (<b>Mietrückstand</b>) sind hier nicht enthalten und separat einzufordern – siehe Reiter „Zahlungseingänge (Ist)".</div>
     <div style="margin-top:10px;"><button class="btn-ghost" onclick="downloadRechenweg()">Rechenweg herunterladen (.md)</button></div>
     <div class="nav"><button class="btn-ghost" onclick="go(3)">Zurück</button><button class="btn-primary" onclick="go(5)">Abrechnung erstellen</button></div>
   </section>
@@ -480,7 +483,7 @@
 
   <!-- Step 7: Zahlungseingänge -->
   <section class="panel" data-step="6">
-    <h1>7 · Zahlungseingänge<button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
+    <h1>7 · Zahlungseingänge (Ist)<button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
     <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Kontoauszüge</b></span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Monatliche Soll-Mieten je Mietverhältnis abhaken und mit dem Kontoauszug abgleichen.</p>
     <div id="zahlungen_box"></div>

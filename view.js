@@ -6,7 +6,7 @@
    `aktivIdx`, `store`, `commit`, `saveState/loadState` u. a. sind dort global definiert. */
 /* US-81: „Mieter & Vertrag" als Index 7 angehängt (keine Umnummerierung der bestehenden
    data-step/go()-Indizes); die Anzeige-Reihenfolge steuert STEP_GROUPS. */
-const STEPS = ["Objekt","Vorauszahlung","Kosten","Heizung","Berechnung","Abrechnung","Zahlungen","Mieter & Vertrag"];
+const STEPS = ["Objekt","Vorauszahlung (Soll)","Kosten","Heizung","Berechnung","Abrechnung","Zahlungen (Ist)","Mieter & Vertrag"];
 let current = 0, activeMieter = 0;
 let vorausModus = "monatlich";
 
@@ -1062,6 +1062,7 @@ function renderDoc(){
   const e=sel.e, m=sel.m;
   const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, state.einheiten);
   const gew=ab.gewerblich, za=ab.zeitanteil, anteil=ab.brutto, saldo=ab.saldo;
+  const rueck=nkMietrueckstand(m, nkMvEnde(m,state.objekt.bis), state.objekt.von, state.objekt.bis); /* US-79: separater Mietrückstand */
   /* US-59: Spaltenformat (Rechenweg) + US-58 Rubrik-Gruppierung mit Zwischensummen. */
   const fmtEinh=n=>(Number(n)||0).toLocaleString('de-DE',{maximumFractionDigits:2});
   const fmtPreis=n=>(Number(n)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:4});
@@ -1113,7 +1114,15 @@ function renderDoc(){
         +'Empfänger: '+state.zahlung.empfaenger+' · IBAN: '+state.zahlung.iban+' · BIC: '+state.zahlung.bic+'<br>'
         +'Verwendungszweck: '+esc('NK-Abr. '+(state.objekt.addr||'')+'-'+e.name+'-'+m.mieter+'-'+zeitraumText())
       : 'Das Guthaben wird Ihnen innerhalb von '+state.zahlung.frist+' auf Ihr hinterlegtes Konto erstattet.')
-    +'<br><span class="hint">Hinweis: Einwendungen können Sie innerhalb von 12 Monaten nach Zugang geltend machen.</span></div>';
+    +'<br><span class="hint">Hinweis: Einwendungen können Sie innerhalb von 12 Monaten nach Zugang geltend machen.</span></div>'+
+    (rueck>0
+      ? '<div class="pay"><h3>Mietrückstand (separat)</h3>'+
+        'Für den Abrechnungszeitraum besteht ein offener Mietbetrag, unabhängig von dieser Nebenkostenabrechnung:<br>'+
+        'Abrechnungssaldo (Nebenkosten): '+(saldo>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(saldo))+'<br>'+
+        'Mietrückstand aus dem Abrechnungszeitraum: '+eur(rueck)+
+        (saldo>0?'<br><b>Gesamt offener Betrag: '+eur(saldo+rueck)+'</b>':'')+
+        '<br><span class="hint">Der Mietrückstand ist nicht Teil der Nebenkostenabrechnung und wird separat geltend gemacht.</span></div>'
+      : '');
   /* US-52: Versand-Block – E-Mail (im Vertrag gepflegt) anzeigen, Senden via Web Share (Anhang). */
   const vb=document.getElementById('versand_box');
   if(vb){
@@ -1143,15 +1152,19 @@ function renderZahlungen(){
   const box=document.getElementById('zahlungen_box'); box.innerHTML='';
   alleMV().forEach(({e,m,ei,mi})=>{
     const monate=nkAktiveMonate(m.von, nkMvEnde(m,state.objekt.bis), state.objekt.von, state.objekt.bis);
-    let sumSoll=0, sumErh=0;
+    let sumSoll=0, sumErh=0, hatTeil=false;
     const rows=monate.map(k=>{
       const soll=monatSoll(m,k);
       const erhalten=monatErhalten(m,k,soll);
       const st=nkZahlStatus(erhalten, soll);
+      if(st==='teilweise') hatTeil=true;
       sumSoll+=soll; sumErh+=erhalten;
+      /* US-77: Zusammensetzung des Solls als Tooltip (im jeweiligen Monat gültige Werte). */
+      const teile=nkSollTeile(nkMieteAm(m, k+'-01'), nkMonatNK(m), m.stellAnzahl, m.stellPreis);
+      const sollTitle=teile.length? eur(soll)+' = '+teile.map(t=>eur(t.betrag)+' '+t.label).join(' + ') : '';
       return '<div class="zahl-monat '+st+'">'+
         '<span class="zm-label">'+monatLabel(k)+'</span>'+
-        '<span class="zm-soll">Soll '+eur(soll)+'</span>'+
+        '<span class="zm-soll"'+(sollTitle?' title="'+sollTitle+'"':'')+'>Soll '+eur(soll)+'</span>'+
         '<label class="zm-erh">erhalten <input class="short" type="text" inputmode="decimal" value="'+(erhalten?nkFmtBetrag(erhalten):'')+'" placeholder="'+nkFmtBetrag(soll)+'" onchange="updErhalten('+ei+','+mi+',\''+k+'\',this.value)"></label>'+
         '<button class="zm-pruef'+(st==='bezahlt'||st==='ueberzahlt'?' aktiv':'')+'" title="Monat als geprüft markieren (setzt erhalten = Soll); erneut klicken hebt es wieder auf" onclick="toggleGeprueft('+ei+','+mi+',\''+k+'\')">geprüft</button>'+
       '</div>';
@@ -1164,6 +1177,8 @@ function renderZahlungen(){
         '<div class="hint" style="margin:2px 0 6px;">Soll je Monat aus der jeweils gültigen Miete; „erhalten" frei erfassbar (auch Teilzahlungen). Voll bezahlte Monate frieren ihr Soll ein.</div>'+
         '<div class="zahl-monate">'+(rows||'<span class="hint">keine aktiven Monate im Zeitraum</span>')+'</div>'+
         '<div class="leer-hint" style="margin-top:8px;">'+summary+'</div>'+
+        (offenBetrag>0? '<div class="leer-hint" style="margin-top:6px;">Mietrückstand aus dieser Periode: '+eur(offenBetrag)+' – bitte separat einfordern.</div>' : '')+
+        (hatTeil? '<div class="legal" style="margin-top:6px;">Bei Teilzahlung wird – sofern der Mieter nichts anderes bestimmt – die NK-Vorauszahlung vorrangig vor der Kaltmiete getilgt (§ 366 Abs. 2 BGB; BGH, 21.03.2018, VIII ZR 84/17). Der offene Rest ist daher i. d. R. ein Kaltmieten-Rückstand.</div>' : '')+
       '</div>');
   });
 }

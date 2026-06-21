@@ -830,3 +830,32 @@ test("nkZahlStatus: offen/teilweise/bezahlt/ueberzahlt", () => {
   assert.equal(calc.nkZahlStatus(1200,1190),"ueberzahlt");  // > Soll => blau
   assert.equal(calc.nkZahlStatus(1190.02,1190),"ueberzahlt");// knapp über Toleranz => überzahlt
 });
+test("nkSollTeile: Aufschlüsselung des Monats-Solls, 0-Komponenten weggelassen (US-77)", () => {
+  const t = calc.nkSollTeile(800, 150, 1, 40); // 800 Netto + 150 NK + 40 Stellplatz
+  assert.deepEqual(t, [
+    { label: "Nettokaltmiete", betrag: 800 },
+    { label: "NK-Vorauszahlung", betrag: 150 },
+    { label: "Stellplatz", betrag: 40 },
+  ]);
+  // Stellplatz 0 (kein Platz) => weggelassen; Summe der Teile = Soll
+  const t2 = calc.nkSollTeile(800, 150, 0, 40);
+  assert.deepEqual(t2.map(x => x.label), ["Nettokaltmiete", "NK-Vorauszahlung"]);
+  assert.equal(t2.reduce((s, x) => s + x.betrag, 0), calc.nkSollMonat(800, 150, 0, 40));
+  // Nur Kaltmiete
+  assert.deepEqual(calc.nkSollTeile(800, 0, 0, 0), [{ label: "Nettokaltmiete", betrag: 800 }]);
+  // Alles 0 => leer
+  assert.deepEqual(calc.nkSollTeile(0, 0, 0, 0), []);
+});
+test("nkMietrueckstand: offene Soll-Miete über aktive Monate (US-79)", () => {
+  // Soll je Monat = 800 + 150 = 950, ganzes Jahr aktiv
+  const m = { von:"2025-01-01", bis:"2025-12-31", grundmiete:800, vmonat:150, stellAnzahl:0, stellPreis:0,
+    erhalten: { "2025-01":950, "2025-02":500 } }; // Jan voll, Feb 500 von 950, Rest nichts
+  // sumSoll = 12*950 = 11400; sumErh = 950 + 500 = 1450 => 9950
+  assert.equal(calc.nkMietrueckstand(m, "2025-12-31", "2025-01-01", "2025-12-31"), 9950);
+  // voll bezahlt => 0
+  const m2 = { von:"2025-01-01", bis:"2025-01-31", grundmiete:800, vmonat:150, erhalten:{ "2025-01":950 } };
+  assert.equal(calc.nkMietrueckstand(m2, "2025-01-31", "2025-01-01", "2025-01-31"), 0);
+  // überzahlt in einem Monat hebt netto auf, aber nicht unter 0
+  const m3 = { von:"2025-01-01", bis:"2025-02-28", grundmiete:800, vmonat:150, erhalten:{ "2025-01":2000, "2025-02":0 } };
+  assert.equal(calc.nkMietrueckstand(m3, "2025-02-28", "2025-01-01", "2025-02-28"), 0); // 2000 >= 1900
+});
