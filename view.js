@@ -6,7 +6,7 @@
    `aktivIdx`, `store`, `commit`, `saveState/loadState` u. a. sind dort global definiert. */
 /* US-81: „Mieter & Vertrag" als Index 7 angehängt (keine Umnummerierung der bestehenden
    data-step/go()-Indizes); die Anzeige-Reihenfolge steuert STEP_GROUPS. */
-const STEPS = ["Objekt","Vorauszahlung","Kosten","Heizung","Berechnung","Abrechnung","Zahlungen","Mieter & Vertrag"];
+const STEPS = ["Objekt","Vorauszahlung (Soll)","Kosten","Heizung","Berechnung","Abrechnung","Zahlungen (Ist)","Mieter & Vertrag"];
 let current = 0, activeMieter = 0;
 let vorausModus = "monatlich";
 
