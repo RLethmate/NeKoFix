@@ -1148,10 +1148,21 @@ function monatErhalten(m, key, soll){
   if(key in erh) return +erh[key];
   return bez[key] ? soll : 0; /* Migration: alte „bezahlt"-Haken gelten als voll bezahlt */
 }
+/* US-83: Ansicht im Zahlungen-Reiter – „bis aktueller Monat" (nur fällige Monate, Standard)
+   oder „ganzes Abrechnungsjahr". */
+let zahlBisAktuell=true;
+function aktuellerMonatKey(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function setZahlBisAktuell(v){
+  zahlBisAktuell=v;
+  const a=document.getElementById('zv_faellig'), b=document.getElementById('zv_jahr');
+  if(a) a.classList.toggle('active', v); if(b) b.classList.toggle('active', !v);
+  renderZahlungen();
+}
 function renderZahlungen(){
   const box=document.getElementById('zahlungen_box'); box.innerHTML='';
   alleMV().forEach(({e,m,ei,mi})=>{
-    const monate=nkAktiveMonate(m.von, nkMvEnde(m,state.objekt.bis), state.objekt.von, state.objekt.bis);
+    let monate=nkAktiveMonate(m.von, nkMvEnde(m,state.objekt.bis), state.objekt.von, state.objekt.bis);
+    if(zahlBisAktuell){ const cur=aktuellerMonatKey(); monate=monate.filter(k=>k<=cur); } /* US-83: nur fällige Monate bis aktueller Monat */
     let sumSoll=0, sumErh=0, hatTeil=false;
     const rows=monate.map(k=>{
       const soll=monatSoll(m,k);
@@ -1159,25 +1170,26 @@ function renderZahlungen(){
       const st=nkZahlStatus(erhalten, soll);
       if(st==='teilweise') hatTeil=true;
       sumSoll+=soll; sumErh+=erhalten;
+      const offenM=Math.round((soll-erhalten)*100)/100; /* US-79: Mietrückstand dieses Monats */
       /* US-77: Zusammensetzung des Solls als Tooltip (im jeweiligen Monat gültige Werte). */
       const teile=nkSollTeile(nkMieteAm(m, k+'-01'), nkMonatNK(m), m.stellAnzahl, m.stellPreis);
       const sollTitle=teile.length? eur(soll)+' = '+teile.map(t=>eur(t.betrag)+' '+t.label).join(' + ') : '';
       return '<div class="zahl-monat '+st+'">'+
         '<span class="zm-label">'+monatLabel(k)+'</span>'+
         '<span class="zm-soll"'+(sollTitle?' title="'+sollTitle+'"':'')+'>Soll '+eur(soll)+'</span>'+
+        (offenM>0? '<span class="zm-offen" title="Offener Betrag dieses Monats – Mietrückstand">offen '+eur(offenM)+'</span>' : '')+
         '<label class="zm-erh">erhalten <input class="short" type="text" inputmode="decimal" value="'+(erhalten?nkFmtBetrag(erhalten):'')+'" placeholder="'+nkFmtBetrag(soll)+'" onchange="updErhalten('+ei+','+mi+',\''+k+'\',this.value)"></label>'+
         '<button class="zm-pruef'+(st==='bezahlt'||st==='ueberzahlt'?' aktiv':'')+'" title="Monat als geprüft markieren (setzt erhalten = Soll); erneut klicken hebt es wieder auf" onclick="toggleGeprueft('+ei+','+mi+',\''+k+'\')">geprüft</button>'+
       '</div>';
     }).join('');
     const offenBetrag=Math.max(0, Math.round((sumSoll-sumErh)*100)/100);
-    const summary='Soll gesamt '+eur(sumSoll)+' · erhalten '+eur(sumErh)+' · '+(offenBetrag>0?'<span style="color:var(--nachzahlung)">offen '+eur(offenBetrag)+'</span>':'<span style="color:var(--accent)">vollständig</span>');
+    const summary='Soll gesamt '+eur(sumSoll)+' · erhalten '+eur(sumErh)+' · '+(offenBetrag>0?'<span style="color:var(--nachzahlung)">offen '+eur(offenBetrag)+' (Mietrückstand – bitte separat einfordern)</span>':'<span style="color:var(--accent)">vollständig</span>');
     box.insertAdjacentHTML('beforeend',
       '<div class="unit-card">'+
         '<div class="unit-head"><b>'+esc(m.mieter)+'</b> <span class="pill">'+esc(e.name)+'</span></div>'+
         '<div class="hint" style="margin:2px 0 6px;">Soll je Monat aus der jeweils gültigen Miete; „erhalten" frei erfassbar (auch Teilzahlungen). Voll bezahlte Monate frieren ihr Soll ein.</div>'+
         '<div class="zahl-monate">'+(rows||'<span class="hint">keine aktiven Monate im Zeitraum</span>')+'</div>'+
         '<div class="leer-hint" style="margin-top:8px;">'+summary+'</div>'+
-        (offenBetrag>0? '<div class="leer-hint" style="margin-top:6px;">Mietrückstand aus dieser Periode: '+eur(offenBetrag)+' – bitte separat einfordern.</div>' : '')+
         (hatTeil? '<div class="legal" style="margin-top:6px;">Bei Teilzahlung wird – sofern der Mieter nichts anderes bestimmt – die NK-Vorauszahlung vorrangig vor der Kaltmiete getilgt (§ 366 Abs. 2 BGB; BGH, 21.03.2018, VIII ZR 84/17). Der offene Rest ist daher i. d. R. ein Kaltmieten-Rückstand.</div>' : '')+
       '</div>');
   });
