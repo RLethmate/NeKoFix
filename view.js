@@ -1162,7 +1162,10 @@ function renderZahlungen(){
   const box=document.getElementById('zahlungen_box'); box.innerHTML='';
   alleMV().forEach(({e,m,ei,mi})=>{
     let monate=nkAktiveMonate(m.von, nkMvEnde(m,state.objekt.bis), state.objekt.von, state.objekt.bis);
-    if(zahlBisAktuell){ const cur=aktuellerMonatKey(); monate=monate.filter(k=>k<=cur); } /* US-83: nur fällige Monate bis aktueller Monat */
+    if(zahlBisAktuell){ /* US-83: nur offene (noch nicht gehakte) Monate bis zum aktuellen Monat */
+      const cur=aktuellerMonatKey();
+      monate=monate.filter(k=>{ if(k>cur) return false; const soll=monatSoll(m,k); return monatErhalten(m,k,soll)+0.005<soll; });
+    }
     let sumSoll=0, sumErh=0, hatTeil=false;
     const rows=monate.map(k=>{
       const soll=monatSoll(m,k);
@@ -1188,7 +1191,7 @@ function renderZahlungen(){
       '<div class="unit-card">'+
         '<div class="unit-head"><b>'+esc(m.mieter)+'</b> <span class="pill">'+esc(e.name)+'</span></div>'+
         '<div class="hint" style="margin:2px 0 6px;">Soll je Monat aus der jeweils gültigen Miete; „erhalten" frei erfassbar (auch Teilzahlungen). Voll bezahlte Monate frieren ihr Soll ein.</div>'+
-        '<div class="zahl-monate">'+(rows||'<span class="hint">keine aktiven Monate im Zeitraum</span>')+'</div>'+
+        '<div class="zahl-monate">'+(rows||'<span class="hint">'+(zahlBisAktuell?'Bis zum aktuellen Monat alles beglichen.':'keine aktiven Monate im Zeitraum')+'</span>')+'</div>'+
         '<div class="leer-hint" style="margin-top:8px;">'+summary+'</div>'+
         (hatTeil? '<div class="legal" style="margin-top:6px;">Bei Teilzahlung wird – sofern der Mieter nichts anderes bestimmt – die NK-Vorauszahlung vorrangig vor der Kaltmiete getilgt (§ 366 Abs. 2 BGB; BGH, 21.03.2018, VIII ZR 84/17). Der offene Rest ist daher i. d. R. ein Kaltmieten-Rückstand.</div>' : '')+
       '</div>');
