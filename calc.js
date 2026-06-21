@@ -333,6 +333,30 @@ function nkBaldFaellig(zielDatum, heuteDatum, schwelleMonate) {
 function nkSollMonat(grundmiete, nkMonat, stellAnzahl, stellPreis) {
   return (+grundmiete || 0) + (+nkMonat || 0) + (+stellAnzahl || 0) * (+stellPreis || 0);
 }
+/* US-77: Zusammensetzung des Monats-Solls als Teile (Nettokaltmiete + NK-Vorauszahlung +
+   Stellplatz). Komponenten mit 0 € werden weggelassen. Reine Funktion (Formatierung im View). */
+function nkSollTeile(grundmiete, nkMonat, stellAnzahl, stellPreis) {
+  const teile = [];
+  const g = +grundmiete || 0, nk = +nkMonat || 0, st = (+stellAnzahl || 0) * (+stellPreis || 0);
+  if (g) teile.push({ label: "Nettokaltmiete", betrag: g });
+  if (nk) teile.push({ label: "NK-Vorauszahlung", betrag: nk });
+  if (st) teile.push({ label: "Stellplatz", betrag: st });
+  return teile;
+}
+/* US-79: Mietrückstand des Abrechnungszeitraums = offene Soll-Miete (Summe Soll − Summe
+   erhalten über die aktiven Monate, >= 0). Identisch zur Summe im Zahlungen-Reiter; mvBis ist
+   das effektive Mietende (nkMvEnde). Reine Funktion. */
+function nkMietrueckstand(m, mvBis, pVon, pBis) {
+  const monate = nkAktiveMonate(m.von, mvBis, pVon, pBis);
+  const snap = m.sollSnap || {}, erh = m.erhalten || {}, bez = m.bezahlt || {};
+  let sumSoll = 0, sumErh = 0;
+  for (const k of monate) {
+    const soll = (k in snap) ? +snap[k] : nkSollMonat(nkMieteAm(m, k + "-01"), nkMonatNK(m), m.stellAnzahl, m.stellPreis);
+    sumSoll += soll;
+    sumErh += (k in erh) ? +erh[k] : (bez[k] ? soll : 0);
+  }
+  return Math.max(0, Math.round((sumSoll - sumErh) * 100) / 100);
+}
 /* US-35: monatliche NK-Vorauszahlung eines Mietverhältnisses – Monatsbetrag, sonst aus
    Jahressumme ÷ Monate gerundet. Reine Funktion (aus view.js nach calc.js verschoben). */
 function nkMonatNK(m) {
@@ -795,6 +819,8 @@ if (typeof module !== "undefined" && module.exports) {
     nkVorschlagVorsteuer,
     nkMieterBetrag,
     nkSollMonat,
+    nkSollTeile,
+    nkMietrueckstand,
     nkMonatNK,
     nkAktiveMonate,
     nkBaldFaellig,

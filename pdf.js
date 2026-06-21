@@ -25,6 +25,7 @@ function buildTenantPdf(sel){
   const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, state.einheiten);
   const z=state.zahlung||{};
   const gew=ab.gewerblich, anteil=ab.brutto, saldo=ab.saldo;
+  const rueck=nkMietrueckstand(m, nkMvEnde(m,state.objekt.bis), state.objekt.von, state.objekt.bis); /* US-79: separater Mietrückstand */
   const L=56, R=540, W=R-L;
   const nl=(t)=>{ if(y>780){ doc.addPage(); y=64; } doc.text(t,L,y); y+=14; };
   // Absenderzeile (klein)
@@ -139,6 +140,17 @@ function buildTenantPdf(sel){
       doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.text('GiroCode',L+qs+12,y+14); doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(110);
       doc.splitTextToSize('In Ihrer Banking-App scannen – Betrag, IBAN und Verwendungszweck sind hinterlegt. Bitte vor dem Absenden prüfen.', W-qs-12).forEach((l,i)=>doc.text(l,L+qs+12,y+28+i*11));
       doc.setTextColor(0); doc.setFontSize(10); y+=qs+10; }
+  }
+  // US-79: separater Mietrückstand-Block (neutral, kein Bestandteil der NK-Abrechnung)
+  if(rueck>0){
+    y+=8; if(y>700){ doc.addPage(); y=64; }
+    doc.setFont(undefined,'bold'); doc.setFontSize(10); nl('Mietrückstand (separat)'); doc.setFont(undefined,'normal'); doc.setFontSize(9);
+    doc.setTextColor(110);
+    doc.splitTextToSize('Für den Abrechnungszeitraum besteht ein offener Mietbetrag, unabhängig von dieser Nebenkostenabrechnung. Er ist nicht Bestandteil der NK-Abrechnung und wird separat geltend gemacht.', W).forEach(l=>nl(l));
+    doc.setTextColor(0); doc.setFontSize(10);
+    nl('Abrechnungssaldo (Nebenkosten): '+(saldo>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(saldo)));
+    nl('Mietrückstand aus dem Abrechnungszeitraum: '+eur(rueck));
+    if(saldo>0){ doc.setFont(undefined,'bold'); nl('Gesamt offener Betrag: '+eur(saldo+rueck)); doc.setFont(undefined,'normal'); }
   }
   y+=8; doc.setFontSize(8); doc.setTextColor(110);
   doc.splitTextToSize('Einwendungen gegen diese Abrechnung können Sie innerhalb von 12 Monaten nach Zugang geltend machen.', W).forEach(l=>{ if(y>790){doc.addPage();y=64;} doc.text(l,L,y); y+=11; });
