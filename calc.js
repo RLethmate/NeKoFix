@@ -333,6 +333,16 @@ function nkBaldFaellig(zielDatum, heuteDatum, schwelleMonate) {
 function nkSollMonat(grundmiete, nkMonat, stellAnzahl, stellPreis) {
   return (+grundmiete || 0) + (+nkMonat || 0) + (+stellAnzahl || 0) * (+stellPreis || 0);
 }
+/* US-77: Zusammensetzung des Monats-Solls als Teile (Nettokaltmiete + NK-Vorauszahlung +
+   Stellplatz). Komponenten mit 0 € werden weggelassen. Reine Funktion (Formatierung im View). */
+function nkSollTeile(grundmiete, nkMonat, stellAnzahl, stellPreis) {
+  const teile = [];
+  const g = +grundmiete || 0, nk = +nkMonat || 0, st = (+stellAnzahl || 0) * (+stellPreis || 0);
+  if (g) teile.push({ label: "Nettokaltmiete", betrag: g });
+  if (nk) teile.push({ label: "NK-Vorauszahlung", betrag: nk });
+  if (st) teile.push({ label: "Stellplatz", betrag: st });
+  return teile;
+}
 /* US-35: monatliche NK-Vorauszahlung eines Mietverhältnisses – Monatsbetrag, sonst aus
    Jahressumme ÷ Monate gerundet. Reine Funktion (aus view.js nach calc.js verschoben). */
 function nkMonatNK(m) {
@@ -786,6 +796,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkVorschlagVorsteuer,
     nkMieterBetrag,
     nkSollMonat,
+    nkSollTeile,
     nkMonatNK,
     nkAktiveMonate,
     nkBaldFaellig,

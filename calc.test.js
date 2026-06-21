@@ -830,3 +830,19 @@ test("nkZahlStatus: offen/teilweise/bezahlt/ueberzahlt", () => {
   assert.equal(calc.nkZahlStatus(1200,1190),"ueberzahlt");  // > Soll => blau
   assert.equal(calc.nkZahlStatus(1190.02,1190),"ueberzahlt");// knapp über Toleranz => überzahlt
 });
+test("nkSollTeile: Aufschlüsselung des Monats-Solls, 0-Komponenten weggelassen (US-77)", () => {
+  const t = calc.nkSollTeile(800, 150, 1, 40); // 800 Netto + 150 NK + 40 Stellplatz
+  assert.deepEqual(t, [
+    { label: "Nettokaltmiete", betrag: 800 },
+    { label: "NK-Vorauszahlung", betrag: 150 },
+    { label: "Stellplatz", betrag: 40 },
+  ]);
+  // Stellplatz 0 (kein Platz) => weggelassen; Summe der Teile = Soll
+  const t2 = calc.nkSollTeile(800, 150, 0, 40);
+  assert.deepEqual(t2.map(x => x.label), ["Nettokaltmiete", "NK-Vorauszahlung"]);
+  assert.equal(t2.reduce((s, x) => s + x.betrag, 0), calc.nkSollMonat(800, 150, 0, 40));
+  // Nur Kaltmiete
+  assert.deepEqual(calc.nkSollTeile(800, 0, 0, 0), [{ label: "Nettokaltmiete", betrag: 800 }]);
+  // Alles 0 => leer
+  assert.deepEqual(calc.nkSollTeile(0, 0, 0, 0), []);
+});
