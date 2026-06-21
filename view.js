@@ -1062,6 +1062,7 @@ function renderDoc(){
   const e=sel.e, m=sel.m;
   const ab=nkMieterAbrechnung(e, m, state.kosten, state.objekt, state.einheiten);
   const gew=ab.gewerblich, za=ab.zeitanteil, anteil=ab.brutto, saldo=ab.saldo;
+  const rueck=nkMietrueckstand(m, nkMvEnde(m,state.objekt.bis), state.objekt.von, state.objekt.bis); /* US-79: separater Mietrückstand */
   /* US-59: Spaltenformat (Rechenweg) + US-58 Rubrik-Gruppierung mit Zwischensummen. */
   const fmtEinh=n=>(Number(n)||0).toLocaleString('de-DE',{maximumFractionDigits:2});
   const fmtPreis=n=>(Number(n)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:4});
@@ -1113,7 +1114,15 @@ function renderDoc(){
         +'Empfänger: '+state.zahlung.empfaenger+' · IBAN: '+state.zahlung.iban+' · BIC: '+state.zahlung.bic+'<br>'
         +'Verwendungszweck: '+esc('NK-Abr. '+(state.objekt.addr||'')+'-'+e.name+'-'+m.mieter+'-'+zeitraumText())
       : 'Das Guthaben wird Ihnen innerhalb von '+state.zahlung.frist+' auf Ihr hinterlegtes Konto erstattet.')
-    +'<br><span class="hint">Hinweis: Einwendungen können Sie innerhalb von 12 Monaten nach Zugang geltend machen.</span></div>';
+    +'<br><span class="hint">Hinweis: Einwendungen können Sie innerhalb von 12 Monaten nach Zugang geltend machen.</span></div>'+
+    (rueck>0
+      ? '<div class="pay"><h3>Mietrückstand (separat)</h3>'+
+        'Für den Abrechnungszeitraum besteht ein offener Mietbetrag, unabhängig von dieser Nebenkostenabrechnung:<br>'+
+        'Abrechnungssaldo (Nebenkosten): '+(saldo>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(saldo))+'<br>'+
+        'Mietrückstand aus dem Abrechnungszeitraum: '+eur(rueck)+
+        (saldo>0?'<br><b>Gesamt offener Betrag: '+eur(saldo+rueck)+'</b>':'')+
+        '<br><span class="hint">Der Mietrückstand ist nicht Teil der Nebenkostenabrechnung und wird separat geltend gemacht.</span></div>'
+      : '');
   /* US-52: Versand-Block – E-Mail (im Vertrag gepflegt) anzeigen, Senden via Web Share (Anhang). */
   const vb=document.getElementById('versand_box');
   if(vb){

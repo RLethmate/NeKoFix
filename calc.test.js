@@ -846,3 +846,16 @@ test("nkSollTeile: Aufschlüsselung des Monats-Solls, 0-Komponenten weggelassen 
   // Alles 0 => leer
   assert.deepEqual(calc.nkSollTeile(0, 0, 0, 0), []);
 });
+test("nkMietrueckstand: offene Soll-Miete über aktive Monate (US-79)", () => {
+  // Soll je Monat = 800 + 150 = 950, ganzes Jahr aktiv
+  const m = { von:"2025-01-01", bis:"2025-12-31", grundmiete:800, vmonat:150, stellAnzahl:0, stellPreis:0,
+    erhalten: { "2025-01":950, "2025-02":500 } }; // Jan voll, Feb 500 von 950, Rest nichts
+  // sumSoll = 12*950 = 11400; sumErh = 950 + 500 = 1450 => 9950
+  assert.equal(calc.nkMietrueckstand(m, "2025-12-31", "2025-01-01", "2025-12-31"), 9950);
+  // voll bezahlt => 0
+  const m2 = { von:"2025-01-01", bis:"2025-01-31", grundmiete:800, vmonat:150, erhalten:{ "2025-01":950 } };
+  assert.equal(calc.nkMietrueckstand(m2, "2025-01-31", "2025-01-01", "2025-01-31"), 0);
+  // überzahlt in einem Monat hebt netto auf, aber nicht unter 0
+  const m3 = { von:"2025-01-01", bis:"2025-02-28", grundmiete:800, vmonat:150, erhalten:{ "2025-01":2000, "2025-02":0 } };
+  assert.equal(calc.nkMietrueckstand(m3, "2025-02-28", "2025-01-01", "2025-02-28"), 0); // 2000 >= 1900
+});
