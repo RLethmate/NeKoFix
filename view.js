@@ -1162,9 +1162,12 @@ function renderZahlungen(){
   const box=document.getElementById('zahlungen_box'); box.innerHTML='';
   alleMV().forEach(({e,m,ei,mi})=>{
     let monate=nkAktiveMonate(m.von, nkMvEnde(m,state.objekt.bis), state.objekt.von, state.objekt.bis);
-    if(zahlBisAktuell){ /* US-83: nur offene (noch nicht gehakte) Monate bis zum aktuellen Monat */
-      const cur=aktuellerMonatKey();
-      monate=monate.filter(k=>{ if(k>cur) return false; const soll=monatSoll(m,k); return monatErhalten(m,k,soll)+0.005<soll; });
+    if(zahlBisAktuell){ /* US-83: offene (ungehakte) Monate von Mietbeginn bis zum aktuellen Monat –
+        Gegenwartssicht, bewusst auch über den Abrechnungszeitraum hinaus (z. B. 2025-Objekt, heute 2026). */
+      const curEnd=aktuellerMonatKey()+'-01';
+      const mvEnde=m.laeuft? curEnd : (m.bis || curEnd);
+      monate=nkAktiveMonate(m.von, mvEnde, m.von, curEnd)
+        .filter(k=>{ const soll=monatSoll(m,k); return monatErhalten(m,k,soll)+0.005<soll; });
     }
     let sumSoll=0, sumErh=0, hatTeil=false;
     const rows=monate.map(k=>{
