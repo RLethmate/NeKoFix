@@ -830,3 +830,21 @@ test("nkZahlStatus: offen/teilweise/bezahlt/ueberzahlt", () => {
   assert.equal(calc.nkZahlStatus(1200,1190),"ueberzahlt");  // > Soll => blau
   assert.equal(calc.nkZahlStatus(1190.02,1190),"ueberzahlt");// knapp über Toleranz => überzahlt
 });
+test("nkClone: tiefe Kopie, unabhängig vom Original (US-82)", () => {
+  const orig = { a:1, liste:[{x:1}], obj:{tief:{y:2}} };
+  const kopie = calc.nkClone(orig);
+  assert.deepEqual(kopie, orig);
+  assert.notEqual(kopie, orig);
+  assert.notEqual(kopie.liste, orig.liste);          // eigene Array-Referenz
+  kopie.liste[0].x = 99; kopie.obj.tief.y = 99;
+  assert.equal(orig.liste[0].x, 1);                  // Original bleibt unberührt
+  assert.equal(orig.obj.tief.y, 2);
+  assert.equal(calc.nkClone(null), null);
+});
+test("nkHistCoalesce: schnelles Tippen verschmilzt, sonst neuer Schritt (US-82)", () => {
+  assert.equal(calc.nkHistCoalesce(1000, 1200, 500), true);   // 200ms < 500 => ein Schritt
+  assert.equal(calc.nkHistCoalesce(1000, 1600, 500), false);  // 600ms >= 500 => neuer Schritt
+  assert.equal(calc.nkHistCoalesce(1000, 1500, 500), false);  // genau Fenster => neuer Schritt
+  assert.equal(calc.nkHistCoalesce(null, 1200, 500), false);  // kein vorheriger Commit
+  assert.equal(calc.nkHistCoalesce(0, 1.7e12, 500), false);   // nach Reset (ts=0) nie verschmelzen
+});

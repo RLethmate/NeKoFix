@@ -752,6 +752,15 @@ function nkDedupeObjekte(arr) {
   return out;
 }
 
+/* US-82: Tiefkopie eines reinen Datenobjekts (für den Undo/Redo-Verlauf – Snapshots dürfen
+   nicht über geteilte Referenzen mitmutieren). */
+function nkClone(o) { return o == null ? o : JSON.parse(JSON.stringify(o)); }
+/* US-82: Entscheidet, ob zwei aufeinanderfolgende Commits zu EINEM Undo-Schritt verschmelzen
+   (schnelles Tippen). True, wenn der vorige Commit < windowMs zurückliegt. */
+function nkHistCoalesce(prevTs, nowTs, windowMs) {
+  return prevTs != null && (nowTs - prevTs) < windowMs;
+}
+
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
    und die Funktionen stehen global zur Verfügung.
    Eine Funktion pro Zeile (mit Komma am Ende) – das entschärft Merge-Konflikte beim
@@ -838,5 +847,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkIndexMieteAm,
     nkMieteAm,
     nkZahlStatus,
+    nkClone,
+    nkHistCoalesce,
   };
 }

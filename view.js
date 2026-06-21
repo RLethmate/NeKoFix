@@ -1219,8 +1219,8 @@ function renderAll(){ renderObjektSelect(); renderVorjahrBanner(); fillObjektKop
   renderEinheiten(); renderVoraus(); renderKosten();
   if(current===3) renderHeizung(); else if(current===4) computeView(); else if(current===5) renderDoc(); else if(current===6) renderZahlungen();
   renderStepper(); }
-function switchObjekt(idx){ saveState(); aktivIdx=Math.max(0,Math.min(+idx,objekte.length-1)); ladeDaten(objekte[aktivIdx]); ensureIds(); renderAll(); saveState(); }
-function neuesObjekt(){ saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); saveState(); }
+function switchObjekt(idx){ saveState(); aktivIdx=Math.max(0,Math.min(+idx,objekte.length-1)); ladeDaten(objekte[aktivIdx]); ensureIds(); renderAll(); neuerVerlauf(); saveState(); }
+function neuesObjekt(){ saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); }
 /* US-65: Objekt als Datei sichern – echter Speicherdialog (File System Access API), wo
    unterstützt; sonst Download-Fallback. Dateiname wird aus „Objekt/Adresse" vorgeschlagen. */
 async function exportObjekt(){
@@ -1251,7 +1251,7 @@ function neuesJahrAusVorjahr(){
   saveState();
   const neu=nkVorjahrUebernehmen(snapshot());
   if(objekte.some(d=>objSignatur(d)===objSignatur(neu)) && !confirm('Für diese Adresse und diesen Zeitraum gibt es bereits ein Objekt. Trotzdem ein weiteres anlegen?')) return;
-  objekte.push(neu); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); saveState();
+  objekte.push(neu); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState();
 }
 function renderVorjahrBanner(){
   const box=document.getElementById('vorjahr_banner'); if(!box) return;
@@ -1262,7 +1262,7 @@ function confirmVorjahr(){
   state.vorjahr=false;
   (state.kosten||[]).forEach(k=>{ k.vorjahr=false; });
   (state.einheiten||[]).forEach(e=>{ e.vorjahr=false; (e.mv||[]).forEach(m=>{ m.vorjahr=false; }); });
-  renderAll(); saveState();
+  renderAll(); neuerVerlauf(); saveState();
 }
 function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ return; }
   const r=new FileReader();
@@ -1270,14 +1270,33 @@ function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ 
       if(!d || !Array.isArray(d.einheiten)){ alert('Datei ist kein gültiges Objekt (es fehlen Einheiten).'); return; }
       const sig=JSON.stringify(d);
       if(objekte.some(x=>JSON.stringify(x)===sig) && !confirm('Dieses Objekt ist bereits vorhanden (identische Daten). Trotzdem importieren?')) return;
-      saveState(); objekte.push(d); aktivIdx=objekte.length-1; ladeDaten(d); ensureIds(); current=0; renderAll(); go(0); saveState();
+      saveState(); objekte.push(d); aktivIdx=objekte.length-1; ladeDaten(d); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState();
     }catch(e){ alert('Datei konnte nicht gelesen werden.'); } finally{ ev.target.value=''; } };
   r.readAsText(f); }
 function setAbrStatus(v){ store.setAbrechnungStatus(v); }
+/* US-82: Undo/Redo – Bedienung. Datenlogik liegt in core.js (histUndo/histRedo/histReset). */
+function undo(){ if(histUndo()) renderAll(); updateHistButtons(); }
+function redo(){ if(histRedo()) renderAll(); updateHistButtons(); }
+function neuerVerlauf(){ histReset(); updateHistButtons(); } /* an Objekt-Grenzen (Wechsel/Neu/Import/Vorjahr/Start) */
+function updateHistButtons(){
+  const u=document.getElementById('btn_undo'), r=document.getElementById('btn_redo');
+  if(u) u.disabled=!histCanUndo();
+  if(r) r.disabled=!histCanRedo();
+}
 /* saveState, loadState, resetState, commit/scheduleSave: in core.js (US-33b). */
 document.addEventListener('input', commit);  /* Sicherheitsnetz für nicht über den Store laufende Eingaben */
 document.addEventListener('change', commit);
 window.addEventListener('beforeunload', saveState);
+/* US-82: Button-Status nach jeder Eingabe aktualisieren (nach commit, daher hier registriert). */
+document.addEventListener('input', updateHistButtons);
+document.addEventListener('change', updateHistButtons);
+/* US-82: Tastenkürzel – Strg/Cmd+Z = Undo, Strg/Cmd+Shift+Z bzw. Strg/Cmd+Y = Redo. */
+document.addEventListener('keydown', function(e){
+  if(!(e.metaKey||e.ctrlKey) || e.altKey) return;
+  const k=(e.key||'').toLowerCase();
+  if(k==='z'){ e.preventDefault(); if(e.shiftKey) redo(); else undo(); }
+  else if(k==='y'){ e.preventDefault(); redo(); }
+});
 
 /* ---------- Init ---------- */
 loadState();
@@ -1292,6 +1311,7 @@ fillObjektKopf();
 initNav(); /* US-54: gespeicherten Klapp-Zustand der Lasche anwenden */
 applyDokAnker(); /* US-80: gespeicherten Einklapp-Zustand der Dokument-Anker anwenden */
 renderEinheiten(); renderVoraus(); renderKosten(); renderStepper(); go(0);
+neuerVerlauf(); /* US-82: Verlauf-Baseline auf den geladenen Anfangszustand setzen */
 saveState();
 /* US-54: Versand-Ampel live aktualisieren, sobald sich Eingaben ändern. */
 document.addEventListener('input', renderNavPlausi);

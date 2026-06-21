@@ -106,6 +106,30 @@ function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw)
     if(o && Array.isArray(o.einheiten)){ objekte=[o]; aktivIdx=0; ladeDaten(o); return true; } /* Migration: altes Einzelformat */
     return false; }catch(e){ return false; } }
 function resetState(){ if(confirm('Aktuelle Eingaben verwerfen und die Beispiel-/Testdaten laden? Alle gespeicherten Daten (auch weitere Objekte) gehen dabei verloren.')){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} location.reload(); } }
+/* ---------- US-82: Undo/Redo-Verlauf (aktives Objekt) ----------
+   Jede granulare Bearbeitung läuft durch commit(); dort wird der vorige Stand erfasst.
+   Objekt-Operationen (Wechsel/Neu/Import/Vorjahr/Reset) setzen den Verlauf über histReset()
+   zurück. Rein im Arbeitsspeicher (nicht über Reload hinweg). */
+const HIST_MAX=60, HIST_COALESCE_MS=500;
+let histPast=[], histFuture=[], histBase=null, histTs=0;
+function histReset(){ histPast=[]; histFuture=[]; histBase=nkClone(snapshot()); histTs=0; }
+function histCanUndo(){ return histPast.length>0; }
+function histCanRedo(){ return histFuture.length>0; }
+/* Wird bei jedem commit() aufgerufen – der Stand ist hier bereits der NEUE; histBase hält den
+   vorigen. Schnell aufeinanderfolgende Commits verschmelzen zu einem Schritt. */
+function histCapture(){
+  const curJson=JSON.stringify(snapshot());
+  if(histBase!=null && curJson===JSON.stringify(histBase)) return; /* nichts geändert (auch Doppel-Events) */
+  const now=Date.now(), cur=JSON.parse(curJson);
+  if(histBase==null){ histBase=cur; histTs=now; return; }
+  if(nkHistCoalesce(histTs, now, HIST_COALESCE_MS)){ histBase=cur; histTs=now; return; } /* schnelles Tippen => ein Schritt */
+  histPast.push(histBase); if(histPast.length>HIST_MAX) histPast.shift();
+  histFuture=[]; histBase=cur; histTs=now;
+}
+function histLoad(d){ ladeDaten(nkClone(d)); ensureIds(); histBase=nkClone(snapshot()); histTs=0; saveState(); }
+function histUndo(){ if(!histPast.length) return false; histFuture.push(nkClone(snapshot())); histLoad(histPast.pop()); return true; }
+function histRedo(){ if(!histFuture.length) return false; histPast.push(nkClone(snapshot())); histLoad(histFuture.pop()); return true; }
+
 /* US-34: einzelner Auslöser fürs (entprellte) Speichern. Der Store ruft ausschließlich commit(). */
-let _saveTimer; function commit(){ clearTimeout(_saveTimer); _saveTimer=setTimeout(saveState,600); }
+let _saveTimer; function commit(){ histCapture(); clearTimeout(_saveTimer); _saveTimer=setTimeout(saveState,600); }
 function scheduleSave(){ commit(); } /* Rückwärtskompatibel */
