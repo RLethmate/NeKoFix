@@ -1273,6 +1273,11 @@ function renderAll(){ renderObjektSelect(); renderVorjahrBanner(); fillObjektKop
   renderStepper(); }
 function switchObjekt(idx){ saveState(); aktivIdx=Math.max(0,Math.min(+idx,objekte.length-1)); ladeDaten(objekte[aktivIdx]); ensureIds(); renderAll(); neuerVerlauf(); saveState(); updateSaveStatus(); }
 function neuesObjekt(){ saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus(); }
+/* US-76/US-84: Backup-Hinweis nach PDF-Export. „Gespeichert" (US-84) bedeutet nur localStorage,
+   nicht „als Datei auf dem PC". Daher wird der Hinweis nur eingeblendet, wenn der aktuelle Stand
+   NICHT als Datei gesichert ist (istDateiGesichert). Aufruf aus pdf.js; „×" blendet aus. */
+function showBackupHinweis(){ const b=document.getElementById('backup_hinweis'); if(!b) return; b.style.display = istDateiGesichert() ? 'none' : 'flex'; }
+function dismissBackupHinweis(){ const b=document.getElementById('backup_hinweis'); if(b) b.style.display='none'; }
 /* US-65: Objekt als Datei sichern – echter Speicherdialog (File System Access API), wo
    unterstützt; sonst Download-Fallback. Dateiname wird aus „Objekt/Adresse" vorgeschlagen. */
 async function exportObjekt(){
@@ -1287,6 +1292,7 @@ async function exportObjekt(){
          (NeKoFix-Präfix und angehängtes Jahr werden ignoriert). */
       const neuerName=String(handle.name||'').replace(/\.json$/i,'').replace(/^NeKoFix-/i,'').replace(/-\d{4}$/,'').trim();
       if(neuerName && neuerName!==state.objekt.name){ store.setObjektFeld('name', neuerName); renderObjektSelect(); } /* US-65: Objektname (Header) folgt dem Dateinamen, Adressfeld bleibt unberührt */
+      markDateiGesichert(); /* US-76: aktueller Stand liegt jetzt als PC-Datei vor */
       return true; /* US-84: Datei geschrieben */
     }catch(e){ if(e && e.name==='AbortError') return false; /* vom Nutzer abgebrochen */ }
   }
@@ -1294,6 +1300,7 @@ async function exportObjekt(){
   const blob=new Blob([json],{type:'application/json;charset=utf-8'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=dateiname;
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+  markDateiGesichert(); /* US-76: Download als PC-Datei-Sicherung gewertet */
   return true;
 }
 /* US-11: Folgejahr aus dem aktiven Objekt anlegen */
