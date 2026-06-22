@@ -274,4 +274,5 @@ function exportOwnerOverviewPdf(){
   y+=4; doc.line(56,y,540,y); y+=16; doc.setFont(undefined,'bold');
   doc.text("Summe",56,y); doc.text(eur(ab.summeAnteil),330,y,{align:'right'}); doc.text(eur(ab.summeVoraus),440,y,{align:'right'}); doc.text(eur(ab.summeSaldo),540,y,{align:'right'});
   doc.save("Eigentuemer-Uebersicht.pdf");
+  showBackupHinweis();
 }
