@@ -109,6 +109,13 @@ function onStateChange(fn){ _stateChangeListener = fn; }
 function notifyStateChange(){ if(_stateChangeListener) _stateChangeListener(); }
 function aktSig(){ return nkSig(snapshot()); }
 function istGespeichert(){ return savedSigs[aktivIdx] === aktSig(); }
+/* US-76/US-84: Signatur des zuletzt als PC-Datei gesicherten Stands je Objekt (nur im Speicher,
+   sitzungsbasiert). „Gespeichert" (US-84) heißt nur localStorage/In-App – NICHT „als Datei auf
+   dem PC". markDateiGesichert() wird bei erfolgreichem exportObjekt() gesetzt; istDateiGesichert()
+   ist die Bedingung für den Backup-Hinweis nach PDF-Export (US-76). */
+let dateiSigs = [];
+function markDateiGesichert(){ if(objekte.length) dateiSigs[aktivIdx]=aktSig(); }
+function istDateiGesichert(){ return objekte.length ? dateiSigs[aktivIdx]===aktSig() : false; }
 function markGespeichert(){ if(objekte.length){ objekte[aktivIdx]=snapshot(); savedSigs[aktivIdx]=aktSig(); } saveState(); notifyStateChange(); }
 function saveState(){ let ok=true; try{ if(objekte.length) objekte[aktivIdx]=snapshot(); localStorage.setItem(STORAGE_KEY, JSON.stringify({ objekte, aktivIdx, savedSigs })); }catch(e){ ok=false; } if(_persistListener) _persistListener(ok); return ok; }
 function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return false; const o=JSON.parse(raw);
