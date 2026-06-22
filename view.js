@@ -1255,6 +1255,10 @@ function renderAll(){ renderObjektSelect(); renderVorjahrBanner(); fillObjektKop
   renderStepper(); }
 function switchObjekt(idx){ saveState(); aktivIdx=Math.max(0,Math.min(+idx,objekte.length-1)); ladeDaten(objekte[aktivIdx]); ensureIds(); renderAll(); neuerVerlauf(); saveState(); }
 function neuesObjekt(){ saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); }
+/* US-76: Warnung vor lokalem Datenverlust – wird nach jedem PDF-Export eingeblendet
+   (Aufruf aus pdf.js). Der Sichern-Button löst exportObjekt() aus; „×" blendet aus. */
+function showBackupHinweis(){ const b=document.getElementById('backup_hinweis'); if(b) b.style.display='flex'; }
+function dismissBackupHinweis(){ const b=document.getElementById('backup_hinweis'); if(b) b.style.display='none'; }
 /* US-65: Objekt als Datei sichern – echter Speicherdialog (File System Access API), wo
    unterstützt; sonst Download-Fallback. Dateiname wird aus „Objekt/Adresse" vorgeschlagen. */
 async function exportObjekt(){
