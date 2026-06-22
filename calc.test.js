@@ -854,3 +854,77 @@ test("nkSig: gleiche Daten gleiche Signatur, Änderung ändert sie (US-84)", () 
   assert.notEqual(calc.nkSig(a), calc.nkSig({ x:1, liste:[1,3], obj:{ y:2 } }));
   assert.equal(typeof calc.nkSig(a), "string");
 });
+test("nkNameAusDateiname: Objektname aus Dateiname (Speicher)", () => {
+  // .json-Suffix wird entfernt
+  assert.equal(calc.nkNameAusDateiname("Hauptstrasse 5.json"), "Hauptstrasse 5");
+  // NeKoFix-Präfix und angehängtes Jahr werden entfernt
+  assert.equal(calc.nkNameAusDateiname("NeKoFix-Hauptstrasse 5-2025.json"), "Hauptstrasse 5");
+  // nur Präfix
+  assert.equal(calc.nkNameAusDateiname("NeKoFix-Mein Objekt.json"), "Mein Objekt");
+  // ohne Suffix bleibt unverändert (getrimmt)
+  assert.equal(calc.nkNameAusDateiname("  Mein Objekt  "), "Mein Objekt");
+  // Jahr nur am Ende, vierstellig
+  assert.equal(calc.nkNameAusDateiname("Objekt-2024"), "Objekt");
+  assert.equal(calc.nkNameAusDateiname("Objekt-99"), "Objekt-99");
+  // leere/fehlende Eingabe
+  assert.equal(calc.nkNameAusDateiname(""), "");
+  assert.equal(calc.nkNameAusDateiname(null), "");
+  assert.equal(calc.nkNameAusDateiname(undefined), "");
+});
+test("nkNormName: Umlaut-Faltung und Normalisierung fürs Matching (US-86)", () => {
+  assert.equal(calc.nkNormName("Schröder"), "schroeder");
+  assert.equal(calc.nkNormName("Schroeder"), "schroeder");
+  assert.equal(calc.nkNormName("Schröder"), calc.nkNormName("Schroeder"));
+  assert.equal(calc.nkNormName("Grün Gartenpflege GmbH"), calc.nkNormName("Gruen Gartenpflege GmbH"));
+  assert.equal(calc.nkNormName("Müller & Söhne"), "mueller soehne");
+  assert.equal(calc.nkNormName("WEST  ASSEKURANZ"), "west assekuranz");
+  assert.equal(calc.nkNormName("Straße"), "strasse");
+  assert.equal(calc.nkNormName(""), "");
+  assert.equal(calc.nkNormName(null), "");
+});
+test("nkParseDatumDE: deutsches Datum -> ISO (US-85)", () => {
+  assert.equal(calc.nkParseDatumDE("29.05.2026"), "2026-05-29");
+  assert.equal(calc.nkParseDatumDE("1.1.2025"), "2025-01-01");
+  assert.equal(calc.nkParseDatumDE("31.12.2025"), "2025-12-31");
+  assert.equal(calc.nkParseDatumDE("foo"), "");
+  assert.equal(calc.nkParseDatumDE(""), "");
+  assert.equal(calc.nkParseDatumDE("2025-01-01"), "");
+});
+test("nkParseUmsatzCsv: Kopfzeile/Spalten/Beträge/Umlaute (US-85)", () => {
+  const H = "Bezeichnung Auftragskonto;IBAN Auftragskonto;BIC Auftragskonto;Bankname Auftragskonto;" +
+    "Buchungstag;Valutadatum;Name Zahlungsbeteiligter;IBAN Zahlungsbeteiligter;" +
+    "BIC (SWIFT-Code) Zahlungsbeteiligter;Buchungstext;Verwendungszweck;Betrag;Waehrung;" +
+    "Saldo nach Buchung;Bemerkung;Gekennzeichneter Umsatz;Glaeubiger ID;Mandatsreferenz";
+  const z1 = "WBG2;DE61;GENODEM1000;VB;05.05.2025;05.05.2025;Vorname_2 Nachname_2;DE34;DEUTDEDB400;" +
+    "Dauerauftragsgutschr;Miete und Nebenkosten;1075;EUR;26427,37;;;;";
+  const z2 = "WBG2;DE61;GENODEM1000;VB;28.11.2025;28.11.2025;Techem Energy Services GmbH;DE03;DEUTDEFFXXX;" +
+    "Überweisungsauftrag;Wärmemessdienst Heizkostenabrechnung;-1.281,93;EUR;100,00;;;;";
+  // mit optionaler Titelzeile davor + Leerzeile
+  const csv = "VB Umsaetze_DE61_2025\r\n" + H + "\r\n" + z1 + "\r\n\r\n" + z2 + "\r\n";
+  const r = calc.nkParseUmsatzCsv(csv);
+  assert.equal(r.fehler, null);
+  assert.equal(r.buchungen.length, 2);                 // Leerzeile übersprungen, Titelzeile ignoriert
+  assert.equal(r.konto.iban, "DE61");
+  const a = r.buchungen[0], b = r.buchungen[1];
+  assert.equal(a.datum, "2025-05-05");
+  assert.equal(a.betrag, 1075);                          // positiv -> Zahlungseingang
+  assert.equal(a.name, "Vorname_2 Nachname_2");
+  assert.equal(b.datum, "2025-11-28");
+  assert.equal(b.betrag, -1281.93);                      // negativ, Tausenderpunkt korrekt geparst
+  assert.ok(b.zweck.indexOf("Wärmemessdienst") === 0);   // Umlaut erhalten (UTF-8)
+  assert.equal(b.buchungstext, "Überweisungsauftrag");
+});
+test("nkParseUmsatzCsv: ohne Titelzeile und Fehlerfälle (US-85)", () => {
+  const H = "Bezeichnung Auftragskonto;IBAN Auftragskonto;BIC Auftragskonto;Bankname Auftragskonto;" +
+    "Buchungstag;Valutadatum;Name Zahlungsbeteiligter;IBAN Zahlungsbeteiligter;" +
+    "BIC (SWIFT-Code) Zahlungsbeteiligter;Buchungstext;Verwendungszweck;Betrag;Waehrung;" +
+    "Saldo nach Buchung;Bemerkung;Gekennzeichneter Umsatz;Glaeubiger ID;Mandatsreferenz";
+  const z = "WBG2;DE61;BIC;VB;15.05.2025;15.05.2025;Stadt Münster;DE10;WELADED1MST;Basislastschrift;Grundsteuer Q2;-439,08;EUR;1,0;;;;";
+  const ok = calc.nkParseUmsatzCsv(H + "\n" + z);        // ohne Titelzeile, LF
+  assert.equal(ok.buchungen.length, 1);
+  assert.equal(ok.buchungen[0].betrag, -439.08);
+  assert.equal(ok.buchungen[0].name, "Stadt Münster");
+  const leer = calc.nkParseUmsatzCsv("nur irgendein Text\nohne Kopfzeile");
+  assert.ok(leer.fehler);                                // keine Kopfzeile -> Fehler
+  assert.equal(leer.buchungen.length, 0);
+});
