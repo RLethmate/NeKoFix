@@ -158,7 +158,7 @@ function buildTenantPdf(sel){
   nl('Mit freundlichen Grüßen'); y+=18; nl(String(z.empfaenger||''));
   return doc;
 }
-function exportTenantPdf(){ if(!ensurePdfLib())return; const sel=alleMV()[activeMieter]; if(sel){ buildTenantPdf(sel).save("Abrechnung-"+pdfSafeName(sel.m.mieter)+".pdf"); showBackupHinweis(); } }
+function exportTenantPdf(){ if(!ensurePdfLib())return; if(!pdfStandOk())return; const sel=alleMV()[activeMieter]; if(sel) buildTenantPdf(sel).save("Abrechnung-"+pdfSafeName(sel.m.mieter)+".pdf"); }
 /* US-69: Mieterhöhungs-Anschreiben als DIN-Brief (Index § 557b oder Staffel § 557a).
    `a` = {typ:'index'|'staffel', stichtag, stichtag1, alteMiete, neueMiete, prozent, rohNeu,
    betrag, monatVon, monatBis, frist}. Briefkopf/Adresse wie buildTenantPdf (US-53). */
@@ -252,9 +252,9 @@ async function sharePdfAktiv(){
     alert("Teilen mit Anhang wird hier nicht unterstützt. Das PDF wurde heruntergeladen – bitte manuell an eine E-Mail"+(email?" an "+email:"")+" anhängen.");
   }
 }
-function exportAllTenantPdfs(){ if(!ensurePdfLib())return; const list=alleMV(); list.forEach(sel=> buildTenantPdf(sel).save("Abrechnung-"+pdfSafeName(sel.m.mieter)+"-"+pdfSafeName(sel.e.name)+".pdf")); if(list.length) showBackupHinweis(); }
+function exportAllTenantPdfs(){ if(!ensurePdfLib())return; if(!pdfStandOk())return; alleMV().forEach(sel=> buildTenantPdf(sel).save("Abrechnung-"+pdfSafeName(sel.m.mieter)+"-"+pdfSafeName(sel.e.name)+".pdf")); }
 function exportOwnerOverviewPdf(){
-  if(!ensurePdfLib())return;
+  if(!ensurePdfLib())return; if(!pdfStandOk())return;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'pt', format:'a4'});
   let y=56;

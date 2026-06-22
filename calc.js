@@ -779,6 +779,14 @@ function nkDedupeObjekte(arr) {
 /* US-82: Tiefkopie eines reinen Datenobjekts (für den Undo/Redo-Verlauf – Snapshots dürfen
    nicht über geteilte Referenzen mitmutieren). */
 function nkClone(o) { return o == null ? o : JSON.parse(JSON.stringify(o)); }
+/* US-84: stabile Signatur eines Datenobjekts (djb2-Hash über die JSON-Form) – für die
+   Dirty-Erkennung: Arbeitsstand ↔ zuletzt gespeicherter Stand. Reine Funktion. */
+function nkSig(obj) {
+  const s = JSON.stringify(obj);
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return String(h);
+}
 /* US-82: Entscheidet, ob zwei aufeinanderfolgende Commits zu EINEM Undo-Schritt verschmelzen
    (schnelles Tippen). True, wenn der vorige Commit < windowMs zurückliegt. */
 function nkHistCoalesce(prevTs, nowTs, windowMs) {
@@ -874,6 +882,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkMieteAm,
     nkZahlStatus,
     nkClone,
+    nkSig,
     nkHistCoalesce,
   };
 }
