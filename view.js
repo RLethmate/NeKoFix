@@ -1156,6 +1156,7 @@ function setZahlBisAktuell(v){
   zahlBisAktuell=v;
   const a=document.getElementById('zv_faellig'), b=document.getElementById('zv_jahr');
   if(a) a.classList.toggle('active', v); if(b) b.classList.toggle('active', !v);
+  const h=document.getElementById('zahl_laeuft_hint'); if(h) h.style.display = v ? '' : 'none'; /* US-83: Hinweis nur in der Gegenwartssicht */
   renderZahlungen();
 }
 function renderZahlungen(){
