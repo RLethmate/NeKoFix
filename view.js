@@ -1271,7 +1271,27 @@ function renderAll(){ renderObjektSelect(); renderVorjahrBanner(); fillObjektKop
   renderEinheiten(); renderVoraus(); renderKosten();
   if(current===3) renderHeizung(); else if(current===4) computeView(); else if(current===5) renderDoc(); else if(current===6) renderZahlungen();
   renderStepper(); }
-function switchObjekt(idx){ saveState(); aktivIdx=Math.max(0,Math.min(+idx,objekte.length-1)); ladeDaten(objekte[aktivIdx]); ensureIds(); renderAll(); neuerVerlauf(); saveState(); updateSaveStatus(); }
+/* Speicher: Objektwechsel mit Schutz vor stillem Mitschleppen ungespeicherter Änderungen.
+   Bei ungespeichertem Stand: speichern / verwerfen / abbrechen (zwei native Dialoge =
+   drei Ausgänge). „Verwerfen" setzt das Objekt auf den gespeicherten Stand zurück. Ein nie
+   gespeichertes neues Objekt (kein savedData) behält seinen Arbeitsstand. */
+function switchObjekt(idx){
+  idx=Math.max(0,Math.min(+idx,objekte.length-1));
+  if(idx===aktivIdx){ return; }
+  if(!istGespeichert()){
+    if(confirm('Es gibt ungespeicherte Änderungen an diesem Objekt.\n\nOK = jetzt speichern und wechseln\nAbbrechen = ohne Speichern fortfahren')){
+      speichern();
+    } else if(savedData[aktivIdx]){
+      if(confirm('Ungespeicherte Änderungen verwerfen und wechseln?\n\nOK = verwerfen und wechseln\nAbbrechen = im Objekt bleiben')){
+        verwerfeAenderungen();
+      } else {
+        renderObjektSelect(); /* Wechsel abgebrochen – Dropdown zurück auf das aktive Objekt */
+        return;
+      }
+    }
+  }
+  saveState(); aktivIdx=idx; ladeDaten(objekte[aktivIdx]); ensureIds(); renderAll(); neuerVerlauf(); saveState(); updateSaveStatus();
+}
 function neuesObjekt(){ saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus(); }
 /* US-76/US-84: Backup-Hinweis nach PDF-Export. „Gespeichert" (US-84) bedeutet nur localStorage,
    nicht „als Datei auf dem PC". Daher wird der Hinweis nur eingeblendet, wenn der aktuelle Stand
@@ -1290,7 +1310,7 @@ async function exportObjekt(){
       const w=await handle.createWritable(); await w.write(json); await w.close();
       /* US-65: „Speichern unter" benennt das Objekt nach dem gewählten Dateinamen um
          (NeKoFix-Präfix und angehängtes Jahr werden ignoriert). */
-      const neuerName=String(handle.name||'').replace(/\.json$/i,'').replace(/^NeKoFix-/i,'').replace(/-\d{4}$/,'').trim();
+      const neuerName=nkNameAusDateiname(handle.name);
       if(neuerName && neuerName!==state.objekt.name){ store.setObjektFeld('name', neuerName); renderObjektSelect(); } /* US-65: Objektname (Header) folgt dem Dateinamen, Adressfeld bleibt unberührt */
       markDateiGesichert(); /* US-76: aktueller Stand liegt jetzt als PC-Datei vor */
       return true; /* US-84: Datei geschrieben */
@@ -1324,11 +1344,14 @@ function confirmVorjahr(){
   renderAll(); neuerVerlauf(); saveState(); updateSaveStatus();
 }
 function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ return; }
+  const dateiname=f.name; /* Speicher: Objektname (Header) folgt dem Dateinamen, nicht dem Adressfeld */
   const r=new FileReader();
   r.onload=function(){ try{ const d=JSON.parse(r.result);
       if(!d || !Array.isArray(d.einheiten)){ alert('Datei ist kein gültiges Objekt (es fehlen Einheiten).'); return; }
       const sig=JSON.stringify(d);
       if(objekte.some(x=>JSON.stringify(x)===sig) && !confirm('Dieses Objekt ist bereits vorhanden (identische Daten). Trotzdem importieren?')) return;
+      const nameAusDatei=nkNameAusDateiname(dateiname); /* Speicher: Header-Name aus Dateiname (ohne .json/NeKoFix-/-JJJJ) */
+      if(nameAusDatei){ d.objekt=d.objekt||{}; d.objekt.name=nameAusDatei; }
       saveState(); objekte.push(d); aktivIdx=objekte.length-1; ladeDaten(d); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
     }catch(e){ alert('Datei konnte nicht gelesen werden.'); } finally{ ev.target.value=''; } };
   r.readAsText(f); }
@@ -1367,6 +1390,7 @@ ensureIds();
    Backfill/ensureIds – als gespeichert festlegen. Vorhandene Speicherpunkte bleiben unangetastet,
    damit „ungespeicherte Änderungen" einen Reload überstehen. */
 if(savedSigs.length!==objekte.length){ objekte[aktivIdx]=snapshot(); savedSigs=objekte.map(d=>nkSig(d)); }
+if(savedData.length!==objekte.length){ savedData=objekte.map(d=>nkClone(d)); } /* Speicher: gespeicherte Daten je Objekt baseline (fürs Verwerfen) */
 renderObjektSelect();
 (function(){ const v=document.getElementById('app_version'); if(v) v.textContent=APP_VERSION+' · '+BUILD_DATE; })();
 (function(){ if(new URLSearchParams(location.search).has('debug')){ const b=document.getElementById('btn_testdaten'); if(b) b.hidden=false; } })();

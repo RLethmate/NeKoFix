@@ -792,6 +792,84 @@ function nkSig(obj) {
 function nkHistCoalesce(prevTs, nowTs, windowMs) {
   return prevTs != null && (nowTs - prevTs) < windowMs;
 }
+/* US-65/Speicher: Objektname aus dem Dateinamen ableiten – „.json"-Suffix, ein „NeKoFix-"-
+   Präfix und ein angehängtes Jahr „-YYYY" werden entfernt. Reine Funktion, genutzt von
+   „Speichern unter" und vom Import, damit der Header-Name dem Dateinamen folgt (nicht dem
+   Adressfeld). */
+function nkNameAusDateiname(dateiname) {
+  return String(dateiname || "").replace(/\.json$/i, "").replace(/^NeKoFix-/i, "").replace(/-\d{4}$/, "").trim();
+}
+
+/* US-86: Namens-Normalisierung für das Matching (Zahlungsbeteiligter -> Regel). Faltet Umlaute
+   (ä/ö/ü/ß <-> ae/oe/ue/ss), schreibt klein und vereinheitlicht Whitespace/Satzzeichen, damit
+   "Schröder" und "Schroeder" denselben Schlüssel ergeben. Reine Funktion. */
+function nkNormName(s) {
+  let t = String(s == null ? "" : s).toLowerCase();
+  t = t.replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss");
+  return t.replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+}
+
+/* US-85: deutsches Datum "TT.MM.JJJJ" -> ISO "JJJJ-MM-TT"; "" bei ungültiger Eingabe. */
+function nkParseDatumDE(s) {
+  const m = String(s == null ? "" : s).trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (!m) return "";
+  return m[3] + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0");
+}
+
+/* US-85: VR-/Volksbank-Umsatz-CSV parsen. Erkennt die Kopfzeile (überspringt eine optionale
+   Titelzeile davor), liest Spalten per Namen (robust gegen Reihenfolge/Zusatzspalten),
+   parst deutsche Beträge/Daten. Trennzeichen ';', kein Quoting im Zielformat. UTF-8-Eingabe.
+   Rückgabe: { konto:{iban,bic,bez}, buchungen:[{datum, buchungstag, name, iban, bic,
+   buchungstext, zweck, betrag:Number, waehrung}], fehler:String|null }. Reine Funktion. */
+function nkParseUmsatzCsv(text) {
+  const res = { konto: { iban: "", bic: "", bez: "" }, buchungen: [], fehler: null };
+  const raw = String(text == null ? "" : text).replace(/^\uFEFF/, "");
+  const lines = raw.split(/\r\n|\r|\n/);
+  let hi = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/(^|;)\s*Bezeichnung Auftragskonto\s*(;|$)/i.test(lines[i]) ||
+        (/Buchungstag/i.test(lines[i]) && /Betrag/i.test(lines[i]))) { hi = i; break; }
+  }
+  if (hi < 0) { res.fehler = "Keine Kopfzeile gefunden (erwartet Spalte 'Bezeichnung Auftragskonto')."; return res; }
+  const header = lines[hi].split(";").map(h => h.trim());
+  const col = name => header.findIndex(h => h.toLowerCase() === name.toLowerCase());
+  const colAny = names => { for (let k = 0; k < names.length; k++) { const i = col(names[k]); if (i >= 0) return i; } return -1; };
+  const idx = {
+    bez:   col("Bezeichnung Auftragskonto"),
+    kiban: col("IBAN Auftragskonto"),
+    kbic:  col("BIC Auftragskonto"),
+    tag:   col("Buchungstag"),
+    name:  col("Name Zahlungsbeteiligter"),
+    iban:  col("IBAN Zahlungsbeteiligter"),
+    bic:   colAny(["BIC (SWIFT-Code) Zahlungsbeteiligter", "BIC Zahlungsbeteiligter"]),
+    btext: col("Buchungstext"),
+    zweck: col("Verwendungszweck"),
+    betrag: col("Betrag"),
+    waehrung: col("Waehrung"),
+  };
+  if (idx.tag < 0 || idx.betrag < 0) { res.fehler = "Pflichtspalten fehlen (Buchungstag/Betrag)."; return res; }
+  const get = (cells, i) => (i >= 0 && i < cells.length) ? String(cells[i]).trim() : "";
+  for (let i = hi + 1; i < lines.length; i++) {
+    if (lines[i] == null || lines[i].trim() === "") continue;
+    const cells = lines[i].split(";");
+    const datum = nkParseDatumDE(get(cells, idx.tag));
+    const betragStr = get(cells, idx.betrag);
+    if (!datum && betragStr === "") continue; /* Leer-/Restzeile überspringen */
+    res.buchungen.push({
+      datum: datum,
+      buchungstag: get(cells, idx.tag),
+      name: get(cells, idx.name),
+      iban: get(cells, idx.iban),
+      bic: get(cells, idx.bic),
+      buchungstext: get(cells, idx.btext),
+      zweck: get(cells, idx.zweck),
+      betrag: nkParseBetrag(betragStr),
+      waehrung: get(cells, idx.waehrung) || "EUR",
+    });
+    if (!res.konto.iban) { res.konto = { iban: get(cells, idx.kiban), bic: get(cells, idx.kbic), bez: get(cells, idx.bez) }; }
+  }
+  return res;
+}
 
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
    und die Funktionen stehen global zur Verfügung.
@@ -884,5 +962,9 @@ if (typeof module !== "undefined" && module.exports) {
     nkClone,
     nkSig,
     nkHistCoalesce,
+    nkNameAusDateiname,
+    nkNormName,
+    nkParseDatumDE,
+    nkParseUmsatzCsv,
   };
 }

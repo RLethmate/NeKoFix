@@ -104,6 +104,10 @@ function onPersist(fn){ _persistListener = fn; }
    (parallel zu `objekte`). Arbeitsstand wird weiter laufend in localStorage gehalten
    (Absturzschutz); „gespeichert" ist nur, was über markGespeichert() bestätigt wurde. */
 let savedSigs = [];
+/* Speicher: die zuletzt explizit gespeicherten Daten je Objekt (parallel zu savedSigs).
+   Dient dem Verwerfen ungespeicherter Änderungen beim Objektwechsel (zurück auf den
+   gespeicherten Stand). Wird mitpersistiert, damit „verwerfen" auch über einen Reload geht. */
+let savedData = [];
 let _stateChangeListener = null;
 function onStateChange(fn){ _stateChangeListener = fn; }
 function notifyStateChange(){ if(_stateChangeListener) _stateChangeListener(); }
@@ -116,13 +120,18 @@ function istGespeichert(){ return savedSigs[aktivIdx] === aktSig(); }
 let dateiSigs = [];
 function markDateiGesichert(){ if(objekte.length) dateiSigs[aktivIdx]=aktSig(); }
 function istDateiGesichert(){ return objekte.length ? dateiSigs[aktivIdx]===aktSig() : false; }
-function markGespeichert(){ if(objekte.length){ objekte[aktivIdx]=snapshot(); savedSigs[aktivIdx]=aktSig(); } saveState(); notifyStateChange(); }
-function saveState(){ let ok=true; try{ if(objekte.length) objekte[aktivIdx]=snapshot(); localStorage.setItem(STORAGE_KEY, JSON.stringify({ objekte, aktivIdx, savedSigs })); }catch(e){ ok=false; } if(_persistListener) _persistListener(ok); return ok; }
+function markGespeichert(){ if(objekte.length){ objekte[aktivIdx]=snapshot(); savedSigs[aktivIdx]=aktSig(); savedData[aktivIdx]=nkClone(objekte[aktivIdx]); } saveState(); notifyStateChange(); }
+/* Speicher: ungespeicherte Änderungen des aktiven Objekts verwerfen – zurück auf den zuletzt
+   gespeicherten Stand (savedData). Ohne gespeicherten Stand (nie gespeichertes neues Objekt)
+   bleibt der Arbeitsstand unverändert. */
+function verwerfeAenderungen(){ if(savedData[aktivIdx]){ const d=nkClone(savedData[aktivIdx]); objekte[aktivIdx]=d; ladeDaten(d); ensureIds(); saveState(); notifyStateChange(); } }
+function saveState(){ let ok=true; try{ if(objekte.length) objekte[aktivIdx]=snapshot(); localStorage.setItem(STORAGE_KEY, JSON.stringify({ objekte, aktivIdx, savedSigs, savedData })); }catch(e){ ok=false; } if(_persistListener) _persistListener(ok); return ok; }
 function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return false; const o=JSON.parse(raw);
     if(o && Array.isArray(o.objekte) && o.objekte.length){ objekte=nkDedupeObjekte(o.objekte); aktivIdx=Math.max(0,Math.min(o.aktivIdx||0, objekte.length-1));
       savedSigs = (Array.isArray(o.savedSigs) && o.savedSigs.length===objekte.length) ? o.savedSigs : []; /* US-84: vorhandene Speicherpunkte behalten (dirty übersteht Reload); sonst Baseline im Init */
+      savedData = (Array.isArray(o.savedData) && o.savedData.length===objekte.length) ? o.savedData : []; /* Speicher: gespeicherte Daten je Objekt fürs Verwerfen; sonst Baseline im Init */
       ladeDaten(objekte[aktivIdx]); return true; }
-    if(o && Array.isArray(o.einheiten)){ objekte=[o]; aktivIdx=0; savedSigs=[]; ladeDaten(o); return true; } /* Migration: altes Einzelformat */
+    if(o && Array.isArray(o.einheiten)){ objekte=[o]; aktivIdx=0; savedSigs=[]; savedData=[]; ladeDaten(o); return true; } /* Migration: altes Einzelformat */
     return false; }catch(e){ return false; } }
 function resetState(){ if(confirm('Aktuelle Eingaben verwerfen und die Beispiel-/Testdaten laden? Alle gespeicherten Daten (auch weitere Objekte) gehen dabei verloren.')){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} location.reload(); } }
 /* ---------- US-82: Undo/Redo-Verlauf (aktives Objekt) ----------
