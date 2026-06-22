@@ -1243,9 +1243,27 @@ document.addEventListener('click', e=>{ const m=document.getElementById('datei_m
 /* ---------- View: Objektwahl, Render-Orchestrierung, Header ---------- */
 /* STORAGE_KEY, ensureIds, snapshot, ladeDaten, makeFreshDaten, objektLabel, objSignatur,
    objektJahr, saveState, loadState, resetState, commit: in core.js (US-33b). */
-function setSaveStatus(t){ const el=document.getElementById('save_status'); if(el){ el.textContent=t; el.title='Automatische Speicherung im Browser (localStorage). „Aktuelles Objekt sichern …" speichert zusätzlich als Datei.'; } }
-/* US-38: Persistenz-Rückmeldung aus core.js in die Statusanzeige übersetzen. */
-onPersist(function(ok){ setSaveStatus(ok ? '✓ automatisch gespeichert' : '⚠ nicht gespeichert'); });
+function setSaveStatus(t){ const el=document.getElementById('save_status'); if(el){ el.textContent=t; } }
+/* US-84: Dokument-Modell – Statusanzeige zeigt „gespeichert" vs. „ungespeicherte Änderungen".
+   Der Arbeitsstand wird weiter laufend im Browser gehalten (Absturzschutz); „gespeichert" ist
+   nur der zuletzt explizit bestätigte Stand. */
+function updateSaveStatus(){
+  const el=document.getElementById('save_status'); if(!el) return;
+  if(istGespeichert()){ el.textContent='✓ Gespeichert'; el.classList.remove('dirty'); el.title='Der aktuelle Stand ist gespeichert.'; }
+  else { el.textContent='● Ungespeicherte Änderungen'; el.classList.add('dirty'); el.title='Es gibt ungespeicherte Änderungen. Speichern mit Strg/Cmd+S oder über „Datei → Speichern". Der Arbeitsstand ist im Browser zwischengespeichert (Absturzschutz).'; }
+}
+onStateChange(updateSaveStatus);
+onPersist(function(ok){ if(!ok){ setSaveStatus('⚠ nicht gespeichert'); } else { updateSaveStatus(); } });
+/* US-84: expliziter Speicherbefehl – setzt den gespeicherten Stand (Dokument). „Speichern unter…"
+   schreibt zusätzlich die Datei. (Phase 2: „Speichern" schreibt in Chromium direkt in die Datei.) */
+function speichern(){ markGespeichert(); }
+async function speichernUnter(){ const ok = await exportObjekt(); if(ok!==false){ markGespeichert(); } }
+/* US-84: PDF/Abrechnung nur aus dem gespeicherten Stand. Bei Änderungen: erst speichern. */
+function pdfStandOk(){
+  if(istGespeichert()) return true;
+  if(confirm('Es gibt ungespeicherte Änderungen. Die Abrechnung soll auf dem gespeicherten Stand beruhen.\n\nJetzt speichern und fortfahren?')){ speichern(); return true; }
+  return false;
+}
 function renderObjektSelect(){ const sel=document.getElementById('obj_select'); if(!sel) return;
   sel.innerHTML=objekte.map((d,i)=>'<option value="'+i+'"'+(i===aktivIdx?' selected':'')+'>'+esc(objektLabel(d,i))+'</option>').join(''); }
 function renderAll(){ renderObjektSelect(); renderVorjahrBanner(); fillObjektKopf();
@@ -1253,8 +1271,8 @@ function renderAll(){ renderObjektSelect(); renderVorjahrBanner(); fillObjektKop
   renderEinheiten(); renderVoraus(); renderKosten();
   if(current===3) renderHeizung(); else if(current===4) computeView(); else if(current===5) renderDoc(); else if(current===6) renderZahlungen();
   renderStepper(); }
-function switchObjekt(idx){ saveState(); aktivIdx=Math.max(0,Math.min(+idx,objekte.length-1)); ladeDaten(objekte[aktivIdx]); ensureIds(); renderAll(); neuerVerlauf(); saveState(); }
-function neuesObjekt(){ saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); }
+function switchObjekt(idx){ saveState(); aktivIdx=Math.max(0,Math.min(+idx,objekte.length-1)); ladeDaten(objekte[aktivIdx]); ensureIds(); renderAll(); neuerVerlauf(); saveState(); updateSaveStatus(); }
+function neuesObjekt(){ saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus(); }
 /* US-65: Objekt als Datei sichern – echter Speicherdialog (File System Access API), wo
    unterstützt; sonst Download-Fallback. Dateiname wird aus „Objekt/Adresse" vorgeschlagen. */
 async function exportObjekt(){
@@ -1269,14 +1287,14 @@ async function exportObjekt(){
          (NeKoFix-Präfix und angehängtes Jahr werden ignoriert). */
       const neuerName=String(handle.name||'').replace(/\.json$/i,'').replace(/^NeKoFix-/i,'').replace(/-\d{4}$/,'').trim();
       if(neuerName && neuerName!==state.objekt.name){ store.setObjektFeld('name', neuerName); renderObjektSelect(); } /* US-65: Objektname (Header) folgt dem Dateinamen, Adressfeld bleibt unberührt */
-      setSaveStatus('✓ Datei gespeichert: '+handle.name);
-      return;
-    }catch(e){ if(e && e.name==='AbortError') return; /* vom Nutzer abgebrochen */ }
+      return true; /* US-84: Datei geschrieben */
+    }catch(e){ if(e && e.name==='AbortError') return false; /* vom Nutzer abgebrochen */ }
   }
   /* Fallback (Firefox/Safari): Download in den Browser-Download-Ordner. */
   const blob=new Blob([json],{type:'application/json;charset=utf-8'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=dateiname;
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+  return true;
 }
 /* US-11: Folgejahr aus dem aktiven Objekt anlegen */
 function neuesJahrAusVorjahr(){
@@ -1285,7 +1303,7 @@ function neuesJahrAusVorjahr(){
   saveState();
   const neu=nkVorjahrUebernehmen(snapshot());
   if(objekte.some(d=>objSignatur(d)===objSignatur(neu)) && !confirm('Für diese Adresse und diesen Zeitraum gibt es bereits ein Objekt. Trotzdem ein weiteres anlegen?')) return;
-  objekte.push(neu); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState();
+  objekte.push(neu); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
 }
 function renderVorjahrBanner(){
   const box=document.getElementById('vorjahr_banner'); if(!box) return;
@@ -1296,7 +1314,7 @@ function confirmVorjahr(){
   state.vorjahr=false;
   (state.kosten||[]).forEach(k=>{ k.vorjahr=false; });
   (state.einheiten||[]).forEach(e=>{ e.vorjahr=false; (e.mv||[]).forEach(m=>{ m.vorjahr=false; }); });
-  renderAll(); neuerVerlauf(); saveState();
+  renderAll(); neuerVerlauf(); saveState(); updateSaveStatus();
 }
 function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ return; }
   const r=new FileReader();
@@ -1304,7 +1322,7 @@ function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ 
       if(!d || !Array.isArray(d.einheiten)){ alert('Datei ist kein gültiges Objekt (es fehlen Einheiten).'); return; }
       const sig=JSON.stringify(d);
       if(objekte.some(x=>JSON.stringify(x)===sig) && !confirm('Dieses Objekt ist bereits vorhanden (identische Daten). Trotzdem importieren?')) return;
-      saveState(); objekte.push(d); aktivIdx=objekte.length-1; ladeDaten(d); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState();
+      saveState(); objekte.push(d); aktivIdx=objekte.length-1; ladeDaten(d); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
     }catch(e){ alert('Datei konnte nicht gelesen werden.'); } finally{ ev.target.value=''; } };
   r.readAsText(f); }
 function setAbrStatus(v){ store.setAbrechnungStatus(v); }
@@ -1320,7 +1338,7 @@ function updateHistButtons(){
 /* saveState, loadState, resetState, commit/scheduleSave: in core.js (US-33b). */
 document.addEventListener('input', commit);  /* Sicherheitsnetz für nicht über den Store laufende Eingaben */
 document.addEventListener('change', commit);
-window.addEventListener('beforeunload', saveState);
+window.addEventListener('beforeunload', function(e){ saveState(); if(!istGespeichert()){ e.preventDefault(); e.returnValue=''; } }); /* US-84: bei ungespeicherten Änderungen warnen (Arbeitsstand bleibt im Browser) */
 /* US-82: Button-Status nach jeder Eingabe aktualisieren (nach commit, daher hier registriert). */
 document.addEventListener('input', updateHistButtons);
 document.addEventListener('change', updateHistButtons);
@@ -1330,6 +1348,7 @@ document.addEventListener('keydown', function(e){
   const k=(e.key||'').toLowerCase();
   if(k==='z'){ e.preventDefault(); if(e.shiftKey) redo(); else undo(); }
   else if(k==='y'){ e.preventDefault(); redo(); }
+  else if(k==='s'){ e.preventDefault(); if(e.shiftKey) speichernUnter(); else speichern(); } /* US-84: Strg/Cmd+S speichern, +Shift = Speichern unter */
 });
 
 /* ---------- Init ---------- */
@@ -1337,6 +1356,10 @@ loadState();
 if(!objekte.length){ objekte=[snapshot()]; aktivIdx=0; } /* Erststart: Demodaten als erstes Objekt */
 if(state.objekt && !state.objekt.name) state.objekt.name=state.objekt.addr||""; /* US-65: Objektname (Header) aus Adresse vorbelegen, danach stabil */
 ensureIds();
+/* US-84: Nur wenn keine Speicherpunkte vorliegen (Erststart/Legacy), den Anfangsstand – nach
+   Backfill/ensureIds – als gespeichert festlegen. Vorhandene Speicherpunkte bleiben unangetastet,
+   damit „ungespeicherte Änderungen" einen Reload überstehen. */
+if(savedSigs.length!==objekte.length){ objekte[aktivIdx]=snapshot(); savedSigs=objekte.map(d=>nkSig(d)); }
 renderObjektSelect();
 (function(){ const v=document.getElementById('app_version'); if(v) v.textContent=APP_VERSION+' · '+BUILD_DATE; })();
 (function(){ if(new URLSearchParams(location.search).has('debug')){ const b=document.getElementById('btn_testdaten'); if(b) b.hidden=false; } })();
@@ -1347,6 +1370,7 @@ applyDokAnker(); /* US-80: gespeicherten Einklapp-Zustand der Dokument-Anker anw
 renderEinheiten(); renderVoraus(); renderKosten(); renderStepper(); go(0);
 neuerVerlauf(); /* US-82: Verlauf-Baseline auf den geladenen Anfangszustand setzen */
 saveState();
+updateSaveStatus(); /* US-84: Anfangsstatus „✓ Gespeichert" anzeigen */
 /* US-54: Versand-Ampel live aktualisieren, sobald sich Eingaben ändern. */
 document.addEventListener('input', renderNavPlausi);
 document.addEventListener('change', renderNavPlausi);

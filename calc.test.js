@@ -848,3 +848,9 @@ test("nkHistCoalesce: schnelles Tippen verschmilzt, sonst neuer Schritt (US-82)"
   assert.equal(calc.nkHistCoalesce(null, 1200, 500), false);  // kein vorheriger Commit
   assert.equal(calc.nkHistCoalesce(0, 1.7e12, 500), false);   // nach Reset (ts=0) nie verschmelzen
 });
+test("nkSig: gleiche Daten gleiche Signatur, Änderung ändert sie (US-84)", () => {
+  const a = { x:1, liste:[1,2], obj:{ y:2 } };
+  assert.equal(calc.nkSig(a), calc.nkSig({ x:1, liste:[1,2], obj:{ y:2 } }));
+  assert.notEqual(calc.nkSig(a), calc.nkSig({ x:1, liste:[1,3], obj:{ y:2 } }));
+  assert.equal(typeof calc.nkSig(a), "string");
+});

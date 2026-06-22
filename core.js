@@ -100,10 +100,22 @@ function objSignatur(d){ const o=(d&&d.objekt)||{}; return [String(o.addr||"").t
 /* US-38: Persistenz meldet Erfolg/Fehler über einen Listener; die DOM-Anzeige liegt im View. */
 let _persistListener = null;
 function onPersist(fn){ _persistListener = fn; }
-function saveState(){ let ok=true; try{ if(objekte.length) objekte[aktivIdx]=snapshot(); localStorage.setItem(STORAGE_KEY, JSON.stringify({ objekte, aktivIdx })); }catch(e){ ok=false; } if(_persistListener) _persistListener(ok); return ok; }
+/* US-84: Dokument-Modell – Signatur des zuletzt explizit gespeicherten Stands je Objekt
+   (parallel zu `objekte`). Arbeitsstand wird weiter laufend in localStorage gehalten
+   (Absturzschutz); „gespeichert" ist nur, was über markGespeichert() bestätigt wurde. */
+let savedSigs = [];
+let _stateChangeListener = null;
+function onStateChange(fn){ _stateChangeListener = fn; }
+function notifyStateChange(){ if(_stateChangeListener) _stateChangeListener(); }
+function aktSig(){ return nkSig(snapshot()); }
+function istGespeichert(){ return savedSigs[aktivIdx] === aktSig(); }
+function markGespeichert(){ if(objekte.length){ objekte[aktivIdx]=snapshot(); savedSigs[aktivIdx]=aktSig(); } saveState(); notifyStateChange(); }
+function saveState(){ let ok=true; try{ if(objekte.length) objekte[aktivIdx]=snapshot(); localStorage.setItem(STORAGE_KEY, JSON.stringify({ objekte, aktivIdx, savedSigs })); }catch(e){ ok=false; } if(_persistListener) _persistListener(ok); return ok; }
 function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return false; const o=JSON.parse(raw);
-    if(o && Array.isArray(o.objekte) && o.objekte.length){ objekte=nkDedupeObjekte(o.objekte); aktivIdx=Math.max(0,Math.min(o.aktivIdx||0, objekte.length-1)); ladeDaten(objekte[aktivIdx]); return true; }
-    if(o && Array.isArray(o.einheiten)){ objekte=[o]; aktivIdx=0; ladeDaten(o); return true; } /* Migration: altes Einzelformat */
+    if(o && Array.isArray(o.objekte) && o.objekte.length){ objekte=nkDedupeObjekte(o.objekte); aktivIdx=Math.max(0,Math.min(o.aktivIdx||0, objekte.length-1));
+      savedSigs = (Array.isArray(o.savedSigs) && o.savedSigs.length===objekte.length) ? o.savedSigs : []; /* US-84: vorhandene Speicherpunkte behalten (dirty übersteht Reload); sonst Baseline im Init */
+      ladeDaten(objekte[aktivIdx]); return true; }
+    if(o && Array.isArray(o.einheiten)){ objekte=[o]; aktivIdx=0; savedSigs=[]; ladeDaten(o); return true; } /* Migration: altes Einzelformat */
     return false; }catch(e){ return false; } }
 function resetState(){ if(confirm('Aktuelle Eingaben verwerfen und die Beispiel-/Testdaten laden? Alle gespeicherten Daten (auch weitere Objekte) gehen dabei verloren.')){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} location.reload(); } }
 /* ---------- US-82: Undo/Redo-Verlauf (aktives Objekt) ----------
@@ -131,5 +143,5 @@ function histUndo(){ if(!histPast.length) return false; histFuture.push(nkClone(
 function histRedo(){ if(!histFuture.length) return false; histPast.push(nkClone(snapshot())); histLoad(histFuture.pop()); return true; }
 
 /* US-34: einzelner Auslöser fürs (entprellte) Speichern. Der Store ruft ausschließlich commit(). */
-let _saveTimer; function commit(){ histCapture(); clearTimeout(_saveTimer); _saveTimer=setTimeout(saveState,600); }
+let _saveTimer; function commit(){ histCapture(); notifyStateChange(); clearTimeout(_saveTimer); _saveTimer=setTimeout(saveState,600); }
 function scheduleSave(){ commit(); } /* Rückwärtskompatibel */
