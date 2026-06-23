@@ -1028,3 +1028,25 @@ test("nkParseUmsatzCsv: Valutadatum-Ersatz + abweichende/unbekannte Namensspalte
   const r2 = calc.nkParseUmsatzCsv(HEAD + "\n" + z);
   assert.equal(r2.buchungen[0].name, "Amt Musterstadt");
 });
+test("nkImportPlan: gelöschte Kostenart wird per Re-Import wiederhergestellt (US-88)", () => {
+  const regeln = [
+    { schluessel: "DE00000000000000000010", typ: "iban", ziel: { art: "kosten", bez: "Wasser" } },
+    { schluessel: "DE00000000000000000002", typ: "iban", ziel: { art: "mieter", einheitId: 2, mvId: 5 } },
+  ];
+  const bs = [
+    { buchungstag: "26.01.2025", datum: "2025-01-26", iban: "DE00000000000000000010", betrag: -34.5, zweck: "Abschlag Wasser Q1" },
+    { buchungstag: "05.05.2025", datum: "2025-05-05", iban: "DE00000000000000000002", betrag: 800, zweck: "Miete Mai" },
+  ];
+  const erst = calc.nkImportPlan(bs, regeln, { kostenBez: [], gesehen: [] });
+  // Re-Import, Kostenart "Wasser" existiert noch -> übersprungen (kein Doppel)
+  const wiederVorhanden = calc.nkImportPlan(bs, regeln, { kostenBez: ["Wasser"], gesehen: erst.fingerprints });
+  assert.equal(wiederVorhanden.kosten.length, 0);
+  assert.equal(wiederVorhanden.zahlungen.length, 0);
+  // Re-Import, "Wasser" wurde gelöscht (nicht in kostenBez) -> wird wiederhergestellt; Zahlung bleibt übersprungen
+  const nachLoeschen = calc.nkImportPlan(bs, regeln, { kostenBez: [], gesehen: erst.fingerprints });
+  assert.equal(nachLoeschen.kosten.length, 1);
+  assert.equal(nachLoeschen.kosten[0].bez, "Wasser");
+  assert.equal(nachLoeschen.kosten[0].summe, 34.5);
+  assert.deepEqual(nachLoeschen.neueKosten, ["Wasser"]);
+  assert.equal(nachLoeschen.zahlungen.length, 0);
+});
