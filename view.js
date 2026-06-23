@@ -1358,9 +1358,10 @@ function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ 
 /* US-85: Kontoumsätze aus VR-/Volksbank-CSV einlesen und als read-only Vorschau zeigen.
    Geparst wird über die reine Funktion nkParseUmsatzCsv (calc.js). UTF-8 erzwungen (Umlaute).
    Zuordnung zu Mietern/Kostenarten und Übernahme folgen in US-86–88. */
+let _csvImport={ buchungen:[], dateiname:'', fehler:null }; /* US-85/86: aktueller Import-Stand fürs Re-Rendern */
 function importUmsaetze(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ return; }
   const dateiname=f.name; const r=new FileReader();
-  r.onload=function(){ try{ renderUmsatzReview(nkParseUmsatzCsv(String(r.result||'')), dateiname); }
+  r.onload=function(){ try{ const res=nkParseUmsatzCsv(String(r.result||'')); _csvImport={ buchungen:res.buchungen||[], dateiname:dateiname, fehler:res.fehler }; renderUmsatzReview(); }
     catch(e){ alert('CSV konnte nicht gelesen werden.'); } finally{ ev.target.value=''; } };
   r.readAsText(f,'utf-8'); }
 /* US-85: Anzeige-Mapping der reinen Vorsortierung (calc.js: nkVorsortierung) auf Badge + Label. */
@@ -1371,27 +1372,58 @@ function umsatzKategorie(b){
   return {key:'ignor', label:'ggf. ignorieren'};
 }
 function closeUmsatzReview(){ const o=document.getElementById('csv_overlay'); if(o) o.style.display='none'; }
-function renderUmsatzReview(res, dateiname){
+/* US-86: Ziel einer Buchung kodieren/dekodieren für das <select> (Wert <-> Regel-Ziel). */
+function umsatzZielWert(ziel){ if(!ziel) return ''; if(ziel.art==='ignorieren') return 'ignorieren';
+  if(ziel.art==='mieter') return 'mieter:'+ziel.einheitId+':'+ziel.mvId; if(ziel.art==='kosten') return 'kosten:'+ziel.bez; return ''; }
+function umsatzWertZiel(val){ if(val==='ignorieren') return {art:'ignorieren'};
+  if(val.indexOf('mieter:')===0){ const p=val.split(':'); return {art:'mieter', einheitId:+p[1], mvId:+p[2]}; }
+  if(val.indexOf('kosten:')===0) return {art:'kosten', bez:val.slice(7)}; return null; }
+/* US-86: Ziel-Dropdown – Mietverhältnisse + bestehende Kostenarten + „ignorieren". */
+function umsatzZielSelect(b, i){
+  const sel=umsatzZielWert(nkMatchRegel(b, state.objekt.importRegeln||[]));
+  const opt=(v,t)=>'<option value="'+esc(v)+'"'+(sel===v?' selected':'')+'>'+esc(t)+'</option>';
+  let h='<select class="csv-ziel" onchange="setUmsatzZiel('+i+',this.value)">'+opt('','— nicht zugeordnet —')+opt('ignorieren','Ignorieren');
+  const mv=[]; (state.einheiten||[]).forEach(e=>(e.mv||[]).forEach(m=>mv.push(opt('mieter:'+e.id+':'+m.id, e.name+' · '+(m.mieter||'')))));
+  if(mv.length) h+='<optgroup label="Mieter">'+mv.join('')+'</optgroup>';
+  const bez=[...new Set((state.kosten||[]).map(k=>String(k.bez||'').trim()).filter(Boolean))];
+  if(bez.length) h+='<optgroup label="Kostenart">'+bez.map(z=>opt('kosten:'+z, z)).join('')+'</optgroup>';
+  return h+'</select>';
+}
+/* US-86: Zuordnung setzen -> als Regel am Objekt merken (IBAN/Name) -> auf gleiche Gegenkonten
+   automatisch anwenden (Re-Render). Kein Schreiben in Kosten/Zahlungen (Übernahme: US-87/88). */
+function setUmsatzZiel(i, val){
+  const tx=_csvImport.buchungen[i]; if(!tx) return;
+  store.setObjektFeld('importRegeln', nkRegelUpsert(state.objekt.importRegeln||[], tx, umsatzWertZiel(val)));
+  renderUmsatzReview();
+}
+function renderUmsatzReview(){
   const o=document.getElementById('csv_overlay'), box=document.getElementById('csv_modal'); if(!o||!box) return;
-  if(res.fehler){
-    box.innerHTML='<h2>Kontoumsätze importieren</h2><div class="csv-err">'+esc(res.fehler)+'</div>'+
+  if(_csvImport.fehler){
+    box.innerHTML='<h2>Kontoumsätze importieren</h2><div class="csv-err">'+esc(_csvImport.fehler)+'</div>'+
       '<div class="csv-foot"><span class="csv-note">Erwartet wird ein VR-/Volksbank-CSV-Export (mit der Spalte „Bezeichnung Auftragskonto"). Andere Bankformate folgen später.</span>'+
       '<button class="csv-close" onclick="closeUmsatzReview()">Schließen</button></div>';
     o.style.display='flex'; return;
   }
-  const bs=res.buchungen||[];
+  const bs=_csvImport.buchungen, regeln=state.objekt.importRegeln||[];
   const pos=bs.filter(b=>b.betrag>0), neg=bs.filter(b=>b.betrag<0);
   const sumPos=pos.reduce((s,b)=>s+b.betrag,0), sumNeg=neg.reduce((s,b)=>s+b.betrag,0);
   const daten=bs.map(b=>b.datum).filter(Boolean).sort();
   const zeitraum=daten.length?(fmtDatum(daten[0])+' – '+fmtDatum(daten[daten.length-1])):'–';
-  const rows=bs.map(b=>{ const k=umsatzKategorie(b); const cls=b.betrag>0?'pos':(b.betrag<0?'neg':'');
+  /* Zuordnungs-Status für die Summenzeile */
+  let nMieter=0,sMieter=0,nKosten=0,sKosten=0,nIgnor=0,nOffen=0;
+  bs.forEach(b=>{ const z=nkMatchRegel(b, regeln);
+    if(!z){ nOffen++; } else if(z.art==='mieter'){ nMieter++; sMieter+=b.betrag; }
+    else if(z.art==='kosten'){ nKosten++; sKosten+=Math.abs(b.betrag); } else { nIgnor++; } });
+  const rows=bs.map((b,i)=>{ const k=umsatzKategorie(b); const cls=b.betrag>0?'pos':(b.betrag<0?'neg':'');
     return '<tr><td>'+esc(b.buchungstag||'')+'</td><td>'+esc(b.name||'')+'</td><td class="zweck">'+esc(b.zweck||'')+'</td>'+
-      '<td class="betrag '+cls+'">'+nkFmtBetrag(b.betrag)+'</td><td><span class="csv-badge '+k.key+'">'+esc(k.label)+'</span></td></tr>'; }).join('');
-  box.innerHTML='<h2>Kontoumsätze importieren – Vorschau</h2>'+
-    '<div class="csv-meta">'+esc(dateiname)+' · '+bs.length+' Buchungen · '+pos.length+' Eingänge ('+nkFmtBetrag(sumPos)+' €) · '+neg.length+' Kosten ('+nkFmtBetrag(sumNeg)+' €) · Zeitraum '+esc(zeitraum)+'</div>'+
-    (bs.length? '<div class="csv-tablewrap"><table class="csv-table"><thead><tr><th>Datum</th><th>Name</th><th>Verwendungszweck</th><th>Betrag €</th><th>Vorschlag</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+      '<td class="betrag '+cls+'">'+nkFmtBetrag(b.betrag)+'</td><td><span class="csv-badge '+k.key+'">'+esc(k.label)+'</span></td>'+
+      '<td>'+umsatzZielSelect(b,i)+'</td></tr>'; }).join('');
+  box.innerHTML='<h2>Kontoumsätze importieren – Zuordnung</h2>'+
+    '<div class="csv-meta">'+esc(_csvImport.dateiname)+' · '+bs.length+' Buchungen · '+pos.length+' Eingänge ('+nkFmtBetrag(sumPos)+' €) · '+neg.length+' Kosten ('+nkFmtBetrag(sumNeg)+' €) · Zeitraum '+esc(zeitraum)+'</div>'+
+    (bs.length? '<div class="csv-summe">Zugeordnet: '+nMieter+' Mieter-Eingänge ('+nkFmtBetrag(sMieter)+' €) · '+nKosten+' Kosten ('+nkFmtBetrag(sKosten)+' €) · '+nIgnor+' ignoriert · <b'+(nOffen?' class="csv-offen"':'')+'>'+nOffen+' nicht zugeordnet</b></div>'+
+      '<div class="csv-tablewrap"><table class="csv-table"><thead><tr><th>Datum</th><th>Name</th><th>Verwendungszweck</th><th>Betrag €</th><th>Vorschlag</th><th>Ziel</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
               : '<div class="csv-err">Keine Buchungen gefunden (Kopfzeile erkannt, aber keine Datenzeilen).</div>')+
-    '<div class="csv-foot"><span class="csv-note">Vorschau (read-only). Zuordnung zu Mietern/Kostenarten und Übernahme folgen (US-86–88). Positive Beträge sind meist Zahlungseingänge, negative Kosten.</span>'+
+    '<div class="csv-foot"><span class="csv-note">Zuordnungen werden als Regel am Objekt gemerkt (IBAN bzw. Name) und beim nächsten Import automatisch vorgeschlagen. Die Übernahme in Kosten/Zahlungen folgt (US-87/88). Neue Kostenarten ggf. zuerst im Reiter „Kosten" anlegen.</span>'+
     '<button class="csv-close" onclick="closeUmsatzReview()">Schließen</button></div>';
   o.style.display='flex';
 }
