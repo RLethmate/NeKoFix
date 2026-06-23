@@ -699,7 +699,7 @@ function renderKosten(){
       let so=''; for(const key in STATUS_BELEG){ so+='<option value="'+key+'"'+(st===key?' selected':'')+'>'+STATUS_BELEG[key]+'</option>'; }
       let vo=''; for(const key in VERFUEGBAR){ vo+='<option value="'+key+'"'+(vf===key?' selected':'')+'>'+VERFUEGBAR[key]+'</option>'; }
       let vsOpts=''; [0,7,19].forEach(s=>{ vsOpts+='<option value="'+s+'"'+((+k.vorsteuer||0)===s?' selected':'')+'>'+s+' %</option>'; });
-      const ro=NK_RUBRIKEN.map(r=>'<option value="'+r+'"'+(nkRubrik(k)===r?' selected':'')+'>'+r+'</option>').join('');
+      const ro=nkRubrikenListe(state.objekt, state.kosten).map(r=>'<option value="'+esc(r)+'"'+(nkRubrik(k)===r?' selected':'')+'>'+esc(r)+'</option>').join('');
       const d=document.createElement('tr'); d.className='detail-row';
       d.innerHTML='<td colspan="5"><div class="detail-grid">'+
         '<label>Rubrik <select onchange="updKosten('+idx+',\'rubrik\',this.value)">'+ro+'</select></label>'+
@@ -736,9 +736,9 @@ function renderKosten(){
       '<td class="num">'+eur(k.betrag||0)+'</td><td>'+schluesselAnzeige(k)+'</td><td></td><td></td>';
     tb.appendChild(tr);
   }
-  /* US-58: Positionen nach Rubrik (feste Reihenfolge) gruppieren, je Gruppe Zwischensumme. */
+  /* US-58/US-89: Positionen nach Rubrik (objekt-eigene Reihenfolge) gruppieren, je Gruppe Zwischensumme. */
   const items=state.kosten.map((k,idx)=>({k,idx})).filter(o=>!(nurUngeprueft && (o.k.status||'vorlaeufig')==='geprueft'));
-  NK_RUBRIKEN.forEach(rub=>{
+  nkRubrikenListe(state.objekt, state.kosten).forEach(rub=>{
     const grp=items.filter(o=>nkRubrik(o.k)===rub);
     if(!grp.length) return;
     const hr=document.createElement('tr'); hr.className='rubrik-head'; hr.innerHTML='<td colspan="5">'+esc(rub)+'</td>'; tb.appendChild(hr);
@@ -747,8 +747,36 @@ function renderKosten(){
     const sr=document.createElement('tr'); sr.className='rubrik-sum'; sr.innerHTML='<td>Zwischensumme '+esc(rub)+'</td><td class="num">'+eur(sum)+'</td><td colspan="3"></td>'; tb.appendChild(sr);
   });
   const uc=document.getElementById('ungeprueft_count'); if(uc){ const n=nkUngeprueftAnzahl(state.kosten); uc.textContent = n? ' — '+n+' offen' : ' — alle geprüft'; }
+  renderRubrikManage();
   renderPicker();
 }
+/* US-89: Rubriken verwalten – anlegen (typisch/eigen), umbenennen, leere löschen, Reihenfolge per
+   ↑/↓. Die Reihenfolge steuert Gruppierung/Zwischensummen in Tabelle und PDF. Zuordnung je Position
+   bleibt (vorerst) über das Rubrik-Dropdown in der Detailzeile; Drag&Drop folgt in Phase 2. */
+function renderRubrikManage(){
+  const box=document.getElementById('rubrik_manage'); if(!box) return;
+  const liste=nkRubrikenListe(state.objekt, state.kosten);
+  const benutzt=r=>state.kosten.some(k=>nkRubrik(k)===r);
+  const chips=liste.map((r,i)=>'<span class="rm-chip">'+
+    '<button class="rm-mv" title="nach oben" onclick="rubrikHoch('+i+')"'+(i===0?' disabled':'')+'>↑</button>'+
+    '<button class="rm-mv" title="nach unten" onclick="rubrikRunter('+i+')"'+(i===liste.length-1?' disabled':'')+'>↓</button>'+
+    '<span class="rm-name">'+esc(r)+'</span>'+
+    '<button class="rm-act" title="umbenennen" onclick="rubrikUmbenennen('+i+')">✎</button>'+
+    (benutzt(r)?'':'<button class="rm-act rm-del" title="leere Rubrik löschen" onclick="rubrikLoeschen('+i+')">×</button>')+
+    '</span>').join('');
+  const typisch=NK_RUBRIKEN.filter(r=>liste.indexOf(r)<0);
+  const sel=typisch.length?'<select id="rubrik_typisch" class="rm-input"><option value="">typische Rubrik …</option>'+typisch.map(r=>'<option value="'+esc(r)+'">'+esc(r)+'</option>').join('')+'</select>':'';
+  box.innerHTML='<span class="rm-title">Rubriken &amp; Reihenfolge</span>'+chips+
+    '<span class="rm-add">'+sel+'<input id="rubrik_neu" class="rm-input" placeholder="eigene Rubrik" onkeydown="if(event.key===\'Enter\')rubrikHinzufuegen()">'+
+    '<button class="rm-add-btn" onclick="rubrikHinzufuegen()">+ hinzufügen</button></span>';
+}
+function rubrikHinzufuegen(){ const inp=document.getElementById('rubrik_neu'), selEl=document.getElementById('rubrik_typisch');
+  const name=((inp&&inp.value.trim())||(selEl&&selEl.value)||'').trim(); if(!name) return; store.addRubrik(name); renderKosten(); }
+function rubrikUmbenennen(i){ const liste=nkRubrikenListe(state.objekt, state.kosten); const alt=liste[i]; const neu=(prompt('Rubrik umbenennen:', alt)||'').trim(); if(!neu||neu===alt) return;
+  if(liste.indexOf(neu)>=0){ alert('Diese Rubrik gibt es schon.'); return; } store.renameRubrik(alt, neu); renderKosten(); }
+function rubrikLoeschen(i){ const liste=nkRubrikenListe(state.objekt, state.kosten); store.deleteRubrik(liste[i]); renderKosten(); }
+function rubrikHoch(i){ store.moveRubrik(i, i-1); renderKosten(); }
+function rubrikRunter(i){ store.moveRubrik(i, i+1); renderKosten(); }
 function updKosten(idx,field,val){ store.setKostenFeld(idx,field,val); renderKosten(); }
 /* US-32: begünstigten Arbeitskosten-Anteil (€) je Position setzen. */
 function updKostenArbeit(idx,val){ store.setKostenFeld(idx,'arbeitskosten', nkParseBetrag(val)); renderKosten(); }
@@ -1068,7 +1096,7 @@ function renderDoc(){
   const fmtPreis=n=>(Number(n)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:4});
   const COLS=6, leer=c=>'<td colspan="'+c+'"></td>';
   let rows='';
-  NK_RUBRIKEN.forEach(rub=>{
+  nkRubrikenListe(state.objekt, state.kosten).forEach(rub=>{
     const grp=ab.zeilen.map((i,ix)=>({i,ix}))
       .filter(o=>Math.round(o.i.anteil*100)!==0 && nkRubrik(state.kosten[o.ix])===rub); /* US-22/US-50 */
     if(!grp.length) return;

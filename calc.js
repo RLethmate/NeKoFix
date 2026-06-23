@@ -285,6 +285,24 @@ function nkRubrik(k) {
   if (b.includes("kaltwasser") || b.includes("schmutzwasser") || b.includes("abwasser") || b.includes("wasser")) return "Kaltwasserkosten";
   return "Betriebskosten";
 }
+/* US-89: effektive, geordnete Rubriken-Liste eines Objekts. objekt.rubriken (falls gesetzt),
+   sonst die typischen NK_RUBRIKEN. Tatsächlich verwendete Rubriken, die in der Liste fehlen,
+   werden hinten ergänzt – so verliert keine Position ihre Gruppe. Reine Funktion. */
+function nkRubrikenListe(objekt, kosten) {
+  const basis = (objekt && Array.isArray(objekt.rubriken) && objekt.rubriken.length) ? objekt.rubriken.slice() : NK_RUBRIKEN.slice();
+  (kosten || []).forEach(k => { const r = nkRubrik(k); if (r && basis.indexOf(r) < 0) basis.push(r); });
+  return basis;
+}
+/* US-89: Element in einem Array von Index `from` nach `to` verschieben (neue Kopie, keine
+   Mutation). Ungültiges `from` lässt das Array unverändert; `to` wird in die Grenzen geklemmt. */
+function nkArrMove(arr, from, to) {
+  const a = (arr || []).slice();
+  if (from < 0 || from >= a.length) return a;
+  to = Math.max(0, Math.min(to, a.length - 1));
+  const el = a.splice(from, 1)[0];
+  a.splice(to, 0, el);
+  return a;
+}
 
 /* US-32: §35a EStG – begünstigter Arbeitskosten-Anteil je Position, getrennt nach
    haushaltsnahen Dienstleistungen und Handwerkerleistungen. Elster-Zeilen als pflegbarer
@@ -987,6 +1005,8 @@ if (typeof module !== "undefined" && module.exports) {
     nkOwnerOverview,
     nkVorschlagSchluessel,
     NK_RUBRIKEN,
+    nkRubrikenListe,
+    nkArrMove,
     nkRubrik,
     nkSchluesselEinheit,
     NK_P35A,

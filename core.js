@@ -73,8 +73,23 @@ const store = {
   setKostenBetrag(idx,val){ state.kosten[idx].betrag=+val; commit(); },
   setKostenVerbrauch(idx,einheitId,val){ const k=state.kosten[idx]; if(!k.verbrauch) k.verbrauch={}; k.verbrauch[einheitId]=+val||0; commit(); }, /* US-57 */
   setKostenart(idx,val){ const k=state.kosten[idx]; k.bez=val; k.schluessel=nkVorschlagSchluessel(val); k.vorsteuer=nkVorschlagVorsteuer(val); commit(); },
-  resetKostenSchluessel(idx){ const k=state.kosten[idx]; k.schluessel=nkVorschlagSchluessel(k.bez); commit(); }
+  resetKostenSchluessel(idx){ const k=state.kosten[idx]; k.schluessel=nkVorschlagSchluessel(k.bez); commit(); },
+  // Rubriken (US-89): objekt-eigene, geordnete Liste; Zuordnung über k.rubrik (Name)
+  addRubrik(name){ name=String(name||'').trim(); if(!name) return; ensureRubrikenMaterialisiert(); if(state.objekt.rubriken.indexOf(name)<0){ state.objekt.rubriken.push(name); commit(); } },
+  renameRubrik(alt,neu){ neu=String(neu||'').trim(); if(!neu||neu===alt) return; ensureRubrikenMaterialisiert(); const i=state.objekt.rubriken.indexOf(alt); if(i<0 || state.objekt.rubriken.indexOf(neu)>=0) return; state.objekt.rubriken[i]=neu; state.kosten.forEach(k=>{ if(k.rubrik===alt) k.rubrik=neu; }); commit(); },
+  deleteRubrik(name){ ensureRubrikenMaterialisiert(); if(state.kosten.some(k=>k.rubrik===name)) return; /* nur leere Rubriken löschen */ state.objekt.rubriken=state.objekt.rubriken.filter(r=>r!==name); commit(); },
+  moveRubrik(from,to){ ensureRubrikenMaterialisiert(); state.objekt.rubriken=nkArrMove(state.objekt.rubriken, from, to); commit(); }
 };
+/* US-89: beim ersten Rubriken-Eingriff materialisieren – die effektive Liste am Objekt festschreiben
+   und jede Position auf ihre aktuelle (vorgeschlagene) Rubrik festlegen, damit Umbenennen/Umordnen
+   stabil bleibt (Positionen ohne explizite Rubrik würden sonst dem Vorschlag „weglaufen"). */
+function ensureRubrikenMaterialisiert(){
+  if(!state.objekt) return;
+  if(!Array.isArray(state.objekt.rubriken) || !state.objekt.rubriken.length){
+    state.objekt.rubriken = nkRubrikenListe(state.objekt, state.kosten);
+  }
+  state.kosten.forEach(k=>{ if(!k.rubrik) k.rubrik=nkRubrik(k); });
+}
 
 /* ---------- Persistenz (US-27 / US-30) ---------- */
 function ensureIds(){
