@@ -314,6 +314,19 @@
   .p35a-tab th,.p35a-tab td{font-size:12.5px;padding:6px 8px;}
   @media(max-width:620px){.grid2,.summary-cards{grid-template-columns:1fr;} .tag{display:none}}
   @media print{header.app,.sidenav,.stepper,.nav,.mieter-tabs,.legal{display:none!important;} .wrap{display:block;} .panel{display:block!important;border:none;padding:0;} body{background:#fff;}}
+  /* US-89: Rubriken-Verwaltung im Kosten-Reiter */
+  .rubrik-manage{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0;padding:10px 12px;background:var(--soft);border:1px solid var(--line);border-radius:10px;}
+  .rubrik-manage .rm-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;}
+  .rm-chip{display:inline-flex;align-items:center;gap:2px;background:#fff;border:1px solid var(--line);border-radius:20px;padding:2px 4px 2px 6px;font-size:12.5px;}
+  .rm-chip .rm-name{padding:0 4px;color:var(--ink);}
+  .rm-chip button{border:none;background:none;cursor:pointer;color:var(--muted);font-size:12px;line-height:1;padding:2px 4px;border-radius:6px;}
+  .rm-chip button:hover:not(:disabled){background:#eef3f8;color:var(--primary);}
+  .rm-chip button:disabled{opacity:.3;cursor:default;}
+  .rm-chip .rm-del:hover{background:#fbe7e4;color:var(--nachzahlung);}
+  .rm-add{display:inline-flex;align-items:center;gap:6px;margin-left:auto;}
+  .rm-add .rm-input{font-size:12.5px;padding:4px 8px;border:1px solid var(--line);border-radius:7px;max-width:150px;}
+  .rm-add .rm-add-btn{background:var(--primary);color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:12.5px;cursor:pointer;white-space:nowrap;}
+  .rm-add .rm-add-btn:hover{background:var(--primary-dark);}
   /* US-85: Overlay für die CSV-Umsatz-Vorschau (Review-Liste, read-only) */
   .csv-overlay{position:fixed;inset:0;background:rgba(20,30,45,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:32px 16px;overflow:auto;}
   .csv-modal{background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.25);width:100%;max-width:920px;padding:18px 20px;}
@@ -470,6 +483,7 @@
         </div>
       </div>
     </div>
+    <div id="rubrik_manage" class="rubrik-manage"></div>
     <label class="filter-toggle"><input type="checkbox" onchange="setNurUngeprueft(this.checked)"> Nur ungeprüfte Belege anzeigen<span id="ungeprueft_count" class="muted"></span></label>
     <table id="tbl_kosten">
       <thead><tr><th>Kostenart</th><th class="num">Betrag (€)</th><th>Verteilerschlüssel</th><th>Status</th><th></th></tr></thead>

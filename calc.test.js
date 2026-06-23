@@ -1050,3 +1050,21 @@ test("nkImportPlan: gelöschte Kostenart wird per Re-Import wiederhergestellt (U
   assert.deepEqual(nachLoeschen.neueKosten, ["Wasser"]);
   assert.equal(nachLoeschen.zahlungen.length, 0);
 });
+test("nkArrMove: Element verschieben ohne Mutation (US-89)", () => {
+  const a = ["A", "B", "C", "D"];
+  assert.deepEqual(calc.nkArrMove(a, 0, 2), ["B", "C", "A", "D"]);
+  assert.deepEqual(calc.nkArrMove(a, 3, 0), ["D", "A", "B", "C"]);
+  assert.deepEqual(a, ["A", "B", "C", "D"]);            // Original unverändert
+  assert.deepEqual(calc.nkArrMove(a, 1, 99), ["A", "C", "D", "B"]); // to geklemmt
+  assert.deepEqual(calc.nkArrMove(a, 9, 0), ["A", "B", "C", "D"]);  // ungültiges from
+});
+test("nkRubrikenListe: objekt-eigene Liste, sonst Default; benutzte ergänzt (US-89)", () => {
+  // Default, wenn objekt.rubriken fehlt
+  assert.deepEqual(calc.nkRubrikenListe({}, []), calc.NK_RUBRIKEN);
+  // objekt-eigene Reihenfolge wird genutzt
+  const obj = { rubriken: ["Betriebskosten", "Heizkosten"] };
+  assert.deepEqual(calc.nkRubrikenListe(obj, []), ["Betriebskosten", "Heizkosten"]);
+  // eine benutzte, aber nicht gelistete Rubrik wird hinten ergänzt
+  const k = [{ bez: "X", rubrik: "Garten" }];
+  assert.deepEqual(calc.nkRubrikenListe(obj, k), ["Betriebskosten", "Heizkosten", "Garten"]);
+});

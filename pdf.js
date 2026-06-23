@@ -64,7 +64,7 @@ function buildTenantPdf(sel){
   doc.setFont(undefined,'bold'); doc.setFontSize(8);
   doc.text('Kostenart',L,y); doc.text('Gesamt',cG,y,{align:'right'}); doc.text('Einh.',cB,y,{align:'right'}); doc.text('Preis',cP,y,{align:'right'}); doc.text('Ihre Einh.',cI,y,{align:'right'}); doc.text(gew?'Anteil netto':'Anteil',R,y,{align:'right'});
   doc.setFont(undefined,'normal'); doc.setFontSize(10); y+=4; doc.line(L,y,R,y); y+=13;
-  NK_RUBRIKEN.forEach(rub=>{
+  nkRubrikenListe(state.objekt, state.kosten).forEach(rub=>{
     const grp=ab.zeilen.map((i,ix)=>({i,ix})).filter(o=>Math.round(o.i.anteil*100)!==0 && nkRubrik(state.kosten[o.ix])===rub);
     if(!grp.length) return;
     if(y>755){ doc.addPage(); y=64; }
