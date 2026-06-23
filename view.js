@@ -1385,16 +1385,50 @@ function umsatzZielSelect(b, i){
   let h='<select class="csv-ziel" onchange="setUmsatzZiel('+i+',this.value)">'+opt('','— nicht zugeordnet —')+opt('ignorieren','Ignorieren');
   const mv=[]; (state.einheiten||[]).forEach(e=>(e.mv||[]).forEach(m=>mv.push(opt('mieter:'+e.id+':'+m.id, e.name+' · '+(m.mieter||'')))));
   if(mv.length) h+='<optgroup label="Mieter">'+mv.join('')+'</optgroup>';
-  const bez=[...new Set((state.kosten||[]).map(k=>String(k.bez||'').trim()).filter(Boolean))];
-  if(bez.length) h+='<optgroup label="Kostenart">'+bez.map(z=>opt('kosten:'+z, z)).join('')+'</optgroup>';
+  /* Kostenarten: bestehende + bereits per Regel angelegte Bezeichnungen (damit eine neue sichtbar bleibt) */
+  const bez=[...new Set([].concat((state.kosten||[]).map(k=>k.bez), (state.objekt.importRegeln||[]).filter(r=>r.ziel&&r.ziel.art==='kosten').map(r=>r.ziel.bez)).map(x=>String(x||'').trim()).filter(Boolean))];
+  h+='<optgroup label="Kostenart">'+bez.map(z=>opt('kosten:'+z, z)).join('')+opt('kosten_neu','+ neue Kostenart …')+'</optgroup>';
   return h+'</select>';
 }
 /* US-86: Zuordnung setzen -> als Regel am Objekt merken (IBAN/Name) -> auf gleiche Gegenkonten
    automatisch anwenden (Re-Render). Kein Schreiben in Kosten/Zahlungen (Übernahme: US-87/88). */
 function setUmsatzZiel(i, val){
   const tx=_csvImport.buchungen[i]; if(!tx) return;
-  store.setObjektFeld('importRegeln', nkRegelUpsert(state.objekt.importRegeln||[], tx, umsatzWertZiel(val)));
+  let ziel;
+  if(val==='kosten_neu'){
+    const name=(prompt('Name der neuen Kostenart (später im Reiter „Kosten" anpassbar):', tx.name||'')||'').trim();
+    if(!name){ renderUmsatzReview(); return; } /* abgebrochen */
+    ziel={art:'kosten', bez:name};
+  } else { ziel=umsatzWertZiel(val); }
+  store.setObjektFeld('importRegeln', nkRegelUpsert(state.objekt.importRegeln||[], tx, ziel));
   renderUmsatzReview();
+}
+/* US-87/88: zugeordnete Buchungen übernehmen – Kosten je Kostenart summiert (neue werden
+   angelegt), Zahlungen als „erhalten" je Mietverhältnis/Monat. Bereits übernommene werden über
+   den Fingerabdruck übersprungen (Dedupe). Schreibt über den Store; danach App neu zeichnen. */
+function uebernehmeUmsaetze(){
+  const plan=nkImportPlan(_csvImport.buchungen, state.objekt.importRegeln||[], { kostenBez:(state.kosten||[]).map(k=>k.bez), gesehen:state.objekt.importGesehen||[] });
+  if(!plan.kosten.length && !plan.zahlungen.length){
+    alert('Nichts zu übernehmen.'+(plan.offen?(' '+plan.offen+' Buchung(en) sind noch nicht zugeordnet.'):'')); return;
+  }
+  const teile=[];
+  if(plan.kosten.length) teile.push(plan.kosten.length+' Kostenart(en)'+(plan.neueKosten.length?(' ('+plan.neueKosten.length+' neu)'):''));
+  if(plan.zahlungen.length) teile.push(plan.zahlungen.length+' Zahlungseingang/-gänge');
+  if(!confirm('Übernehmen: '+teile.join(' und ')+'?'+(plan.offen?('\n\n'+plan.offen+' nicht zugeordnete Buchung(en) werden NICHT übernommen.'):''))) return;
+  plan.kosten.forEach(k=>{
+    let idx=state.kosten.findIndex(x=>String(x.bez||'').trim()===k.bez);
+    if(idx<0){ store.addKosten(k.bez); idx=state.kosten.findIndex(x=>String(x.bez||'').trim()===k.bez); }
+    if(idx>=0){ store.setKostenBetrag(idx, (+state.kosten[idx].betrag||0)+k.summe); }
+  });
+  plan.zahlungen.forEach(z=>{
+    const ei=state.einheiten.findIndex(e=>e.id===z.einheitId); if(ei<0) return;
+    const mi=state.einheiten[ei].mv.findIndex(m=>m.id===z.mvId); if(mi<0) return;
+    const cur=(state.einheiten[ei].mv[mi].erhalten&&state.einheiten[ei].mv[mi].erhalten[z.monat])||0;
+    store.setErhalten(ei, mi, z.monat, cur+z.betrag);
+  });
+  store.setObjektFeld('importGesehen', (state.objekt.importGesehen||[]).concat(plan.fingerprints));
+  closeUmsatzReview(); renderAll();
+  alert('Übernommen: '+teile.join(' und ')+'. Kosten ggf. im Reiter „Kosten" benennen und einer Rubrik zuordnen.');
 }
 function renderUmsatzReview(){
   const o=document.getElementById('csv_overlay'), box=document.getElementById('csv_modal'); if(!o||!box) return;
@@ -1423,8 +1457,9 @@ function renderUmsatzReview(){
     (bs.length? '<div class="csv-summe">Zugeordnet: '+nMieter+' Mieter-Eingänge ('+nkFmtBetrag(sMieter)+' €) · '+nKosten+' Kosten ('+nkFmtBetrag(sKosten)+' €) · '+nIgnor+' ignoriert · <b'+(nOffen?' class="csv-offen"':'')+'>'+nOffen+' nicht zugeordnet</b></div>'+
       '<div class="csv-tablewrap"><table class="csv-table"><thead><tr><th>Datum</th><th>Name</th><th>Verwendungszweck</th><th>Betrag €</th><th>Vorschlag</th><th>Ziel</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
               : '<div class="csv-err">Keine Buchungen gefunden (Kopfzeile erkannt, aber keine Datenzeilen).</div>')+
-    '<div class="csv-foot"><span class="csv-note">Zuordnungen werden als Regel am Objekt gemerkt (IBAN bzw. Name) und beim nächsten Import automatisch vorgeschlagen. Die Übernahme in Kosten/Zahlungen folgt (US-87/88). Neue Kostenarten ggf. zuerst im Reiter „Kosten" anlegen.</span>'+
-    '<button class="csv-close" onclick="closeUmsatzReview()">Schließen</button></div>';
+    '<div class="csv-foot"><span class="csv-note">Zuordnungen werden als Regel am Objekt gemerkt (IBAN bzw. Name) und beim nächsten Import automatisch vorgeschlagen. „Importieren" übernimmt: Kosten je Kostenart summiert (neue werden angelegt – Name/Rubrik später im Reiter „Kosten"), Zahlungseingänge als „erhalten" je Mieter/Monat. Bereits übernommene Buchungen werden beim erneuten Import übersprungen.</span>'+
+    '<button class="csv-close csv-cancel" onclick="closeUmsatzReview()">Schließen</button>'+
+    '<button class="csv-close" onclick="uebernehmeUmsaetze()">Importieren</button></div>';
   o.style.display='flex';
 }
 function setAbrStatus(v){ store.setAbrechnungStatus(v); }

@@ -973,3 +973,41 @@ test("nkUmsatzFingerprint: stabil je Buchung, sensibel für Unterschiede (US-86)
   assert.equal(calc.nkUmsatzFingerprint(a), calc.nkUmsatzFingerprint({ buchungstag: "05.05.2025", betrag: 1075, iban: "DE000001", zweck: "miete  mai" }));
   assert.notEqual(calc.nkUmsatzFingerprint(a), calc.nkUmsatzFingerprint({ ...a, betrag: 1076 }));
 });
+test("nkMonatAusZweck: Monat aus Zweck, sonst Buchungstag (US-87)", () => {
+  assert.equal(calc.nkMonatAusZweck("Miete Mai 2025", "2025-06-01"), "2025-05");
+  assert.equal(calc.nkMonatAusZweck("Miete Mai", "2025-06-15"), "2025-05");       // Jahr aus Datum
+  assert.equal(calc.nkMonatAusZweck("Dauerauftrag 03.2025", "2025-06-01"), "2025-03");
+  assert.equal(calc.nkMonatAusZweck("Miete und Nebenkosten", "2025-04-05"), "2025-04"); // Fallback Datum
+  assert.equal(calc.nkMonatAusZweck("März-Miete", "2025-01-01"), "2025-03");        // Umlaut
+  assert.equal(calc.nkMonatAusZweck("Email-Gebuehr", "2025-07-09"), "2025-07");     // kein Fehltreffer auf "mai"
+});
+test("nkImportPlan: Kosten summiert, Zahlungen je MV/Monat, Dedupe (US-87/88)", () => {
+  const regeln = [
+    { schluessel: "DE00000000000000000002", typ: "iban", ziel: { art: "mieter", einheitId: 2, mvId: 5 } },
+    { schluessel: "DE00000000000000000010", typ: "iban", ziel: { art: "kosten", bez: "Wasser" } },
+    { schluessel: "DE00000000000000000099", typ: "iban", ziel: { art: "ignorieren" } },
+  ];
+  const bs = [
+    { buchungstag: "05.05.2025", datum: "2025-05-05", iban: "DE00000000000000000002", betrag: 800, zweck: "Miete Mai" },
+    { buchungstag: "26.01.2025", datum: "2025-01-26", iban: "DE00000000000000000010", betrag: -34.5, zweck: "Abschlag Wasser Q1" },
+    { buchungstag: "14.04.2025", datum: "2025-04-14", iban: "DE00000000000000000010", betrag: -34.5, zweck: "Abschlag Wasser Q2" },
+    { buchungstag: "29.05.2025", datum: "2025-05-29", iban: "DE00000000000000000099", betrag: 15000, zweck: "Termingeld" },
+    { buchungstag: "01.01.2025", datum: "2025-01-01", iban: "DE00000000000000000077", betrag: -10, zweck: "Unbekannt" },
+  ];
+  const plan = calc.nkImportPlan(bs, regeln, { kostenBez: [], gesehen: [] });
+  assert.equal(plan.kosten.length, 1);
+  assert.equal(plan.kosten[0].bez, "Wasser");
+  assert.equal(plan.kosten[0].summe, 69);          // 34,50 + 34,50, abs, summiert
+  assert.equal(plan.kosten[0].anzahl, 2);
+  assert.deepEqual(plan.neueKosten, ["Wasser"]);   // existiert noch nicht
+  assert.equal(plan.zahlungen.length, 1);
+  assert.deepEqual(plan.zahlungen[0], { einheitId: 2, mvId: 5, monat: "2025-05", betrag: 800 });
+  assert.equal(plan.ignoriert, 1);                 // Termingeld
+  assert.equal(plan.offen, 1);                     // Unbekannt (keine Regel)
+  assert.equal(plan.fingerprints.length, 3);       // 2 Kosten + 1 Zahlung
+  // Dedupe: bereits gesehene Fingerprints werden übersprungen
+  const plan2 = calc.nkImportPlan(bs, regeln, { kostenBez: ["Wasser"], gesehen: plan.fingerprints });
+  assert.equal(plan2.kosten.length, 0);
+  assert.equal(plan2.zahlungen.length, 0);
+  assert.deepEqual(plan2.neueKosten, []);
+});

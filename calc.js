@@ -917,6 +917,50 @@ function nkUmsatzFingerprint(tx) {
   return [String(tx.buchungstag || ""), String(tx.betrag || 0), nkNormIban(tx.iban), nkNormName(tx.zweck)].join("|");
 }
 
+/* US-87: Abrechnungsmonat einer Buchung bestimmen: Monatsname oder MM.JJJJ im Verwendungszweck,
+   sonst Monat des Buchungstags (ISO-Datum). Rückgabe "JJJJ-MM". Reine Funktion. */
+const NK_MONATSNAMEN_NORM = ["januar", "februar", "maerz", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "dezember"];
+function nkMonatAusZweck(zweck, fallbackDatum) {
+  const z = " " + nkNormName(zweck) + " ";
+  const jahrM = String(zweck || "").match(/(20\d{2})/);
+  const fy = String(fallbackDatum || "").slice(0, 4);
+  for (let i = 0; i < 12; i++) { if (z.indexOf(" " + NK_MONATSNAMEN_NORM[i] + " ") >= 0) return (jahrM ? jahrM[1] : fy) + "-" + String(i + 1).padStart(2, "0"); }
+  const mm = String(zweck || "").match(/\b(0?[1-9]|1[0-2])[.\/](20\d{2})\b/);
+  if (mm) return mm[2] + "-" + String(+mm[1]).padStart(2, "0");
+  return String(fallbackDatum || "").slice(0, 7);
+}
+/* US-87/88: Übernahme-Plan aus den zugeordneten Buchungen. Nutzt die gelernten Regeln
+   (nkMatchRegel), überspringt bereits übernommene (Fingerprint in opts.gesehen), summiert Kosten
+   je Kostenart und sammelt Zahlungen je Mietverhältnis/Monat. Rein & testbar.
+   Rückgabe: { kosten:[{bez,summe,anzahl}], zahlungen:[{einheitId,mvId,monat,betrag}],
+   neueKosten:[bez], ignoriert, offen, fingerprints:[fp] }. */
+function nkImportPlan(buchungen, regeln, opts) {
+  opts = opts || {};
+  const gesehen = new Set(opts.gesehen || []);
+  const vorhanden = new Set(opts.kostenBez || []);
+  const kostenMap = {}, zahlungen = [], neueKosten = new Set(), fps = [];
+  let ignoriert = 0, offen = 0;
+  (buchungen || []).forEach(b => {
+    const ziel = nkMatchRegel(b, regeln);
+    if (!ziel) { offen++; return; }
+    if (ziel.art === "ignorieren") { ignoriert++; return; }
+    const fp = nkUmsatzFingerprint(b);
+    if (gesehen.has(fp)) return;
+    if (ziel.art === "kosten") {
+      const bez = ziel.bez;
+      if (!kostenMap[bez]) kostenMap[bez] = { bez: bez, summe: 0, anzahl: 0 };
+      kostenMap[bez].summe = Math.round((kostenMap[bez].summe + Math.abs(+b.betrag || 0)) * 100) / 100;
+      kostenMap[bez].anzahl++;
+      if (!vorhanden.has(bez)) neueKosten.add(bez);
+      fps.push(fp);
+    } else if (ziel.art === "mieter") {
+      zahlungen.push({ einheitId: ziel.einheitId, mvId: ziel.mvId, monat: nkMonatAusZweck(b.zweck, b.datum), betrag: +b.betrag || 0 });
+      fps.push(fp);
+    }
+  });
+  return { kosten: Object.values(kostenMap), zahlungen: zahlungen, neueKosten: [...neueKosten], ignoriert: ignoriert, offen: offen, fingerprints: fps };
+}
+
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
    und die Funktionen stehen global zur Verfügung.
    Eine Funktion pro Zeile (mit Komma am Ende) – das entschärft Merge-Konflikte beim
@@ -1018,5 +1062,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkMatchRegel,
     nkRegelUpsert,
     nkUmsatzFingerprint,
+    nkMonatAusZweck,
+    nkImportPlan,
   };
 }
