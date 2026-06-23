@@ -928,3 +928,12 @@ test("nkParseUmsatzCsv: ohne Titelzeile und Fehlerfälle (US-85)", () => {
   assert.ok(leer.fehler);                                // keine Kopfzeile -> Fehler
   assert.equal(leer.buchungen.length, 0);
 });
+test("nkVorsortierung: Vorzeichen + interne Umbuchung (US-85)", () => {
+  assert.equal(calc.nkVorsortierung({ betrag: 1075, buchungstext: "Dauerauftragsgutschr" }), "eingang");
+  assert.equal(calc.nkVorsortierung({ betrag: -439.08, buchungstext: "Basislastschrift" }), "kosten");
+  // positiver Betrag, aber interne Umbuchung -> ignorieren
+  assert.equal(calc.nkVorsortierung({ betrag: 15000, buchungstext: "Spar/Fest/Termingeld" }), "ignorieren");
+  assert.equal(calc.nkVorsortierung({ betrag: 0, buchungstext: "" }), "ignorieren");
+  // negativer Betrag bleibt Kosten, auch wenn "Termingeld" im Text (Bedingung nur bei >0)
+  assert.equal(calc.nkVorsortierung({ betrag: -10, buchungstext: "Termingeld" }), "kosten");
+});

@@ -1355,6 +1355,46 @@ function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ 
       saveState(); objekte.push(d); aktivIdx=objekte.length-1; ladeDaten(d); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
     }catch(e){ alert('Datei konnte nicht gelesen werden.'); } finally{ ev.target.value=''; } };
   r.readAsText(f); }
+/* US-85: Kontoumsätze aus VR-/Volksbank-CSV einlesen und als read-only Vorschau zeigen.
+   Geparst wird über die reine Funktion nkParseUmsatzCsv (calc.js). UTF-8 erzwungen (Umlaute).
+   Zuordnung zu Mietern/Kostenarten und Übernahme folgen in US-86–88. */
+function importUmsaetze(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ return; }
+  const dateiname=f.name; const r=new FileReader();
+  r.onload=function(){ try{ renderUmsatzReview(nkParseUmsatzCsv(String(r.result||'')), dateiname); }
+    catch(e){ alert('CSV konnte nicht gelesen werden.'); } finally{ ev.target.value=''; } };
+  r.readAsText(f,'utf-8'); }
+/* US-85: Anzeige-Mapping der reinen Vorsortierung (calc.js: nkVorsortierung) auf Badge + Label. */
+function umsatzKategorie(b){
+  const key=nkVorsortierung(b);
+  if(key==='eingang') return {key:'eingang', label:'Zahlungseingang'};
+  if(key==='kosten')  return {key:'kosten',  label:'Kosten'};
+  return {key:'ignor', label:'ggf. ignorieren'};
+}
+function closeUmsatzReview(){ const o=document.getElementById('csv_overlay'); if(o) o.style.display='none'; }
+function renderUmsatzReview(res, dateiname){
+  const o=document.getElementById('csv_overlay'), box=document.getElementById('csv_modal'); if(!o||!box) return;
+  if(res.fehler){
+    box.innerHTML='<h2>Kontoumsätze importieren</h2><div class="csv-err">'+esc(res.fehler)+'</div>'+
+      '<div class="csv-foot"><span class="csv-note">Erwartet wird ein VR-/Volksbank-CSV-Export (mit der Spalte „Bezeichnung Auftragskonto"). Andere Bankformate folgen später.</span>'+
+      '<button class="csv-close" onclick="closeUmsatzReview()">Schließen</button></div>';
+    o.style.display='flex'; return;
+  }
+  const bs=res.buchungen||[];
+  const pos=bs.filter(b=>b.betrag>0), neg=bs.filter(b=>b.betrag<0);
+  const sumPos=pos.reduce((s,b)=>s+b.betrag,0), sumNeg=neg.reduce((s,b)=>s+b.betrag,0);
+  const daten=bs.map(b=>b.datum).filter(Boolean).sort();
+  const zeitraum=daten.length?(fmtDatum(daten[0])+' – '+fmtDatum(daten[daten.length-1])):'–';
+  const rows=bs.map(b=>{ const k=umsatzKategorie(b); const cls=b.betrag>0?'pos':(b.betrag<0?'neg':'');
+    return '<tr><td>'+esc(b.buchungstag||'')+'</td><td>'+esc(b.name||'')+'</td><td class="zweck">'+esc(b.zweck||'')+'</td>'+
+      '<td class="betrag '+cls+'">'+nkFmtBetrag(b.betrag)+'</td><td><span class="csv-badge '+k.key+'">'+esc(k.label)+'</span></td></tr>'; }).join('');
+  box.innerHTML='<h2>Kontoumsätze importieren – Vorschau</h2>'+
+    '<div class="csv-meta">'+esc(dateiname)+' · '+bs.length+' Buchungen · '+pos.length+' Eingänge ('+nkFmtBetrag(sumPos)+' €) · '+neg.length+' Kosten ('+nkFmtBetrag(sumNeg)+' €) · Zeitraum '+esc(zeitraum)+'</div>'+
+    (bs.length? '<div class="csv-tablewrap"><table class="csv-table"><thead><tr><th>Datum</th><th>Name</th><th>Verwendungszweck</th><th>Betrag €</th><th>Vorschlag</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+              : '<div class="csv-err">Keine Buchungen gefunden (Kopfzeile erkannt, aber keine Datenzeilen).</div>')+
+    '<div class="csv-foot"><span class="csv-note">Vorschau (read-only). Zuordnung zu Mietern/Kostenarten und Übernahme folgen (US-86–88). Positive Beträge sind meist Zahlungseingänge, negative Kosten.</span>'+
+    '<button class="csv-close" onclick="closeUmsatzReview()">Schließen</button></div>';
+  o.style.display='flex';
+}
 function setAbrStatus(v){ store.setAbrechnungStatus(v); }
 /* US-82: Undo/Redo – Bedienung. Datenlogik liegt in core.js (histUndo/histRedo/histReset). */
 function undo(){ if(histUndo()) renderAll(); updateHistButtons(); }
