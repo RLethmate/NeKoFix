@@ -141,13 +141,13 @@ test("IBAN-Prüfung: Prüfziffer und Länge (US-51)", () => {
 });
 
 test("GiroCode-Datensatz EPC069-12 (US-55)", () => {
-  const s = calc.nkGiroCode({ empfaenger: "M. Vermieter", iban: "DE36 0000 0000 0000 0000 00", bic: "WELADED1MST", betrag: 1038.01, zweck: "NK EG 2024" });
+  const s = calc.nkGiroCode({ empfaenger: "M. Vermieter", iban: "DE36 0000 0000 0000 0000 00", bic: "BICDUMMY", betrag: 1038.01, zweck: "NK EG 2024" });
   const lines = s.split("\n");
   assert.equal(lines[0], "BCD");
   assert.equal(lines[1], "002");
   assert.equal(lines[2], "1");
   assert.equal(lines[3], "SCT");
-  assert.equal(lines[4], "WELADED1MST");
+  assert.equal(lines[4], "BICDUMMY");
   assert.equal(lines[5], "M. Vermieter");
   assert.equal(lines[6], "DE36000000000000000000"); // ohne Leerzeichen
   assert.equal(lines[7], "EUR1038.01");              // Punkt, 2 Nachkommastellen
@@ -158,11 +158,11 @@ test("GiroCode-Datensatz EPC069-12 (US-55)", () => {
 });
 
 test("Briefanrede neutral/Herr/Frau (US-53)", () => {
-  assert.equal(calc.nkAnrede({mieter:"Sahin", anrede:"frau"}), "Sehr geehrte Frau Sahin");
-  assert.equal(calc.nkAnrede({mieter:"Frau Sahin", anrede:"frau"}), "Sehr geehrte Frau Sahin"); // kein „Frau Frau"
-  assert.equal(calc.nkAnrede({mieter:"Klein", anrede:"herr"}), "Sehr geehrter Herr Klein");
-  assert.equal(calc.nkAnrede({mieter:"Familie Becker"}), "Guten Tag Familie Becker"); // neutral
-  assert.equal(calc.nkAnrede({mieter:"Herr Klein"}), "Guten Tag Herr Klein");         // neutral: Name unverändert
+  assert.equal(calc.nkAnrede({mieter:"Nachname_1", anrede:"frau"}), "Sehr geehrte Frau Nachname_1");
+  assert.equal(calc.nkAnrede({mieter:"Frau Nachname_1", anrede:"frau"}), "Sehr geehrte Frau Nachname_1"); // kein „Frau Frau"
+  assert.equal(calc.nkAnrede({mieter:"Nachname_2", anrede:"herr"}), "Sehr geehrter Herr Nachname_2");
+  assert.equal(calc.nkAnrede({mieter:"Familie Nachname_3"}), "Guten Tag Familie Nachname_3"); // neutral
+  assert.equal(calc.nkAnrede({mieter:"Herr Nachname_2"}), "Guten Tag Herr Nachname_2");         // neutral: Name unverändert
 });
 
 test("leere Einheitenliste führt nicht zu Division durch Null", () => {
@@ -423,11 +423,11 @@ test("Vorjahr übernehmen: Zeitraum +1J, Beträge leer, ausgezogene MV weg (US-1
     objekt: { addr: "Teststr. 1", von: "2025-01-01", bis: "2025-12-31" },
     einheiten: [
       { id: 1, name: "EG", flaeche: 70, personen: 2, mv: [
-        { mieter: "Becker", von: "2025-01-01", bis: "2025-12-31", vmonat: 150, vmonate: 12, voraus: 1800, bezahlt: { "2025-01": true } }
+        { mieter: "Nachname_3", von: "2025-01-01", bis: "2025-12-31", vmonat: 150, vmonate: 12, voraus: 1800, bezahlt: { "2025-01": true } }
       ]},
       { id: 2, name: "1. OG", flaeche: 85, personen: 3, mv: [
-        { mieter: "Sahin", von: "2025-01-01", bis: "2025-08-31", vmonat: 175, vmonate: 8, voraus: 1400 },
-        { mieter: "Neu",   von: "2025-10-01", bis: "2025-12-31", vmonat: 175, vmonate: 3, voraus: 525 }
+        { mieter: "Nachname_1", von: "2025-01-01", bis: "2025-08-31", vmonat: 175, vmonate: 8, voraus: 1400 },
+        { mieter: "Nachname_4", von: "2025-10-01", bis: "2025-12-31", vmonat: 175, vmonate: 3, voraus: 525 }
       ]}
     ],
     kosten: [{ bez: "Grundsteuer", betrag: 1200, schluessel: "flaeche" }],
@@ -442,7 +442,7 @@ test("Vorjahr übernehmen: Zeitraum +1J, Beträge leer, ausgezogene MV weg (US-1
   assert.equal(neu.kosten[0].vorjahr, true);
   assert.equal(neu.einheiten[0].mv.length, 1);
   assert.equal(neu.einheiten[1].mv.length, 1);
-  assert.equal(neu.einheiten[1].mv[0].mieter, "Neu");
+  assert.equal(neu.einheiten[1].mv[0].mieter, "Nachname_4");
   assert.equal(neu.einheiten[1].mv[0].von, "2026-01-01");
   assert.equal(neu.einheiten[1].mv[0].bis, "2026-12-31");
   assert.equal(neu.einheiten[1].mv[0].vmonate, 12);
