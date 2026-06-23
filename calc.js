@@ -802,7 +802,7 @@ function nkNameAusDateiname(dateiname) {
 
 /* US-86: Namens-Normalisierung für das Matching (Zahlungsbeteiligter -> Regel). Faltet Umlaute
    (ä/ö/ü/ß <-> ae/oe/ue/ss), schreibt klein und vereinheitlicht Whitespace/Satzzeichen, damit
-   "Schröder" und "Schroeder" denselben Schlüssel ergeben. Reine Funktion. */
+   "Grün" und "Gruen" denselben Schlüssel ergeben. Reine Funktion. */
 function nkNormName(s) {
   let t = String(s == null ? "" : s).toLowerCase();
   t = t.replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss");
@@ -881,6 +881,40 @@ function nkParseUmsatzCsv(text) {
     if (!res.konto.iban) { res.konto = { iban: get(cells, idx.kiban), bic: get(cells, idx.kbic), bez: get(cells, idx.bez) }; }
   }
   return res;
+}
+
+/* US-86: IBAN normalisieren (ohne Leerzeichen, Großschreibung) – Matching-Schlüssel. */
+function nkNormIban(s) { return String(s == null ? "" : s).replace(/\s+/g, "").toUpperCase(); }
+/* US-86: Bevorzugter Regel-Schlüssel für eine Buchung: IBAN (stabil), sonst normalisierter Name.
+   Rückgabe { schluessel, typ:'iban'|'name' }. Reine Funktion. */
+function nkRegelSchluessel(tx) {
+  const iban = nkNormIban(tx && tx.iban);
+  if (iban) return { schluessel: iban, typ: "iban" };
+  return { schluessel: nkNormName(tx && tx.name), typ: "name" };
+}
+/* US-86: Buchung gegen gelernte Regeln matchen. IBAN zuerst, dann normalisierter Name.
+   Regel = { schluessel, typ, ziel }. Rückgabe: ziel oder null. Reine Funktion. */
+function nkMatchRegel(tx, regeln) {
+  if (!Array.isArray(regeln) || !regeln.length) return null;
+  const iban = nkNormIban(tx && tx.iban);
+  if (iban) { const r = regeln.find(x => x.typ === "iban" && x.schluessel === iban); if (r) return r.ziel; }
+  const name = nkNormName(tx && tx.name);
+  if (name) { const r = regeln.find(x => x.typ === "name" && x.schluessel === name); if (r) return r.ziel; }
+  return null;
+}
+/* US-86: Regel für die Buchung setzen/ersetzen (gleicher Schlüssel überschreibt). ziel=null
+   entfernt die Regel. Gibt eine NEUE Regelliste zurück (keine Mutation). Reine Funktion. */
+function nkRegelUpsert(regeln, tx, ziel) {
+  const k = nkRegelSchluessel(tx);
+  const list = (Array.isArray(regeln) ? regeln : []).filter(r => !(r.typ === k.typ && r.schluessel === k.schluessel));
+  if (ziel) list.push({ schluessel: k.schluessel, typ: k.typ, ziel: ziel });
+  return list;
+}
+/* US-86: stabiler Fingerabdruck einer Buchung (für Dedupe beim Re-Import, US-87/88).
+   Buchungstag + Betrag + IBAN + normalisierter Verwendungszweck. Reine Funktion. */
+function nkUmsatzFingerprint(tx) {
+  tx = tx || {};
+  return [String(tx.buchungstag || ""), String(tx.betrag || 0), nkNormIban(tx.iban), nkNormName(tx.zweck)].join("|");
 }
 
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
@@ -979,5 +1013,10 @@ if (typeof module !== "undefined" && module.exports) {
     nkParseDatumDE,
     nkParseUmsatzCsv,
     nkVorsortierung,
+    nkNormIban,
+    nkRegelSchluessel,
+    nkMatchRegel,
+    nkRegelUpsert,
+    nkUmsatzFingerprint,
   };
 }

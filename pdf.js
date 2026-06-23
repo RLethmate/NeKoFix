@@ -47,7 +47,7 @@ function buildTenantPdf(sel){
   y+=8; nl(nkAnrede(m)+','); y+=4;
   doc.splitTextToSize('anbei erhalten Sie die Betriebs- und Heizkostenabrechnung für '+zeitraumSatz()+'. Nachstehend finden Sie die Aufstellung der Kosten, Ihren Anteil und die Verrechnung mit den geleisteten Vorauszahlungen.', W).forEach(l=>nl(l));
   y+=8;
-  // US-62: kompakter Ergebnis-Block oben (Techem-Stil, 3 Zeilen) – dezenter Kasten mit Rahmen.
+  // US-62: kompakter Ergebnis-Block oben (Messdienst-Stil, 3 Zeilen) – dezenter Kasten mit Rahmen.
   const boxB=R-260; // schmaler Kasten links
   doc.setDrawColor(0); doc.setLineWidth(0.8); doc.rect(L, y, boxB-L, 52, 'S');
   let yy=y+15; doc.setTextColor(0); doc.setFont(undefined,'normal'); doc.setFontSize(10);
