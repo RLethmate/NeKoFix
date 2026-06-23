@@ -132,16 +132,16 @@ test("Heizblock mit Teilzeitraum: Verteilung über Blockperiode (US-06)", () => 
 });
 
 test("IBAN-Prüfung: Prüfziffer und Länge (US-51)", () => {
-  assert.equal(calc.nkIbanGueltig("DE89 3704 0044 0532 0130 00"), true);  // gültige Beispiel-IBAN
-  assert.equal(calc.nkIbanGueltig("DE89370400440532013000"), true);       // ohne Leerzeichen
-  assert.equal(calc.nkIbanGueltig("DE88 3704 0044 0532 0130 00"), false); // falsche Prüfziffer
-  assert.equal(calc.nkIbanGueltig("DE89 3704 0044 0532 0130"), false);    // zu kurz
+  assert.equal(calc.nkIbanGueltig("DE36 0000 0000 0000 0000 00"), true);  // gültige Beispiel-IBAN
+  assert.equal(calc.nkIbanGueltig("DE36000000000000000000"), true);       // ohne Leerzeichen
+  assert.equal(calc.nkIbanGueltig("DE37 0000 0000 0000 0000 00"), false); // falsche Prüfziffer
+  assert.equal(calc.nkIbanGueltig("DE36 0000 0000"), false);              // zu kurz (< 15 Zeichen)
   assert.equal(calc.nkIbanGueltig(""), false);
   assert.equal(calc.nkIbanGueltig("XX12"), false);
 });
 
 test("GiroCode-Datensatz EPC069-12 (US-55)", () => {
-  const s = calc.nkGiroCode({ empfaenger: "M. Vermieter", iban: "DE89 3704 0044 0532 0130 00", bic: "WELADED1MST", betrag: 1038.01, zweck: "NK EG 2024" });
+  const s = calc.nkGiroCode({ empfaenger: "M. Vermieter", iban: "DE36 0000 0000 0000 0000 00", bic: "WELADED1MST", betrag: 1038.01, zweck: "NK EG 2024" });
   const lines = s.split("\n");
   assert.equal(lines[0], "BCD");
   assert.equal(lines[1], "002");
@@ -149,12 +149,12 @@ test("GiroCode-Datensatz EPC069-12 (US-55)", () => {
   assert.equal(lines[3], "SCT");
   assert.equal(lines[4], "WELADED1MST");
   assert.equal(lines[5], "M. Vermieter");
-  assert.equal(lines[6], "DE89370400440532013000"); // ohne Leerzeichen
+  assert.equal(lines[6], "DE36000000000000000000"); // ohne Leerzeichen
   assert.equal(lines[7], "EUR1038.01");              // Punkt, 2 Nachkommastellen
   assert.equal(lines[10], "NK EG 2024");
   // Kein QR ohne IBAN oder ohne positiven Betrag
   assert.equal(calc.nkGiroCode({ iban: "", betrag: 100 }), "");
-  assert.equal(calc.nkGiroCode({ iban: "DE89370400440532013000", betrag: 0 }), "");
+  assert.equal(calc.nkGiroCode({ iban: "DE36000000000000000000", betrag: 0 }), "");
 });
 
 test("Briefanrede neutral/Herr/Frau (US-53)", () => {
@@ -245,7 +245,7 @@ test("Plausibilitätsprüfung: bereit / Lücken (US-14)", () => {
     objekt:{von:"2025-01-01",bis:"2025-12-31"},
     einheiten:[{flaeche:70,personen:2,mv:[{mieter:"A",von:"2025-01-01",bis:"2025-12-31"}]}],
     kosten:[{bez:"Grundsteuer",betrag:1200,schluessel:"flaeche"}],
-    zahlung:{iban:"DE89370400440532013000",empfaenger:"V"}
+    zahlung:{iban:"DE36000000000000000000",empfaenger:"V"}
   };
   assert.equal(calc.nkPlausibilitaet(ok).bereit, true);
   const ohneIban = JSON.parse(JSON.stringify(ok)); ohneIban.zahlung.iban = "";
@@ -273,7 +273,7 @@ test("Plausibilität: überschneidende Mietzeiträume als Warnung (US-47)", () =
       {mieter:"B",von:"2025-06-30",bis:"2025-12-31"}   // 1 Tag Überschneidung
     ]}],
     kosten:[{bez:"Grundsteuer",betrag:1200,schluessel:"flaeche"}],
-    zahlung:{iban:"DE89370400440532013000",empfaenger:"V"}
+    zahlung:{iban:"DE36000000000000000000",empfaenger:"V"}
   };
   const r = calc.nkPlausibilitaet(base);
   const treffer = r.punkte.find(p => /überschneidende Mietzeiträume/.test(p.text));
@@ -561,7 +561,7 @@ test("Spaltenwerte: Einheit-Labels je Schlüssel", () => {
   assert.equal(calc.nkSchluesselEinheit({ schluessel: "direkt" }), "");
 });
 
-test("Spaltenwerte: Techem-Beispiel EG – Preis × Einheiten trifft", () => {
+test("Spaltenwerte: Messdienst-Beispiel EG – Preis × Einheiten trifft", () => {
   const E = [{ id: 1, name: "EG", flaeche: 86.1 }, { id: 2, name: "Rest", flaeche: 384.5 }];
   // Grundsteuer nach Fläche: Preis/Einheit × 86,1 m² = 284,03
   const k = [{ bez: "Grundsteuer", betrag: 1552.44, schluessel: "flaeche" }];
@@ -645,7 +645,7 @@ test("Verbrauch: ohne erfasste Werte Faktor 0 (nicht verteilbar)", () => {
   const E = [{ id: 1 }, { id: 2 }];
   const k = { schluessel: "verbrauch", verbrauch: {} };
   assert.equal(calc.nkFaktorFuer(E[0], k, E), 0);
-  const r = calc.nkPlausibilitaet({ objekt: { von: "2025-01-01", bis: "2025-12-31" }, einheiten: E, kosten: [k], zahlung: { iban: "DE89370400440532013000", empfaenger: "X" } });
+  const r = calc.nkPlausibilitaet({ objekt: { von: "2025-01-01", bis: "2025-12-31" }, einheiten: E, kosten: [k], zahlung: { iban: "DE36000000000000000000", empfaenger: "X" } });
   assert.ok(r.punkte.some(p => p.level === "fehler" && /nicht verteilbar/.test(p.text)));
 });
 
@@ -657,7 +657,7 @@ test("Verbrauch: ausgeschlossene Einheit zählt nicht zur Summe", () => {
   assert.equal(calc.nkFaktorFuer(E[2], k, E), 0);
 });
 
-test("Verbrauch: Techem-Abnahmebeispiel (Einheit EG) trifft centgenau", () => {
+test("Verbrauch: Messdienst-Abnahmebeispiel (Einheit EG) trifft centgenau", () => {
   const total = { heiz: 37595, ww: 60.0, kw: 206.1 };
   const eg = { heiz: 12732, ww: 6.6, kw: 46.8 };
   const E = [{ id: 1, name: "EG" }, { id: 2, name: "Rest" }];
@@ -872,12 +872,14 @@ test("nkNameAusDateiname: Objektname aus Dateiname (Speicher)", () => {
   assert.equal(calc.nkNameAusDateiname(undefined), "");
 });
 test("nkNormName: Umlaut-Faltung und Normalisierung fürs Matching (US-86)", () => {
-  assert.equal(calc.nkNormName("Schröder"), "schroeder");
-  assert.equal(calc.nkNormName("Schroeder"), "schroeder");
-  assert.equal(calc.nkNormName("Schröder"), calc.nkNormName("Schroeder"));
-  assert.equal(calc.nkNormName("Grün Gartenpflege GmbH"), calc.nkNormName("Gruen Gartenpflege GmbH"));
-  assert.equal(calc.nkNormName("Müller & Söhne"), "mueller soehne");
-  assert.equal(calc.nkNormName("WEST  ASSEKURANZ"), "west assekuranz");
+  // Faltung ä/ö/ü/ß <-> ae/oe/ue/ss an generischen Wörtern (keine echten Namen/Firmen/IBANs).
+  assert.equal(calc.nkNormName("Grün"), "gruen");
+  assert.equal(calc.nkNormName("Gruen"), "gruen");
+  assert.equal(calc.nkNormName("Grün"), calc.nkNormName("Gruen"));
+  assert.equal(calc.nkNormName("Grün Test GmbH"), calc.nkNormName("Gruen Test GmbH"));
+  assert.equal(calc.nkNormName("Öl & Übung"), "oel uebung");
+  assert.equal(calc.nkNormName("groß"), "gross");
+  assert.equal(calc.nkNormName("AAA  BBB"), "aaa bbb");
   assert.equal(calc.nkNormName("Straße"), "strasse");
   assert.equal(calc.nkNormName(""), "");
   assert.equal(calc.nkNormName(null), "");
@@ -895,16 +897,17 @@ test("nkParseUmsatzCsv: Kopfzeile/Spalten/Beträge/Umlaute (US-85)", () => {
     "Buchungstag;Valutadatum;Name Zahlungsbeteiligter;IBAN Zahlungsbeteiligter;" +
     "BIC (SWIFT-Code) Zahlungsbeteiligter;Buchungstext;Verwendungszweck;Betrag;Waehrung;" +
     "Saldo nach Buchung;Bemerkung;Gekennzeichneter Umsatz;Glaeubiger ID;Mandatsreferenz";
-  const z1 = "WBG2;DE61;GENODEM1000;VB;05.05.2025;05.05.2025;Vorname_2 Nachname_2;DE34;DEUTDEDB400;" +
+  // Dummy-Daten: IBANs aus Nullen, generische Dummy-Namen.
+  const z1 = "Konto;DE00000000000000000000;BIC0;Bank;05.05.2025;05.05.2025;Vorname_2 Nachname_2;DE00000000000000000002;BIC2;" +
     "Dauerauftragsgutschr;Miete und Nebenkosten;1075;EUR;26427,37;;;;";
-  const z2 = "WBG2;DE61;GENODEM1000;VB;28.11.2025;28.11.2025;Techem Energy Services GmbH;DE03;DEUTDEFFXXX;" +
+  const z2 = "Konto;DE00000000000000000000;BIC0;Bank;28.11.2025;28.11.2025;Lieferant Zwei GmbH;DE00000000000000000003;BIC3;" +
     "Überweisungsauftrag;Wärmemessdienst Heizkostenabrechnung;-1.281,93;EUR;100,00;;;;";
   // mit optionaler Titelzeile davor + Leerzeile
-  const csv = "VB Umsaetze_DE61_2025\r\n" + H + "\r\n" + z1 + "\r\n\r\n" + z2 + "\r\n";
+  const csv = "VB Umsaetze_KontoDummy_2025\r\n" + H + "\r\n" + z1 + "\r\n\r\n" + z2 + "\r\n";
   const r = calc.nkParseUmsatzCsv(csv);
   assert.equal(r.fehler, null);
   assert.equal(r.buchungen.length, 2);                 // Leerzeile übersprungen, Titelzeile ignoriert
-  assert.equal(r.konto.iban, "DE61");
+  assert.equal(r.konto.iban, "DE00000000000000000000");
   const a = r.buchungen[0], b = r.buchungen[1];
   assert.equal(a.datum, "2025-05-05");
   assert.equal(a.betrag, 1075);                          // positiv -> Zahlungseingang
@@ -919,11 +922,11 @@ test("nkParseUmsatzCsv: ohne Titelzeile und Fehlerfälle (US-85)", () => {
     "Buchungstag;Valutadatum;Name Zahlungsbeteiligter;IBAN Zahlungsbeteiligter;" +
     "BIC (SWIFT-Code) Zahlungsbeteiligter;Buchungstext;Verwendungszweck;Betrag;Waehrung;" +
     "Saldo nach Buchung;Bemerkung;Gekennzeichneter Umsatz;Glaeubiger ID;Mandatsreferenz";
-  const z = "WBG2;DE61;BIC;VB;15.05.2025;15.05.2025;Stadt Münster;DE10;WELADED1MST;Basislastschrift;Grundsteuer Q2;-439,08;EUR;1,0;;;;";
+  const z = "Konto;DE00000000000000000000;BIC0;Bank;15.05.2025;15.05.2025;Amt Musterstadt;DE00000000000000000004;BIC4;Basislastschrift;Grundsteuer Q2;-439,08;EUR;1,0;;;;";
   const ok = calc.nkParseUmsatzCsv(H + "\n" + z);        // ohne Titelzeile, LF
   assert.equal(ok.buchungen.length, 1);
   assert.equal(ok.buchungen[0].betrag, -439.08);
-  assert.equal(ok.buchungen[0].name, "Stadt Münster");
+  assert.equal(ok.buchungen[0].name, "Amt Musterstadt");
   const leer = calc.nkParseUmsatzCsv("nur irgendein Text\nohne Kopfzeile");
   assert.ok(leer.fehler);                                // keine Kopfzeile -> Fehler
   assert.equal(leer.buchungen.length, 0);
@@ -936,4 +939,37 @@ test("nkVorsortierung: Vorzeichen + interne Umbuchung (US-85)", () => {
   assert.equal(calc.nkVorsortierung({ betrag: 0, buchungstext: "" }), "ignorieren");
   // negativer Betrag bleibt Kosten, auch wenn "Termingeld" im Text (Bedingung nur bei >0)
   assert.equal(calc.nkVorsortierung({ betrag: -10, buchungstext: "Termingeld" }), "kosten");
+});
+test("nkRegelSchluessel: IBAN bevorzugt, sonst normalisierter Name (US-86)", () => {
+  assert.deepEqual(calc.nkRegelSchluessel({ iban: "DE00 0000 0000 0000 0000 01", name: "X" }), { schluessel: "DE00000000000000000001", typ: "iban" });
+  assert.deepEqual(calc.nkRegelSchluessel({ iban: "", name: "Grün Test" }), { schluessel: "gruen test", typ: "name" });
+});
+test("nkMatchRegel: IBAN zuerst, dann Name; Umlaut-tolerant (US-86)", () => {
+  const regeln = [
+    { schluessel: "DE00000000000000000002", typ: "iban", ziel: { art: "mieter", einheitId: 2, mvId: 5 } },
+    { schluessel: "gruen test gmbh", typ: "name", ziel: { art: "kosten", bez: "Gartenpflege" } },
+  ];
+  assert.deepEqual(calc.nkMatchRegel({ iban: "DE00 0000 0000 0000 0000 02", name: "egal" }, regeln), { art: "mieter", einheitId: 2, mvId: 5 });
+  // kein IBAN-Treffer -> Name-Fallback, transliteriert matcht Umlaut-Regel
+  assert.deepEqual(calc.nkMatchRegel({ iban: "", name: "Grün Test GmbH" }, regeln), { art: "kosten", bez: "Gartenpflege" });
+  assert.equal(calc.nkMatchRegel({ iban: "DE00000000000000000009", name: "Unbekannt" }, regeln), null);
+  assert.equal(calc.nkMatchRegel({ name: "x" }, []), null);
+});
+test("nkRegelUpsert: setzen/ersetzen/entfernen ohne Mutation (US-86)", () => {
+  const tx = { iban: "DE00000000000000000001", name: "A" };
+  let regeln = calc.nkRegelUpsert([], tx, { art: "ignorieren" });
+  assert.equal(regeln.length, 1);
+  assert.deepEqual(regeln[0].ziel, { art: "ignorieren" });
+  // gleicher Schlüssel überschreibt (kein Duplikat)
+  const regeln2 = calc.nkRegelUpsert(regeln, tx, { art: "kosten", bez: "Müll" });
+  assert.equal(regeln2.length, 1);
+  assert.deepEqual(regeln2[0].ziel, { art: "kosten", bez: "Müll" });
+  assert.equal(regeln.length, 1); // Original unverändert (keine Mutation)
+  // ziel=null entfernt
+  assert.equal(calc.nkRegelUpsert(regeln2, tx, null).length, 0);
+});
+test("nkUmsatzFingerprint: stabil je Buchung, sensibel für Unterschiede (US-86)", () => {
+  const a = { buchungstag: "05.05.2025", betrag: 1075, iban: "DE00 0001", zweck: "Miete Mai" };
+  assert.equal(calc.nkUmsatzFingerprint(a), calc.nkUmsatzFingerprint({ buchungstag: "05.05.2025", betrag: 1075, iban: "DE000001", zweck: "miete  mai" }));
+  assert.notEqual(calc.nkUmsatzFingerprint(a), calc.nkUmsatzFingerprint({ ...a, betrag: 1076 }));
 });

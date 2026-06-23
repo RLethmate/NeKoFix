@@ -4,17 +4,17 @@
 
 /* ---------- In-Memory-State ---------- */
 const state = {
-  objekt: { addr:"Musterstraße 12, 48155 Münster", von:"2025-01-01", bis:"2025-12-31", co2Denkmal:false, co2ProzentOverride:"" },
+  objekt: { addr:"Musterstraße 12, 12345 Musterstadt", von:"2025-01-01", bis:"2025-12-31", co2Denkmal:false, co2ProzentOverride:"" },
   einheiten: [
     { id:1, name:"EG links", flaeche:70, personen:2, mv:[
-      { mieter:"Familie Becker", von:"2025-01-01", bis:"2025-12-31", vmonat:150, vmonate:12, vjahr:1800, einmal:0, voraus:1800, grundmiete:800, stellAnzahl:1, stellPreis:40, bezahlt:{}, vertragGrundmiete:760, vertragNK:140, letzteAnpassung:"2025-09-01", naechsteAnpassung:"2026-09-01", chronik:[{datum:"2025-09-01",text:"Indexmiete +5 % (Grundmiete 760 → 800 €)"}] }
+      { mieter:"Mieter 1", von:"2025-01-01", bis:"2025-12-31", vmonat:150, vmonate:12, vjahr:1800, einmal:0, voraus:1800, grundmiete:800, stellAnzahl:1, stellPreis:40, bezahlt:{}, vertragGrundmiete:760, vertragNK:140, letzteAnpassung:"2025-09-01", naechsteAnpassung:"2026-09-01", chronik:[{datum:"2025-09-01",text:"Indexmiete +5 % (Grundmiete 760 → 800 €)"}] }
     ]},
     { id:2, name:"1. OG", flaeche:85, personen:3, mv:[
-      { mieter:"Frau Sahin", von:"2025-01-01", bis:"2025-08-31", vmonat:175, vmonate:8, vjahr:1400, einmal:0, voraus:1400, grundmiete:950, stellAnzahl:0, stellPreis:40, bezahlt:{} },
-      { mieter:"Herr Neu",  von:"2025-10-01", bis:"2025-12-31", vmonat:175, vmonate:3, vjahr:525,  einmal:0, voraus:525, grundmiete:980, stellAnzahl:1, stellPreis:40, bezahlt:{} }
+      { mieter:"Mieter 2", von:"2025-01-01", bis:"2025-08-31", vmonat:175, vmonate:8, vjahr:1400, einmal:0, voraus:1400, grundmiete:950, stellAnzahl:0, stellPreis:40, bezahlt:{} },
+      { mieter:"Mieter 3",  von:"2025-10-01", bis:"2025-12-31", vmonat:175, vmonate:3, vjahr:525,  einmal:0, voraus:525, grundmiete:980, stellAnzahl:1, stellPreis:40, bezahlt:{} }
     ]},
     { id:3, name:"2. OG", flaeche:60, personen:1, mv:[
-      { mieter:"Herr Klein", von:"2025-01-01", bis:"2025-12-31", vmonat:125, vmonate:12, vjahr:1500, einmal:0, voraus:1500, grundmiete:650, stellAnzahl:0, stellPreis:40, bezahlt:{} }
+      { mieter:"Mieter 4", von:"2025-01-01", bis:"2025-12-31", vmonat:125, vmonate:12, vjahr:1500, einmal:0, voraus:1500, grundmiete:650, stellAnzahl:0, stellPreis:40, bezahlt:{} }
     ]}
   ],
   kosten: [
@@ -28,7 +28,7 @@ const state = {
     /* US-05/06/07: fossiler Heizblock mit CO2-Angaben von der Brennstoffrechnung (Demo). */
     { bez:"Heizung (Erdgas)", typ:"heizung", energieart:"erdgas_kwh", einheit:"kWh", heizwert:1, menge:30000, preis:0.12, betrag:3600, schluessel:"flaeche", co2Kg:6030, co2Kosten:330 }
   ],
-  zahlung:{ frist:"14 Tage nach Zugang", iban:"DE89 3704 0044 0532 0130 00", bic:"WELADED1MST", empfaenger:"M. Vermieter", anschrift:"Musterstraße 12, 48155 Münster" },
+  zahlung:{ frist:"14 Tage nach Zugang", iban:"DE36 0000 0000 0000 0000 00", bic:"", empfaenger:"M. Vermieter", anschrift:"Musterstraße 12, 12345 Musterstadt" },
   abrechnungStatus:"inArbeit"
 };
 /* US-30: mehrere Objekte im Speicher; `state` ist immer das aktive Objekt */
