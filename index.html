@@ -566,12 +566,14 @@
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script>
 /* US-56: lokale Skripte mit Versionskennung laden (Cache-Busting). `v` wird beim Deploy
-   automatisch auf den Commit-Hash gesetzt (siehe .github/workflows/pages.yml); lokal bleibt der Wert. */
-(function(){ var v="0.4"; var files=["calc.js","core.js","view.js","pdf.js"];
+   automatisch auf den Commit-Hash gesetzt (siehe .github/workflows/pages.yml); lokal bleibt "0.4".
+   Lokal (v unverändert "0.4") wird je Aufruf ein frischer Wert genutzt, damit beim lokalen Testen
+   nie eine veraltete Datei aus dem Browser-Cache geladen wird. */
+(function(){ var v="0.4"; var bust=(v==="0.4")?String(Date.now()):v; var files=["calc.js","core.js","view.js","pdf.js"];
   if(document.readyState==="loading"){ /* normaler Parse (Browser/Pages): schnellster Weg */
-    files.forEach(function(f){ document.write('<script src="'+f+'?v='+encodeURIComponent(v)+'"><\/script>'); });
+    files.forEach(function(f){ document.write('<script src="'+f+'?v='+encodeURIComponent(bust)+'"><\/script>'); });
   } else { /* Fallback (eingebettete Webview/nach dem Parsen): geordnetes Nachladen */
-    (function load(i){ if(i>=files.length) return; var s=document.createElement("script"); s.src=files[i]+"?v="+encodeURIComponent(v); s.async=false; s.onload=function(){ load(i+1); }; document.head.appendChild(s); })(0);
+    (function load(i){ if(i>=files.length) return; var s=document.createElement("script"); s.src=files[i]+"?v="+encodeURIComponent(bust); s.async=false; s.onload=function(){ load(i+1); }; document.head.appendChild(s); })(0);
   }
 })();
 </script>
