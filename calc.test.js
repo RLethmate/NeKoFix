@@ -1011,3 +1011,20 @@ test("nkImportPlan: Kosten summiert, Zahlungen je MV/Monat, Dedupe (US-87/88)", 
   assert.equal(plan2.zahlungen.length, 0);
   assert.deepEqual(plan2.neueKosten, []);
 });
+test("nkParseUmsatzCsv: Valutadatum-Ersatz + abweichende/unbekannte Namensspalte (US-85)", () => {
+  const HEAD = "Bezeichnung Auftragskonto;IBAN Auftragskonto;BIC Auftragskonto;Bankname Auftragskonto;" +
+    "Buchungstag;Valutadatum;COLNAME;IBAN Zahlungsbeteiligter;BIC (SWIFT-Code) Zahlungsbeteiligter;" +
+    "Buchungstext;Verwendungszweck;Betrag;Waehrung;Saldo nach Buchung;Bemerkung;Gekennzeichneter Umsatz;Glaeubiger ID;Mandatsreferenz";
+  // Buchungstag leer -> Datum aus Valutadatum; Namensspalte heißt "COLNAME" (unbekannt) -> Positions-Fallback (Spalte 6)
+  const z = "Konto;DE00000000000000000000;BIC0;Bank;;15.05.2025;Amt Musterstadt;DE00000000000000000004;BIC4;Basislastschrift;Grundsteuer Q2;-439,08;EUR;1,0;;;;";
+  const r = calc.nkParseUmsatzCsv(HEAD.replace("COLNAME","Beguenstigter/Zahlungspflichtiger") + "\n" + z);
+  assert.equal(r.fehler, null);
+  assert.equal(r.buchungen.length, 1);
+  assert.equal(r.buchungen[0].datum, "2025-05-15");        // aus Valutadatum
+  assert.equal(r.buchungen[0].buchungstag, "15.05.2025");
+  assert.equal(r.buchungen[0].name, "Amt Musterstadt");    // Alias erkannt
+  assert.equal(r.buchungen[0].betrag, -439.08);
+  // völlig unbekannte Namensüberschrift -> Positions-Fallback greift (Spalte 6)
+  const r2 = calc.nkParseUmsatzCsv(HEAD + "\n" + z);
+  assert.equal(r2.buchungen[0].name, "Amt Musterstadt");
+});

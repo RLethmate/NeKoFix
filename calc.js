@@ -844,32 +844,41 @@ function nkParseUmsatzCsv(text) {
   }
   if (hi < 0) { res.fehler = "Keine Kopfzeile gefunden (erwartet Spalte 'Bezeichnung Auftragskonto')."; return res; }
   const header = lines[hi].split(";").map(h => h.trim());
-  const col = name => header.findIndex(h => h.toLowerCase() === name.toLowerCase());
-  const colAny = names => { for (let k = 0; k < names.length; k++) { const i = col(names[k]); if (i >= 0) return i; } return -1; };
+  const low = header.map(h => h.toLowerCase());
+  /* Spalten per Name (Alias-tolerant). Banken benennen Spalten leicht unterschiedlich. */
+  const colAny = names => { for (let k = 0; k < names.length; k++) { const i = low.indexOf(names[k].toLowerCase()); if (i >= 0) return i; } return -1; };
   const idx = {
-    bez:   col("Bezeichnung Auftragskonto"),
-    kiban: col("IBAN Auftragskonto"),
-    kbic:  col("BIC Auftragskonto"),
-    tag:   col("Buchungstag"),
-    name:  col("Name Zahlungsbeteiligter"),
-    iban:  col("IBAN Zahlungsbeteiligter"),
+    bez:   colAny(["Bezeichnung Auftragskonto"]),
+    kiban: colAny(["IBAN Auftragskonto"]),
+    kbic:  colAny(["BIC Auftragskonto"]),
+    tag:   colAny(["Buchungstag", "Buchungsdatum"]),
+    valuta: colAny(["Valutadatum", "Wertstellung", "Valuta"]),
+    name:  colAny(["Name Zahlungsbeteiligter", "Beguenstigter/Zahlungspflichtiger", "Begünstigter/Zahlungspflichtiger", "Zahlungsempfaenger", "Zahlungsempfänger", "Empfaenger/Zahlungspflichtiger", "Name"]),
+    iban:  colAny(["IBAN Zahlungsbeteiligter", "Kontonummer/IBAN"]),
     bic:   colAny(["BIC (SWIFT-Code) Zahlungsbeteiligter", "BIC Zahlungsbeteiligter"]),
-    btext: col("Buchungstext"),
-    zweck: col("Verwendungszweck"),
-    betrag: col("Betrag"),
-    waehrung: col("Waehrung"),
+    btext: colAny(["Buchungstext"]),
+    zweck: colAny(["Verwendungszweck", "Verwendungszwecke"]),
+    betrag: colAny(["Betrag", "Betrag (EUR)", "Umsatz", "Umsatz in EUR"]),
+    waehrung: colAny(["Waehrung", "Währung"]),
   };
-  if (idx.tag < 0 || idx.betrag < 0) { res.fehler = "Pflichtspalten fehlen (Buchungstag/Betrag)."; return res; }
+  /* Positions-Fallback für das feste VR-/Volksbank-Layout (18 Spalten), falls eine Spalte per
+     Name nicht erkannt wurde (z. B. abweichende Überschrift). Nur bei erkanntem VR-Export. */
+  if (low.some(h => h.indexOf("auftragskonto") >= 0) && header.length >= 12) {
+    const fb = { bez: 0, kiban: 1, kbic: 2, tag: 4, valuta: 5, name: 6, iban: 7, bic: 8, btext: 9, zweck: 10, betrag: 11, waehrung: 12 };
+    Object.keys(fb).forEach(k => { if (idx[k] < 0) idx[k] = fb[k]; });
+  }
+  if ((idx.tag < 0 && idx.valuta < 0) || idx.betrag < 0) { res.fehler = "Pflichtspalten fehlen (Buchungstag/Betrag)."; return res; }
   const get = (cells, i) => (i >= 0 && i < cells.length) ? String(cells[i]).trim() : "";
   for (let i = hi + 1; i < lines.length; i++) {
     if (lines[i] == null || lines[i].trim() === "") continue;
     const cells = lines[i].split(";");
-    const datum = nkParseDatumDE(get(cells, idx.tag));
+    const tagStr = get(cells, idx.tag) || get(cells, idx.valuta); /* Datum: Buchungstag, sonst Valutadatum */
+    const datum = nkParseDatumDE(tagStr);
     const betragStr = get(cells, idx.betrag);
     if (!datum && betragStr === "") continue; /* Leer-/Restzeile überspringen */
     res.buchungen.push({
       datum: datum,
-      buchungstag: get(cells, idx.tag),
+      buchungstag: tagStr,
       name: get(cells, idx.name),
       iban: get(cells, idx.iban),
       bic: get(cells, idx.bic),
