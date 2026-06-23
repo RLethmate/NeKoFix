@@ -844,32 +844,41 @@ function nkParseUmsatzCsv(text) {
   }
   if (hi < 0) { res.fehler = "Keine Kopfzeile gefunden (erwartet Spalte 'Bezeichnung Auftragskonto')."; return res; }
   const header = lines[hi].split(";").map(h => h.trim());
-  const col = name => header.findIndex(h => h.toLowerCase() === name.toLowerCase());
-  const colAny = names => { for (let k = 0; k < names.length; k++) { const i = col(names[k]); if (i >= 0) return i; } return -1; };
+  const low = header.map(h => h.toLowerCase());
+  /* Spalten per Name (Alias-tolerant). Banken benennen Spalten leicht unterschiedlich. */
+  const colAny = names => { for (let k = 0; k < names.length; k++) { const i = low.indexOf(names[k].toLowerCase()); if (i >= 0) return i; } return -1; };
   const idx = {
-    bez:   col("Bezeichnung Auftragskonto"),
-    kiban: col("IBAN Auftragskonto"),
-    kbic:  col("BIC Auftragskonto"),
-    tag:   col("Buchungstag"),
-    name:  col("Name Zahlungsbeteiligter"),
-    iban:  col("IBAN Zahlungsbeteiligter"),
+    bez:   colAny(["Bezeichnung Auftragskonto"]),
+    kiban: colAny(["IBAN Auftragskonto"]),
+    kbic:  colAny(["BIC Auftragskonto"]),
+    tag:   colAny(["Buchungstag", "Buchungsdatum"]),
+    valuta: colAny(["Valutadatum", "Wertstellung", "Valuta"]),
+    name:  colAny(["Name Zahlungsbeteiligter", "Beguenstigter/Zahlungspflichtiger", "Begünstigter/Zahlungspflichtiger", "Zahlungsempfaenger", "Zahlungsempfänger", "Empfaenger/Zahlungspflichtiger", "Name"]),
+    iban:  colAny(["IBAN Zahlungsbeteiligter", "Kontonummer/IBAN"]),
     bic:   colAny(["BIC (SWIFT-Code) Zahlungsbeteiligter", "BIC Zahlungsbeteiligter"]),
-    btext: col("Buchungstext"),
-    zweck: col("Verwendungszweck"),
-    betrag: col("Betrag"),
-    waehrung: col("Waehrung"),
+    btext: colAny(["Buchungstext"]),
+    zweck: colAny(["Verwendungszweck", "Verwendungszwecke"]),
+    betrag: colAny(["Betrag", "Betrag (EUR)", "Umsatz", "Umsatz in EUR"]),
+    waehrung: colAny(["Waehrung", "Währung"]),
   };
-  if (idx.tag < 0 || idx.betrag < 0) { res.fehler = "Pflichtspalten fehlen (Buchungstag/Betrag)."; return res; }
+  /* Positions-Fallback für das feste VR-/Volksbank-Layout (18 Spalten), falls eine Spalte per
+     Name nicht erkannt wurde (z. B. abweichende Überschrift). Nur bei erkanntem VR-Export. */
+  if (low.some(h => h.indexOf("auftragskonto") >= 0) && header.length >= 12) {
+    const fb = { bez: 0, kiban: 1, kbic: 2, tag: 4, valuta: 5, name: 6, iban: 7, bic: 8, btext: 9, zweck: 10, betrag: 11, waehrung: 12 };
+    Object.keys(fb).forEach(k => { if (idx[k] < 0) idx[k] = fb[k]; });
+  }
+  if ((idx.tag < 0 && idx.valuta < 0) || idx.betrag < 0) { res.fehler = "Pflichtspalten fehlen (Buchungstag/Betrag)."; return res; }
   const get = (cells, i) => (i >= 0 && i < cells.length) ? String(cells[i]).trim() : "";
   for (let i = hi + 1; i < lines.length; i++) {
     if (lines[i] == null || lines[i].trim() === "") continue;
     const cells = lines[i].split(";");
-    const datum = nkParseDatumDE(get(cells, idx.tag));
+    const tagStr = get(cells, idx.tag) || get(cells, idx.valuta); /* Datum: Buchungstag, sonst Valutadatum */
+    const datum = nkParseDatumDE(tagStr);
     const betragStr = get(cells, idx.betrag);
     if (!datum && betragStr === "") continue; /* Leer-/Restzeile überspringen */
     res.buchungen.push({
       datum: datum,
-      buchungstag: get(cells, idx.tag),
+      buchungstag: tagStr,
       name: get(cells, idx.name),
       iban: get(cells, idx.iban),
       bic: get(cells, idx.bic),
@@ -915,6 +924,50 @@ function nkRegelUpsert(regeln, tx, ziel) {
 function nkUmsatzFingerprint(tx) {
   tx = tx || {};
   return [String(tx.buchungstag || ""), String(tx.betrag || 0), nkNormIban(tx.iban), nkNormName(tx.zweck)].join("|");
+}
+
+/* US-87: Abrechnungsmonat einer Buchung bestimmen: Monatsname oder MM.JJJJ im Verwendungszweck,
+   sonst Monat des Buchungstags (ISO-Datum). Rückgabe "JJJJ-MM". Reine Funktion. */
+const NK_MONATSNAMEN_NORM = ["januar", "februar", "maerz", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "dezember"];
+function nkMonatAusZweck(zweck, fallbackDatum) {
+  const z = " " + nkNormName(zweck) + " ";
+  const jahrM = String(zweck || "").match(/(20\d{2})/);
+  const fy = String(fallbackDatum || "").slice(0, 4);
+  for (let i = 0; i < 12; i++) { if (z.indexOf(" " + NK_MONATSNAMEN_NORM[i] + " ") >= 0) return (jahrM ? jahrM[1] : fy) + "-" + String(i + 1).padStart(2, "0"); }
+  const mm = String(zweck || "").match(/\b(0?[1-9]|1[0-2])[.\/](20\d{2})\b/);
+  if (mm) return mm[2] + "-" + String(+mm[1]).padStart(2, "0");
+  return String(fallbackDatum || "").slice(0, 7);
+}
+/* US-87/88: Übernahme-Plan aus den zugeordneten Buchungen. Nutzt die gelernten Regeln
+   (nkMatchRegel), überspringt bereits übernommene (Fingerprint in opts.gesehen), summiert Kosten
+   je Kostenart und sammelt Zahlungen je Mietverhältnis/Monat. Rein & testbar.
+   Rückgabe: { kosten:[{bez,summe,anzahl}], zahlungen:[{einheitId,mvId,monat,betrag}],
+   neueKosten:[bez], ignoriert, offen, fingerprints:[fp] }. */
+function nkImportPlan(buchungen, regeln, opts) {
+  opts = opts || {};
+  const gesehen = new Set(opts.gesehen || []);
+  const vorhanden = new Set(opts.kostenBez || []);
+  const kostenMap = {}, zahlungen = [], neueKosten = new Set(), fps = [];
+  let ignoriert = 0, offen = 0;
+  (buchungen || []).forEach(b => {
+    const ziel = nkMatchRegel(b, regeln);
+    if (!ziel) { offen++; return; }
+    if (ziel.art === "ignorieren") { ignoriert++; return; }
+    const fp = nkUmsatzFingerprint(b);
+    if (gesehen.has(fp)) return;
+    if (ziel.art === "kosten") {
+      const bez = ziel.bez;
+      if (!kostenMap[bez]) kostenMap[bez] = { bez: bez, summe: 0, anzahl: 0 };
+      kostenMap[bez].summe = Math.round((kostenMap[bez].summe + Math.abs(+b.betrag || 0)) * 100) / 100;
+      kostenMap[bez].anzahl++;
+      if (!vorhanden.has(bez)) neueKosten.add(bez);
+      fps.push(fp);
+    } else if (ziel.art === "mieter") {
+      zahlungen.push({ einheitId: ziel.einheitId, mvId: ziel.mvId, monat: nkMonatAusZweck(b.zweck, b.datum), betrag: +b.betrag || 0 });
+      fps.push(fp);
+    }
+  });
+  return { kosten: Object.values(kostenMap), zahlungen: zahlungen, neueKosten: [...neueKosten], ignoriert: ignoriert, offen: offen, fingerprints: fps };
 }
 
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
@@ -1018,5 +1071,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkMatchRegel,
     nkRegelUpsert,
     nkUmsatzFingerprint,
+    nkMonatAusZweck,
+    nkImportPlan,
   };
 }
