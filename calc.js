@@ -954,15 +954,19 @@ function nkImportPlan(buchungen, regeln, opts) {
     if (!ziel) { offen++; return; }
     if (ziel.art === "ignorieren") { ignoriert++; return; }
     const fp = nkUmsatzFingerprint(b);
-    if (gesehen.has(fp)) return;
+    const schon = gesehen.has(fp);
     if (ziel.art === "kosten") {
       const bez = ziel.bez;
+      /* Dedupe: schon übernommene Buchung überspringen – ABER nur, wenn die Kostenart noch
+         existiert. Wurde sie gelöscht, stellt der Re-Import sie wieder her (und nur diese). */
+      if (schon && vorhanden.has(bez)) return;
       if (!kostenMap[bez]) kostenMap[bez] = { bez: bez, summe: 0, anzahl: 0 };
       kostenMap[bez].summe = Math.round((kostenMap[bez].summe + Math.abs(+b.betrag || 0)) * 100) / 100;
       kostenMap[bez].anzahl++;
       if (!vorhanden.has(bez)) neueKosten.add(bez);
       fps.push(fp);
     } else if (ziel.art === "mieter") {
+      if (schon) return;
       zahlungen.push({ einheitId: ziel.einheitId, mvId: ziel.mvId, monat: nkMonatAusZweck(b.zweck, b.datum), betrag: +b.betrag || 0 });
       fps.push(fp);
     }

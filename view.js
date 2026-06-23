@@ -1387,7 +1387,7 @@ function umsatzZielSelect(b, i){
   if(mv.length) h+='<optgroup label="Mieter">'+mv.join('')+'</optgroup>';
   /* Kostenarten: bestehende + bereits per Regel angelegte Bezeichnungen (damit eine neue sichtbar bleibt) */
   const bez=[...new Set([].concat((state.kosten||[]).map(k=>k.bez), (state.objekt.importRegeln||[]).filter(r=>r.ziel&&r.ziel.art==='kosten').map(r=>r.ziel.bez)).map(x=>String(x||'').trim()).filter(Boolean))];
-  h+='<optgroup label="Kostenart">'+bez.map(z=>opt('kosten:'+z, z)).join('')+opt('kosten_neu','+ neue Kostenart …')+'</optgroup>';
+  h+='<optgroup label="Kostenart">'+opt('kosten_neu','+ neue Kostenart …')+bez.map(z=>opt('kosten:'+z, z)).join('')+'</optgroup>';
   return h+'</select>';
 }
 /* US-86: Zuordnung setzen -> als Regel am Objekt merken (IBAN/Name) -> auf gleiche Gegenkonten
@@ -1428,6 +1428,7 @@ function uebernehmeUmsaetze(){
   });
   store.setObjektFeld('importGesehen', (state.objekt.importGesehen||[]).concat(plan.fingerprints));
   closeUmsatzReview(); renderAll();
+  if(plan.kosten.length) go(2); else if(plan.zahlungen.length) go(6); /* US-87/88: nach der Übernahme zum betroffenen Reiter (Kosten bzw. Zahlungen) */
   alert('Übernommen: '+teile.join(' und ')+'. Kosten ggf. im Reiter „Kosten" benennen und einer Rubrik zuordnen.');
 }
 function renderUmsatzReview(){
@@ -1456,14 +1457,14 @@ function renderUmsatzReview(){
       '<td class="betrag '+cls+'">'+nkFmtBetrag(b.betrag)+'</td><td><span class="csv-badge '+k.key+'">'+esc(k.label)+'</span></td>'+
       '<td>'+umsatzZielSelect(b,i)+'</td></tr>'); });
   const rows=rowsArr.join('');
-  const filterLbl=' &nbsp; <label class="csv-filter"><input type="checkbox"'+(nurOffen?' checked':'')+' onchange="toggleNurOffen(this.checked)"> nur nicht zugeordnete</label>';
+  const filterZeile='<div class="csv-filterzeile"><label class="csv-filter"><input type="checkbox"'+(nurOffen?' checked':'')+' onchange="toggleNurOffen(this.checked)"> nur nicht zugeordnete</label></div>';
   const wrap0=box.querySelector('.csv-tablewrap'); const scroll0=wrap0?wrap0.scrollTop:0; /* Scroll-Position über das Re-Rendern erhalten */
   box.innerHTML='<h2>Kontoumsätze importieren – Zuordnung</h2>'+
     '<div class="csv-meta">'+esc(_csvImport.dateiname)+' · '+bs.length+' Buchungen · '+pos.length+' Eingänge ('+nkFmtBetrag(sumPos)+' €) · '+neg.length+' Kosten ('+nkFmtBetrag(sumNeg)+' €) · Zeitraum '+esc(zeitraum)+'</div>'+
-    (bs.length? '<div class="csv-summe">Zugeordnet: '+nMieter+' Mieter-Eingänge ('+nkFmtBetrag(sMieter)+' €) · '+nKosten+' Kosten ('+nkFmtBetrag(sKosten)+' €) · '+nIgnor+' ignoriert · <b'+(nOffen?' class="csv-offen"':'')+'>'+nOffen+' nicht zugeordnet</b>'+filterLbl+'</div>'+
+    (bs.length? '<div class="csv-summe">Zugeordnet: '+nMieter+' Mieter-Eingänge ('+nkFmtBetrag(sMieter)+' €) · '+nKosten+' Kosten ('+nkFmtBetrag(sKosten)+' €) · '+nIgnor+' ignoriert · <b'+(nOffen?' class="csv-offen"':'')+'>'+nOffen+' nicht zugeordnet</b></div>'+filterZeile+
       '<div class="csv-tablewrap"><table class="csv-table"><thead><tr><th>Datum</th><th>Name</th><th>Verwendungszweck</th><th>Betrag €</th><th>Vorschlag</th><th>Ziel</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
               : '<div class="csv-err">Keine Buchungen gefunden (Kopfzeile erkannt, aber keine Datenzeilen).</div>')+
-    '<div class="csv-foot"><span class="csv-note">Zuordnungen werden als Regel am Objekt gemerkt (IBAN bzw. Name) und beim nächsten Import automatisch vorgeschlagen. „Importieren" übernimmt: Kosten je Kostenart summiert (neue werden angelegt – Name/Rubrik später im Reiter „Kosten"), Zahlungseingänge als „erhalten" je Mieter/Monat. Bereits übernommene Buchungen werden beim erneuten Import übersprungen.</span>'+
+    '<div class="csv-foot"><span class="csv-note">Zuordnungen werden als Regel am Objekt gemerkt (IBAN bzw. Name) und beim nächsten Import automatisch vorgeschlagen. „Importieren" übernimmt: Kosten je Kostenart summiert (neue werden angelegt – Name/Rubrik später im Reiter „Kosten"), Zahlungseingänge als „erhalten" je Mieter/Monat. Bereits übernommene Buchungen werden beim erneuten Import übersprungen; eine gelöschte Kostenart wird durch erneuten Import wiederhergestellt.</span>'+
     '<button class="csv-close csv-cancel" onclick="closeUmsatzReview()">Schließen</button>'+
     '<button class="csv-close" onclick="uebernehmeUmsaetze()">Importieren</button></div>';
   const wrap1=box.querySelector('.csv-tablewrap'); if(wrap1) wrap1.scrollTop=scroll0;
