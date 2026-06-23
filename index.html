@@ -314,6 +314,25 @@
   .p35a-tab th,.p35a-tab td{font-size:12.5px;padding:6px 8px;}
   @media(max-width:620px){.grid2,.summary-cards{grid-template-columns:1fr;} .tag{display:none}}
   @media print{header.app,.sidenav,.stepper,.nav,.mieter-tabs,.legal{display:none!important;} .wrap{display:block;} .panel{display:block!important;border:none;padding:0;} body{background:#fff;}}
+  /* US-85: Overlay für die CSV-Umsatz-Vorschau (Review-Liste, read-only) */
+  .csv-overlay{position:fixed;inset:0;background:rgba(20,30,45,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:32px 16px;overflow:auto;}
+  .csv-modal{background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.25);width:100%;max-width:920px;padding:18px 20px;}
+  .csv-modal h2{font-size:16px;margin:0 0 4px;color:#1d2733;}
+  .csv-modal .csv-meta{font-size:12.5px;color:#5a6675;margin-bottom:12px;}
+  .csv-modal .csv-err{background:#fdecea;border:1px solid #e6a9a3;color:#8a2e26;border-radius:8px;padding:10px 12px;font-size:13px;}
+  .csv-tablewrap{max-height:52vh;overflow:auto;border:1px solid #e6ebf0;border-radius:8px;}
+  .csv-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .csv-table th,.csv-table td{text-align:left;padding:6px 9px;border-bottom:1px solid #eef2f6;white-space:nowrap;}
+  .csv-table th{position:sticky;top:0;background:#f5f8fb;color:#41505f;font-weight:600;z-index:1;}
+  .csv-table td.zweck{white-space:normal;max-width:360px;color:#41505f;}
+  .csv-table td.betrag{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;}
+  .csv-table td.betrag.pos{color:#1d7a3a;} .csv-table td.betrag.neg{color:#b3392e;}
+  .csv-badge{display:inline-block;font-size:11px;border-radius:10px;padding:1px 8px;}
+  .csv-badge.eingang{background:#e3f4e9;color:#1d7a3a;} .csv-badge.kosten{background:#fbe7e4;color:#b3392e;} .csv-badge.ignor{background:#eef0f2;color:#6b7480;}
+  .csv-modal .csv-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap;}
+  .csv-modal .csv-note{font-size:12px;color:#7a8593;flex:1;min-width:240px;}
+  .csv-modal .csv-close{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;}
+  .csv-modal .csv-close:hover{background:var(--primary-dark);}
 </style>
 </head>
 <body>
@@ -337,9 +356,15 @@
       <button onclick="speichernUnter();toggleDateiMenu(true)">Speichern unter …</button>
       <div class="menu-sep"></div>
       <button onclick="neuesJahrAusVorjahr();toggleDateiMenu(true)">Neues Jahr aus aktuellem Objekt …</button>
+      <div class="menu-sep"></div>
+      <button onclick="document.getElementById('csv_import').click();toggleDateiMenu(true)">Umsätze importieren … (CSV)</button>
     </div>
   </div>
   <input type="file" id="obj_import" accept=".json,application/json" style="display:none" onchange="importObjekt(event)">
+  <input type="file" id="csv_import" accept=".csv,text/csv,text/plain" style="display:none" onchange="importUmsaetze(event)">
+  <div id="csv_overlay" class="csv-overlay" style="display:none" onclick="if(event.target===this)closeUmsatzReview()">
+    <div class="csv-modal" id="csv_modal"></div>
+  </div>
   <span class="spacer"></span>
   <label class="abr-status-wrap" title="Status der Abrechnung">Status:
     <select id="abr_status" class="abr-status" onchange="setAbrStatus(this.value)">

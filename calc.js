@@ -809,6 +809,18 @@ function nkNormName(s) {
   return t.replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 }
 
+/* US-85: Vorzeichen-Vorsortierung einer Buchung fürs Review. Positiv = Zahlungseingang
+   (meist Miete), negativ = Kosten; offensichtlich interne Umbuchungen (Termingeld/Geldanlage)
+   werden als "ignorieren" vorgeschlagen. Default, in US-86 überschreibbar. Reine Funktion. */
+function nkVorsortierung(b) {
+  const bt = String((b && b.buchungstext) || "").toLowerCase();
+  const betrag = (b && +b.betrag) || 0;
+  if (betrag > 0 && /termingeld|umbuchung|geldanlage|sparen/.test(bt)) return "ignorieren";
+  if (betrag > 0) return "eingang";
+  if (betrag < 0) return "kosten";
+  return "ignorieren";
+}
+
 /* US-85: deutsches Datum "TT.MM.JJJJ" -> ISO "JJJJ-MM-TT"; "" bei ungültiger Eingabe. */
 function nkParseDatumDE(s) {
   const m = String(s == null ? "" : s).trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
@@ -966,5 +978,6 @@ if (typeof module !== "undefined" && module.exports) {
     nkNormName,
     nkParseDatumDE,
     nkParseUmsatzCsv,
+    nkVorsortierung,
   };
 }
