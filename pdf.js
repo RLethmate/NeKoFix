@@ -17,6 +17,23 @@ function ensurePdfLib(){
   }
   return true;
 }
+/* US-40: Vorschau-Wasserzeichen, solange das aktive Objekt nicht freigeschaltet ist – diagonal
+   über jede Seite. Nach gültiger Freischaltung (state.objekt.freigeschaltet) erscheint kein Zeichen. */
+function pdfWasserzeichen(doc){
+  if(state.objekt && state.objekt.freigeschaltet) return;
+  const n=doc.internal.getNumberOfPages();
+  const w=doc.internal.pageSize.getWidth(), h=doc.internal.pageSize.getHeight();
+  const hasG = typeof doc.GState==='function' && typeof doc.setGState==='function';
+  for(let p=1;p<=n;p++){
+    doc.setPage(p);
+    if(doc.saveGraphicsState) doc.saveGraphicsState();
+    if(hasG) doc.setGState(new doc.GState({opacity:0.12}));
+    doc.setTextColor(150); doc.setFont(undefined,'bold'); doc.setFontSize(50);
+    doc.text('VORSCHAU – nicht zur Weitergabe', w/2, h/2, {align:'center', angle:40});
+    if(doc.restoreGraphicsState) doc.restoreGraphicsState();
+  }
+  doc.setTextColor(0); doc.setFont(undefined,'normal'); doc.setFontSize(10);
+}
 /* US-53: Abrechnung als amtliches PDF im DIN-Briefformat. */
 function buildTenantPdf(sel){
   const { jsPDF } = window.jspdf;
@@ -156,6 +173,7 @@ function buildTenantPdf(sel){
   doc.splitTextToSize('Einwendungen gegen diese Abrechnung können Sie innerhalb von 12 Monaten nach Zugang geltend machen.', W).forEach(l=>{ if(y>790){doc.addPage();y=64;} doc.text(l,L,y); y+=11; });
   doc.setFontSize(10); doc.setTextColor(0); y+=20;
   nl('Mit freundlichen Grüßen'); y+=18; nl(String(z.empfaenger||''));
+  pdfWasserzeichen(doc); /* US-40: Vorschau bis Freischaltung */
   return doc;
 }
 function exportTenantPdf(){ if(!ensurePdfLib())return; if(!pdfStandOk())return; const sel=alleMV()[activeMieter]; if(sel){ buildTenantPdf(sel).save("Abrechnung-"+pdfSafeName(sel.m.mieter)+".pdf"); showBackupHinweis(); } } /* US-76: Backup-Hinweis nach Export */
@@ -273,6 +291,7 @@ function exportOwnerOverviewPdf(){
   });
   y+=4; doc.line(56,y,540,y); y+=16; doc.setFont(undefined,'bold');
   doc.text("Summe",56,y); doc.text(eur(ab.summeAnteil),330,y,{align:'right'}); doc.text(eur(ab.summeVoraus),440,y,{align:'right'}); doc.text(eur(ab.summeSaldo),540,y,{align:'right'});
+  pdfWasserzeichen(doc); /* US-40: Vorschau bis Freischaltung */
   doc.save("Eigentuemer-Uebersicht.pdf");
   showBackupHinweis();
 }

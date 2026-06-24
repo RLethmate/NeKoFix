@@ -314,6 +314,14 @@
   .p35a-tab th,.p35a-tab td{font-size:12.5px;padding:6px 8px;}
   @media(max-width:620px){.grid2,.summary-cards{grid-template-columns:1fr;} .tag{display:none}}
   @media print{header.app,.sidenav,.stepper,.nav,.mieter-tabs,.legal{display:none!important;} .wrap{display:block;} .panel{display:block!important;border:none;padding:0;} body{background:#fff;}}
+  /* US-40: Freischaltungs-Banner (Bezahlschwelle fürs versandfertige PDF) */
+  .freischalt-box{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#fbf4e6;border:1px solid #e6c878;border-radius:10px;padding:12px 16px;margin:14px 0;}
+  .freischalt-box .fs-text{flex:1;min-width:240px;font-size:13px;color:#7a5a12;}
+  .freischalt-box .fs-btn{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;white-space:nowrap;}
+  .freischalt-box .fs-btn:hover{background:var(--primary-dark);}
+  .freischalt-box.frei{background:#e3f4e9;border-color:#9fd6b3;}
+  .freischalt-box.frei .fs-text{color:#1d7a3a;}
+  .freischalt-box:empty{display:none;}
   /* US-89: Rubriken-Verwaltung im Kosten-Reiter */
   .rubrik-manage{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0;padding:10px 12px;background:var(--soft);border:1px solid var(--line);border-radius:10px;}
   .rubrik-manage .rm-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;}
@@ -596,6 +604,7 @@
       <button class="bh-save" onclick="exportObjekt()">Jetzt Projektdatei auf dem PC sichern</button>
       <button class="bh-x" onclick="dismissBackupHinweis()" title="Hinweis ausblenden" aria-label="Hinweis ausblenden">×</button>
     </div>
+    <div id="freischalt_box" class="freischalt-box"></div>
     <div class="nav"><button class="btn-ghost" onclick="go(4)">Zurück</button>
       <span class="export-actions">
         <button class="btn-ghost" onclick="exportTenantPdf()">Diese Abrechnung als PDF</button>

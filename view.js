@@ -1109,7 +1109,33 @@ function p35aBlock(p){
     '</div>';
 }
 /* ---------- Step 5 ---------- */
+/* US-40: Freischaltungs-Banner im Reiter „Fertige Abrechnung". Ohne Freischaltung ist das PDF
+   eine Vorschau (Wasserzeichen, in pdf.js); ein gültiger, an Objekt+Jahr gebundener Code schaltet
+   das versandfertige PDF frei. Status persistiert am Objekt (objekt.freigeschaltet). */
+function renderFreischalt(){
+  const box=document.getElementById('freischalt_box'); if(!box) return;
+  if(state.objekt && state.objekt.freigeschaltet){
+    box.className='freischalt-box frei';
+    box.innerHTML='<span class="fs-text">✓ <b>Versandfertiges PDF freigeschaltet</b> – die PDFs werden ohne Wasserzeichen erzeugt.</span>';
+  } else {
+    box.className='freischalt-box';
+    box.innerHTML='<span class="fs-text"><b>Vorschau:</b> Erstellen, Prüfen und PDF-Vorschau sind kostenlos. Das versandfertige PDF (ohne Wasserzeichen) gibt es nach Freischaltung für dieses Objekt und Abrechnungsjahr.</span>'+
+      '<button class="fs-btn" onclick="freischaltenEinloesen()">Versandfertiges PDF freischalten</button>';
+  }
+}
+function freischaltenEinloesen(){
+  const code=(prompt('Freischalt-Code für dieses Objekt und Abrechnungsjahr eingeben:','')||'').trim();
+  if(!code) return;
+  if(nkFreischaltGueltig(code, state.objekt)){
+    store.setObjektFeld('freigeschaltet', true);
+    renderDoc(); updateSaveStatus();
+    alert('Freigeschaltet. Die PDFs werden jetzt ohne Wasserzeichen erzeugt.');
+  } else {
+    alert('Dieser Code ist für dieses Objekt / Abrechnungsjahr nicht gültig. Bitte prüfen.');
+  }
+}
 function renderDoc(){
+  renderFreischalt(); /* US-40: Freischaltungs-Status/Button (unabhängig vom gewählten Mieter) */
   const list=alleMV();
   const tabs=document.getElementById('mieter_tabs'); tabs.innerHTML='';
   if(activeMieter>=list.length) activeMieter=0;

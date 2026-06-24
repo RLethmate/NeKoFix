@@ -1082,3 +1082,23 @@ test("nkListeEinsortieren: per id vor Ziel einsortieren, sonst ans Ende (US-89 P
   assert.deepEqual(calc.nkListeEinsortieren(items, 99, 1).map(x=>x.id), [1,2,3,4]);
   assert.deepEqual(items.map(x=>x.id), [1,2,3,4]);
 });
+test("nkFreischaltCode/Gueltig: an Objekt+Jahr gebunden, offline prüfbar (US-40)", () => {
+  const obj = { name: "Vorname_1 Nachname_1", von: "2025-01-01", bis: "2025-12-31" };
+  const code = calc.nkFreischaltCode(obj);
+  assert.match(code, /^[A-Z0-9]{4}-[A-Z0-9]{4}$/);            // Format XXXX-XXXX
+  assert.equal(calc.nkFreischaltGueltig(code, obj), true);    // korrekter Code
+  assert.equal(calc.nkFreischaltGueltig(code.toLowerCase().replace('-',' '), obj), true); // tolerant (Klein/Trenner)
+  assert.equal(calc.nkFreischaltGueltig("XXXX-YYYY", obj), false); // falscher Code
+  assert.equal(calc.nkFreischaltGueltig("", obj), false);     // leer
+  // anderes Jahr -> anderer Code (Bindung an Jahr)
+  assert.notEqual(calc.nkFreischaltCode(obj), calc.nkFreischaltCode({ ...obj, von: "2026-01-01", bis: "2026-12-31" }));
+  // anderes Objekt -> anderer Code
+  assert.notEqual(calc.nkFreischaltCode(obj), calc.nkFreischaltCode({ ...obj, name: "Anderes Objekt" }));
+});
+test("nkVorjahrUebernehmen: Freischaltung wird NICHT ins Folgejahr übernommen (US-40)", () => {
+  const src = { objekt: { addr: "Teststr. 1", name: "Obj", von: "2025-01-01", bis: "2025-12-31", freigeschaltet: true },
+    einheiten: [{ id: 1, name: "EG", flaeche: 70, personen: 2, mv: [{ mieter: "M", von: "2025-01-01", bis: "2025-12-31", vmonat: 0, vmonate: 12, voraus: 0 }] }], kosten: [] };
+  const neu = calc.nkVorjahrUebernehmen(src);
+  assert.equal(neu.objekt.freigeschaltet, false);   // Folgejahr eigenständig zu bezahlen
+  assert.equal(neu.objekt.von, "2026-01-01");
+});

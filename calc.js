@@ -782,7 +782,7 @@ function nkVorjahrUebernehmen(src) {
   const s = JSON.parse(JSON.stringify(src || {}));
   const o = s.objekt || {};
   const altBis = o.bis;
-  const objekt = Object.assign({}, o, { von: nkPlusJahr(o.von), bis: nkPlusJahr(o.bis) });
+  const objekt = Object.assign({}, o, { von: nkPlusJahr(o.von), bis: nkPlusJahr(o.bis), freigeschaltet: false }); /* US-40: Folgejahr ist eine eigene Abrechnung -> nicht mitfreigeschaltet */
   const einheiten = (s.einheiten || []).map(e => {
     const aktive = (e.mv || []).filter(m => m.laeuft || !altBis || !m.bis || m.bis >= altBis);
     const mv = aktive.map(m => {
@@ -1004,12 +1004,40 @@ function nkImportPlan(buchungen, regeln, opts) {
   return { kosten: Object.values(kostenMap), zahlungen: zahlungen, neueKosten: [...neueKosten], ignoriert: ignoriert, offen: offen, fingerprints: fps };
 }
 
+/* US-40: Freischaltung des versandfertigen PDFs – Stufe 1 (serverlos). Der Code ist deterministisch
+   an Objekt + Abrechnungsjahr gebunden: der Verkäufer (Concierge, US-43) erzeugt ihn mit
+   nkFreischaltCode aus Objektname/-adresse und Jahr; das Tool prüft offline mit nkFreischaltGueltig.
+   Sicherheit ist bewusst gering (Salt clientseitig); die serverseitige Bindung folgt in US-45.
+   Reine Funktionen. */
+const NK_FREISCHALT_SALT = "NeKoFix-Stufe1-2026";
+function nkFreischaltKey(objekt) {
+  objekt = objekt || {};
+  const name = nkNormName(objekt.name || objekt.addr || "");
+  const jahr = (String(objekt.von || objekt.bis || "").match(/^(\d{4})/) || [])[1] || "";
+  return name + "|" + jahr;
+}
+function nkFreischaltCode(objekt) {
+  const s = nkFreischaltKey(objekt) + "|" + NK_FREISCHALT_SALT;
+  let h1 = 5381, h2 = 52711;
+  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = ((h1 * 33) ^ c) >>> 0; h2 = ((h2 * 31) + c) >>> 0; }
+  const raw = (h1.toString(36) + h2.toString(36)).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const code = (raw + "00000000").slice(0, 8);
+  return code.slice(0, 4) + "-" + code.slice(4, 8);
+}
+function nkFreischaltGueltig(code, objekt) {
+  const norm = s => String(s == null ? "" : s).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return !!String(code || "").trim() && norm(code) === norm(nkFreischaltCode(objekt));
+}
+
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
    und die Funktionen stehen global zur Verfügung.
    Eine Funktion pro Zeile (mit Komma am Ende) – das entschärft Merge-Konflikte beim
    Hinzufügen neuer Funktionen. */
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
+    nkFreischaltKey,
+    nkFreischaltCode,
+    nkFreischaltGueltig,
     nkTotals,
     nkFactor,
     nkAnteilOf,
