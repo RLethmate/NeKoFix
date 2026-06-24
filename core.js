@@ -78,7 +78,10 @@ const store = {
   addRubrik(name){ name=String(name||'').trim(); if(!name) return; ensureRubrikenMaterialisiert(); if(state.objekt.rubriken.indexOf(name)<0){ state.objekt.rubriken.push(name); commit(); } },
   renameRubrik(alt,neu){ neu=String(neu||'').trim(); if(!neu||neu===alt) return; ensureRubrikenMaterialisiert(); const i=state.objekt.rubriken.indexOf(alt); if(i<0 || state.objekt.rubriken.indexOf(neu)>=0) return; state.objekt.rubriken[i]=neu; state.kosten.forEach(k=>{ if(k.rubrik===alt) k.rubrik=neu; }); commit(); },
   deleteRubrik(name){ ensureRubrikenMaterialisiert(); if(state.kosten.some(k=>k.rubrik===name)) return; /* nur leere Rubriken löschen */ state.objekt.rubriken=state.objekt.rubriken.filter(r=>r!==name); commit(); },
-  moveRubrik(from,to){ ensureRubrikenMaterialisiert(); state.objekt.rubriken=nkArrMove(state.objekt.rubriken, from, to); commit(); }
+  moveRubrik(from,to){ ensureRubrikenMaterialisiert(); state.objekt.rubriken=nkArrMove(state.objekt.rubriken, from, to); commit(); },
+  /* US-89 Phase 2: Kostenposition (per id) verschieben – Rubrik setzen und vor das Ziel (id)
+     einsortieren; zielId null => ans Ende der Rubrik. Drag & Drop in der Kostenliste. */
+  moveKosten(dragId,zielId,rubrik){ ensureRubrikenMaterialisiert(); if(rubrik!=null && rubrik!==''){ const d=state.kosten.find(k=>k.id===dragId); if(d) d.rubrik=rubrik; } state.kosten=nkListeEinsortieren(state.kosten, dragId, zielId); commit(); }
 };
 /* US-89: beim ersten Rubriken-Eingriff materialisieren – die effektive Liste am Objekt festschreiben
    und jede Position auf ihre aktuelle (vorgeschlagene) Rubrik festlegen, damit Umbenennen/Umordnen

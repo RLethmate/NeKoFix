@@ -1068,3 +1068,17 @@ test("nkRubrikenListe: objekt-eigene Liste, sonst Default; benutzte ergänzt (US
   const k = [{ bez: "X", rubrik: "Garten" }];
   assert.deepEqual(calc.nkRubrikenListe(obj, k), ["Betriebskosten", "Heizkosten", "Garten"]);
 });
+test("nkListeEinsortieren: per id vor Ziel einsortieren, sonst ans Ende (US-89 Phase 2)", () => {
+  const items = [{id:1},{id:2},{id:3},{id:4}];
+  // 4 vor 2 einsortieren
+  assert.deepEqual(calc.nkListeEinsortieren(items, 4, 2).map(x=>x.id), [1,4,2,3]);
+  // 1 vor 4
+  assert.deepEqual(calc.nkListeEinsortieren(items, 1, 4).map(x=>x.id), [2,3,1,4]);
+  // zielId null -> ans Ende
+  assert.deepEqual(calc.nkListeEinsortieren(items, 2, null).map(x=>x.id), [1,3,4,2]);
+  // unbekanntes Ziel -> ans Ende
+  assert.deepEqual(calc.nkListeEinsortieren(items, 2, 99).map(x=>x.id), [1,3,4,2]);
+  // unbekanntes drag -> unverändert; Original nicht mutiert
+  assert.deepEqual(calc.nkListeEinsortieren(items, 99, 1).map(x=>x.id), [1,2,3,4]);
+  assert.deepEqual(items.map(x=>x.id), [1,2,3,4]);
+});

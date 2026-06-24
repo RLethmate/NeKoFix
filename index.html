@@ -327,6 +327,13 @@
   .rm-add .rm-input{font-size:12.5px;padding:4px 8px;border:1px solid var(--line);border-radius:7px;max-width:150px;}
   .rm-add .rm-add-btn{background:var(--primary);color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:12.5px;cursor:pointer;white-space:nowrap;}
   .rm-add .rm-add-btn:hover{background:var(--primary-dark);}
+  /* US-89 Phase 2: Drag-Griff der Kostenzeilen + Drop-Markierung */
+  .act-col{white-space:nowrap;}
+  .drag-grip{cursor:grab;color:#9aa7b4;font-size:14px;padding:0 2px 0 6px;line-height:1;user-select:none;}
+  .drag-grip:hover{color:var(--primary);}
+  .drag-grip:active{cursor:grabbing;}
+  #tbl_kosten tr.drag-over td{box-shadow:inset 0 2px 0 var(--primary);}
+  #tbl_kosten tr.rubrik-head.drag-over td{background:#dfeaec;box-shadow:inset 0 0 0 2px var(--primary);}
   /* US-85: Overlay für die CSV-Umsatz-Vorschau (Review-Liste, read-only) */
   .csv-overlay{position:fixed;inset:0;background:rgba(20,30,45,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:32px 16px;overflow:auto;}
   .csv-modal{background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.25);width:100%;max-width:920px;padding:18px 20px;}

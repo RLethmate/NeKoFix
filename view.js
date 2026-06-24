@@ -693,8 +693,11 @@ function renderKosten(){
           : '<button class="teilnahme-chip'+(ausNamen.length?' aktiv':'')+'" title="Teilnehmende Einheiten festlegen" onclick="toggleKostenDetail('+k.id+')">'+(ausNamen.length?'ohne '+ausNamen.map(esc).join(', '):'alle')+'</button>')+
         '</span></td>'+
       '<td><button class="status-toggle" onclick="toggleKostenDetail('+k.id+')" title="Status & Notiz">'+dots+'<span class="chev">'+(open?'▴':'▾')+'</span></button></td>'+
-      '<td><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button></td>';
+      '<td class="act-col"><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button>'+
+        '<span class="drag-grip" draggable="true" ondragstart="kostenDragStart(event,'+k.id+')" title="Ziehen zum Verschieben (Rubrik &amp; Reihenfolge)">⠿</span></td>';
     tb.appendChild(tr);
+    const rub=nkRubrik(k); /* US-89 Phase 2: Drop auf diese Zeile = davor einsortieren, deren Rubrik übernehmen */
+    tr.ondragover=kostenDragOver; tr.ondragleave=kostenDragLeave; tr.ondrop=function(e){ kostenDrop(e, k.id, rub); };
     if(open){
       let so=''; for(const key in STATUS_BELEG){ so+='<option value="'+key+'"'+(st===key?' selected':'')+'>'+STATUS_BELEG[key]+'</option>'; }
       let vo=''; for(const key in VERFUEGBAR){ vo+='<option value="'+key+'"'+(vf===key?' selected':'')+'>'+VERFUEGBAR[key]+'</option>'; }
@@ -742,6 +745,7 @@ function renderKosten(){
     const grp=items.filter(o=>nkRubrik(o.k)===rub);
     if(!grp.length) return;
     const hr=document.createElement('tr'); hr.className='rubrik-head'; hr.innerHTML='<td colspan="5">'+esc(rub)+'</td>'; tb.appendChild(hr);
+    hr.ondragover=kostenDragOver; hr.ondragleave=kostenDragLeave; hr.ondrop=(function(r){ return function(e){ kostenDrop(e, null, r); }; })(rub); /* US-89: Drop auf Überschrift = in diese Rubrik (ans Ende) */
     grp.forEach(o=>{ if(o.k.typ==='heizung') appendHeizHinweisRow(o.k); else appendKostenRow(o.k,o.idx); });
     const sum=grp.reduce((s,o)=>s+(+o.k.betrag||0),0);
     const sr=document.createElement('tr'); sr.className='rubrik-sum'; sr.innerHTML='<td>Zwischensumme '+esc(rub)+'</td><td class="num">'+eur(sum)+'</td><td colspan="3"></td>'; tb.appendChild(sr);
@@ -777,6 +781,14 @@ function rubrikUmbenennen(i){ const liste=nkRubrikenListe(state.objekt, state.ko
 function rubrikLoeschen(i){ const liste=nkRubrikenListe(state.objekt, state.kosten); store.deleteRubrik(liste[i]); renderKosten(); }
 function rubrikHoch(i){ store.moveRubrik(i, i-1); renderKosten(); }
 function rubrikRunter(i){ store.moveRubrik(i, i+1); renderKosten(); }
+/* US-89 Phase 2: Drag & Drop der Kostenzeilen. Gezogen wird nur über die Griff-Lasche (⠿);
+   Drop-Ziele sind die Zeilen (davor einsortieren, deren Rubrik übernehmen) und die Rubrik-
+   Überschriften (ans Ende der Rubrik). Reihenfolge/Rubrik persistieren über store.moveKosten. */
+let _kostenDragId=null;
+function kostenDragStart(ev, id){ _kostenDragId=id; if(ev.dataTransfer){ ev.dataTransfer.effectAllowed='move'; try{ ev.dataTransfer.setData('text/plain', String(id)); }catch(e){} } }
+function kostenDragOver(ev){ if(_kostenDragId==null) return; ev.preventDefault(); if(ev.dataTransfer) ev.dataTransfer.dropEffect='move'; const el=ev.currentTarget; if(el&&el.classList) el.classList.add('drag-over'); }
+function kostenDragLeave(ev){ const el=ev.currentTarget; if(el&&el.classList) el.classList.remove('drag-over'); }
+function kostenDrop(ev, zielId, rubrik){ ev.preventDefault(); const el=ev.currentTarget; if(el&&el.classList) el.classList.remove('drag-over'); const dragId=_kostenDragId; _kostenDragId=null; if(dragId==null || dragId===zielId) return; store.moveKosten(dragId, zielId, rubrik); renderKosten(); }
 function updKosten(idx,field,val){ store.setKostenFeld(idx,field,val); renderKosten(); }
 /* US-32: begünstigten Arbeitskosten-Anteil (€) je Position setzen. */
 function updKostenArbeit(idx,val){ store.setKostenFeld(idx,'arbeitskosten', nkParseBetrag(val)); renderKosten(); }
