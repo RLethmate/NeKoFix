@@ -747,14 +747,16 @@ function renderKosten(){
   liste.forEach((rub,ri)=>{
     const grp=items.filter(o=>nkRubrik(o.k)===rub);
     const hr=document.createElement('tr'); hr.className='rubrik-head';
-    hr.innerHTML='<td colspan="5"><span class="rh-grip" draggable="true" ondragstart="rubrikHeadDragStart(event,'+ri+')" title="Rubrik ziehen, um sie umzusortieren">⠿</span>'+
+    hr.innerHTML='<td colspan="5"><div class="rh-inner">'+
       '<span class="rh-name">'+esc(rub)+'</span>'+
       '<span class="rh-tools">'+
       '<button class="rh-btn" title="nach oben" onclick="rubrikHoch('+ri+')"'+(ri===0?' disabled':'')+'>↑</button>'+
       '<button class="rh-btn" title="nach unten" onclick="rubrikRunter('+ri+')"'+(ri===liste.length-1?' disabled':'')+'>↓</button>'+
       '<button class="rh-btn" title="umbenennen" onclick="rubrikUmbenennen('+ri+')">✎</button>'+
       (grp.length?'':'<button class="rh-btn rh-del" title="leere Rubrik löschen" onclick="rubrikLoeschen('+ri+')">×</button>')+
-      '</span></td>';
+      '</span>'+
+      '<span class="rh-grip" draggable="true" ondragstart="rubrikHeadDragStart(event,'+ri+')" title="Rubrik ziehen, um sie umzusortieren">⠿</span>'+
+      '</div></td>';
     hr.ondragover=dndOver; hr.ondragleave=dndLeave; hr.ondrop=(function(r){ return function(e){ headDrop(e, r); }; })(rub);
     tb.appendChild(hr);
     if(grp.length){
@@ -768,23 +770,24 @@ function renderKosten(){
     }
   });
   const uc=document.getElementById('ungeprueft_count'); if(uc){ const n=nkUngeprueftAnzahl(state.kosten); uc.textContent = n? ' — '+n+' offen' : ' — alle geprüft'; }
-  renderRubrikManage();
+  renderRubrikPicker();
   renderPicker();
 }
-/* US-89: oberer Kasten nur noch „+ Rubrik hinzufügen". Sortieren/Umbenennen/Löschen passiert jetzt
-   direkt an den Rubrik-Überschriften in der Tabelle (ziehen oder ↑/↓/✎/×). */
-function renderRubrikManage(){
-  const box=document.getElementById('rubrik_manage'); if(!box) return;
+/* US-89-Schliff: Rubrik-Auswahl als Combobox (analog „Kostenart wählen …"). Das Dropdown listet die
+   typischen, noch nicht angelegten Rubriken (Klick legt an); im Fuß eine „Eigene …". Sortieren/
+   Umbenennen/Löschen passiert an den Rubrik-Überschriften in der Tabelle. */
+function renderRubrikPicker(){
+  const box=document.getElementById('rubrik_auswahl'); if(!box) return;
   const liste=nkRubrikenListe(state.objekt, state.kosten);
   const typisch=NK_RUBRIKEN.filter(r=>liste.indexOf(r)<0);
-  const sel=typisch.length?'<select id="rubrik_typisch" class="rm-input"><option value="">typische Rubrik …</option>'+typisch.map(r=>'<option value="'+esc(r)+'">'+esc(r)+'</option>').join('')+'</select>':'';
-  box.innerHTML='<span class="rm-title">Rubrik hinzufügen</span>'+sel+
-    '<input id="rubrik_neu" class="rm-input" placeholder="eigene Rubrik" onkeydown="if(event.key===\'Enter\')rubrikHinzufuegen()">'+
-    '<button class="rm-add-btn" onclick="rubrikHinzufuegen()">+ hinzufügen</button>'+
-    '<span class="rm-hint">Sortieren in der Tabelle: Rubrik-Überschrift am ⠿ ziehen (oder ↑/↓), Positionen am Griff in eine Rubrik ziehen.</span>';
+  box.innerHTML = typisch.length
+    ? typisch.map(r=>'<button type="button" class="picker-item" data-r="'+esc(r)+'" onclick="addRubrikSofort(this.dataset.r)">'+esc(r)+'</button>').join('')
+    : '<div class="pick-empty">Alle typischen Rubriken sind angelegt – eigene unten hinzufügen.</div>';
 }
-function rubrikHinzufuegen(){ const inp=document.getElementById('rubrik_neu'), selEl=document.getElementById('rubrik_typisch');
-  const name=((inp&&inp.value.trim())||(selEl&&selEl.value)||'').trim(); if(!name) return; store.addRubrik(name); renderKosten(); }
+function toggleRubrikDropdown(ev){ if(ev) ev.stopPropagation(); const dd=document.getElementById('rubrik_dd'); dd.style.display = dd.style.display==='none' ? 'block' : 'none'; }
+document.addEventListener('click', e=>{ const add=document.getElementById('rubrik_add'); const dd=document.getElementById('rubrik_dd'); if(dd && add && !add.contains(e.target)) dd.style.display='none'; });
+function addRubrikSofort(name){ name=String(name||'').trim(); if(!name) return; store.addRubrik(name); const dd=document.getElementById('rubrik_dd'); if(dd) dd.style.display='none'; renderKosten(); }
+function addEigeneRubrik(){ const inp=document.getElementById('rubrik_eigen'); const name=((inp&&inp.value)||'').trim(); if(!name) return; if(inp) inp.value=''; addRubrikSofort(name); }
 function rubrikUmbenennen(i){ const liste=nkRubrikenListe(state.objekt, state.kosten); const alt=liste[i]; const neu=(prompt('Rubrik umbenennen:', alt)||'').trim(); if(!neu||neu===alt) return;
   if(liste.indexOf(neu)>=0){ alert('Diese Rubrik gibt es schon.'); return; } store.renameRubrik(alt, neu); renderKosten(); }
 function rubrikLoeschen(i){ const liste=nkRubrikenListe(state.objekt, state.kosten); store.deleteRubrik(liste[i]); renderKosten(); }
