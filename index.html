@@ -28,7 +28,7 @@
   .tag{margin-left:auto;font-size:13px;opacity:.85;}
   .spacer{margin-left:auto;}
   .app-version{font-size:12px;opacity:.65;white-space:nowrap;}
-  .save-status{font-size:12px;color:#fff;opacity:.9;white-space:nowrap;cursor:default;}
+  .save-status{font-size:12px;color:#fff;opacity:.9;white-space:nowrap;cursor:default;display:inline-block;min-width:180px;text-align:right;} /* feste Breite + rechtsbündig: Status-Feld rückt beim Speichern nicht mehr */
   .save-status.dirty{color:#ffd27a;font-weight:600;opacity:1;} /* US-84: ungespeicherte Änderungen */
   .menu{position:relative;}
   .menu-pop{position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:1px solid #d6dde6;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.15);padding:6px;z-index:20;min-width:220px;}
@@ -337,6 +337,7 @@
   #tbl_kosten tr.rubrik-head.drag-over td{background:#0E454E;box-shadow:inset 0 0 0 2px #fff;}
   /* US-89-Schliff: Add-Leiste (Rubrik- und Kostenart-Combobox nebeneinander) */
   .add-row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-bottom:16px;}
+  .csv-import-btn{margin-left:auto;align-self:center;}
   .combo{position:relative;}
   .picker-list .picker-item{display:block;width:100%;text-align:left;background:none;border:none;cursor:pointer;padding:5px 8px;border-radius:6px;font-size:13px;color:var(--ink);}
   .picker-list .picker-item:hover{background:var(--soft);}
@@ -404,7 +405,7 @@
       <div class="menu-sep"></div>
       <button onclick="neuesJahrAusVorjahr();toggleDateiMenu(true)">Neues Jahr aus aktuellem Objekt …</button>
       <div class="menu-sep"></div>
-      <button onclick="document.getElementById('csv_import').click();toggleDateiMenu(true)">Umsätze importieren … (CSV)</button>
+      <button onclick="document.getElementById('csv_import').click();toggleDateiMenu(true)">Kontoauszug (.csv) importieren</button>
     </div>
   </div>
   <input type="file" id="obj_import" accept=".json,application/json" style="display:none" onchange="importObjekt(event)">
@@ -413,6 +414,7 @@
     <div class="csv-modal" id="csv_modal"></div>
   </div>
   <span class="spacer"></span>
+  <span id="save_status" class="save-status"></span>
   <label class="abr-status-wrap" title="Status der Abrechnung">Status:
     <select id="abr_status" class="abr-status" onchange="setAbrStatus(this.value)">
       <option value="inArbeit">in Arbeit</option>
@@ -420,7 +422,6 @@
       <option value="abgeschlossen">abgeschlossen</option>
     </select>
   </label>
-  <span id="save_status" class="save-status"></span>
   <span id="app_version" class="app-version"></span>
   <button id="btn_testdaten" class="reset-data" onclick="resetState()" title="Nur Debug: Eingaben verwerfen und Testdaten laden" hidden>Testdaten laden</button>
 </header>
@@ -520,6 +521,7 @@
           </div>
         </div>
       </div>
+      <button class="btn-ghost csv-import-btn" onclick="document.getElementById('csv_import').click()" title="Kosten und Zahlungseingänge aus dem Bank-CSV übernehmen">Kontoauszug (.csv) importieren</button>
     </div>
     <label class="filter-toggle"><input type="checkbox" onchange="setNurUngeprueft(this.checked)"> Nur ungeprüfte Belege anzeigen<span id="ungeprueft_count" class="muted"></span></label>
     <table id="tbl_kosten">
