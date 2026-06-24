@@ -327,6 +327,32 @@
   .rm-add .rm-input{font-size:12.5px;padding:4px 8px;border:1px solid var(--line);border-radius:7px;max-width:150px;}
   .rm-add .rm-add-btn{background:var(--primary);color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:12.5px;cursor:pointer;white-space:nowrap;}
   .rm-add .rm-add-btn:hover{background:var(--primary-dark);}
+  /* US-89 Phase 2: Drag-Griff der Kostenzeilen + Drop-Markierung */
+  .act-col{white-space:nowrap;}
+  .drag-grip{cursor:grab;color:#9aa7b4;font-size:14px;padding:0 2px 0 6px;line-height:1;user-select:none;opacity:.6;}
+  .drag-grip:hover{color:var(--primary);}
+  .drag-grip:active{cursor:grabbing;}
+  #tbl_kosten tr:hover .drag-grip{opacity:1;color:var(--primary);} /* Maus-Over: Griff beim Überfahren der Zeile hervorheben */
+  #tbl_kosten tr.drag-over td{box-shadow:inset 0 2px 0 var(--primary);}
+  #tbl_kosten tr.rubrik-head.drag-over td{background:#0E454E;box-shadow:inset 0 0 0 2px #fff;}
+  /* US-89-Schliff: Add-Leiste (Rubrik- und Kostenart-Combobox nebeneinander) */
+  .add-row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-bottom:16px;}
+  .combo{position:relative;}
+  .picker-list .picker-item{display:block;width:100%;text-align:left;background:none;border:none;cursor:pointer;padding:5px 8px;border-radius:6px;font-size:13px;color:var(--ink);}
+  .picker-list .picker-item:hover{background:var(--soft);}
+  .pick-empty{font-size:12.5px;color:var(--muted);padding:6px 8px;}
+  /* US-89-Schliff: Rubrik-Überschrift als Struktur-Fläche (ziehbar, ↑/↓/✎/×); leere Rubrik als Drop-Zone */
+  .rubrik-head .rh-inner{display:flex;align-items:center;gap:8px;}
+  .rh-grip{cursor:grab;opacity:.75;user-select:none;}
+  .rh-grip:hover{opacity:1;} .rh-grip:active{cursor:grabbing;}
+  .rh-name{flex:0 0 auto;}
+  .rh-tools{margin-left:auto;display:inline-flex;gap:3px;text-transform:none;letter-spacing:0;}
+  .rh-btn{background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:6px;font-size:11px;line-height:1;padding:2px 6px;cursor:pointer;}
+  .rh-btn:hover:not(:disabled){background:rgba(255,255,255,.32);}
+  .rh-btn:disabled{opacity:.35;cursor:default;}
+  .rh-btn.rh-del:hover{background:var(--nachzahlung);border-color:var(--nachzahlung);}
+  .rubrik-empty td{background:#eef3f8;color:var(--muted);font-style:italic;font-size:12px;text-align:center;padding:9px 12px;}
+  .rm-hint{font-size:11.5px;color:var(--muted);flex-basis:100%;margin-top:4px;}
   /* US-85: Overlay für die CSV-Umsatz-Vorschau (Review-Liste, read-only) */
   .csv-overlay{position:fixed;inset:0;background:rgba(20,30,45,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:32px 16px;overflow:auto;}
   .csv-modal{background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.25);width:100%;max-width:920px;padding:18px 20px;}
@@ -472,18 +498,29 @@
     <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Rechnungen der Dienstleister</b> (Grundsteuer, Versicherung, Hauswart, Müll …)</span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Umlagefähige Betriebskosten und die Heizkostensumme vom Messdienst.</p>
     <div class="legal">Recht (V07): Positionen orientieren sich am BetrKV-Katalog. Kabel-/Fernsehsignal ist seit 01.07.2024 nicht mehr umlagefähig. Heizkosten werden als Summe vom Messdienst übernommen.</div>
-    <div class="kosten-add" id="kosten_add">
-      <button class="combo-field" onclick="toggleKostenDropdown(event)"><span>Kostenart wählen …</span><span aria-hidden="true">▾</span></button>
-      <div id="kosten_dd" class="combo-dd" style="display:none;">
-        <div id="kosten_auswahl" class="picker-list"></div>
-        <div class="dd-footer">
-          <input id="sonstige_bez" class="sonstige-input" placeholder="Sonstige Position …">
-          <button class="btn-ghost" onclick="addSonstigeKosten()">+ Sonstige</button>
-          <button class="btn-primary" onclick="addAusgewaehlteKosten()">Übernehmen</button>
+    <div class="add-row">
+      <div class="combo" id="rubrik_add">
+        <button class="combo-field" onclick="toggleRubrikDropdown(event)"><span>Rubrik wählen …</span><span aria-hidden="true">▾</span></button>
+        <div id="rubrik_dd" class="combo-dd" style="display:none;">
+          <div id="rubrik_auswahl" class="picker-list"></div>
+          <div class="dd-footer">
+            <input id="rubrik_eigen" class="sonstige-input" placeholder="Eigene …" onkeydown="if(event.key==='Enter')addEigeneRubrik()">
+            <button class="btn-primary" onclick="addEigeneRubrik()">hinzufügen</button>
+          </div>
+        </div>
+      </div>
+      <div class="combo" id="kosten_add">
+        <button class="combo-field" onclick="toggleKostenDropdown(event)"><span>Kostenart wählen …</span><span aria-hidden="true">▾</span></button>
+        <div id="kosten_dd" class="combo-dd" style="display:none;">
+          <div id="kosten_auswahl" class="picker-list"></div>
+          <div class="dd-footer">
+            <input id="sonstige_bez" class="sonstige-input" placeholder="Eigene …">
+            <button class="btn-ghost" onclick="addSonstigeKosten()">hinzufügen</button>
+            <button class="btn-primary" onclick="addAusgewaehlteKosten()">Übernehmen</button>
+          </div>
         </div>
       </div>
     </div>
-    <div id="rubrik_manage" class="rubrik-manage"></div>
     <label class="filter-toggle"><input type="checkbox" onchange="setNurUngeprueft(this.checked)"> Nur ungeprüfte Belege anzeigen<span id="ungeprueft_count" class="muted"></span></label>
     <table id="tbl_kosten">
       <thead><tr><th>Kostenart</th><th class="num">Betrag (€)</th><th>Verteilerschlüssel</th><th>Status</th><th></th></tr></thead>

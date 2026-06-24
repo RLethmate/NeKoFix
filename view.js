@@ -693,8 +693,11 @@ function renderKosten(){
           : '<button class="teilnahme-chip'+(ausNamen.length?' aktiv':'')+'" title="Teilnehmende Einheiten festlegen" onclick="toggleKostenDetail('+k.id+')">'+(ausNamen.length?'ohne '+ausNamen.map(esc).join(', '):'alle')+'</button>')+
         '</span></td>'+
       '<td><button class="status-toggle" onclick="toggleKostenDetail('+k.id+')" title="Status & Notiz">'+dots+'<span class="chev">'+(open?'▴':'▾')+'</span></button></td>'+
-      '<td><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button></td>';
+      '<td class="act-col"><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button>'+
+        '<span class="drag-grip" draggable="true" ondragstart="kostenDragStart(event,'+k.id+')" title="Ziehen zum Verschieben (Rubrik &amp; Reihenfolge)">⠿</span></td>';
     tb.appendChild(tr);
+    const rub=nkRubrik(k); /* US-89 Phase 2: Drop auf diese Zeile = davor einsortieren, deren Rubrik übernehmen */
+    tr.ondragover=dndOver; tr.ondragleave=dndLeave; tr.ondrop=function(e){ rowDrop(e, k.id, rub); };
     if(open){
       let so=''; for(const key in STATUS_BELEG){ so+='<option value="'+key+'"'+(st===key?' selected':'')+'>'+STATUS_BELEG[key]+'</option>'; }
       let vo=''; for(const key in VERFUEGBAR){ vo+='<option value="'+key+'"'+(vf===key?' selected':'')+'>'+VERFUEGBAR[key]+'</option>'; }
@@ -736,47 +739,77 @@ function renderKosten(){
       '<td class="num">'+eur(k.betrag||0)+'</td><td>'+schluesselAnzeige(k)+'</td><td></td><td></td>';
     tb.appendChild(tr);
   }
-  /* US-58/US-89: Positionen nach Rubrik (objekt-eigene Reihenfolge) gruppieren, je Gruppe Zwischensumme. */
+  /* US-58/US-89: Positionen nach Rubrik (objekt-eigene Reihenfolge) gruppieren. Die Rubrik-
+     Überschrift ist die Struktur-Fläche: ziehbar (umsortieren), ↑/↓/✎/× und Drop-Ziel. Leere
+     Rubriken werden als Drop-Zone gezeigt, damit man Positionen per Drag hineinziehen kann. */
   const items=state.kosten.map((k,idx)=>({k,idx})).filter(o=>!(nurUngeprueft && (o.k.status||'vorlaeufig')==='geprueft'));
-  nkRubrikenListe(state.objekt, state.kosten).forEach(rub=>{
+  const liste=nkRubrikenListe(state.objekt, state.kosten);
+  liste.forEach((rub,ri)=>{
     const grp=items.filter(o=>nkRubrik(o.k)===rub);
-    if(!grp.length) return;
-    const hr=document.createElement('tr'); hr.className='rubrik-head'; hr.innerHTML='<td colspan="5">'+esc(rub)+'</td>'; tb.appendChild(hr);
-    grp.forEach(o=>{ if(o.k.typ==='heizung') appendHeizHinweisRow(o.k); else appendKostenRow(o.k,o.idx); });
-    const sum=grp.reduce((s,o)=>s+(+o.k.betrag||0),0);
-    const sr=document.createElement('tr'); sr.className='rubrik-sum'; sr.innerHTML='<td>Zwischensumme '+esc(rub)+'</td><td class="num">'+eur(sum)+'</td><td colspan="3"></td>'; tb.appendChild(sr);
+    const hr=document.createElement('tr'); hr.className='rubrik-head';
+    hr.innerHTML='<td colspan="5"><div class="rh-inner">'+
+      '<span class="rh-name">'+esc(rub)+'</span>'+
+      '<span class="rh-tools">'+
+      '<button class="rh-btn" title="nach oben" onclick="rubrikHoch('+ri+')"'+(ri===0?' disabled':'')+'>↑</button>'+
+      '<button class="rh-btn" title="nach unten" onclick="rubrikRunter('+ri+')"'+(ri===liste.length-1?' disabled':'')+'>↓</button>'+
+      '<button class="rh-btn" title="umbenennen" onclick="rubrikUmbenennen('+ri+')">✎</button>'+
+      (grp.length?'':'<button class="rh-btn rh-del" title="leere Rubrik löschen" onclick="rubrikLoeschen('+ri+')">×</button>')+
+      '</span>'+
+      '<span class="rh-grip" draggable="true" ondragstart="rubrikHeadDragStart(event,'+ri+')" title="Rubrik ziehen, um sie umzusortieren">⠿</span>'+
+      '</div></td>';
+    hr.ondragover=dndOver; hr.ondragleave=dndLeave; hr.ondrop=(function(r){ return function(e){ headDrop(e, r); }; })(rub);
+    tb.appendChild(hr);
+    if(grp.length){
+      grp.forEach(o=>{ if(o.k.typ==='heizung') appendHeizHinweisRow(o.k); else appendKostenRow(o.k,o.idx); });
+      const sum=grp.reduce((s,o)=>s+(+o.k.betrag||0),0);
+      const sr=document.createElement('tr'); sr.className='rubrik-sum'; sr.innerHTML='<td>Zwischensumme '+esc(rub)+'</td><td class="num">'+eur(sum)+'</td><td colspan="3"></td>'; tb.appendChild(sr);
+    } else {
+      const er=document.createElement('tr'); er.className='rubrik-empty'; er.innerHTML='<td colspan="5">leer – Positionen hierher ziehen</td>';
+      er.ondragover=dndOver; er.ondragleave=dndLeave; er.ondrop=(function(r){ return function(e){ headDrop(e, r); }; })(rub);
+      tb.appendChild(er);
+    }
   });
   const uc=document.getElementById('ungeprueft_count'); if(uc){ const n=nkUngeprueftAnzahl(state.kosten); uc.textContent = n? ' — '+n+' offen' : ' — alle geprüft'; }
-  renderRubrikManage();
+  renderRubrikPicker();
   renderPicker();
 }
-/* US-89: Rubriken verwalten – anlegen (typisch/eigen), umbenennen, leere löschen, Reihenfolge per
-   ↑/↓. Die Reihenfolge steuert Gruppierung/Zwischensummen in Tabelle und PDF. Zuordnung je Position
-   bleibt (vorerst) über das Rubrik-Dropdown in der Detailzeile; Drag&Drop folgt in Phase 2. */
-function renderRubrikManage(){
-  const box=document.getElementById('rubrik_manage'); if(!box) return;
+/* US-89-Schliff: Rubrik-Auswahl als Combobox (analog „Kostenart wählen …"). Das Dropdown listet die
+   typischen, noch nicht angelegten Rubriken (Klick legt an); im Fuß eine „Eigene …". Sortieren/
+   Umbenennen/Löschen passiert an den Rubrik-Überschriften in der Tabelle. */
+function renderRubrikPicker(){
+  const box=document.getElementById('rubrik_auswahl'); if(!box) return;
   const liste=nkRubrikenListe(state.objekt, state.kosten);
-  const benutzt=r=>state.kosten.some(k=>nkRubrik(k)===r);
-  const chips=liste.map((r,i)=>'<span class="rm-chip">'+
-    '<button class="rm-mv" title="nach oben" onclick="rubrikHoch('+i+')"'+(i===0?' disabled':'')+'>↑</button>'+
-    '<button class="rm-mv" title="nach unten" onclick="rubrikRunter('+i+')"'+(i===liste.length-1?' disabled':'')+'>↓</button>'+
-    '<span class="rm-name">'+esc(r)+'</span>'+
-    '<button class="rm-act" title="umbenennen" onclick="rubrikUmbenennen('+i+')">✎</button>'+
-    (benutzt(r)?'':'<button class="rm-act rm-del" title="leere Rubrik löschen" onclick="rubrikLoeschen('+i+')">×</button>')+
-    '</span>').join('');
   const typisch=NK_RUBRIKEN.filter(r=>liste.indexOf(r)<0);
-  const sel=typisch.length?'<select id="rubrik_typisch" class="rm-input"><option value="">typische Rubrik …</option>'+typisch.map(r=>'<option value="'+esc(r)+'">'+esc(r)+'</option>').join('')+'</select>':'';
-  box.innerHTML='<span class="rm-title">Rubriken &amp; Reihenfolge</span>'+chips+
-    '<span class="rm-add">'+sel+'<input id="rubrik_neu" class="rm-input" placeholder="eigene Rubrik" onkeydown="if(event.key===\'Enter\')rubrikHinzufuegen()">'+
-    '<button class="rm-add-btn" onclick="rubrikHinzufuegen()">+ hinzufügen</button></span>';
+  box.innerHTML = typisch.length
+    ? typisch.map(r=>'<button type="button" class="picker-item" data-r="'+esc(r)+'" onclick="addRubrikSofort(this.dataset.r)">'+esc(r)+'</button>').join('')
+    : '<div class="pick-empty">Alle typischen Rubriken sind angelegt – eigene unten hinzufügen.</div>';
 }
-function rubrikHinzufuegen(){ const inp=document.getElementById('rubrik_neu'), selEl=document.getElementById('rubrik_typisch');
-  const name=((inp&&inp.value.trim())||(selEl&&selEl.value)||'').trim(); if(!name) return; store.addRubrik(name); renderKosten(); }
+function toggleRubrikDropdown(ev){ if(ev) ev.stopPropagation(); const dd=document.getElementById('rubrik_dd'); dd.style.display = dd.style.display==='none' ? 'block' : 'none'; }
+document.addEventListener('click', e=>{ const add=document.getElementById('rubrik_add'); const dd=document.getElementById('rubrik_dd'); if(dd && add && !add.contains(e.target)) dd.style.display='none'; });
+function addRubrikSofort(name){ name=String(name||'').trim(); if(!name) return; store.addRubrik(name); const dd=document.getElementById('rubrik_dd'); if(dd) dd.style.display='none'; renderKosten(); }
+function addEigeneRubrik(){ const inp=document.getElementById('rubrik_eigen'); const name=((inp&&inp.value)||'').trim(); if(!name) return; if(inp) inp.value=''; addRubrikSofort(name); }
 function rubrikUmbenennen(i){ const liste=nkRubrikenListe(state.objekt, state.kosten); const alt=liste[i]; const neu=(prompt('Rubrik umbenennen:', alt)||'').trim(); if(!neu||neu===alt) return;
   if(liste.indexOf(neu)>=0){ alert('Diese Rubrik gibt es schon.'); return; } store.renameRubrik(alt, neu); renderKosten(); }
 function rubrikLoeschen(i){ const liste=nkRubrikenListe(state.objekt, state.kosten); store.deleteRubrik(liste[i]); renderKosten(); }
 function rubrikHoch(i){ store.moveRubrik(i, i-1); renderKosten(); }
 function rubrikRunter(i){ store.moveRubrik(i, i+1); renderKosten(); }
+/* US-89: Drag & Drop im Kosten-Reiter – einheitliches Modell für Positionen UND Rubriken.
+   Gezogen wird nur über die jeweilige Griff-Lasche (⠿). Drop-Ziele:
+   - Kostenzeile: Position davor einsortieren und deren Rubrik übernehmen.
+   - Rubrik-Überschrift / leere Drop-Zone: Position in diese Rubrik (ans Ende) ODER, wenn eine
+     Rubrik gezogen wird, diese vor die Ziel-Rubrik einsortieren.
+   Reihenfolge/Rubrik/Rubriken-Reihenfolge persistieren über den Store. */
+let _drag=null; /* {kind:'kosten', id} | {kind:'rubrik', name} */
+function dndStart(ev){ if(ev.dataTransfer){ ev.dataTransfer.effectAllowed='move'; try{ ev.dataTransfer.setData('text/plain','x'); }catch(e){} } }
+function kostenDragStart(ev, id){ _drag={kind:'kosten', id:id}; dndStart(ev); }
+function rubrikHeadDragStart(ev, ri){ const liste=nkRubrikenListe(state.objekt, state.kosten); _drag={kind:'rubrik', name:liste[ri]}; dndStart(ev); }
+function dndOver(ev){ if(!_drag) return; ev.preventDefault(); if(ev.dataTransfer) ev.dataTransfer.dropEffect='move'; const el=ev.currentTarget; if(el&&el.classList) el.classList.add('drag-over'); }
+function dndLeave(ev){ const el=ev.currentTarget; if(el&&el.classList) el.classList.remove('drag-over'); }
+function rowDrop(ev, zielId, rubrik){ ev.preventDefault(); const el=ev.currentTarget; if(el&&el.classList) el.classList.remove('drag-over'); const d=_drag; _drag=null;
+  if(!d || d.kind!=='kosten' || d.id===zielId) return; store.moveKosten(d.id, zielId, rubrik); renderKosten(); }
+function headDrop(ev, rubrik){ ev.preventDefault(); const el=ev.currentTarget; if(el&&el.classList) el.classList.remove('drag-over'); const d=_drag; _drag=null; if(!d) return;
+  if(d.kind==='kosten'){ store.moveKosten(d.id, null, rubrik); renderKosten(); }
+  else if(d.kind==='rubrik' && d.name!==rubrik){ const liste=nkRubrikenListe(state.objekt, state.kosten); store.moveRubrik(liste.indexOf(d.name), liste.indexOf(rubrik)); renderKosten(); } }
 function updKosten(idx,field,val){ store.setKostenFeld(idx,field,val); renderKosten(); }
 /* US-32: begünstigten Arbeitskosten-Anteil (€) je Position setzen. */
 function updKostenArbeit(idx,val){ store.setKostenFeld(idx,'arbeitskosten', nkParseBetrag(val)); renderKosten(); }

@@ -303,6 +303,18 @@ function nkArrMove(arr, from, to) {
   a.splice(to, 0, el);
   return a;
 }
+/* US-89 (Phase 2): Element (per id) vor das Ziel-Element (per id) einsortieren – Grundlage des
+   Drag & Drop in der Kostenliste. zielId null/unbekannt => ans Ende. Erwartet Objekte mit `id`.
+   Neue Array-Kopie (keine Mutation). Reine Funktion. */
+function nkListeEinsortieren(items, dragId, zielId) {
+  const a = (items || []).slice();
+  const di = a.findIndex(x => x && x.id === dragId);
+  if (di < 0) return a;
+  const el = a.splice(di, 1)[0];
+  const zi = (zielId == null) ? -1 : a.findIndex(x => x && x.id === zielId);
+  if (zi < 0) a.push(el); else a.splice(zi, 0, el);
+  return a;
+}
 
 /* US-32: §35a EStG – begünstigter Arbeitskosten-Anteil je Position, getrennt nach
    haushaltsnahen Dienstleistungen und Handwerkerleistungen. Elster-Zeilen als pflegbarer
@@ -1007,6 +1019,7 @@ if (typeof module !== "undefined" && module.exports) {
     NK_RUBRIKEN,
     nkRubrikenListe,
     nkArrMove,
+    nkListeEinsortieren,
     nkRubrik,
     nkSchluesselEinheit,
     NK_P35A,
