@@ -21,15 +21,21 @@ function ensurePdfLib(){
    über jede Seite. Nach gültiger Freischaltung (state.objekt.freigeschaltet) erscheint kein Zeichen. */
 function pdfWasserzeichen(doc){
   if(state.objekt && state.objekt.freigeschaltet) return;
+  const ps=doc.internal.pageSize;
+  const w=ps.getWidth?ps.getWidth():ps.width, h=ps.getHeight?ps.getHeight():ps.height;
+  const txt='VORSCHAU – nicht zur Weitergabe';
+  const angle=45, rad=angle*Math.PI/180;
   const n=doc.internal.getNumberOfPages();
-  const w=doc.internal.pageSize.getWidth(), h=doc.internal.pageSize.getHeight();
   const hasG = typeof doc.GState==='function' && typeof doc.setGState==='function';
   for(let p=1;p<=n;p++){
     doc.setPage(p);
     if(doc.saveGraphicsState) doc.saveGraphicsState();
     if(hasG) doc.setGState(new doc.GState({opacity:0.12}));
-    doc.setTextColor(150); doc.setFont(undefined,'bold'); doc.setFontSize(50);
-    doc.text('VORSCHAU – nicht zur Weitergabe', w/2, h/2, {align:'center', angle:40});
+    doc.setTextColor(170); doc.setFont(undefined,'bold'); doc.setFontSize(40);
+    /* zentriert: jsPDF zentriert gedrehten Text nicht zuverlässig über align – daher den
+       Start-Anker so setzen, dass der Textmittelpunkt auf der Seitenmitte liegt. */
+    const tw=doc.getTextWidth(txt);
+    doc.text(txt, w/2 - (tw/2)*Math.cos(rad), h/2 + (tw/2)*Math.sin(rad), {baseline:'middle', angle:angle});
     if(doc.restoreGraphicsState) doc.restoreGraphicsState();
   }
   doc.setTextColor(0); doc.setFont(undefined,'normal'); doc.setFontSize(10);
