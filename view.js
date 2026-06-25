@@ -686,7 +686,7 @@ function renderKosten(){
     const tr=document.createElement('tr'); tr.id='krow-'+idx; if(k.vorjahr) tr.className='vorjahr';
     tr.innerHTML=
       '<td class="bez-col"><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+'</span></td>'+
-      '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+'" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+
+      '<td class="num"><span class="betrag-wrap'+(k.vorjahr?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+'" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">'+(k.vorjahr?'<button type="button" class="vorjahr-tri" title="Vorjahreswert übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="uebernehmeKostenVorjahr('+idx+')"></button>':'')+'</span></td>'+
       '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug). „Direkt" ordnet die Position einer einzelnen Einheit zu 100 % zu." onchange="setSchluessel('+idx+',this.value)">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button>'+
         (k.schluessel==='direkt'
           ? '<select class="direkt-select" title="Diese Kosten trägt eine Einheit zu 100 %" onchange="store.setKostenFeld('+idx+',\'direktEinheit\',+this.value)">'+state.einheiten.map(x=>'<option value="'+x.id+'"'+(k.direktEinheit===x.id?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>'
@@ -820,8 +820,12 @@ function toggleTeilnahme(idx, einheitId, checked){
   else if(aus.indexOf(einheitId)<0) aus.push(einheitId);
   store.setKostenFeld(idx,'ausgeschlossen',aus);
 }
-/* US-11: Betrag erfassen hebt die Vorjahr-Markierung der Zeile auf */
-function updKostenBetrag(idx,val){ store.setKostenBetrag(idx, nkParseBetrag(val)); const k=store.kosten(idx); if(k.vorjahr){ store.setKostenFeld(idx,'vorjahr',false); const r=document.getElementById('krow-'+idx); if(r) r.classList.remove('vorjahr'); const b=r&&r.querySelector('.vorjahr-badge'); if(b) b.remove(); } }
+/* US-11/US-90: Betrag bearbeiten = Vorjahreswert aktiv übernehmen → Markierung (Dreieck/Zeile) aufheben. */
+function updKostenBetrag(idx,val){ store.setKostenBetrag(idx, nkParseBetrag(val)); const k=store.kosten(idx); if(k.vorjahr){ store.setKostenFeld(idx,'vorjahr',false); const r=document.getElementById('krow-'+idx); if(r){ r.classList.remove('vorjahr'); const b=r.querySelector('.vorjahr-badge'); if(b) b.remove(); const w=r.querySelector('.betrag-wrap'); if(w) w.classList.remove('unbestaetigt'); const t=r.querySelector('.vorjahr-tri'); if(t) t.remove(); } finalizeVorjahrWennFertig(); renderVorjahrBanner(); } }
+/* US-90: Vorjahreswert per Klick auf das blaue Dreieck übernehmen (Wert bleibt, Markierung weg). */
+function uebernehmeKostenVorjahr(idx){ const k=store.kosten(idx); if(!(k&&k.vorjahr)) return; store.setKostenFeld(idx,'vorjahr',false); finalizeVorjahrWennFertig(); renderKosten(); renderVorjahrBanner(); saveState(); updateSaveStatus(); }
+/* US-90: keine offenen Vorjahr-Kostenbeträge mehr → Vorjahr-Modus abschließen (auch MV-Marken lösen). */
+function finalizeVorjahrWennFertig(){ if(state.vorjahr && !nkOffeneVorjahrKosten(state.kosten).length){ state.vorjahr=false; (state.einheiten||[]).forEach(e=>{ e.vorjahr=false; (e.mv||[]).forEach(m=>{ m.vorjahr=false; }); }); saveState(); updateSaveStatus(); } }
 function toggleKostenDetail(id){ if(expandedKosten.has(id)) expandedKosten.delete(id); else expandedKosten.add(id); renderKosten(); }
 function setNurUngeprueft(v){ nurUngeprueft=v; renderKosten(); }
 /* US-04: Auswahl-Liste der Kostenarten; bereits übernommene ausgegraut, nicht umlagefähige mit ! */
@@ -1347,6 +1351,9 @@ function speichern(){ markGespeichert(); }
 async function speichernUnter(){ const ok = await exportObjekt(); if(ok!==false){ markGespeichert(); } }
 /* US-84: PDF/Abrechnung nur aus dem gespeicherten Stand. Bei Änderungen: erst speichern. */
 function pdfStandOk(){
+  // US-90: Plausi-Tor – kein PDF, solange aus dem Vorjahr vorbelegte Kostenbeträge nicht übernommen sind.
+  const offen=nkOffeneVorjahrKosten(state.kosten);
+  if(offen.length){ alert('Vor dem PDF bitte die aus dem Vorjahr vorbelegten Kostenbeträge prüfen und übernehmen.\n\nNoch offen ('+offen.length+'):\n'+offen.map(k=>'• '+(k.bez||'(ohne Bezeichnung)')).join('\n')+'\n\nÜbernehmen: blaues Dreieck ▲ anklicken oder den Wert anpassen (oder „Alle übernehmen").'); return false; }
   if(istGespeichert()) return true;
   if(confirm('Es gibt ungespeicherte Änderungen. Die Abrechnung soll auf dem gespeicherten Stand beruhen.\n\nJetzt speichern und fortfahren?')){ speichern(); return true; }
   return false;
@@ -1413,16 +1420,24 @@ async function exportObjekt(){
 /* US-11: Folgejahr aus dem aktiven Objekt anlegen */
 function neuesJahrAusVorjahr(){
   const jahrAlt=objektJahr(snapshot()); const jahrNeu=jahrAlt?(+jahrAlt+1):'';
-  if(!confirm('Neues Abrechnungsjahr'+(jahrNeu?' '+jahrNeu:'')+' aus „'+objektLabel(snapshot(),aktivIdx)+'" anlegen?\n\nStammdaten, Kostenarten und Verteilerschlüssel werden übernommen. Die Kostenbeträge bleiben leer und sind zu prüfen; ausgezogene Mieter werden nicht übernommen, aktive auf das ganze Jahr gesetzt.')) return;
+  if(!confirm('Neues Abrechnungsjahr'+(jahrNeu?' '+jahrNeu:'')+' aus „'+objektLabel(snapshot(),aktivIdx)+'" anlegen?\n\nStammdaten, Kostenarten und Verteilerschlüssel werden übernommen. Die Kostenbeträge werden mit den Vorjahreswerten vorbelegt und markiert; sie sind aktiv zu prüfen und zu übernehmen. Ausgezogene Mieter werden nicht übernommen, aktive auf das ganze Jahr gesetzt.')) return;
   saveState();
   const neu=nkVorjahrUebernehmen(snapshot());
   if(objekte.some(d=>objSignatur(d)===objSignatur(neu)) && !confirm('Für diese Adresse und diesen Zeitraum gibt es bereits ein Objekt. Trotzdem ein weiteres anlegen?')) return;
   objekte.push(neu); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
+  vorjahrHinweisEinmal();
+}
+/* US-90: Einmalige Erklärung des Vorbeleg-/Übernehmen-Musters (beim ersten Jahreswechsel). */
+function vorjahrHinweisEinmal(){
+  try{ if(localStorage.getItem('nk_vorjahr_hint')) return; localStorage.setItem('nk_vorjahr_hint','1'); }catch(e){}
+  alert('So funktioniert der Jahreswechsel:\n\n• Die Kostenbeträge sind mit den Vorjahreswerten vorbelegt und mit einem blauen Dreieck ▲ (oben rechts im Feld) markiert.\n• Prüfen Sie jeden Wert und übernehmen Sie ihn: Klick auf das ▲ oder den Wert anpassen.\n• Solange noch Werte offen sind, lässt sich kein PDF erstellen.\n\nMit „Alle übernehmen" oben bestätigen Sie alle Werte auf einmal.');
 }
 function renderVorjahrBanner(){
   const box=document.getElementById('vorjahr_banner'); if(!box) return;
   if(!state.vorjahr){ box.innerHTML=''; return; }
-  box.innerHTML='<div class="vorjahr-banner"><span class="vb-text"><b>Aus Vorjahr übernommen.</b> Bitte Kostenbeträge erfassen und Mietzeiten prüfen. Übernommene Felder sind markiert.</span><button onclick="confirmVorjahr()">Übernahme bestätigen</button></div>';
+  const offen=nkOffeneVorjahrKosten(state.kosten).length;
+  if(!offen){ box.innerHTML=''; return; }
+  box.innerHTML='<div class="vorjahr-banner"><span class="vb-text"><b>Aus dem Vorjahr vorbelegt.</b> '+offen+' Kostenbetr'+(offen===1?'ag ist':'äge sind')+' mit ▲ markiert und noch zu übernehmen: bitte prüfen und das blaue Dreieck anklicken (oder den Wert anpassen). Vor dem PDF müssen alle übernommen sein.</span><button onclick="confirmVorjahr()">Alle übernehmen</button></div>';
 }
 function confirmVorjahr(){
   state.vorjahr=false;

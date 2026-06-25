@@ -418,7 +418,7 @@ test("Datum um ein Jahr verschieben, Schalttag (US-11)", () => {
   assert.equal(calc.nkPlusJahr(""), "");
 });
 
-test("Vorjahr übernehmen: Zeitraum +1J, Beträge leer, ausgezogene MV weg (US-11)", () => {
+test("Vorjahr übernehmen: Zeitraum +1J, Beträge mit Vorjahreswert vorbelegt+markiert, ausgezogene MV weg (US-11/US-90)", () => {
   const src = {
     objekt: { addr: "Teststr. 1", von: "2025-01-01", bis: "2025-12-31" },
     einheiten: [
@@ -437,9 +437,9 @@ test("Vorjahr übernehmen: Zeitraum +1J, Beträge leer, ausgezogene MV weg (US-1
   assert.equal(neu.objekt.von, "2026-01-01");
   assert.equal(neu.objekt.bis, "2026-12-31");
   assert.equal(neu.vorjahr, true);
-  assert.equal(neu.kosten[0].betrag, 0);
+  assert.equal(neu.kosten[0].betrag, 1200); // US-90: Vorjahreswert vorbelegt (nicht geleert)
   assert.equal(neu.kosten[0].schluessel, "flaeche");
-  assert.equal(neu.kosten[0].vorjahr, true);
+  assert.equal(neu.kosten[0].vorjahr, true); // markiert: noch aktiv zu übernehmen
   assert.equal(neu.einheiten[0].mv.length, 1);
   assert.equal(neu.einheiten[1].mv.length, 1);
   assert.equal(neu.einheiten[1].mv[0].mieter, "Nachname_4");
@@ -451,6 +451,20 @@ test("Vorjahr übernehmen: Zeitraum +1J, Beträge leer, ausgezogene MV weg (US-1
   assert.equal(neu.zahlung.iban, "DE12");
   assert.equal(src.objekt.von, "2025-01-01");
   assert.equal(src.kosten[0].betrag, 1200);
+});
+
+test("nkOffeneVorjahrKosten: liefert nur noch markierte (unbestätigte) Vorjahr-Positionen (US-90)", () => {
+  const kosten = [
+    { bez: "Grundsteuer", betrag: 1200, vorjahr: true },
+    { bez: "Wasser", betrag: 800, vorjahr: false },
+    { bez: "Müll", betrag: 300 },
+    { bez: "Versicherung", betrag: 500, vorjahr: true }
+  ];
+  const offen = calc.nkOffeneVorjahrKosten(kosten);
+  assert.equal(offen.length, 2);
+  assert.deepEqual(offen.map(k => k.bez), ["Grundsteuer", "Versicherung"]);
+  assert.equal(calc.nkOffeneVorjahrKosten([]).length, 0);
+  assert.equal(calc.nkOffeneVorjahrKosten(undefined).length, 0);
 });
 
 test("Umlagefähigkeit je Kostenart (US-04)", () => {

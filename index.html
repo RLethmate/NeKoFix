@@ -43,6 +43,11 @@
   tr.vorjahr td{background:#fdf6e8;}
   tr.vorjahr td:nth-child(2) input{border-color:#e6c878;background:#fffaf0;font-style:italic;}
   .vorjahr-badge{display:inline-block;font-size:11px;color:#7a5a12;background:#fbf4e6;border:1px solid #e6c878;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
+  /* US-90: WISO-Stil – kleines blaues Dreieck oben rechts im Feld = vorbelegt, aktiv zu übernehmen (Klick übernimmt). */
+  .betrag-wrap{position:relative;display:inline-block;}
+  .betrag-wrap.unbestaetigt input{padding-right:16px;}
+  .vorjahr-tri{position:absolute;top:2px;right:2px;width:0;height:0;padding:0;margin:0;border:none;background:transparent;cursor:pointer;border-top:12px solid #2f6fed;border-left:12px solid transparent;}
+  .vorjahr-tri:hover,.vorjahr-tri:focus{border-top-color:#1b4fc0;outline:none;}
   .reset-data{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer;}
   .reset-data:hover{background:rgba(255,255,255,.25);}
   /* US-82: Undo/Redo-Schalter im Header */
