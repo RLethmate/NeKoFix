@@ -903,7 +903,8 @@ function heizKarte(k,idx){
     ? '<label title="'+fi.tip.replace(/"/g,'&quot;')+'">'+fi.label+' <input class="short" type="number" step="any" value="'+(k.heizwert||0)+'" onchange="updHeiz('+idx+',\'heizwert\',this.value)"></label>'+
       '<span class="unit-f">= '+nkFmtBetrag(kwh)+' '+fi.kwhLabel+'</span>'
     : '';
-  return '<div class="unit-card'+(k.vorjahr?' vorjahr':'')+'">'+
+  const mehrereHeiz=heizListe().length>=2; /* mehrere Heizblöcke: Zeitraum bei allen einblenden, damit die Perioden klar abgegrenzt sind */
+  return '<div class="unit-card einheit-card'+(k.vorjahr?' vorjahr':'')+'">'+
     (k.vorjahr ? '<div class="heiz-vorjahr"><span><b>Aus dem Vorjahr vorbelegt.</b> Bitte Verbrauch und Preis prüfen.</span><button type="button" onclick="uebernehmeHeizVorjahr('+idx+')">Übernehmen</button></div>' : '')+
     '<div class="unit-head">'+
       '<input class="unit-name" value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)">'+
@@ -923,12 +924,12 @@ function heizKarte(k,idx){
       ' <span class="unit-f">Summe: '+nkFmtBetrag(verbrauchSumme(k))+'</span></div>'
      : '')+
     // Aufräumen: Zeitraum (aktiv von/bis) standardmäßig eingeklappt; offen, wenn gesetzt, neu hinzugefügt oder aufgeklappt.
-    ((expandedHeizZeit.has(k.id) || k.von || k.bis)
+    ((mehrereHeiz || expandedHeizZeit.has(k.id) || k.von || k.bis)
       ? '<div class="detail-grid" title="US-06: Zeitraum, in dem dieser Heiztyp aktiv war. Leer = ganzer Abrechnungszeitraum. Bei Mieterwechsel wird der Block über diese Periode auf die anwesenden Mieter verteilt.">'+
           '<label>aktiv von <input type="date" value="'+(k.von||'')+'" onchange="store.setKostenFeld('+idx+',\'von\',this.value)"></label>'+
           '<label>aktiv bis <input type="date" value="'+(k.bis||'')+'" onchange="store.setKostenFeld('+idx+',\'bis\',this.value)"></label>'+
           '<span class="unit-f">leer = ganzer Abrechnungszeitraum</span>'+
-          ((k.von||k.bis) ? '' : '<button type="button" class="heiz-zeit-toggle" onclick="toggleHeizZeit('+k.id+')">ausblenden</button>')+
+          ((k.von||k.bis||mehrereHeiz) ? '' : '<button type="button" class="heiz-zeit-toggle" onclick="toggleHeizZeit('+k.id+')">ausblenden</button>')+
         '</div>'
       : '<button type="button" class="heiz-zeit-toggle" onclick="toggleHeizZeit('+k.id+')">+ Zeitraum eingrenzen (Standard: ganzer Abrechnungszeitraum)</button>')+
     (ea.fossil
