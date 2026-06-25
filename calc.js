@@ -736,7 +736,7 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
       dienstleistung: p35aDienst, handwerker: p35aHandw, posten: p35aPosten,
       gewerblich: gewerblich, aktiv: !gewerblich && (p35aDienst + p35aHandw) > 0
     },
-    vorauszahlung: vorauszahlung, saldo: bruttoNachCo2 - vorauszahlung
+    vorauszahlung: vorauszahlung, nkMonat: nkMonatNK(m), saldo: bruttoNachCo2 - vorauszahlung
   };
 }
 

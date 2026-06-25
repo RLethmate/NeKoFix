@@ -216,8 +216,18 @@
   .picker-list input[type=checkbox]{width:auto;}
   .dd-footer{display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:8px;margin-top:6px;}
   .dd-footer .sonstige-input{flex:1;min-width:0;}
-  .voraus-eq{text-align:center;font-weight:600;color:var(--primary-dark,#0E454E);background:#f4f7f8;letter-spacing:.3px;}
-  #tbl_voraus .op-col{text-align:center;color:var(--muted);font-weight:600;padding:0 2px;width:1%;white-space:nowrap;}
+  .op-col{text-align:center;color:var(--muted);font-weight:600;padding:0 2px;width:1%;white-space:nowrap;}
+  #tbl_voraus td:last-child{max-width:170px;}
+  #tbl_voraus textarea.notiz-cell{resize:vertical;width:100%;max-width:100%;min-width:90px;min-height:30px;height:30px;box-sizing:border-box;font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:8px;vertical-align:middle;}
+  /* US-89/Aufräumen: Drag-Griff links in der Kostenzeile (× bleibt rechts, klar getrennt) */
+  .bez-wrap{display:flex;align-items:center;gap:4px;}
+  .bez-wrap .bez-cell{flex:1;}
+  /* CO2-Checkbox kompakt und linksbündig direkt unter der Überschrift */
+  .co2-check{display:flex;align-items:center;gap:8px;margin:6px 0 12px;font-size:13px;font-weight:600;color:var(--ink,#1d2733);cursor:pointer;}
+  .co2-check input{width:auto;flex:0 0 auto;margin:0;}
+  .co2-override{max-width:320px;}
+  /* Grüne Aktions-Buttons im Abrechnung-Reiter einheitlich (Breite/Höhe), rechtsbündig gestapelt */
+  .act-green{width:300px;max-width:100%;min-height:42px;margin-left:auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;white-space:normal;text-align:center;}
   .heiz-zeit-toggle{background:none;border:none;color:var(--primary);font-size:12.5px;cursor:pointer;padding:4px 0;text-align:left;}
   .heiz-zeit-toggle:hover{text-decoration:underline;}
   .unit-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;}
@@ -562,10 +572,8 @@
     <div class="zahlungs-box" id="co2_box">
       <h2 class="zahlungs-titel">CO2-Kostenaufteilung (CO2KostAufG)</h2>
       <p class="hint">Gilt seit 2023 für fossile Heizung. Der Vermieteranteil ergibt sich automatisch aus dem spezifischen CO2-Ausstoß (kg/m²·a) des Gebäudes; gewerbliche Mietverhältnisse: pauschal 50/50.</p>
-      <div class="grid2">
-        <div class="field"><label><input type="checkbox" id="co2_denkmal"> Sanierung rechtlich eingeschränkt (Denkmal-/Milieuschutz) – halbiert den Vermieteranteil</label></div>
-        <div class="field"><label>Vermieteranteil Wohnen manuell (%)</label><input id="co2_override" type="number" step="any" placeholder="leer = automatisch aus Stufe"></div>
-      </div>
+      <label class="co2-check"><input type="checkbox" id="co2_denkmal"> Sanierung rechtlich eingeschränkt (Denkmal-/Milieuschutz) – halbiert den Vermieteranteil</label>
+      <div class="field co2-override"><label>Vermieteranteil Wohnen manuell (%)</label><input id="co2_override" type="number" step="any" placeholder="leer = automatisch aus Stufe"></div>
       <div id="co2_settings_info" class="legal"></div>
     </div>
     <div class="nav"><button class="btn-ghost" onclick="go(2)">Zurück</button><button class="btn-primary" onclick="go(4)">Berechnen</button></div>
@@ -581,7 +589,7 @@
       <div class="scard"><div class="lbl">Saldo gesamt</div><div class="val" id="sum_saldo">–</div></div>
     </div>
     <table id="tbl_ergebnis">
-      <thead><tr><th>Mieter</th><th class="num">Anteil</th><th class="num">Vorauszahlung</th><th class="num">Saldo</th><th class="num">Empf. €/Monat</th></tr></thead>
+      <thead><tr><th>Mieter</th><th class="num">Anteil</th><th class="op-col">−</th><th class="num">Vorauszahlung</th><th class="op-col">=</th><th class="num">Saldo</th><th class="num">Empfohlene NK/Monat</th></tr></thead>
       <tbody></tbody>
     </table>
     <div id="co2_info" class="legal" hidden></div>
@@ -607,7 +615,7 @@
     </ul>
     <div id="backup_hinweis" class="backup-hinweis" style="display:none">
       <span class="bh-text"><b>Wichtig – Datensicherung:</b> Deine Daten liegen nur in diesem Browser. Beim Leeren des Browser-Caches gehen sie unwiderruflich verloren. Sichere sie jetzt als Datei auf deinem PC.</span>
-      <button class="bh-save" onclick="exportObjekt()">Jetzt Projektdatei auf dem PC sichern</button>
+      <button class="bh-save act-green" onclick="exportObjekt()">Jetzt Projektdatei auf dem PC sichern</button>
       <button class="bh-x" onclick="dismissBackupHinweis()" title="Hinweis ausblenden" aria-label="Hinweis ausblenden">×</button>
     </div>
     <div id="freischalt_box" class="freischalt-box"></div>
@@ -615,7 +623,7 @@
       <span class="export-actions">
         <button class="btn-ghost" onclick="exportTenantPdf()">Diese Abrechnung als PDF</button>
         <button class="btn-ghost" onclick="exportAllTenantPdfs()">Alle Mieter (Einzel-PDFs)</button>
-        <button class="btn-primary" onclick="exportOwnerOverviewPdf()">Eigentümer-Übersicht (PDF)</button>
+        <button class="btn-primary act-green" onclick="exportOwnerOverviewPdf()">Eigentümer-Übersicht (PDF)</button>
       </span>
     </div>
   </section>
