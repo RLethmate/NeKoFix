@@ -795,8 +795,15 @@ function nkVorjahrUebernehmen(src) {
     });
     return Object.assign({}, e, { mv, vorjahr: true });
   });
-  const kosten = (s.kosten || []).map(k => Object.assign({}, k, { betrag: 0, status: "vorlaeufig", vorjahr: true }));
+  /* US-90: Betrag mit dem Vorjahreswert VORBELEGEN (nicht leeren). `vorjahr:true` markiert das Feld als
+     „vorbelegt, noch nicht aktiv übernommen" (WISO-Muster). Bestätigt wird feldgenau (Klick/Bearbeiten). */
+  const kosten = (s.kosten || []).map(k => Object.assign({}, k, { status: "vorlaeufig", vorjahr: true }));
   return { objekt, einheiten, kosten, zahlung: Object.assign({}, s.zahlung), abrechnungStatus: "inArbeit", vorjahr: true };
+}
+
+/* US-90: aus dem Vorjahr vorbelegte, noch NICHT übernommene Kostenpositionen (Plausi-Tor vor PDF + „alle übernehmen"). */
+function nkOffeneVorjahrKosten(kosten) {
+  return (kosten || []).filter(k => k && k.vorjahr);
 }
 
 /* US-30/US-11: exakte Objekt-Duplikate entfernen (gleicher Inhalt), Reihenfolge bleibt. */
@@ -1077,6 +1084,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkPlausibilitaet,
     nkPlusJahr,
     nkVorjahrUebernehmen,
+    nkOffeneVorjahrKosten,
     nkDedupeObjekte,
     nkMieterAbrechnung,
     nkObjektAbrechnung,
