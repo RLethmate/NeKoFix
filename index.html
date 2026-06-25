@@ -216,9 +216,10 @@
   .picker-list input[type=checkbox]{width:auto;}
   .dd-footer{display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:8px;margin-top:6px;}
   .dd-footer .sonstige-input{flex:1;min-width:0;}
-  .voraus-modus{display:flex;gap:18px;margin-bottom:12px;font-size:13px;}
-  .voraus-modus label{display:flex;align-items:center;gap:6px;cursor:pointer;}
-  .voraus-modus input{width:auto;}
+  .voraus-eq{text-align:center;font-weight:600;color:var(--primary-dark,#0E454E);background:#f4f7f8;letter-spacing:.3px;}
+  #tbl_voraus .op-col{text-align:center;color:var(--muted);font-weight:600;padding:0 2px;width:1%;white-space:nowrap;}
+  .heiz-zeit-toggle{background:none;border:none;color:var(--primary);font-size:12.5px;cursor:pointer;padding:4px 0;text-align:left;}
+  .heiz-zeit-toggle:hover{text-decoration:underline;}
   .unit-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;}
   .unit-head{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:8px;}
   .unit-name{font-weight:600;max-width:200px;}
@@ -300,6 +301,7 @@
   /* US-58: Einheiten im Reiter Objekt optisch trennen (blass + Akzentkante) */
   .einheit-card{background:var(--soft);border-left:4px solid var(--primary);}
   #einheiten_box .einheit-card:nth-child(even){background:#eef3f8;}
+  #heizung_box .einheit-card:nth-child(even){background:#eef3f8;}
   /* US-58: Kostenart-Spalte maximieren, übrige Spalten schmal halten */
   #tbl_kosten td.bez-col input{width:100%;}
   #tbl_kosten td:nth-child(2),#tbl_kosten th:nth-child(2){width:120px;}
@@ -499,18 +501,14 @@
   <!-- Step 2: Mieter & Vorauszahlung -->
   <section class="panel" data-step="1">
     <h1>2 · Vorauszahlungen (Soll)</h1>
-    <p class="sub">Die vereinbarten monatlichen NK-Vorauszahlungen je Mieter (Soll) – am Ende mit dem Anteil saldiert.</p>
+    <p class="sub">Monatliches Soll je Mieter: Grundmiete und Stellplätze stammen aus dem Vertrag, die NK-Vorauszahlung (Nebenkosten) erfasst du hier. Am Ende mit dem Anteil saldiert.</p>
     <div class="legal">Soll-Basis: Saldiert wird mit den <b>vereinbarten</b> Vorauszahlungen. Tatsächliche Zahlungseingänge und Rückstände führst du getrennt im Reiter „Zahlungseingänge (Ist)".</div>
     <div class="legal">Recht (V07 / § 556 BGB): Die Saldierung der Vorauszahlungen ist eine formelle Pflichtangabe der Abrechnung.</div>
-    <div class="voraus-modus">
-      <label><input type="radio" name="vmodus" value="monatlich" checked onclick="setVorausModus('monatlich')"> Monatsbetrag × Monate</label>
-      <label><input type="radio" name="vmodus" value="jahr" onclick="setVorausModus('jahr')"> Jahressumme direkt</label>
-    </div>
     <table id="tbl_voraus">
       <thead id="voraus_head"></thead>
       <tbody></tbody>
     </table>
-    <p class="hint">Gesamt = (Monatsbetrag × Monate bzw. Jahressumme) + Einmalzahlung.</p>
+    <p class="hint">Grundmiete, Anzahl Stellplätze und Stellplatzpreis stammen aus dem Reiter „Mieter &amp; Vertrag". Gesamt = Grundmiete + Anzahl × Stellplatz + Nebenkosten (monatlich).</p>
     <div class="nav"><button class="btn-ghost" onclick="go(7)">Zurück</button><button class="btn-primary" onclick="go(2)">Weiter</button></div>
   </section>
 
