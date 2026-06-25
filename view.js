@@ -1021,7 +1021,7 @@ function computeView(){
         '<td class="num">'+eur(v)+'</td>'+
         '<td class="op-col">=</td>'+
         '<td class="num '+(s>0?'neg':'pos')+'">'+(s>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(s))+'</td>'+
-        '<td class="num" title="Empfehlung: Anteil ÷ 12 Monate">'+eur(nkVorschlagVorauszahlung(a))+'</td>';
+        '<td class="num" title="Empfehlung: Anteil ÷ 12 Monate – statt der aktuellen NK-Vorauszahlung/Monat">'+eur(nkVorschlagVorauszahlung(a))+' statt '+eur(mv.nkMonat)+'</td>';
       tb.appendChild(tr);
     });
     if(er.leerstandZeitanteil>NK_LEERSTAND_EPS){
