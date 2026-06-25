@@ -735,7 +735,7 @@ function renderKosten(){
   /* US-59: Heizblöcke ausgegraut (Pflege im Heizung-Reiter) statt komplett ausblenden. */
   function appendHeizHinweisRow(k){
     const tr=document.createElement('tr'); tr.className='heiz-ro'; tr.title='Heizkosten werden im Reiter „Heizung" gepflegt';
-    tr.innerHTML='<td class="bez-col">'+esc(k.bez)+' <span class="pill">s. Heizung</span></td>'+
+    tr.innerHTML='<td class="bez-col">'+esc(k.bez)+' <span class="pill">s. Heizung</span>'+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr – im Reiter „Heizung" übernehmen</span>':'')+'</td>'+
       '<td class="num">'+eur(k.betrag||0)+'</td><td>'+schluesselAnzeige(k)+'</td><td></td><td></td>';
     tb.appendChild(tr);
   }
@@ -891,7 +891,8 @@ function heizKarte(k,idx){
     ? '<label title="'+fi.tip.replace(/"/g,'&quot;')+'">'+fi.label+' <input class="short" type="number" step="any" value="'+(k.heizwert||0)+'" onchange="updHeiz('+idx+',\'heizwert\',this.value)"></label>'+
       '<span class="unit-f">= '+nkFmtBetrag(kwh)+' '+fi.kwhLabel+'</span>'
     : '';
-  return '<div class="unit-card">'+
+  return '<div class="unit-card'+(k.vorjahr?' vorjahr':'')+'">'+
+    (k.vorjahr ? '<div class="heiz-vorjahr"><span><b>Aus dem Vorjahr vorbelegt.</b> Bitte Verbrauch und Preis prüfen.</span><button type="button" onclick="uebernehmeHeizVorjahr('+idx+')">Übernehmen</button></div>' : '')+
     '<div class="unit-head">'+
       '<input class="unit-name" value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)">'+
       '<label class="unit-f">Energieart <select onchange="setEnergieart('+idx+',this.value)">'+eaOpts+'</select></label>'+
@@ -935,20 +936,26 @@ function setEnergieart(idx, key){
   store.setKostenFeld(idx,'heizwert',ea.hi);
   if(!k.bez || /^Heizung \(/.test(k.bez)) store.setKostenFeld(idx,'bez','Heizung ('+ea.label+')');
   store.setKostenFeld(idx,'betrag', nkHeizkosten(k.menge, k.preis));
+  heizVorjahrBestaetigt(idx);
   renderHeizung();
 }
 function updHeiz(idx, field, val){
   store.setKostenFeld(idx, field, nkParseBetrag(val));
   const k=store.kosten(idx);
   store.setKostenFeld(idx,'betrag', nkHeizkosten(k.menge, k.preis));
+  heizVorjahrBestaetigt(idx);
   renderHeizung();
 }
 /* US-07: CO2-Felder (kg / €) numerisch setzen, ohne die Heizkostensumme neu zu rechnen. */
-function updHeizNum(idx, field, val){ store.setKostenFeld(idx, field, nkParseBetrag(val)); renderHeizung(); }
+function updHeizNum(idx, field, val){ store.setKostenFeld(idx, field, nkParseBetrag(val)); heizVorjahrBestaetigt(idx); renderHeizung(); }
 /* US-58: Verteilerschlüssel und Verbrauch je Einheit auch im Heizung-Reiter setzen. */
-function setHeizSchluessel(idx, val){ store.setKostenFeld(idx,'schluessel',val); renderHeizung(); }
-function updHeizVerbrauch(idx, einheitId, val){ store.setKostenVerbrauch(idx, einheitId, nkParseBetrag(val)); renderHeizung(); }
+function setHeizSchluessel(idx, val){ store.setKostenFeld(idx,'schluessel',val); heizVorjahrBestaetigt(idx); renderHeizung(); }
+function updHeizVerbrauch(idx, einheitId, val){ store.setKostenVerbrauch(idx, einheitId, nkParseBetrag(val)); heizVorjahrBestaetigt(idx); renderHeizung(); }
 function delHeizblock(idx){ store.removeKosten(idx); renderHeizung(); }
+/* US-90: Heizblock aus dem Vorjahr aktiv übernehmen (Button auf der Heizkarte). */
+function uebernehmeHeizVorjahr(idx){ const k=store.kosten(idx); if(!(k&&k.vorjahr)) return; store.setKostenFeld(idx,'vorjahr',false); finalizeVorjahrWennFertig(); renderHeizung(); renderVorjahrBanner(); saveState(); updateSaveStatus(); }
+/* US-90: jede Bearbeitung eines Heizblocks bestätigt dessen Vorjahr-Vorbelegung (wie das Betragsfeld in „Kosten"). */
+function heizVorjahrBestaetigt(idx){ const k=store.kosten(idx); if(k&&k.vorjahr){ store.setKostenFeld(idx,'vorjahr',false); finalizeVorjahrWennFertig(); renderVorjahrBanner(); } }
 
 /* US-07: gebäudeweite CO2-Summe der fossilen Heizkosten (€). */
 function co2KostenGesamt(){
