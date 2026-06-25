@@ -142,14 +142,22 @@ function buildTenantPdf(sel){
     p35aTab('dienstleistung','§35a Abs. 2 · Haushaltsnahe Dienstleistungen', NK_P35A.dienstleistung.elster);
     p35aTab('handwerker','§35a Abs. 3 · Handwerkerleistungen', NK_P35A.handwerker.elster);
   }
-  // Zahlungsmodalitäten
+  // Einwendungsfrist: gehört zur NK-Abrechnung, NICHT zur Zahlung einer Nachforderung (sonst Missverständnis,
+  // man habe 12 Monate Zahlungszeit). Daher hier – direkt unter der Abrechnung – und nicht beim Zahlungsrückstand.
+  y+=6; doc.setFontSize(8); doc.setTextColor(110);
+  doc.splitTextToSize('Hinweis zur Abrechnung: Einwendungen gegen diese Nebenkostenabrechnung können Sie innerhalb von 12 Monaten nach Zugang geltend machen (§ 556 Abs. 3 BGB). Diese Frist betrifft nur Einwendungen gegen die Abrechnung – nicht die Zahlung einer Nachforderung.', W).forEach(l=>{ if(y>790){doc.addPage();y=64;} doc.text(l,L,y); y+=11; });
+  doc.setFontSize(10); doc.setTextColor(0); y+=8;
+  // Zahlungsmodalitäten – klare, kurzfristige Zahlungsaufforderung (NICHT die 12-Monats-Einwendungsfrist)
   const vzweck='NK-Abr. '+(state.objekt.addr||'')+'-'+e.name+'-'+m.mieter+'-'+zeitraumText(); // US-55: Verwendungszweck
-  (saldo>0
-    ? ['Bitte überweisen Sie den Betrag innerhalb von '+(z.frist||'14 Tage nach Zugang')+' auf folgendes Konto:',
-       'Empfänger: '+(z.empfaenger||'')+'    IBAN: '+(z.iban||'')+'    BIC: '+(z.bic||''),
-       'Verwendungszweck: '+vzweck]
-    : ['Das Guthaben wird Ihnen innerhalb von '+((z.frist||'14 Tage').replace(/\s*nach Zugang/i,'').replace(/\bTage\b/,'Tagen'))+' erstattet.']
-  ).forEach(l=>nl(l));
+  if(saldo>0){
+    doc.setFont(undefined,'bold');
+    doc.splitTextToSize('Zahlungsaufforderung: Bitte überweisen Sie die Nachzahlung von '+eur(saldo)+' innerhalb von '+(z.frist||'14 Tage nach Zugang')+' auf folgendes Konto:', W).forEach(l=>nl(l));
+    doc.setFont(undefined,'normal');
+    nl('Empfänger: '+(z.empfaenger||'')+'    IBAN: '+(z.iban||'')+'    BIC: '+(z.bic||''));
+    nl('Verwendungszweck: '+vzweck);
+  } else {
+    nl('Das Guthaben wird Ihnen innerhalb von '+((z.frist||'14 Tage').replace(/\s*nach Zugang/i,'').replace(/\bTage\b/,'Tagen'))+' erstattet.');
+  }
   // US-55: GiroCode (EPC-QR) bei Nachzahlung – Überweisung per Banking-App ohne Abtippen.
   if(saldo>0 && nkIbanGueltig(z.iban)){
     const giro=nkGiroCode({ empfaenger:z.empfaenger, iban:z.iban, bic:z.bic, betrag:saldo, zweck:vzweck });
@@ -174,10 +182,11 @@ function buildTenantPdf(sel){
     nl('Abrechnungssaldo (Nebenkosten): '+(saldo>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(saldo)));
     nl('Mietrückstand aus dem Abrechnungszeitraum: '+eur(rueck));
     if(saldo>0){ doc.setFont(undefined,'bold'); nl('Gesamt offener Betrag: '+eur(saldo+rueck)); doc.setFont(undefined,'normal'); }
+    doc.setFont(undefined,'bold');
+    doc.splitTextToSize('Bitte gleichen Sie den offenen Betrag von '+eur((saldo>0?saldo:0)+rueck)+' innerhalb von '+(z.frist||'14 Tage nach Zugang')+' aus.', W).forEach(l=>{ if(y>790){doc.addPage();y=64;} doc.text(l,L,y); y+=13; });
+    doc.setFont(undefined,'normal'); y+=2;
   }
-  y+=8; doc.setFontSize(8); doc.setTextColor(110);
-  doc.splitTextToSize('Einwendungen gegen diese Abrechnung können Sie innerhalb von 12 Monaten nach Zugang geltend machen.', W).forEach(l=>{ if(y>790){doc.addPage();y=64;} doc.text(l,L,y); y+=11; });
-  doc.setFontSize(10); doc.setTextColor(0); y+=20;
+  y+=20;
   nl('Mit freundlichen Grüßen'); y+=18; nl(String(z.empfaenger||''));
   pdfWasserzeichen(doc); /* US-40: Vorschau bis Freischaltung */
   return doc;
