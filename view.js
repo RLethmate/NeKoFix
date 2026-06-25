@@ -648,7 +648,6 @@ function renderVoraus(){
   // Operatoren als eigene Spalten: jede Zeile liest sich als Gleichung
   // Grundmiete + Anzahl × Stellplatz + Nebenkosten = Gesamt.
   head.innerHTML =
-    '<tr><th colspan="12" class="voraus-eq">Grundmiete + Anzahl × Stellplatz + Nebenkosten = Gesamt</th></tr>'+
     '<tr>'+
       '<th>Mieter</th><th>Einheit</th>'+
       '<th class="num">Grundmiete (€)</th><th class="op-col">+</th>'+
@@ -696,7 +695,7 @@ function renderKosten(){
     const ausNamen=nkAusschlussNamen(k, state.einheiten);
     const tr=document.createElement('tr'); tr.id='krow-'+idx; if(k.vorjahr) tr.className='vorjahr';
     tr.innerHTML=
-      '<td class="bez-col"><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+'</span></td>'+
+      '<td class="bez-col"><div class="bez-wrap"><span class="drag-grip" draggable="true" ondragstart="kostenDragStart(event,'+k.id+')" title="Ziehen zum Verschieben (Rubrik &amp; Reihenfolge)">⠿</span><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+'</span></div></td>'+
       '<td class="num"><span class="betrag-wrap'+(k.vorjahr?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+'" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">'+(k.vorjahr?'<button type="button" class="vorjahr-tri" title="Vorjahreswert übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="uebernehmeKostenVorjahr('+idx+')"></button>':'')+'</span></td>'+
       '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug). „Direkt" ordnet die Position einer einzelnen Einheit zu 100 % zu." onchange="setSchluessel('+idx+',this.value)">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button>'+
         (k.schluessel==='direkt'
@@ -704,8 +703,7 @@ function renderKosten(){
           : '<button class="teilnahme-chip'+(ausNamen.length?' aktiv':'')+'" title="Teilnehmende Einheiten festlegen" onclick="toggleKostenDetail('+k.id+')">'+(ausNamen.length?'ohne '+ausNamen.map(esc).join(', '):'alle')+'</button>')+
         '</span></td>'+
       '<td><button class="status-toggle" onclick="toggleKostenDetail('+k.id+')" title="Status & Notiz">'+dots+'<span class="chev">'+(open?'▴':'▾')+'</span></button></td>'+
-      '<td class="act-col"><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button>'+
-        '<span class="drag-grip" draggable="true" ondragstart="kostenDragStart(event,'+k.id+')" title="Ziehen zum Verschieben (Rubrik &amp; Reihenfolge)">⠿</span></td>';
+      '<td class="act-col"><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button></td>';
     tb.appendChild(tr);
     const rub=nkRubrik(k); /* US-89 Phase 2: Drop auf diese Zeile = davor einsortieren, deren Rubrik übernehmen */
     tr.ondragover=dndOver; tr.ondragleave=dndLeave; tr.ondrop=function(e){ rowDrop(e, k.id, rub); };
@@ -759,6 +757,7 @@ function renderKosten(){
     const grp=items.filter(o=>nkRubrik(o.k)===rub);
     const hr=document.createElement('tr'); hr.className='rubrik-head';
     hr.innerHTML='<td colspan="5"><div class="rh-inner">'+
+      '<span class="rh-grip" draggable="true" ondragstart="rubrikHeadDragStart(event,'+ri+')" title="Rubrik ziehen, um sie umzusortieren">⠿</span>'+
       '<span class="rh-name">'+esc(rub)+'</span>'+
       '<span class="rh-tools">'+
       '<button class="rh-btn" title="nach oben" onclick="rubrikHoch('+ri+')"'+(ri===0?' disabled':'')+'>↑</button>'+
@@ -766,7 +765,6 @@ function renderKosten(){
       '<button class="rh-btn" title="umbenennen" onclick="rubrikUmbenennen('+ri+')">✎</button>'+
       (grp.length?'':'<button class="rh-btn rh-del" title="leere Rubrik löschen" onclick="rubrikLoeschen('+ri+')">×</button>')+
       '</span>'+
-      '<span class="rh-grip" draggable="true" ondragstart="rubrikHeadDragStart(event,'+ri+')" title="Rubrik ziehen, um sie umzusortieren">⠿</span>'+
       '</div></td>';
     hr.ondragover=dndOver; hr.ondragleave=dndLeave; hr.ondrop=(function(r){ return function(e){ headDrop(e, r); }; })(rub);
     tb.appendChild(hr);
@@ -1162,7 +1160,7 @@ function renderFreischalt(){
   } else {
     box.className='freischalt-box';
     box.innerHTML='<span class="fs-text"><b>Vorschau:</b> Erstellen, Prüfen und PDF-Vorschau sind kostenlos. Das versandfertige PDF (ohne Wasserzeichen) gibt es nach Freischaltung für dieses Objekt und Abrechnungsjahr.</span>'+
-      '<button class="fs-btn" onclick="freischaltenEinloesen()">Versandfertiges PDF freischalten</button>';
+      '<button class="fs-btn act-green" onclick="freischaltenEinloesen()">Versandfertiges PDF freischalten</button>';
   }
 }
 function freischaltenEinloesen(){
@@ -1258,7 +1256,7 @@ function renderDoc(){
     const mail=(m.email||'').trim();
     vb.innerHTML=
       '<span class="unit-f">E-Mail: '+(mail?esc(mail):'<span class="muted">– im Reiter „Objekt" beim Vertrag eintragen –</span>')+'</span>'+
-      '<button class="btn-primary" onclick="sharePdfAktiv()">Per E-Mail senden</button>'+
+      '<button class="btn-primary act-green" onclick="sharePdfAktiv()">Per E-Mail senden</button>'+
       '<span class="hint">Erzeugt das PDF und öffnet die Teilen-Funktion (mit Anhang, wo unterstützt). Wo nicht möglich, wird das PDF heruntergeladen – dann manuell anhängen.</span>';
   }
 }
