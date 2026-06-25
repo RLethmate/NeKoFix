@@ -645,9 +645,18 @@ function renderVoraus(){
   const tb=document.querySelector('#tbl_voraus tbody'); tb.innerHTML='';
   // Aufgeräumt: monatliches Soll als Gleichung. Grundmiete/Stellplätze stammen aus dem Vertrag (read-only);
   // nur die Nebenkosten (NK-Vorauszahlung) werden hier erfasst. Gesamt = monatliche Warmmiete.
+  // Operatoren als eigene Spalten: jede Zeile liest sich als Gleichung
+  // Grundmiete + Anzahl × Stellplatz + Nebenkosten = Gesamt.
   head.innerHTML =
-    '<tr><th colspan="8" class="voraus-eq">Grundmiete + Anzahl × Stellplatz + Nebenkosten = Gesamt</th></tr>'+
-    '<tr><th>Mieter</th><th>Einheit</th><th class="num">Grundmiete (€)</th><th class="num">Anzahl Stellplätze</th><th class="num">Stellplatz (€)</th><th class="num">Nebenkosten (€)</th><th class="num">Gesamt (€)</th><th>Notiz</th></tr>';
+    '<tr><th colspan="12" class="voraus-eq">Grundmiete + Anzahl × Stellplatz + Nebenkosten = Gesamt</th></tr>'+
+    '<tr>'+
+      '<th>Mieter</th><th>Einheit</th>'+
+      '<th class="num">Grundmiete (€)</th><th class="op-col">+</th>'+
+      '<th class="num">Anzahl Stellplätze</th><th class="op-col">×</th>'+
+      '<th class="num">Stellplatz (€)</th><th class="op-col">+</th>'+
+      '<th class="num">Nebenkosten (€)</th><th class="op-col">=</th>'+
+      '<th class="num">Gesamt (€)</th><th>Notiz</th>'+
+    '</tr>';
   alleMV().forEach(({e,m,ei,mi})=>{
     recomputeVoraus(m);
     const gesamtMonat=nkSollMonat(m.grundmiete, m.vmonat, m.stellAnzahl, m.stellPreis);
@@ -656,9 +665,13 @@ function renderVoraus(){
       '<td>'+esc(m.mieter)+'</td>'+
       '<td><span class="pill">'+esc(e.name)+'</span></td>'+
       '<td class="num">'+eur(m.grundmiete||0)+'</td>'+
+      '<td class="op-col">+</td>'+
       '<td class="num">'+(+m.stellAnzahl||0)+'</td>'+
+      '<td class="op-col">×</td>'+
       '<td class="num">'+eur(m.stellPreis||0)+'</td>'+
+      '<td class="op-col">+</td>'+
       '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.vmonat)+'" oninput="updVorausMV('+ei+','+mi+',\'vmonat\',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+
+      '<td class="op-col">=</td>'+
       '<td class="num" id="gesamt-'+ei+'-'+mi+'">'+eur(gesamtMonat)+'</td>'+
       '<td><input value="'+esc(m.notiz)+'" oninput="store.setMvFeld('+ei+','+mi+',\'notiz\',this.value)" placeholder="Notiz"></td>';
     tb.appendChild(tr);
