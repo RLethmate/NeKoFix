@@ -53,6 +53,7 @@ const STATUS_FARBE={geschaetzt:"var(--muted)",vorlaeufig:"#d99a2b",geprueft:"var
 const VERFUEGBAR_FARBE={fehlt:"var(--nachzahlung)",kommt:"#d99a2b",vorhanden:"var(--accent)"};
 let nurUngeprueft=false;
 let expandedKosten=new Set();
+let expandedHeizZeit=new Set(); /* US-06/Aufräumen: je Heizblock, ob die Zeitraum-Eingrenzung aufgeklappt ist */
 let expandedMV=new Set();
 function heute(){ return new Date().toISOString().slice(0,10); }
 
@@ -634,35 +635,32 @@ function recomputeVoraus(m){
     ? nkVorauszahlungGesamt(m.vmonat, m.vmonate, m.einmal)
     : nkVorauszahlungGesamt(m.vjahr, 1, m.einmal);
 }
-function setVorausModus(x){ vorausModus=x; renderVoraus(); }
 function updVorausMV(ei, mi, field, val){
   store.setMvNum(ei,mi,field, nkParseBetrag(val));
   const m=store.mv(ei,mi); recomputeVoraus(m);
-  const c=document.getElementById('gesamt-'+ei+'-'+mi); if(c) c.textContent=eur(m.voraus);
+  const c=document.getElementById('gesamt-'+ei+'-'+mi); if(c) c.textContent=eur(nkSollMonat(m.grundmiete, m.vmonat, m.stellAnzahl, m.stellPreis));
 }
 function renderVoraus(){
   const head=document.getElementById('voraus_head');
   const tb=document.querySelector('#tbl_voraus tbody'); tb.innerHTML='';
-  const monat = vorausModus==='monatlich';
-  head.innerHTML = monat
-    ? '<tr><th>Mieter</th><th>Einheit</th><th class="num">Monatsbetrag (€)</th><th class="num">Monate</th><th class="num">Einmalzahlung (€)</th><th class="num">Gesamt (€)</th><th>Notiz</th></tr>'
-    : '<tr><th>Mieter</th><th>Einheit</th><th class="num">Jahressumme (€)</th><th class="num">Einmalzahlung (€)</th><th class="num">Gesamt (€)</th><th>Notiz</th></tr>';
+  // Aufgeräumt: monatliches Soll als Gleichung. Grundmiete/Stellplätze stammen aus dem Vertrag (read-only);
+  // nur die Nebenkosten (NK-Vorauszahlung) werden hier erfasst. Gesamt = monatliche Warmmiete.
+  head.innerHTML =
+    '<tr><th colspan="8" class="voraus-eq">Grundmiete + Anzahl × Stellplatz + Nebenkosten = Gesamt</th></tr>'+
+    '<tr><th>Mieter</th><th>Einheit</th><th class="num">Grundmiete (€)</th><th class="num">Anzahl Stellplätze</th><th class="num">Stellplatz (€)</th><th class="num">Nebenkosten (€)</th><th class="num">Gesamt (€)</th><th>Notiz</th></tr>';
   alleMV().forEach(({e,m,ei,mi})=>{
     recomputeVoraus(m);
+    const gesamtMonat=nkSollMonat(m.grundmiete, m.vmonat, m.stellAnzahl, m.stellPreis);
     const tr=document.createElement('tr');
-    const kopf='<td>'+esc(m.mieter)+'</td><td><span class="pill">'+esc(e.name)+'</span></td>';
-    const gesamt='<td class="num" id="gesamt-'+ei+'-'+mi+'">'+eur(m.voraus)+'</td>';
-    const notizCell='<td><input value="'+esc(m.notiz)+'" oninput="store.setMvFeld('+ei+','+mi+',\'notiz\',this.value)" placeholder="Notiz"></td>';
-    if(monat){
-      tr.innerHTML=kopf+
-        '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.vmonat)+'" oninput="updVorausMV('+ei+','+mi+',\'vmonat\',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+
-        '<td class="num"><input class="short" type="number" value="'+m.vmonate+'" oninput="updVorausMV('+ei+','+mi+',\'vmonate\',this.value)"></td>'+
-        '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.einmal)+'" oninput="updVorausMV('+ei+','+mi+',\'einmal\',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+gesamt+notizCell;
-    } else {
-      tr.innerHTML=kopf+
-        '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.vjahr)+'" oninput="updVorausMV('+ei+','+mi+',\'vjahr\',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+
-        '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.einmal)+'" oninput="updVorausMV('+ei+','+mi+',\'einmal\',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+gesamt+notizCell;
-    }
+    tr.innerHTML=
+      '<td>'+esc(m.mieter)+'</td>'+
+      '<td><span class="pill">'+esc(e.name)+'</span></td>'+
+      '<td class="num">'+eur(m.grundmiete||0)+'</td>'+
+      '<td class="num">'+(+m.stellAnzahl||0)+'</td>'+
+      '<td class="num">'+eur(m.stellPreis||0)+'</td>'+
+      '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.vmonat)+'" oninput="updVorausMV('+ei+','+mi+',\'vmonat\',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+
+      '<td class="num" id="gesamt-'+ei+'-'+mi+'">'+eur(gesamtMonat)+'</td>'+
+      '<td><input value="'+esc(m.notiz)+'" oninput="store.setMvFeld('+ei+','+mi+',\'notiz\',this.value)" placeholder="Notiz"></td>';
     tb.appendChild(tr);
   });
 }
@@ -863,6 +861,7 @@ function resetSchluessel(idx){ store.resetKostenSchluessel(idx); renderKosten();
 function heizListe(){ const out=[]; state.kosten.forEach((k,idx)=>{ if(k.typ==='heizung') out.push({k,idx}); }); return out; }
 function renderHeizung(){
   const box=document.getElementById('heizung_box'); if(!box) return;
+  ensureIds(); /* Heizkarten brauchen stabile k.id (Zeitraum-Aufklapp-Status) */
   const liste=heizListe();
   box.innerHTML = liste.length
     ? liste.map(({k,idx})=>heizKarte(k,idx)).join('')
@@ -910,11 +909,15 @@ function heizKarte(k,idx){
       state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>'<label class="teilnahme-item">'+esc(x.name)+' <input class="short" type="number" step="any" value="'+((k.verbrauch&&k.verbrauch[x.id])||0)+'" onchange="updHeizVerbrauch('+idx+','+x.id+',this.value)"></label>').join('')+
       ' <span class="unit-f">Summe: '+nkFmtBetrag(verbrauchSumme(k))+'</span></div>'
      : '')+
-    '<div class="detail-grid" title="US-06: Zeitraum, in dem dieser Heiztyp aktiv war. Leer = ganzer Abrechnungszeitraum. Bei Mieterwechsel wird der Block über diese Periode auf die anwesenden Mieter verteilt.">'+
-      '<label>aktiv von <input type="date" value="'+(k.von||'')+'" onchange="store.setKostenFeld('+idx+',\'von\',this.value)"></label>'+
-      '<label>aktiv bis <input type="date" value="'+(k.bis||'')+'" onchange="store.setKostenFeld('+idx+',\'bis\',this.value)"></label>'+
-      '<span class="unit-f">leer = ganzer Abrechnungszeitraum</span>'+
-    '</div>'+
+    // Aufräumen: Zeitraum (aktiv von/bis) standardmäßig eingeklappt; offen, wenn gesetzt, neu hinzugefügt oder aufgeklappt.
+    ((expandedHeizZeit.has(k.id) || k.von || k.bis)
+      ? '<div class="detail-grid" title="US-06: Zeitraum, in dem dieser Heiztyp aktiv war. Leer = ganzer Abrechnungszeitraum. Bei Mieterwechsel wird der Block über diese Periode auf die anwesenden Mieter verteilt.">'+
+          '<label>aktiv von <input type="date" value="'+(k.von||'')+'" onchange="store.setKostenFeld('+idx+',\'von\',this.value)"></label>'+
+          '<label>aktiv bis <input type="date" value="'+(k.bis||'')+'" onchange="store.setKostenFeld('+idx+',\'bis\',this.value)"></label>'+
+          '<span class="unit-f">leer = ganzer Abrechnungszeitraum</span>'+
+          ((k.von||k.bis) ? '' : '<button type="button" class="heiz-zeit-toggle" onclick="toggleHeizZeit('+k.id+')">ausblenden</button>')+
+        '</div>'
+      : '<button type="button" class="heiz-zeit-toggle" onclick="toggleHeizZeit('+k.id+')">+ Zeitraum eingrenzen (Standard: ganzer Abrechnungszeitraum)</button>')+
     (ea.fossil
       ? '<div class="detail-grid" title="US-07 (CO2KostAufG): Werte von der Brennstoffrechnung übernehmen – seit 2023 Pflichtangabe des Lieferanten.">'+
           '<label>CO2-Emissionen (kg) <input class="short" type="number" step="any" value="'+(k.co2Kg||0)+'" onchange="updHeizNum('+idx+',\'co2Kg\',this.value)"></label>'+
@@ -927,8 +930,12 @@ function heizKarte(k,idx){
 function addHeizblock(){
   const ea=NK_ENERGIEARTEN[0];
   store.addKostenPos({ typ:'heizung', bez:'Heizung ('+ea.label+')', energieart:ea.key, einheit:ea.einheit, heizwert:ea.hi, menge:0, preis:0, betrag:0, schluessel:'flaeche' });
+  ensureIds();
+  const neu=state.kosten[state.kosten.length-1]; if(neu && neu.id) expandedHeizZeit.add(neu.id); // neuer Block: Zeitraum gleich aufgeklappt
   renderHeizung();
 }
+/* US-06/Aufräumen: Zeitraum-Eingrenzung eines Heizblocks ein-/ausklappen. */
+function toggleHeizZeit(id){ if(expandedHeizZeit.has(id)) expandedHeizZeit.delete(id); else expandedHeizZeit.add(id); renderHeizung(); }
 function setEnergieart(idx, key){
   const ea=nkEnergieart(key); const k=store.kosten(idx);
   store.setKostenFeld(idx,'energieart',key);
