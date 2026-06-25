@@ -673,7 +673,7 @@ function renderVoraus(){
       '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.vmonat)+'" oninput="updVorausMV('+ei+','+mi+',\'vmonat\',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+
       '<td class="op-col">=</td>'+
       '<td class="num" id="gesamt-'+ei+'-'+mi+'">'+eur(gesamtMonat)+'</td>'+
-      '<td><input value="'+esc(m.notiz)+'" oninput="store.setMvFeld('+ei+','+mi+',\'notiz\',this.value)" placeholder="Notiz"></td>';
+      '<td><textarea class="notiz-cell" rows="1" oninput="store.setMvFeld('+ei+','+mi+',\'notiz\',this.value)" placeholder="Notiz">'+esc(m.notiz)+'</textarea></td>';
     tb.appendChild(tr);
   });
 }
@@ -1017,14 +1017,24 @@ function computeView(){
       const a=mv.brutto, v=mv.vorauszahlung, s=mv.saldo;
       const ustHint = mv.gewerblich ? ' <span class="pill">inkl. '+NK_UST_SATZ+'% USt</span>' : '';
       const tr=document.createElement('tr');
-      tr.innerHTML='<td>'+esc(mv.mieter)+' <span class="pill">'+esc(er.name)+'</span>'+ustHint+'</td><td class="num">'+eur(a)+'</td><td class="num">'+eur(v)+
-        '</td><td class="num '+(s>0?'neg':'pos')+'">'+(s>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(s))+'</td>'+
+      tr.innerHTML='<td>'+esc(mv.mieter)+' <span class="pill">'+esc(er.name)+'</span>'+ustHint+'</td>'+
+        '<td class="num">'+eur(a)+'</td>'+
+        '<td class="op-col">−</td>'+
+        '<td class="num">'+eur(v)+'</td>'+
+        '<td class="op-col">=</td>'+
+        '<td class="num '+(s>0?'neg':'pos')+'">'+(s>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(s))+'</td>'+
         '<td class="num" title="Empfehlung: Anteil ÷ 12 Monate">'+eur(nkVorschlagVorauszahlung(a))+'</td>';
       tb.appendChild(tr);
     });
     if(er.leerstandZeitanteil>NK_LEERSTAND_EPS){
       const tr=document.createElement('tr');
-      tr.innerHTML='<td class="muted">Leerstand (Vermieter) <span class="pill">'+esc(er.name)+'</span></td><td class="num">'+eur(er.leerstandBetrag)+'</td><td class="num">–</td><td class="num neg">trägt Vermieter</td><td class="num">–</td>';
+      tr.innerHTML='<td class="muted">Leerstand (Vermieter) <span class="pill">'+esc(er.name)+'</span></td>'+
+        '<td class="num">'+eur(er.leerstandBetrag)+'</td>'+
+        '<td class="op-col">−</td>'+
+        '<td class="num">–</td>'+
+        '<td class="op-col">=</td>'+
+        '<td class="num neg">trägt Vermieter</td>'+
+        '<td class="num">–</td>';
       tb.appendChild(tr);
     }
   });

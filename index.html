@@ -217,7 +217,8 @@
   .dd-footer{display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:8px;margin-top:6px;}
   .dd-footer .sonstige-input{flex:1;min-width:0;}
   .voraus-eq{text-align:center;font-weight:600;color:var(--primary-dark,#0E454E);background:#f4f7f8;letter-spacing:.3px;}
-  #tbl_voraus .op-col{text-align:center;color:var(--muted);font-weight:600;padding:0 2px;width:1%;white-space:nowrap;}
+  .op-col{text-align:center;color:var(--muted);font-weight:600;padding:0 2px;width:1%;white-space:nowrap;}
+  #tbl_voraus textarea.notiz-cell{resize:both;width:150px;min-width:90px;min-height:30px;height:30px;font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:8px;vertical-align:middle;}
   .heiz-zeit-toggle{background:none;border:none;color:var(--primary);font-size:12.5px;cursor:pointer;padding:4px 0;text-align:left;}
   .heiz-zeit-toggle:hover{text-decoration:underline;}
   .unit-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;}
@@ -581,7 +582,7 @@
       <div class="scard"><div class="lbl">Saldo gesamt</div><div class="val" id="sum_saldo">–</div></div>
     </div>
     <table id="tbl_ergebnis">
-      <thead><tr><th>Mieter</th><th class="num">Anteil</th><th class="num">Vorauszahlung</th><th class="num">Saldo</th><th class="num">Empf. €/Monat</th></tr></thead>
+      <thead><tr><th>Mieter</th><th class="num">Anteil</th><th class="op-col">−</th><th class="num">Vorauszahlung</th><th class="op-col">=</th><th class="num">Saldo</th><th class="num">Empf. €/Monat</th></tr></thead>
       <tbody></tbody>
     </table>
     <div id="co2_info" class="legal" hidden></div>
