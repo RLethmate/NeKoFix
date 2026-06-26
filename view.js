@@ -6,7 +6,7 @@
    `aktivIdx`, `store`, `commit`, `saveState/loadState` u. a. sind dort global definiert. */
 /* US-81: „Mieter & Vertrag" als Index 7 angehängt (keine Umnummerierung der bestehenden
    data-step/go()-Indizes); die Anzeige-Reihenfolge steuert STEP_GROUPS. */
-const STEPS = ["Objekt","Vorauszahlung (Soll)","Kosten","Heizung","Berechnung","Abrechnung","Zahlungen (Ist)","Mieter & Vertrag"];
+const STEPS = ["Objekt","Vorauszahlung (Soll)","Heizung","Kosten","Berechnung","Abrechnung","Zahlungen (Ist)","Mieter & Vertrag"];
 let current = 0, activeMieter = 0;
 let vorausModus = "monatlich";
 
@@ -72,7 +72,7 @@ function alleMV(){ const out=[]; state.einheiten.forEach((e,ei)=>{ (e.mv||[]).fo
 function leerstandZa(e){ const s=(e.mv||[]).reduce((a,m)=>a+nkZeitanteil(m.von,nkMvEnde(m,state.objekt.bis),state.objekt.von,state.objekt.bis),0); return Math.max(0,1-s); }
 
 /* ---------- Stepper (US-54: seitliche Lasche, Gruppen, Kürzel, Versand-Ampel) ---------- */
-const STEP_ABBR = ["OB","VZ","KO","HE","BE","AB","ZA","MV"];
+const STEP_ABBR = ["OB","VZ","HE","KO","BE","AB","ZA","MV"];
 /* Anzeige-Reihenfolge: Objekt → Mieter & Vertrag (7) → Vorauszahlung → Kosten → … */
 const STEP_GROUPS = [
   { titel:"Abrechnung erstellen", steps:[0,7,1,2,3,4,5] },
@@ -134,8 +134,8 @@ function go(i){
   if(i===0) renderEinheiten();   /* US-49: Ziel-Reiter beim Wechsel aus aktuellem Zustand neu zeichnen */
   if(i===7) renderMieterVertrag(); /* US-81 */
   if(i===1) renderVoraus();
-  if(i===2) renderKosten();
-  if(i===3) renderHeizung();     /* US-05 */
+  if(i===2) renderHeizung();     /* US-05 – Heizung jetzt vor Kosten im Ablauf */
+  if(i===3) renderKosten();
   if(i===4) computeView();
   if(i===5) renderDoc();
   if(i===6) renderZahlungen();
@@ -1433,7 +1433,7 @@ function renderMruSub(){ const s=document.getElementById('mru_sub'); if(!s) retu
 function renderAll(){ renderObjTitle(); renderVorjahrBanner(); fillObjektKopf();
   const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus;
   renderEinheiten(); renderVoraus(); renderKosten();
-  if(current===3) renderHeizung(); else if(current===4) computeView(); else if(current===5) renderDoc(); else if(current===6) renderZahlungen();
+  if(current===2) renderHeizung(); else if(current===4) computeView(); else if(current===5) renderDoc(); else if(current===6) renderZahlungen();
   renderStepper(); }
 /* Speicher: Objektwechsel mit Schutz vor stillem Mitschleppen ungespeicherter Änderungen.
    Bei ungespeichertem Stand: speichern / verwerfen / abbrechen (zwei native Dialoge =
@@ -1456,7 +1456,23 @@ function switchObjekt(idx){
   }
   saveState(); aktivIdx=idx; ladeDaten(objekte[aktivIdx]); ensureIds(); renderAll(); neuerVerlauf(); saveState(); updateSaveStatus();
 }
-function neuesObjekt(){ saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus(); }
+/* US-91: Anlegen bewusst bestätigen (Objekte entstehen sonst zu beiläufig). Das aktuelle Objekt
+   bleibt erhalten und ist über „Öffnen"/„Zuletzt verwendet" wieder erreichbar. */
+function neuesObjekt(){
+  if(!confirm('Neues, leeres Objekt anlegen?\n\nDas aktuelle Objekt bleibt erhalten und ist über „Datei → Öffnen" oder „Zuletzt verwendet" wieder erreichbar.')) return;
+  saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
+}
+/* US-91: aktuelles Objekt löschen (mit Bestätigung) – damit versehentlich angelegte Objekte
+   wieder entfernt werden können. */
+function objektLoeschen(){
+  if(!objekte.length) return;
+  const name = objektLabel(objekte[aktivIdx], aktivIdx);
+  const msg = objekte.length<=1
+    ? 'Dies ist das einzige Objekt. „Löschen" leert es und lädt ein neues, leeres Objekt.\n\nFortfahren?'
+    : 'Objekt „'+name+'" wirklich löschen? Das kann nicht rückgängig gemacht werden.';
+  if(!confirm(msg)) return;
+  deleteAktivesObjekt(); current=0; renderAll(); go(0); neuerVerlauf(); updateSaveStatus();
+}
 /* US-76/US-84: Backup-Hinweis nach PDF-Export. „Gespeichert" (US-84) bedeutet nur localStorage,
    nicht „als Datei auf dem PC". Daher wird der Hinweis nur eingeblendet, wenn der aktuelle Stand
    NICHT als Datei gesichert ist (istDateiGesichert). Aufruf aus pdf.js; „×" blendet aus. */
