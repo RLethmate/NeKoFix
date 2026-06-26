@@ -251,8 +251,8 @@ function renderMieterVertrag(){
 function autoGrow(el){ if(!el) return; el.style.height='auto'; el.style.height=(el.scrollHeight)+'px'; }
 document.getElementById('obj_addr').addEventListener('input',e=>{store.setObjektFeld('addr',e.target.value);}); /* US-65: Adresse ändert NICHT den Objektnamen im Header (ComboBox) – nur "Speichern unter" benennt um */
 /* Datum nur in den Zustand schreiben; Neu-Zeichnen erst beim Verlassen (sonst wirft type=date beim Tippen der Jahreszahl raus). */
-document.getElementById('obj_von').addEventListener('change',e=>{store.setObjektFeld('von',e.target.value); renderObjektSelect();});
-document.getElementById('obj_bis').addEventListener('change',e=>{store.setObjektFeld('bis',e.target.value); renderObjektSelect();});
+document.getElementById('obj_von').addEventListener('change',e=>{store.setObjektFeld('von',e.target.value); renderObjTitle();});
+document.getElementById('obj_bis').addEventListener('change',e=>{store.setObjektFeld('bis',e.target.value); renderObjTitle();});
 document.getElementById('obj_von').addEventListener('blur',renderEinheiten);
 document.getElementById('obj_bis').addEventListener('blur',renderEinheiten);
 /* US-51: Vermieter & Zahlungsangaben */
@@ -1364,8 +1364,8 @@ function toggleGeprueft(ei,mi,key){
 const APP_MAJOR="0";
 const APP_VERSION="v-0.0.0 (lokal)";
 const BUILD_DATE="2026-06-15";
-function toggleDateiMenu(forceClose){ const m=document.getElementById('datei_menu'); if(!m) return; m.hidden = forceClose ? true : !m.hidden; }
-document.addEventListener('click', e=>{ const m=document.getElementById('datei_menu'); if(m && !m.hidden && !e.target.closest('.menu')) m.hidden=true; });
+function toggleDateiMenu(forceClose){ const m=document.getElementById('datei_menu'); if(!m) return; m.hidden = forceClose ? true : !m.hidden; const s=document.getElementById('mru_sub'); if(s) s.hidden=true; /* US-91: Submenü „Zuletzt verwendet" beim Öffnen/Schließen zurücksetzen */ }
+document.addEventListener('click', e=>{ const m=document.getElementById('datei_menu'); if(m && !m.hidden && !e.target.closest('.menu')){ m.hidden=true; const s=document.getElementById('mru_sub'); if(s) s.hidden=true; } });
 
 /* ---------- View: Objektwahl, Render-Orchestrierung, Header ---------- */
 /* STORAGE_KEY, ensureIds, snapshot, ladeDaten, makeFreshDaten, objektLabel, objSignatur,
@@ -1394,9 +1394,43 @@ function pdfStandOk(){
   if(confirm('Es gibt ungespeicherte Änderungen. Die Abrechnung soll auf dem gespeicherten Stand beruhen.\n\nJetzt speichern und fortfahren?')){ speichern(); return true; }
   return false;
 }
-function renderObjektSelect(){ const sel=document.getElementById('obj_select'); if(!sel) return;
-  sel.innerHTML=objekte.map((d,i)=>'<option value="'+i+'"'+(i===aktivIdx?' selected':'')+'>'+esc(objektLabel(d,i))+'</option>').join(''); }
-function renderAll(){ renderObjektSelect(); renderVorjahrBanner(); fillObjektKopf();
+/* US-91: Office-Stil – aktuelles Objekt als Titel im Header (kein Dauer-Dropdown mehr).
+   markRecent() hält die „Zuletzt verwendet"-Liste aktuell (wird bei jedem Objektwechsel über renderAll erreicht). */
+function markRecent(){ if(objekte[aktivIdx]) mruPush(objSignatur(objekte[aktivIdx])); }
+function renderObjTitle(){ markRecent(); const el=document.getElementById('obj_title'); if(!el) return;
+  el.textContent = objekte.length ? objektLabel(objekte[aktivIdx], aktivIdx) : '—'; }
+/* US-91: „Öffnen"-Dialog – alle Objekte, Suche, progressive Gruppierung (nkObjekteGruppieren). */
+function openObjektDialog(){ const s=document.getElementById('objekt_suche'); if(s) s.value=''; renderObjektDialog();
+  const ov=document.getElementById('objekt_overlay'); if(ov) ov.hidden=false; if(s) s.focus(); }
+function closeObjektDialog(){ const ov=document.getElementById('objekt_overlay'); if(ov) ov.hidden=true; }
+function waehleObjekt(idx){ closeObjektDialog(); switchObjekt(idx); }
+function renderObjektDialog(){
+  const box=document.getElementById('objekt_liste'); if(!box) return;
+  const q=(((document.getElementById('objekt_suche')||{}).value)||'').toLowerCase().trim();
+  const items=objekte.map((d,i)=>({ idx:i, name:String((d.objekt&&(d.objekt.name||d.objekt.addr))||('Objekt '+(i+1))).trim(), jahr:objektJahr(d), label:objektLabel(d,i) }));
+  const match=it=> !q || it.label.toLowerCase().includes(q);
+  if(nkObjekteGruppieren(items.map(it=>({name:it.name, jahr:it.jahr})))){
+    box.className='dlg-list';
+    const order=[], map={};
+    items.forEach(it=>{ if(!map[it.name]){ map[it.name]=[]; order.push(it.name); } map[it.name].push(it); });
+    box.innerHTML=order.map(name=>{ const yrs=map[name].filter(match); if(!yrs.length) return '';
+      return '<div class="dlg-grp-name">'+esc(name)+'</div><div class="dlg-years">'+
+        yrs.map(it=>'<button class="dlg-yr'+(it.idx===aktivIdx?' dlg-cur':'')+'" onclick="waehleObjekt('+it.idx+')">'+esc(it.jahr||'—')+'</button>').join('')+'</div>'; }).join('')
+      || '<div class="dlg-grp-name">Kein Treffer</div>';
+  } else {
+    box.className='dlg-list dlg-flat';
+    const hits=items.filter(match);
+    box.innerHTML=hits.map(it=>'<button class="'+(it.idx===aktivIdx?'dlg-cur':'')+'" onclick="waehleObjekt('+it.idx+')">'+esc(it.label)+'</button>').join('') || '<button disabled>Kein Treffer</button>';
+  }
+}
+/* US-91: „Zuletzt verwendet" – MRU als Flyout im Datei-Menü. */
+function toggleMruSub(ev){ ev.stopPropagation(); const s=document.getElementById('mru_sub'); if(!s) return; if(s.hidden){ renderMruSub(); s.hidden=false; } else s.hidden=true; }
+function renderMruSub(){ const s=document.getElementById('mru_sub'); if(!s) return;
+  const list=[]; mru.forEach(sig=>{ const i=objekte.findIndex(d=>objSignatur(d)===sig); if(i>=0 && !list.some(x=>x.idx===i)) list.push({idx:i, label:objektLabel(objekte[i],i)}); });
+  if(!list.length){ s.innerHTML='<button disabled>– noch keine –</button>'; return; }
+  s.innerHTML=list.map((x,n)=>'<button onclick="waehleObjekt('+x.idx+');toggleDateiMenu(true)"><span class="mru-num">'+(n+1)+'</span><span style="flex:1">'+esc(x.label)+'</span></button>').join('')
+    +'<div class="menu-sep"></div><button onclick="openObjektDialog();toggleDateiMenu(true)">Alle Objekte öffnen…</button>'; }
+function renderAll(){ renderObjTitle(); renderVorjahrBanner(); fillObjektKopf();
   const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus;
   renderEinheiten(); renderVoraus(); renderKosten();
   if(current===3) renderHeizung(); else if(current===4) computeView(); else if(current===5) renderDoc(); else if(current===6) renderZahlungen();
@@ -1415,7 +1449,7 @@ function switchObjekt(idx){
       if(confirm('Ungespeicherte Änderungen verwerfen und wechseln?\n\nOK = verwerfen und wechseln\nAbbrechen = im Objekt bleiben')){
         verwerfeAenderungen();
       } else {
-        renderObjektSelect(); /* Wechsel abgebrochen – Dropdown zurück auf das aktive Objekt */
+        renderObjTitle(); /* Wechsel abgebrochen – Dropdown zurück auf das aktive Objekt */
         return;
       }
     }
@@ -1441,7 +1475,7 @@ async function exportObjekt(){
       /* US-65: „Speichern unter" benennt das Objekt nach dem gewählten Dateinamen um
          (NeKoFix-Präfix und angehängtes Jahr werden ignoriert). */
       const neuerName=nkNameAusDateiname(handle.name);
-      if(neuerName && neuerName!==state.objekt.name){ store.setObjektFeld('name', neuerName); renderObjektSelect(); } /* US-65: Objektname (Header) folgt dem Dateinamen, Adressfeld bleibt unberührt */
+      if(neuerName && neuerName!==state.objekt.name){ store.setObjektFeld('name', neuerName); renderObjTitle(); } /* US-65: Objektname (Header) folgt dem Dateinamen, Adressfeld bleibt unberührt */
       markDateiGesichert(); /* US-76: aktueller Stand liegt jetzt als PC-Datei vor */
       return true; /* US-84: Datei geschrieben */
     }catch(e){ if(e && e.name==='AbortError') return false; /* vom Nutzer abgebrochen */ }
@@ -1634,6 +1668,8 @@ document.addEventListener('keydown', function(e){
   if(k==='z'){ e.preventDefault(); if(e.shiftKey) redo(); else undo(); }
   else if(k==='y'){ e.preventDefault(); redo(); }
   else if(k==='s'){ e.preventDefault(); if(e.shiftKey) speichernUnter(); else speichern(); } /* US-84: Strg/Cmd+S speichern, +Shift = Speichern unter */
+  else if(k==='o'){ e.preventDefault(); toggleDateiMenu(true); openObjektDialog(); } /* US-91: Strg+O = Öffnen-Dialog */
+  else if(k==='n'){ e.preventDefault(); neuesObjekt(); } /* US-91: Strg+N = Neu (Browser fängt es ggf. ab) */
 });
 
 /* ---------- Init ---------- */
@@ -1646,7 +1682,7 @@ ensureIds();
    damit „ungespeicherte Änderungen" einen Reload überstehen. */
 if(savedSigs.length!==objekte.length){ objekte[aktivIdx]=snapshot(); savedSigs=objekte.map(d=>nkSig(d)); }
 if(savedData.length!==objekte.length){ savedData=objekte.map(d=>nkClone(d)); } /* Speicher: gespeicherte Daten je Objekt baseline (fürs Verwerfen) */
-renderObjektSelect();
+renderObjTitle();
 (function(){ const v=document.getElementById('app_version'); if(v) v.textContent=APP_VERSION+' · '+BUILD_DATE; })();
 (function(){ if(new URLSearchParams(location.search).has('debug')){ const b=document.getElementById('btn_testdaten'); if(b) b.hidden=false; } })();
 (function(){ const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus; })();
