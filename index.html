@@ -36,6 +36,31 @@
   .menu-pop button:hover{background:#eef3f8;}
   .menu-sep{height:1px;background:#e6ebf0;margin:5px 6px;} /* US-84: Trenner im Datei-Menü */
   .menu-kbd{float:right;color:#8a97a6;font-size:11px;margin-left:18px;}
+  /* US-91: „Zuletzt verwendet" als Flyout nach links (Datei-Menü liegt rechts im Header) */
+  .menu-sub{position:relative;}
+  .menu-submenu{position:absolute;top:-6px;right:calc(100% + 4px);background:#fff;border:1px solid #d6dde6;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:6px;min-width:230px;z-index:30;}
+  .menu-submenu button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:none;color:#1d2733;font-size:13px;padding:8px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;}
+  .menu-submenu button:hover{background:#eef3f8;}
+  .menu-submenu button[disabled]{color:#8a97a6;cursor:default;}
+  .mru-num{color:#8a97a6;font-size:11px;width:14px;flex:0 0 auto;}
+  /* US-91: aktuelles Objekt als Titel im Header */
+  .obj-title{font-size:14px;font-weight:600;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:7px;padding:5px 12px;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* US-91: „Öffnen"-Dialog */
+  .overlay-obj{position:fixed;inset:0;background:rgba(13,30,38,.45);z-index:60;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .overlay-obj[hidden]{display:none;}
+  .dialog-obj{background:#fff;border-radius:12px;width:min(520px,94vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.3);}
+  .dialog-obj h2{margin:0;padding:16px 18px 8px;font-size:16px;color:#1d2733;}
+  .dlg-search{margin:0 18px 10px;padding:9px 11px;border:1px solid #d6dde6;border-radius:8px;font-size:14px;}
+  .dlg-list{overflow:auto;padding:0 10px 6px;flex:1;}
+  .dlg-grp-name{font-size:12px;font-weight:700;color:#5b6b7b;margin:10px 6px 4px;text-transform:uppercase;letter-spacing:.4px;}
+  .dlg-years{display:flex;flex-wrap:wrap;gap:6px;margin:0 6px;}
+  .dlg-yr{border:1px solid #d6dde6;border-radius:7px;padding:6px 12px;font-size:13px;cursor:pointer;background:#f4f7f8;color:#1d2733;}
+  .dlg-yr:hover{border-color:var(--primary);background:#e7f0f1;}
+  .dlg-flat button{display:block;width:100%;text-align:left;background:none;border:none;border-radius:7px;padding:9px 12px;font-size:13.5px;cursor:pointer;color:#1d2733;}
+  .dlg-flat button:hover{background:#eef3f8;}
+  .dlg-cur{outline:2px solid var(--primary);}
+  .dlg-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid #e6ebf0;}
+  .linklike-obj{background:none;border:none;color:var(--primary);font-weight:600;cursor:pointer;font-size:13px;}
   header.app{flex-wrap:wrap;}
   .vorjahr-banner{background:#fbf4e6;border:1px solid #e6c878;border-radius:10px;padding:12px 16px;margin:12px 0;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
   .vorjahr-banner .vb-text{font-size:13px;color:#7a5a12;flex:1;min-width:240px;}
@@ -419,30 +444,39 @@
 <body>
 <header class="app">
   <div class="logo">NeKo<span>Fix</span></div>
-  <label class="obj-bar" title="Objekt wählen – im Abrechnungsmonat ohne Laden umschalten">Objekt:
-    <select id="obj_select" class="obj-select" onchange="switchObjekt(this.value)"></select>
-  </label>
-  <button class="reset-data" onclick="neuesObjekt()" title="Neues, leeres Objekt anlegen">+ Objekt</button>
+  <span class="obj-title" id="obj_title" title="Aktuelles Objekt – wechseln über Datei: Öffnen oder Zuletzt verwendet"></span>
   <div class="undo-bar" role="group" aria-label="Rückgängig / Wiederherstellen">
     <button id="btn_undo" class="undo-btn" onclick="undo()" title="Rückgängig (Strg/Cmd+Z)" aria-label="Rückgängig" disabled>↶</button>
     <button id="btn_redo" class="undo-btn" onclick="redo()" title="Wiederherstellen (Strg/Cmd+Shift+Z)" aria-label="Wiederherstellen" disabled>↷</button>
   </div>
   <div class="menu">
-    <button class="reset-data" onclick="toggleDateiMenu()" title="Objekt sichern oder aus Datei laden">Datei ▾</button>
+    <button class="reset-data" onclick="toggleDateiMenu()" title="Objekte verwalten, speichern und laden">Datei ▾</button>
     <div id="datei_menu" class="menu-pop" hidden>
-      <button onclick="neuesObjekt();toggleDateiMenu(true)">Neues Objekt …</button>
-      <button onclick="document.getElementById('obj_import').click();toggleDateiMenu(true)">Öffnen … (Datei laden)</button>
+      <button onclick="neuesObjekt();toggleDateiMenu(true)">Neu<span class="menu-kbd">Strg+N</span></button>
+      <button onclick="openObjektDialog();toggleDateiMenu(true)">Öffnen…<span class="menu-kbd">Strg+O</span></button>
+      <div class="menu-sub"><button onclick="toggleMruSub(event)">Zuletzt verwendet<span class="menu-kbd">▸</span></button><div id="mru_sub" class="menu-submenu" hidden></div></div>
       <div class="menu-sep"></div>
-      <button onclick="speichern();toggleDateiMenu(true)">Speichern <span class="menu-kbd">Strg/Cmd+S</span></button>
-      <button onclick="speichernUnter();toggleDateiMenu(true)">Speichern unter …</button>
+      <button onclick="speichern();toggleDateiMenu(true)">Speichern<span class="menu-kbd">Strg+S</span></button>
+      <button onclick="speichernUnter();toggleDateiMenu(true)">Speichern unter…</button>
       <div class="menu-sep"></div>
-      <button onclick="neuesJahrAusVorjahr();toggleDateiMenu(true)">Neues Jahr aus aktuellem Objekt …</button>
-      <div class="menu-sep"></div>
+      <button onclick="neuesJahrAusVorjahr();toggleDateiMenu(true)">Neues Jahr aus Objekt…</button>
       <button onclick="document.getElementById('csv_import').click();toggleDateiMenu(true)">Kontoauszug (.csv) importieren</button>
     </div>
   </div>
   <input type="file" id="obj_import" accept=".json,application/json" style="display:none" onchange="importObjekt(event)">
   <input type="file" id="csv_import" accept=".csv,text/csv,text/plain" style="display:none" onchange="importUmsaetze(event)">
+  <!-- US-91: „Öffnen"-Dialog (alle Objekte, Suche, progressive Gruppierung) -->
+  <div class="overlay-obj" id="objekt_overlay" hidden onclick="if(event.target===this)closeObjektDialog()">
+    <div class="dialog-obj">
+      <h2>Öffnen</h2>
+      <input class="dlg-search" id="objekt_suche" placeholder="Suchen… (Objekt oder Jahr)" oninput="renderObjektDialog()">
+      <div class="dlg-list" id="objekt_liste"></div>
+      <div class="dlg-foot">
+        <button class="linklike-obj" onclick="document.getElementById('obj_import').click();closeObjektDialog()">Aus Datei… (JSON)</button>
+        <button class="btn-ghost" onclick="closeObjektDialog()">Abbrechen</button>
+      </div>
+    </div>
+  </div>
   <div id="csv_overlay" class="csv-overlay" style="display:none" onclick="if(event.target===this)closeUmsatzReview()">
     <div class="csv-modal" id="csv_modal"></div>
   </div>

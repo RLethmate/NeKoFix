@@ -806,6 +806,18 @@ function nkOffeneVorjahrKosten(kosten) {
   return (kosten || []).filter(k => k && k.vorjahr);
 }
 
+/* US-91: Soll der „Öffnen"-Dialog nach Objekt gruppiert werden? Erst wenn es sich lohnt:
+   mehr als 2 verschiedene Objekte UND mindestens eines mit mehr als 2 Jahren. items=[{name,jahr}]. */
+function nkObjekteGruppieren(items) {
+  const map = {};
+  (items || []).forEach(it => {
+    const n = String((it && it.name) || "").trim() || "(ohne Name)";
+    (map[n] = map[n] || new Set()).add(String((it && it.jahr) != null ? it.jahr : ""));
+  });
+  const namen = Object.keys(map);
+  return namen.length > 2 && namen.some(n => map[n].size > 2);
+}
+
 /* US-30/US-11: exakte Objekt-Duplikate entfernen (gleicher Inhalt), Reihenfolge bleibt. */
 function nkDedupeObjekte(arr) {
   const out = [], seen = new Set();
@@ -1085,6 +1097,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkPlusJahr,
     nkVorjahrUebernehmen,
     nkOffeneVorjahrKosten,
+    nkObjekteGruppieren,
     nkDedupeObjekte,
     nkMieterAbrechnung,
     nkObjektAbrechnung,

@@ -467,6 +467,17 @@ test("nkOffeneVorjahrKosten: liefert nur noch markierte (unbestätigte) Vorjahr-
   assert.equal(calc.nkOffeneVorjahrKosten(undefined).length, 0);
 });
 
+test("nkObjekteGruppieren: erst gruppieren bei >2 Objekten und einem mit >2 Jahren (US-91)", () => {
+  assert.equal(calc.nkObjekteGruppieren([{name:"A",jahr:2025},{name:"A",jahr:2024}]), false);
+  assert.equal(calc.nkObjekteGruppieren([{name:"A",jahr:2025},{name:"B",jahr:2025},{name:"C",jahr:2025}]), false);
+  assert.equal(calc.nkObjekteGruppieren([{name:"A",jahr:2025},{name:"A",jahr:2024},{name:"A",jahr:2023}]), false);
+  assert.equal(calc.nkObjekteGruppieren([
+    {name:"A",jahr:2025},{name:"A",jahr:2024},{name:"A",jahr:2023},
+    {name:"B",jahr:2025},{name:"C",jahr:2025}
+  ]), true);
+  assert.equal(calc.nkObjekteGruppieren([]), false);
+});
+
 test("Umlagefähigkeit je Kostenart (US-04)", () => {
   assert.equal(calc.nkUmlageInfo("Grundsteuer").umlagefaehig, true);
   assert.equal(calc.nkUmlageInfo("Wasser / Abwasser").umlagefaehig, true);
