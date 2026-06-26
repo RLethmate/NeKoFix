@@ -147,6 +147,19 @@ function markGespeichert(){ if(objekte.length){ objekte[aktivIdx]=snapshot(); sa
    gespeicherten Stand (savedData). Ohne gespeicherten Stand (nie gespeichertes neues Objekt)
    bleibt der Arbeitsstand unverändert. */
 function verwerfeAenderungen(){ if(savedData[aktivIdx]){ const d=nkClone(savedData[aktivIdx]); objekte[aktivIdx]=d; ladeDaten(d); ensureIds(); saveState(); notifyStateChange(); } }
+/* US-91: aktuelles Objekt aus der Liste löschen. War es das letzte, wird ein frisches, leeres
+   Objekt geladen. Hält alle Parallel-Listen (savedSigs/savedData/dateiSigs) und die MRU konsistent. */
+function deleteAktivesObjekt(){ if(!objekte.length) return;
+  const sig = objSignatur(objekte[aktivIdx]);
+  objekte.splice(aktivIdx,1); savedSigs.splice(aktivIdx,1); savedData.splice(aktivIdx,1); dateiSigs.splice(aktivIdx,1);
+  mru = mru.filter(s => s !== sig);
+  if(!objekte.length){ objekte=[makeFreshDaten()]; savedSigs=[]; savedData=[]; dateiSigs=[]; }
+  aktivIdx = Math.max(0, Math.min(aktivIdx, objekte.length-1));
+  ladeDaten(objekte[aktivIdx]); ensureIds();
+  if(savedSigs.length!==objekte.length){ savedSigs = objekte.map(d=>nkSig(d)); }
+  if(savedData.length!==objekte.length){ savedData = objekte.map(d=>nkClone(d)); }
+  saveState(); notifyStateChange();
+}
 function saveState(){ let ok=true; try{ if(objekte.length) objekte[aktivIdx]=snapshot(); localStorage.setItem(STORAGE_KEY, JSON.stringify({ objekte, aktivIdx, savedSigs, savedData, mru })); }catch(e){ ok=false; } if(_persistListener) _persistListener(ok); return ok; }
 function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return false; const o=JSON.parse(raw);
     if(o && Array.isArray(o.objekte) && o.objekte.length){ objekte=nkDedupeObjekte(o.objekte); aktivIdx=Math.max(0,Math.min(o.aktivIdx||0, objekte.length-1));
