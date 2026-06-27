@@ -915,6 +915,22 @@ function nkVorjahrVmonat(snap, einheitName, mieterName) {
   return (m && m.vmonat != null) ? (+m.vmonat || 0) : null;
 }
 
+/* US-59: Mietverhältnis im Vorjahr über Einheit-Name und Position (Index). null, wenn nichts passt.
+   (Positionsbasiert, weil der Mietername im Vorjahr ein anderer sein kann.) */
+function nkVorjahrMv(snap, einheitName, mvIndex) {
+  const e = nkVorjahrEinheit(snap, einheitName);
+  if (!e || !e.mv) return null;
+  return e.mv[mvIndex] || null;
+}
+
+/* US-59: Heizblock (Kostenposition mit typ='heizung') im Vorjahr über die normalisierte Bezeichnung
+   finden. null, wenn nichts passt. */
+function nkVorjahrHeizblock(snap, bez) {
+  const key = nkNormName(bez);
+  if (!key) return null;
+  return ((snap && snap.kosten) || []).find(k => k && k.typ === "heizung" && nkNormName(k.bez) === key) || null;
+}
+
 /* US-85: Vorzeichen-Vorsortierung einer Buchung fürs Review. Positiv = Zahlungseingang
    (meist Miete), negativ = Kosten; offensichtlich interne Umbuchungen (Termingeld/Geldanlage)
    werden als "ignorieren" vorgeschlagen. Default, in US-86 überschreibbar. Reine Funktion. */
@@ -1157,6 +1173,8 @@ if (typeof module !== "undefined" && module.exports) {
     nkVorjahrKostenMap,
     nkVorjahrEinheit,
     nkVorjahrVmonat,
+    nkVorjahrMv,
+    nkVorjahrHeizblock,
     nkVorjahrUebernehmen,
     nkOffeneVorjahrKosten,
     nkObjekteGruppieren,

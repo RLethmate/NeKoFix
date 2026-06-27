@@ -1178,3 +1178,24 @@ test("nkVorjahrEinheit / nkVorjahrVmonat: Match über Einheit-/Mieternamen", () 
   assert.equal(calc.nkVorjahrVmonat(snap, "OG", "Unbekannt"), 120);     // Fallback: erstes MV
   assert.equal(calc.nkVorjahrVmonat(snap, "weg", "x"), null);           // Einheit fehlt
 });
+
+test("nkVorjahrMv: Mietverhältnis je Einheit über Position", () => {
+  const snap = { einheiten: [
+    { name: "EG", mv: [{ mieter: "Alt-Mieter", von: "2024-01-01", bis: "2024-12-31" }] },
+    { name: "OG", mv: [{ mieter: "A" }, { mieter: "B" }] },
+  ] };
+  assert.equal(calc.nkVorjahrMv(snap, "eg", 0).mieter, "Alt-Mieter");
+  assert.equal(calc.nkVorjahrMv(snap, "OG", 1).mieter, "B");
+  assert.equal(calc.nkVorjahrMv(snap, "OG", 2), null); // Position fehlt
+  assert.equal(calc.nkVorjahrMv(snap, "weg", 0), null); // Einheit fehlt
+});
+
+test("nkVorjahrHeizblock: Heizblock über Bezeichnung", () => {
+  const snap = { kosten: [
+    { typ: "heizung", bez: "Heizung (Erdgas)", menge: 1200, preis: 0.09, betrag: 108 },
+    { bez: "Grundsteuer", betrag: 300 },
+  ] };
+  assert.equal(calc.nkVorjahrHeizblock(snap, "Heizung (Erdgas)").menge, 1200);
+  assert.equal(calc.nkVorjahrHeizblock(snap, "Grundsteuer"), null); // keine Heizung
+  assert.equal(calc.nkVorjahrHeizblock(snap, "gibtsnicht"), null);
+});
