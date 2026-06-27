@@ -175,7 +175,7 @@ function vjFeld(val){
 function vjTitelSuffix(){
   if(!zeigeVorjahr) return '';
   const vj=nkFindVorjahr(objekte, aktivIdx);
-  return vj? ' aus Vorjahr '+(nkObjektJahr(vj)||'')+' (Alt+v)' : '';
+  return vj? ' aus Vorjahr '+(nkObjektJahr(vj)||'')+' (Alt+v)' : ''; /* führendes geschütztes Leerzeichen, sonst verschluckt das Rendering den Abstand */
 }
 function setVjTitel(id){ const el=document.getElementById(id); if(el) el.textContent=vjTitelSuffix(); }
 
@@ -1362,7 +1362,6 @@ function renderDoc(){
       '<tr class="total-row"><td>Ihr Anteil (brutto)</td>'+leer(4)+'<td class="num">'+eur(ab.brutto)+'</td></tr>'
     : '<tr class="total-row"><td>Ihr Anteil an den Gesamtkosten</td>'+leer(4)+'<td class="num">'+eur(ab.brutto)+'</td></tr>';
   docEl.innerHTML=
-    (vjDoc?'<div class="vorjahr-banner"><span class="vb-text"><b>Vorjahr '+(nkObjektJahr(src)||'')+'</b> – read-only zum Vergleich. Der PDF-/E-Mail-Versand gilt fürs aktuelle Jahr (Alt+v zum Zurückschalten).</span></div>':'')+
     '<h2>Betriebs- und Heizkostenabrechnung</h2>'+
     '<div class="meta">'+esc(src.objekt.addr)+' · Einheit '+esc(e.name)+' · Mieter: <b>'+esc(m.mieter)+'</b>'+(gew?' (gewerblich, umsatzsteuerpflichtig)':'')+'<br>Abrechnungszeitraum: '+(vjDoc?(fmtDatum(src.objekt.von)+'–'+fmtDatum(src.objekt.bis)):zeitraumText())+' · Mietzeit: '+fmtDatum(m.von)+'–'+fmtDatum(nkMvEnde(m,src.objekt.bis))+(m.laeuft?' (läuft)':'')+' ('+Math.round(za*100)+' % des Zeitraums)</div>'+
     '<div class="headline-box">'+  /* US-62: kompakter Ergebnis-Block (Messdienst-Stil) */
@@ -1397,8 +1396,11 @@ function renderDoc(){
         '<br><span class="hint">Der Mietrückstand ist nicht Teil der Nebenkostenabrechnung und wird separat geltend gemacht.</span></div>'
       : '');
   /* US-52: Versand-Block – E-Mail (im Vertrag gepflegt) anzeigen, Senden via Web Share (Anhang). */
+  /* US-59: im Vorjahr-Modus den PDF-Export sperren (Export gilt fürs aktuelle Jahr) – klarer als ein Hinweistext. */
+  const ea=document.getElementById('export_actions');
+  if(ea) ea.querySelectorAll('button').forEach(b=>{ b.disabled=vjDoc; b.title=vjDoc?'Im Vorjahr-Vergleich deaktiviert (Alt+v zum Zurückschalten)':''; });
   const vb=document.getElementById('versand_box');
-  if(vb && vjDoc){ vb.innerHTML='<span class="hint">Vorjahr-Ansicht – Versand/PDF gilt fürs aktuelle Jahr (Alt+v zum Zurückschalten).</span>'; }
+  if(vb && vjDoc){ vb.innerHTML='<button class="btn-primary act-green" disabled title="Im Vorjahr-Vergleich deaktiviert (Alt+v zum Zurückschalten)">Per E-Mail senden</button>'; }
   else if(vb){
     const mail=(m.email||'').trim();
     vb.innerHTML=
