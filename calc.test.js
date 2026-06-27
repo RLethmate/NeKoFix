@@ -1127,3 +1127,41 @@ test("nkVorjahrUebernehmen: Freischaltung wird NICHT ins Folgejahr übernommen (
   assert.equal(neu.objekt.freigeschaltet, false);   // Folgejahr eigenständig zu bezahlen
   assert.equal(neu.objekt.von, "2026-01-01");
 });
+
+test("nkObjektJahr: Jahr aus von/bis", () => {
+  assert.equal(calc.nkObjektJahr({ objekt: { von: "2025-01-01", bis: "2025-12-31" } }), "2025");
+  assert.equal(calc.nkObjektJahr({ objekt: { bis: "2024-12-31" } }), "2024");
+  assert.equal(calc.nkObjektJahr({ objekt: {} }), "");
+  assert.equal(calc.nkObjektJahr(null), "");
+});
+
+test("nkFindVorjahr: gleiche Adresse, Jahr-1", () => {
+  const objekte = [
+    { objekt: { addr: "Musterstr. 1", von: "2024-01-01", bis: "2024-12-31" }, kosten: [] }, // Vorjahr
+    { objekt: { addr: "Musterstr. 1", von: "2025-01-01", bis: "2025-12-31" }, kosten: [] }, // aktiv
+    { objekt: { addr: "Andere Str. 9", von: "2024-01-01", bis: "2024-12-31" }, kosten: [] }, // anderes Objekt
+  ];
+  const vj = calc.nkFindVorjahr(objekte, 1);
+  assert.equal(vj && vj.objekt.von, "2024-01-01");
+  // Umlaut-Toleranz in der Adresse (nkNormName)
+  const o2 = [
+    { objekt: { addr: "Grüner Weg 2", von: "2024-01-01" }, kosten: [] },
+    { objekt: { addr: "Gruener Weg 2", von: "2025-01-01" }, kosten: [] },
+  ];
+  assert.ok(calc.nkFindVorjahr(o2, 1));
+  // kein Vorjahr vorhanden
+  assert.equal(calc.nkFindVorjahr([objekte[1]], 0), null);
+});
+
+test("nkVorjahrKostenMap: Beträge je normalisierter Bezeichnung summiert", () => {
+  const snap = { kosten: [
+    { bez: "Heizkosten", betrag: 1180 },
+    { bez: "Wasser", betrag: 410 },
+    { bez: "heizkosten", betrag: 20 }, // gleiche Bezeichnung (Groß/Klein) -> summiert
+    { bez: "", betrag: 99 },           // ohne Bezeichnung -> ignoriert
+  ] };
+  const m = calc.nkVorjahrKostenMap(snap);
+  assert.equal(m[calc.nkNormName("Heizkosten")], 1200);
+  assert.equal(m[calc.nkNormName("Wasser")], 410);
+  assert.equal(Object.keys(m).length, 2);
+});

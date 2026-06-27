@@ -9,6 +9,7 @@
 const STEPS = ["Objekt","Vorauszahlung (Soll)","Heizung","Kosten","Berechnung","Abrechnung","Zahlungen (Ist)","Mieter & Vertrag"];
 let current = 0, activeMieter = 0;
 let vorausModus = "monatlich";
+let zeigeVorjahr = false; /* US-59: Vorjahreswerte je Feld einblenden (Toggle via Shortcut "v"). */
 
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit", verbrauch:"nach Verbrauch", direkt:"Direkt (eine Einheit)" };
@@ -677,10 +678,22 @@ function renderVoraus(){
   });
 }
 
+/* US-59: Inline-Anzeige des Vorjahreswerts an einer Kostenzeile (gedämpft, andere Farbe).
+   Leerer String, wenn der Toggle aus ist. Kein Vorjahres-Treffer -> "VJ –". */
+function vjInlineKosten(vjMap, bez){
+  if(!vjMap) return '';
+  const key=nkNormName(bez);
+  return (key in vjMap)
+    ? '<span class="vj-inline" title="Vorjahreswert (zum Vergleich eingeblendet)">VJ '+nkFmtBetrag(vjMap[key])+'&nbsp;€</span>'
+    : '<span class="vj-inline vj-none" title="Kein passender Vorjahreswert">VJ&nbsp;–</span>';
+}
+
 /* ---------- Step 3 ---------- */
 function renderKosten(){
   ensureIds();
   const tb=document.querySelector('#tbl_kosten tbody'); tb.innerHTML='';
+  /* US-59: Vorjahreswerte je Kostenart (über die Bezeichnung) einblenden, wenn der Toggle an ist. */
+  const vjMap = zeigeVorjahr ? nkVorjahrKostenMap(nkFindVorjahr(objekte, aktivIdx)) : null;
   /* US-58: eine Kostenzeile (+ Detail) anhängen. */
   function appendKostenRow(k, idx){
     const st=k.status||'vorlaeufig', vf=k.verfuegbar||'vorhanden';
@@ -696,7 +709,7 @@ function renderKosten(){
     const tr=document.createElement('tr'); tr.id='krow-'+idx; if(k.vorjahr) tr.className='vorjahr';
     tr.innerHTML=
       '<td class="bez-col"><div class="bez-wrap"><span class="drag-grip" draggable="true" ondragstart="kostenDragStart(event,'+k.id+')" title="Ziehen zum Verschieben (Rubrik &amp; Reihenfolge)">⠿</span><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+'</span></div></td>'+
-      '<td class="num"><span class="betrag-wrap'+(k.vorjahr?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+'" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">'+(k.vorjahr?'<button type="button" class="vorjahr-tri" title="Vorjahreswert übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="uebernehmeKostenVorjahr('+idx+')"></button>':'')+'</span></td>'+
+      '<td class="num"><span class="betrag-wrap'+(k.vorjahr?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+'" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">'+(k.vorjahr?'<button type="button" class="vorjahr-tri" title="Vorjahreswert übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="uebernehmeKostenVorjahr('+idx+')"></button>':'')+'</span>'+vjInlineKosten(vjMap,k.bez)+'</td>'+
       '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug). „Direkt" ordnet die Position einer einzelnen Einheit zu 100 % zu." onchange="setSchluessel('+idx+',this.value)">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button>'+
         (k.schluessel==='direkt'
           ? '<select class="direkt-select" title="Diese Kosten trägt eine Einheit zu 100 %" onchange="store.setKostenFeld('+idx+',\'direktEinheit\',+this.value)">'+state.einheiten.map(x=>'<option value="'+x.id+'"'+(k.direktEinheit===x.id?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>'
@@ -1687,6 +1700,34 @@ document.addEventListener('keydown', function(e){
   else if(k==='o'){ e.preventDefault(); toggleDateiMenu(true); openObjektDialog(); } /* US-91: Strg+O = Öffnen-Dialog */
   else if(k==='n'){ e.preventDefault(); neuesObjekt(); } /* US-91: Strg+N = Neu (Browser fängt es ggf. ab) */
 });
+
+/* US-59: Vorjahres-Toggle per Taste "v" (ohne Modifier). Ignoriert wird die Taste, solange in einem
+   Eingabefeld getippt wird (sonst stört sie Text-/Betragsfelder) oder ein Dialog/Overlay offen ist. */
+document.addEventListener('keydown', function(e){
+  if(e.metaKey||e.ctrlKey||e.altKey) return;
+  if((e.key||'').toLowerCase()!=='v') return;
+  const t=e.target, tag=t&&t.tagName;
+  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||(t&&t.isContentEditable)) return;
+  e.preventDefault(); toggleVorjahr();
+});
+
+/* US-59: Vorjahreswerte ein-/ausblenden. Ohne auffindbares Vorjahr nur ein kurzer Hinweis. */
+function toggleVorjahr(){
+  const vj=nkFindVorjahr(objekte, aktivIdx);
+  if(!zeigeVorjahr && !vj){ renderVorjahrToggle(false, null); return; }
+  zeigeVorjahr=!zeigeVorjahr;
+  renderVorjahrToggle(zeigeVorjahr, vj);
+  renderKosten();
+}
+
+/* US-59: kleiner Indikator, dass der Vergleich aktiv ist (zeigt das Vorjahr); informiert auch,
+   wenn kein Vorjahr-Objekt vorliegt. */
+function renderVorjahrToggle(on, vj){
+  const el=document.getElementById('vj_indicator'); if(!el) return;
+  if(on){ el.textContent='Vorjahr '+(nkObjektJahr(vj)||'')+' eingeblendet · „v" zum Ausblenden'; el.hidden=false; }
+  else if(vj===null){ el.textContent='Kein Vorjahr zu diesem Objekt gefunden'; el.hidden=false; clearTimeout(renderVorjahrToggle._t); renderVorjahrToggle._t=setTimeout(()=>{ el.hidden=true; }, 2500); }
+  else { el.hidden=true; }
+}
 
 /* ---------- Init ---------- */
 loadState();
