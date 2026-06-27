@@ -73,7 +73,7 @@
   input.vj-field{color:#1565c0;font-style:italic;background:#f3f7fe;border-color:#c3d6f5;cursor:default;}
   input.vj-field.vj-none{color:#9aa0a6;font-style:italic;}
   /* Titel-Suffix „… aus Vorjahr JJJJ (Alt+V)": Basis schwarz, Zusatz blau kursiv. */
-  #kosten_titel_vj{color:#1565c0;font-style:italic;font-weight:400;}
+  #kosten_titel_vj, .vj-titel{color:#1565c0;font-style:italic;font-weight:400;}
   #kosten_titel_vj.vj-titel-hint{color:#9aa0a6;}
   tr.rubrik-sum.vj-sum td{color:#1565c0;font-style:italic;}
   tr.vj-only-row td{background:#f7faff;color:#1565c0;}
@@ -472,6 +472,8 @@
       <div class="menu-sep"></div>
       <button onclick="neuesJahrAusVorjahr();toggleDateiMenu(true)">Neues Jahr aus Objekt…</button>
       <button onclick="document.getElementById('csv_import').click();toggleDateiMenu(true)">Kontoauszug (.csv) importieren</button>
+      <div class="menu-sep"></div>
+      <button onclick="toggleVorjahr();toggleDateiMenu(true)">Vorjahr ein-/ausblenden<span class="menu-kbd">Alt+v</span></button>
     </div>
   </div>
   <input type="file" id="obj_import" accept=".json,application/json" style="display:none" onchange="importObjekt(event)">
@@ -515,7 +517,7 @@
 
   <!-- Step 1: Objekt & Einheiten -->
   <section class="panel" data-step="0">
-    <h1>1 · Objekt &amp; Einheiten<button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
+    <h1>1 · Objekt &amp; Einheiten<span id="vjt_einh" class="vj-titel"></span><button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
     <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Mietvertrag (Wohnungsgrößen) bzw. Grundriss</b></span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Grunddaten des Hauses und der Wohneinheiten – Basis für jede Verteilung.</p>
     <div class="legal">Recht (V11): Für die Betriebskostenverteilung zählt die <b>tatsächliche</b> Wohnfläche, nicht die im Mietvertrag vereinbarte.</div>
@@ -555,7 +557,7 @@
 
   <!-- Step 2: Mieter & Vorauszahlung -->
   <section class="panel" data-step="1">
-    <h1>2 · Vorauszahlungen (Soll)</h1>
+    <h1>2 · Vorauszahlungen (Soll)<span id="vjt_voraus" class="vj-titel"></span></h1>
     <p class="sub">Monatliches Soll je Mieter: Grundmiete und Stellplätze stammen aus dem Vertrag, die NK-Vorauszahlung (Nebenkosten) erfasst du hier. Am Ende mit dem Anteil saldiert.</p>
     <div class="legal">Soll-Basis: Saldiert wird mit den <b>vereinbarten</b> Vorauszahlungen. Tatsächliche Zahlungseingänge und Rückstände führst du getrennt im Reiter „Zahlungseingänge (Ist)".</div>
     <div class="legal">Recht (V07 / § 556 BGB): Die Saldierung der Vorauszahlungen ist eine formelle Pflichtangabe der Abrechnung.</div>

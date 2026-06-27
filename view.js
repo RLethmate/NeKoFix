@@ -165,21 +165,44 @@ function updateIbanHint(){
   if(nkIbanGueltig(iban)){ el.textContent='✓ IBAN gültig'; el.className='iban-hint ok'; }
   else { el.textContent='⚠ IBAN ungültig (Prüfziffer/Länge)'; el.className='iban-hint bad'; }
 }
+/* US-59: read-only Vorjahr-Feld (blau kursiv) für den Vergleich. val null/leer -> "–". */
+function vjFeld(val){
+  const has = val!=null && val!=='';
+  return '<input class="short vj-field'+(has?'':' vj-none')+'" type="text" readonly tabindex="-1" title="Vorjahreswert (zum Vergleich)" value="'+(has?val:'–')+'">';
+}
+/* US-59: Titel-Zusatz „ aus Vorjahr JJJJ (Alt+v)" (blau kursiv), wenn der Vergleich aktiv ist und ein
+   Vorjahr existiert; sonst leer. Wird in den Reiter-Titeln gesetzt (kein Layout-Sprung). */
+function vjTitelSuffix(){
+  if(!zeigeVorjahr) return '';
+  const vj=nkFindVorjahr(objekte, aktivIdx);
+  return vj? ' aus Vorjahr '+(nkObjektJahr(vj)||'')+' (Alt+v)' : '';
+}
+function setVjTitel(id){ const el=document.getElementById(id); if(el) el.textContent=vjTitelSuffix(); }
+
 /* US-81: Objekt-Reiter zeigt nur noch die physischen Einheiten (Name, m², Personen). */
 function renderEinheiten(){
   ensureIds();
   const box = document.getElementById('einheiten_box'); box.innerHTML='';
+  const vjSnap = zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null; /* US-59 */
   state.einheiten.forEach((e,ei)=>{
+    const vjE = vjSnap ? nkVorjahrEinheit(vjSnap, e.name) : null; /* US-59: Einheit über Namen matchen */
+    const flaecheInp = zeigeVorjahr
+      ? vjFeld(vjE && vjE.flaeche!=null ? vjE.flaeche : null)
+      : '<input class="short" type="number" value="'+e.flaeche+'" oninput="updEinheit('+ei+',\'flaeche\',this.value)">';
+    const personenInp = zeigeVorjahr
+      ? vjFeld(vjE && vjE.personen!=null ? vjE.personen : null)
+      : '<input class="short" type="number" value="'+e.personen+'" oninput="updEinheit('+ei+',\'personen\',this.value)">';
     box.insertAdjacentHTML('beforeend',
       '<div class="unit-card einheit-card">'+
         '<div class="unit-head">'+
-          '<input class="unit-name" value="'+esc(e.name)+'" oninput="updEinheit('+ei+',\'name\',this.value)">'+
-          '<label class="unit-f">Fläche m² <input class="short" type="number" value="'+e.flaeche+'" oninput="updEinheit('+ei+',\'flaeche\',this.value)"></label>'+
-          '<label class="unit-f">Personen <input class="short" type="number" value="'+e.personen+'" oninput="updEinheit('+ei+',\'personen\',this.value)"></label>'+
-          '<button class="row-del" title="Einheit entfernen" onclick="delEinheit('+ei+')" style="margin-left:auto;">×</button>'+
+          '<input class="unit-name" value="'+esc(e.name)+'" oninput="updEinheit('+ei+',\'name\',this.value)"'+(zeigeVorjahr?' readonly':'')+'>'+
+          '<label class="unit-f">Fläche m² '+flaecheInp+'</label>'+
+          '<label class="unit-f">Personen '+personenInp+'</label>'+
+          (zeigeVorjahr?'':'<button class="row-del" title="Einheit entfernen" onclick="delEinheit('+ei+')" style="margin-left:auto;">×</button>')+
         '</div>'+
       '</div>');
   });
+  setVjTitel('vjt_einh'); /* US-59 */
   renderMieterVertrag(); /* hält den Mieter-&-Vertrag-Reiter konsistent (gekoppelt) */
 }
 /* US-81: Mietverhältnis-Zeilen (Mieter, Zeitraum, Vertrag-Detail) einer Einheit. */
@@ -657,9 +680,15 @@ function renderVoraus(){
       '<th class="num">Nebenkosten (€)</th><th class="op-col">=</th>'+
       '<th class="num">Gesamt (€)</th><th>Notiz</th>'+
     '</tr>';
+  const vjSnap = zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null; /* US-59 */
   alleMV().forEach(({e,m,ei,mi})=>{
     recomputeVoraus(m);
     const gesamtMonat=nkSollMonat(m.grundmiete, m.vmonat, m.stellAnzahl, m.stellPreis);
+    /* US-59: im Vorjahr-Modus die NK-Vorauszahlung (vmonat) read-only aus dem Vorjahr zeigen. */
+    const vjV = vjSnap ? nkVorjahrVmonat(vjSnap, e.name, m.mieter) : null;
+    const vmonatInp = zeigeVorjahr
+      ? vjFeld(vjV!=null ? nkFmtBetrag(vjV) : null)
+      : '<input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.vmonat)+'" oninput="updVorausMV('+ei+','+mi+',\'vmonat\',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">';
     const tr=document.createElement('tr');
     tr.innerHTML=
       '<td>'+esc(m.mieter)+'</td>'+
@@ -670,12 +699,13 @@ function renderVoraus(){
       '<td class="op-col">×</td>'+
       '<td class="num">'+eur(m.stellPreis||0)+'</td>'+
       '<td class="op-col">+</td>'+
-      '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.vmonat)+'" oninput="updVorausMV('+ei+','+mi+',\'vmonat\',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></td>'+
+      '<td class="num">'+vmonatInp+'</td>'+
       '<td class="op-col">=</td>'+
       '<td class="num" id="gesamt-'+ei+'-'+mi+'">'+eur(gesamtMonat)+'</td>'+
       '<td><textarea class="notiz-cell" rows="1" oninput="store.setMvFeld('+ei+','+mi+',\'notiz\',this.value)" placeholder="Notiz">'+esc(m.notiz)+'</textarea></td>';
     tb.appendChild(tr);
   });
+  setVjTitel('vjt_voraus'); /* US-59 */
 }
 
 /* ---------- Step 3 ---------- */
@@ -1749,7 +1779,7 @@ function toggleVorjahr(){
   const vj=nkFindVorjahr(objekte, aktivIdx);
   if(!zeigeVorjahr && !vj){ flashKeinVorjahr(); return; }
   zeigeVorjahr=!zeigeVorjahr;
-  renderKosten(); /* rendert Felder + Titel (renderKostenTitel am Ende) neu */
+  renderAll(); /* alle Reiter (Einheiten, Vorauszahlung, Kosten …) + Titel mitziehen */
 }
 
 /* US-59: Kosten-Titel im Vorjahr-Modus ergänzen: "4 · Kosten" schwarz, " aus Vorjahr JJJJ (Alt+V)"
@@ -1759,7 +1789,7 @@ function renderKostenTitel(){
   if(!base||!vjs) return;
   if(vjs.classList.contains('vj-titel-hint')) return; /* laufenden „kein Vorjahr"-Hinweis nicht überschreiben */
   const vj = zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null;
-  if(zeigeVorjahr && vj){ base.textContent='4 · Kosten'; vjs.textContent=' aus Vorjahr '+(nkObjektJahr(vj)||'')+' (Alt+V)'; }
+  if(zeigeVorjahr && vj){ base.textContent='4 · Kosten'; vjs.textContent=' aus Vorjahr '+(nkObjektJahr(vj)||'')+' (Alt+v)'; }
   else { base.textContent='4 · Kosten erfassen'; vjs.textContent=''; }
 }
 

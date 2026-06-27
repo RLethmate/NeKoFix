@@ -898,6 +898,23 @@ function nkVorjahrKostenMap(snap) {
   return map;
 }
 
+/* US-59: Einheit im Vorjahr-Snapshot über den (normalisierten) Namen finden. null, wenn nichts passt. */
+function nkVorjahrEinheit(snap, name) {
+  const key = nkNormName(name);
+  if (!key) return null;
+  return ((snap && snap.einheiten) || []).find(e => nkNormName(e && e.name) === key) || null;
+}
+
+/* US-59: Vorjahres-NK-Vorauszahlung (vmonat) für eine Einheit/Mieter. Match: Einheit über Namen,
+   darin das Mietverhältnis über den Mieternamen (sonst das erste). null, wenn nichts passt. */
+function nkVorjahrVmonat(snap, einheitName, mieterName) {
+  const e = nkVorjahrEinheit(snap, einheitName);
+  if (!e || !e.mv || !e.mv.length) return null;
+  const mk = nkNormName(mieterName);
+  const m = (mk && e.mv.find(x => nkNormName(x && x.mieter) === mk)) || e.mv[0];
+  return (m && m.vmonat != null) ? (+m.vmonat || 0) : null;
+}
+
 /* US-85: Vorzeichen-Vorsortierung einer Buchung fürs Review. Positiv = Zahlungseingang
    (meist Miete), negativ = Kosten; offensichtlich interne Umbuchungen (Termingeld/Geldanlage)
    werden als "ignorieren" vorgeschlagen. Default, in US-86 überschreibbar. Reine Funktion. */
@@ -1138,6 +1155,8 @@ if (typeof module !== "undefined" && module.exports) {
     nkObjektJahr,
     nkFindVorjahr,
     nkVorjahrKostenMap,
+    nkVorjahrEinheit,
+    nkVorjahrVmonat,
     nkVorjahrUebernehmen,
     nkOffeneVorjahrKosten,
     nkObjekteGruppieren,

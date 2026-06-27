@@ -1165,3 +1165,16 @@ test("nkVorjahrKostenMap: Beträge je normalisierter Bezeichnung summiert", () =
   assert.equal(m[calc.nkNormName("Wasser")], 410);
   assert.equal(Object.keys(m).length, 2);
 });
+
+test("nkVorjahrEinheit / nkVorjahrVmonat: Match über Einheit-/Mieternamen", () => {
+  const snap = { einheiten: [
+    { name: "EG links", flaeche: 70, personen: 2, mv: [{ mieter: "Müller", vmonat: 150 }] },
+    { name: "OG", flaeche: 55, personen: 1, mv: [{ mieter: "Schmidt", vmonat: 120 }, { mieter: "Klein", vmonat: 90 }] },
+  ] };
+  assert.equal(calc.nkVorjahrEinheit(snap, "eg links").flaeche, 70);   // normalisiert
+  assert.equal(calc.nkVorjahrEinheit(snap, "Gibtsnicht"), null);
+  assert.equal(calc.nkVorjahrVmonat(snap, "EG links", "Mueller"), 150); // Umlaut-Toleranz im Mieter
+  assert.equal(calc.nkVorjahrVmonat(snap, "OG", "Klein"), 90);          // zweites MV per Mieter
+  assert.equal(calc.nkVorjahrVmonat(snap, "OG", "Unbekannt"), 120);     // Fallback: erstes MV
+  assert.equal(calc.nkVorjahrVmonat(snap, "weg", "x"), null);           // Einheit fehlt
+});
