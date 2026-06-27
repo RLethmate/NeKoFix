@@ -819,6 +819,7 @@ function renderKosten(){
   const uc=document.getElementById('ungeprueft_count'); if(uc){ const n=nkUngeprueftAnzahl(state.kosten); uc.textContent = n? ' — '+n+' offen' : ' — alle geprüft'; }
   renderRubrikPicker();
   renderPicker();
+  renderKostenTitel(); /* US-59: Titel-Suffix „aus Vorjahr …" konsistent mitführen */
 }
 /* US-89-Schliff: Rubrik-Auswahl als Combobox (analog „Kostenart wählen …"). Das Dropdown listet die
    typischen, noch nicht angelegten Rubriken (Klick legt an); im Fuß eine „Eigene …". Sortieren/
@@ -1735,32 +1736,39 @@ document.addEventListener('keydown', function(e){
   else if(k==='n'){ e.preventDefault(); neuesObjekt(); } /* US-91: Strg+N = Neu (Browser fängt es ggf. ab) */
 });
 
-/* US-59: Vorjahres-Toggle per Taste "v" (ohne Modifier). Ignoriert wird die Taste, solange in einem
-   Eingabefeld getippt wird (sonst stört sie Text-/Betragsfelder) oder ein Dialog/Overlay offen ist. */
+/* US-59: Vorjahres-Toggle per Alt+V (Microsoft-Entsprechung der Option-Taste auf dem Mac). Über
+   e.code='KeyV', weil Alt+V auf dem Mac als Sonderzeichen ankommt; preventDefault verhindert das. */
 document.addEventListener('keydown', function(e){
-  if(e.metaKey||e.ctrlKey||e.altKey) return;
-  if((e.key||'').toLowerCase()!=='v') return;
-  const t=e.target, tag=t&&t.tagName;
-  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||(t&&t.isContentEditable)) return;
+  if(e.metaKey||e.ctrlKey || !e.altKey) return;
+  if(e.code!=='KeyV' && (e.key||'').toLowerCase()!=='v') return;
   e.preventDefault(); toggleVorjahr();
 });
 
-/* US-59: Vorjahreswerte ein-/ausblenden. Ohne auffindbares Vorjahr nur ein kurzer Hinweis. */
+/* US-59: Vorjahreswerte ein-/ausblenden. Ohne auffindbares Vorjahr nur ein kurzer Hinweis im Titel. */
 function toggleVorjahr(){
   const vj=nkFindVorjahr(objekte, aktivIdx);
-  if(!zeigeVorjahr && !vj){ renderVorjahrToggle(false, null); return; }
+  if(!zeigeVorjahr && !vj){ flashKeinVorjahr(); return; }
   zeigeVorjahr=!zeigeVorjahr;
-  renderVorjahrToggle(zeigeVorjahr, vj);
-  renderKosten();
+  renderKosten(); /* rendert Felder + Titel (renderKostenTitel am Ende) neu */
 }
 
-/* US-59: kleiner Indikator, dass der Vergleich aktiv ist (zeigt das Vorjahr); informiert auch,
-   wenn kein Vorjahr-Objekt vorliegt. */
-function renderVorjahrToggle(on, vj){
-  const el=document.getElementById('vj_indicator'); if(!el) return;
-  if(on){ el.textContent='Vorjahr '+(nkObjektJahr(vj)||'')+' eingeblendet · „v" zum Ausblenden'; el.hidden=false; }
-  else if(vj===null){ el.textContent='Kein Vorjahr zu diesem Objekt gefunden'; el.hidden=false; clearTimeout(renderVorjahrToggle._t); renderVorjahrToggle._t=setTimeout(()=>{ el.hidden=true; }, 2500); }
-  else { el.hidden=true; }
+/* US-59: Kosten-Titel im Vorjahr-Modus ergänzen: "4 · Kosten" schwarz, " aus Vorjahr JJJJ (Alt+V)"
+   blau kursiv. Kein eigenes Element/keine Extra-Zeile -> kein Layout-Sprung. */
+function renderKostenTitel(){
+  const base=document.getElementById('kosten_titel_base'), vjs=document.getElementById('kosten_titel_vj');
+  if(!base||!vjs) return;
+  if(vjs.classList.contains('vj-titel-hint')) return; /* laufenden „kein Vorjahr"-Hinweis nicht überschreiben */
+  const vj = zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null;
+  if(zeigeVorjahr && vj){ base.textContent='4 · Kosten'; vjs.textContent=' aus Vorjahr '+(nkObjektJahr(vj)||'')+' (Alt+V)'; }
+  else { base.textContent='4 · Kosten erfassen'; vjs.textContent=''; }
+}
+
+/* US-59: kurzer Hinweis im Titel, wenn es kein Vorjahr-Objekt gibt (2,5 s, dann zurück). */
+function flashKeinVorjahr(){
+  const vjs=document.getElementById('kosten_titel_vj'); if(!vjs) return;
+  vjs.textContent=' kein Vorjahr gefunden'; vjs.classList.add('vj-titel-hint');
+  clearTimeout(flashKeinVorjahr._t);
+  flashKeinVorjahr._t=setTimeout(()=>{ vjs.classList.remove('vj-titel-hint'); vjs.textContent=''; }, 2500);
 }
 
 /* ---------- Init ---------- */
