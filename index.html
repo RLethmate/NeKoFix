@@ -68,6 +68,20 @@
   tr.vorjahr td{background:#fdf6e8;}
   tr.vorjahr td:nth-child(2) input{border-color:#e6c878;background:#fffaf0;font-style:italic;}
   .vorjahr-badge{display:inline-block;font-size:11px;color:#7a5a12;background:#fbf4e6;border:1px solid #e6c878;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
+  /* US-59: Vorjahreswert IM selben Betragsfeld eingeblendet (Toggle Alt+V) – read-only, blau kursiv.
+     Bewusst kein zusätzliches Element, damit sich Layout/Zeilenhöhe nicht ändern. */
+  input.vj-field{color:#1565c0;font-style:italic;background:#f3f7fe;border-color:#c3d6f5;cursor:default;}
+  input.vj-field.vj-none{color:#9aa0a6;font-style:italic;}
+  /* Titel-Suffix „… aus Vorjahr JJJJ (Alt+V)": Basis schwarz, Zusatz blau kursiv. */
+  #kosten_titel_vj, .vj-titel{color:#1565c0;font-style:italic;font-weight:400;}
+  #kosten_titel_vj.vj-titel-hint{color:#9aa0a6;}
+  tr.rubrik-sum.vj-sum td{color:#1565c0;font-style:italic;}
+  .vj-betrag{color:#1565c0;font-style:italic;}
+  #tbl_ergebnis.vj-view tbody td{color:#1565c0;font-style:italic;}
+  /* US-59: in der Vorjahr-Ansicht der Abrechnung die Zahlen blau kursiv – wie auf den anderen Reitern. */
+  #doc.vj-view td.num, #doc.vj-view .headline-box{color:#1565c0;font-style:italic;}
+  tr.vj-only-row td{background:#f7faff;color:#1565c0;}
+  .vj-only-badge{display:inline-block;font-size:11px;color:#1565c0;background:#eaf1fb;border:1px solid #c3d6f5;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
   /* US-90: WISO-Stil – kleines blaues Dreieck oben rechts im Feld = vorbelegt, aktiv zu übernehmen (Klick übernimmt). */
   .betrag-wrap{position:relative;display:inline-block;}
   .betrag-wrap.unbestaetigt input{padding-right:16px;}
@@ -462,6 +476,8 @@
       <div class="menu-sep"></div>
       <button onclick="neuesJahrAusVorjahr();toggleDateiMenu(true)">Neues Jahr aus Objekt…</button>
       <button onclick="document.getElementById('csv_import').click();toggleDateiMenu(true)">Kontoauszug (.csv) importieren</button>
+      <div class="menu-sep"></div>
+      <button onclick="toggleVorjahr();toggleDateiMenu(true)">Vorjahr ein-/ausblenden<span class="menu-kbd">Alt+v</span></button>
     </div>
   </div>
   <input type="file" id="obj_import" accept=".json,application/json" style="display:none" onchange="importObjekt(event)">
@@ -505,7 +521,7 @@
 
   <!-- Step 1: Objekt & Einheiten -->
   <section class="panel" data-step="0">
-    <h1>1 · Objekt &amp; Einheiten<button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
+    <h1>1 · Objekt &amp; Einheiten<span id="vjt_einh" class="vj-titel"></span><button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
     <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Mietvertrag (Wohnungsgrößen) bzw. Grundriss</b></span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Grunddaten des Hauses und der Wohneinheiten – Basis für jede Verteilung.</p>
     <div class="legal">Recht (V11): Für die Betriebskostenverteilung zählt die <b>tatsächliche</b> Wohnfläche, nicht die im Mietvertrag vereinbarte.</div>
@@ -536,7 +552,7 @@
 
   <!-- Step: Mieter & Vertrag (US-81; wird in der Schrittleiste direkt nach Objekt angezeigt) -->
   <section class="panel" data-step="7">
-    <h1>Mieter &amp; Vertrag<button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
+    <h1>Mieter &amp; Vertrag<span id="vjt_mieter" class="vj-titel"></span><button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
     <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Mietvertrag</b> (Namen, Mietzeit, Kaltmiete, NK-Vorauszahlung, Staffel/Index)</span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Je Einheit: Mieter, Mietzeit, Kaltmiete, NK-Vorauszahlung, Stellplätze und Mieterhöhung (Index/Staffel).</p>
     <div id="mieter_vertrag_box"></div>
@@ -545,7 +561,7 @@
 
   <!-- Step 2: Mieter & Vorauszahlung -->
   <section class="panel" data-step="1">
-    <h1>2 · Vorauszahlungen (Soll)</h1>
+    <h1>2 · Vorauszahlungen (Soll)<span id="vjt_voraus" class="vj-titel"></span></h1>
     <p class="sub">Monatliches Soll je Mieter: Grundmiete und Stellplätze stammen aus dem Vertrag, die NK-Vorauszahlung (Nebenkosten) erfasst du hier. Am Ende mit dem Anteil saldiert.</p>
     <div class="legal">Soll-Basis: Saldiert wird mit den <b>vereinbarten</b> Vorauszahlungen. Tatsächliche Zahlungseingänge und Rückstände führst du getrennt im Reiter „Zahlungseingänge (Ist)".</div>
     <div class="legal">Recht (V07 / § 556 BGB): Die Saldierung der Vorauszahlungen ist eine formelle Pflichtangabe der Abrechnung.</div>
@@ -559,7 +575,7 @@
 
   <!-- Step 3: Kosten -->
   <section class="panel" data-step="3">
-    <h1>4 · Kosten erfassen<button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
+    <h1><span id="kosten_titel_base">4 · Kosten erfassen</span><span id="kosten_titel_vj"></span><button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
     <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Rechnungen der Dienstleister</b> (Grundsteuer, Versicherung, Hauswart, Müll …)</span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Umlagefähige Betriebskosten und die Heizkostensumme vom Messdienst.</p>
     <div class="legal">Recht (V07): Positionen orientieren sich am BetrKV-Katalog. Kabel-/Fernsehsignal ist seit 01.07.2024 nicht mehr umlagefähig. Heizkosten werden als Summe vom Messdienst übernommen.</div>
@@ -598,7 +614,7 @@
 
   <!-- Step 4: Heizung (US-05) -->
   <section class="panel" data-step="2">
-    <h1>3 · Heizung<button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
+    <h1>3 · Heizung<span id="vjt_heiz" class="vj-titel"></span><button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
     <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Abrechnung des Messdienstes</b> (Techem/Kalo/Brunata)</span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Heizkosten aus Verbrauch und Preis erfassen – das Ergebnis wird wie eine Kostenposition verteilt.</p>
     <div class="legal">Erfasst wird die Gebäude-Heizkostensumme (Menge × Preis bzw. kWh × Preis), verteilt nach gewähltem Schlüssel. Bei Heizungswechsel mehrere Blöcke mit „aktiv von/bis" anlegen – jeder Block wird über seine Periode auf die anwesenden Mieter verteilt. Ist eine Blockperiode nicht voll durch Mietverhältnisse gedeckt, trägt die Differenz der Vermieter. Eine verbrauchsgenaue Verteilung je Wohnung über Einzelzähler (Messdienst) ist nicht enthalten.</div>
@@ -616,7 +632,7 @@
 
   <!-- Step 5: Berechnung Übersicht -->
   <section class="panel" data-step="4">
-    <h1>5 · Berechnung</h1>
+    <h1>5 · Berechnung<span id="vjt_berech" class="vj-titel"></span></h1>
     <p class="sub">Verteilung aller Kosten auf die Einheiten und Saldierung mit den Vorauszahlungen.</p>
     <div class="summary-cards">
       <div class="scard"><div class="lbl">Gesamtkosten</div><div class="val" id="sum_total">–</div></div>
@@ -636,7 +652,7 @@
 
   <!-- Step 6: Abrechnung -->
   <section class="panel" data-step="5">
-    <h1>6 · Fertige Abrechnung</h1>
+    <h1>6 · Fertige Abrechnung<span id="vjt_abr" class="vj-titel"></span></h1>
     <p class="sub">Die formell korrekte Abrechnung je Mieter – druck- und versandfertig.</p>
     <div class="mieter-tabs" id="mieter_tabs"></div>
     <div class="doc" id="doc"></div>
@@ -655,7 +671,7 @@
     </div>
     <div id="freischalt_box" class="freischalt-box"></div>
     <div class="nav"><button class="btn-ghost" onclick="go(4)">Zurück</button>
-      <span class="export-actions">
+      <span class="export-actions" id="export_actions">
         <button class="btn-ghost" onclick="exportTenantPdf()">Diese Abrechnung als PDF</button>
         <button class="btn-ghost" onclick="exportAllTenantPdfs()">Alle Mieter (Einzel-PDFs)</button>
         <button class="btn-primary act-green" onclick="exportOwnerOverviewPdf()">Eigentümer-Übersicht (PDF)</button>

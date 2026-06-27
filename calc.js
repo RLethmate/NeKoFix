@@ -858,6 +858,79 @@ function nkNormName(s) {
   return t.replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 }
 
+/* US-59: Jahr eines Objekt-Snapshots (vierstellig) aus von/bis ableiten. Reine Funktion. */
+function nkObjektJahr(s) {
+  const v = s && s.objekt && (s.objekt.von || s.objekt.bis);
+  const m = String(v == null ? "" : v).match(/(\d{4})/);
+  return m ? m[1] : "";
+}
+
+/* US-59: zum aktiven Objekt das Vorjahr finden — gleiche (normalisierte) Adresse und Jahr = aktiv-1.
+   `objekte` ist die Liste der Snapshots, `aktivIdx` der Index des aktiven. Liefert das passende
+   Snapshot oder null. Reine Funktion (für den Vorjahres-Toggle). */
+function nkFindVorjahr(objekte, aktivIdx) {
+  const liste = objekte || [];
+  const akt = liste[aktivIdx];
+  if (!akt) return null;
+  const jahr = +nkObjektJahr(akt);
+  if (!jahr) return null;
+  const addr = nkNormName((akt.objekt && (akt.objekt.addr || akt.objekt.name)) || "");
+  if (!addr) return null;
+  for (let i = 0; i < liste.length; i++) {
+    if (i === aktivIdx) continue;
+    const d = liste[i];
+    const a2 = nkNormName((d && d.objekt && (d.objekt.addr || d.objekt.name)) || "");
+    if (a2 === addr && +nkObjektJahr(d) === jahr - 1) return d;
+  }
+  return null;
+}
+
+/* US-59: Kostenbeträge eines (Vorjahr-)Snapshots je normalisierter Bezeichnung summiert.
+   Map { normBez: betrag }. Mehrere Positionen gleicher Bezeichnung werden addiert. Reine Funktion. */
+function nkVorjahrKostenMap(snap) {
+  const map = {};
+  const ks = (snap && snap.kosten) || [];
+  for (const k of ks) {
+    const key = nkNormName(k && k.bez);
+    if (!key) continue;
+    map[key] = (map[key] || 0) + (+(k && k.betrag) || 0);
+  }
+  return map;
+}
+
+/* US-59: Einheit im Vorjahr-Snapshot über den (normalisierten) Namen finden. null, wenn nichts passt. */
+function nkVorjahrEinheit(snap, name) {
+  const key = nkNormName(name);
+  if (!key) return null;
+  return ((snap && snap.einheiten) || []).find(e => nkNormName(e && e.name) === key) || null;
+}
+
+/* US-59: Vorjahres-NK-Vorauszahlung (vmonat) für eine Einheit/Mieter. Match: Einheit über Namen,
+   darin das Mietverhältnis über den Mieternamen (sonst das erste). null, wenn nichts passt. */
+function nkVorjahrVmonat(snap, einheitName, mieterName) {
+  const e = nkVorjahrEinheit(snap, einheitName);
+  if (!e || !e.mv || !e.mv.length) return null;
+  const mk = nkNormName(mieterName);
+  const m = (mk && e.mv.find(x => nkNormName(x && x.mieter) === mk)) || e.mv[0];
+  return (m && m.vmonat != null) ? (+m.vmonat || 0) : null;
+}
+
+/* US-59: Mietverhältnis im Vorjahr über Einheit-Name und Position (Index). null, wenn nichts passt.
+   (Positionsbasiert, weil der Mietername im Vorjahr ein anderer sein kann.) */
+function nkVorjahrMv(snap, einheitName, mvIndex) {
+  const e = nkVorjahrEinheit(snap, einheitName);
+  if (!e || !e.mv) return null;
+  return e.mv[mvIndex] || null;
+}
+
+/* US-59: Heizblock (Kostenposition mit typ='heizung') im Vorjahr über die normalisierte Bezeichnung
+   finden. null, wenn nichts passt. */
+function nkVorjahrHeizblock(snap, bez) {
+  const key = nkNormName(bez);
+  if (!key) return null;
+  return ((snap && snap.kosten) || []).find(k => k && k.typ === "heizung" && nkNormName(k.bez) === key) || null;
+}
+
 /* US-85: Vorzeichen-Vorsortierung einer Buchung fürs Review. Positiv = Zahlungseingang
    (meist Miete), negativ = Kosten; offensichtlich interne Umbuchungen (Termingeld/Geldanlage)
    werden als "ignorieren" vorgeschlagen. Default, in US-86 überschreibbar. Reine Funktion. */
@@ -1095,6 +1168,13 @@ if (typeof module !== "undefined" && module.exports) {
     nkBaldFaellig,
     nkPlausibilitaet,
     nkPlusJahr,
+    nkObjektJahr,
+    nkFindVorjahr,
+    nkVorjahrKostenMap,
+    nkVorjahrEinheit,
+    nkVorjahrVmonat,
+    nkVorjahrMv,
+    nkVorjahrHeizblock,
     nkVorjahrUebernehmen,
     nkOffeneVorjahrKosten,
     nkObjekteGruppieren,
