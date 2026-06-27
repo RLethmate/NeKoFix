@@ -68,10 +68,14 @@
   tr.vorjahr td{background:#fdf6e8;}
   tr.vorjahr td:nth-child(2) input{border-color:#e6c878;background:#fffaf0;font-style:italic;}
   .vorjahr-badge{display:inline-block;font-size:11px;color:#7a5a12;background:#fbf4e6;border:1px solid #e6c878;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
-  /* US-59: Vorjahreswert je Feld eingeblendet (Toggle "v") – gedämpfte, klar andere Farbe. */
-  .vj-inline{display:inline-block;margin-left:8px;font-size:12px;color:#1565c0;white-space:nowrap;vertical-align:middle;}
-  .vj-inline.vj-none{color:#9aa0a6;}
+  /* US-59: Vorjahreswert IM selben Betragsfeld eingeblendet (Toggle "v") – read-only, klar andere Farbe.
+     Bewusst kein zusätzliches Element, damit sich das Layout/keine Zeilenhöhe ändert. */
+  input.vj-field{color:#1565c0;font-weight:600;background:#f3f7fe;border-color:#c3d6f5;cursor:default;}
+  input.vj-field.vj-none{color:#9aa0a6;font-weight:400;}
   .vj-indicator{margin:0 0 10px;padding:6px 10px;font-size:13px;color:#1565c0;background:#eaf1fb;border:1px solid #c3d6f5;border-radius:6px;}
+  tr.rubrik-sum.vj-sum td{color:#1565c0;}
+  tr.vj-only-row td{background:#f7faff;color:#1565c0;}
+  .vj-only-badge{display:inline-block;font-size:11px;color:#1565c0;background:#eaf1fb;border:1px solid #c3d6f5;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
   /* US-90: WISO-Stil – kleines blaues Dreieck oben rechts im Feld = vorbelegt, aktiv zu übernehmen (Klick übernimmt). */
   .betrag-wrap{position:relative;display:inline-block;}
   .betrag-wrap.unbestaetigt input{padding-right:16px;}

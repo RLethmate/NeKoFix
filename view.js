@@ -678,22 +678,23 @@ function renderVoraus(){
   });
 }
 
-/* US-59: Inline-Anzeige des Vorjahreswerts an einer Kostenzeile (gedämpft, andere Farbe).
-   Leerer String, wenn der Toggle aus ist. Kein Vorjahres-Treffer -> "VJ –". */
-function vjInlineKosten(vjMap, bez){
-  if(!vjMap) return '';
-  const key=nkNormName(bez);
-  return (key in vjMap)
-    ? '<span class="vj-inline" title="Vorjahreswert (zum Vergleich eingeblendet)">VJ '+nkFmtBetrag(vjMap[key])+'&nbsp;€</span>'
-    : '<span class="vj-inline vj-none" title="Kein passender Vorjahreswert">VJ&nbsp;–</span>';
-}
-
 /* ---------- Step 3 ---------- */
 function renderKosten(){
   ensureIds();
   const tb=document.querySelector('#tbl_kosten tbody'); tb.innerHTML='';
-  /* US-59: Vorjahreswerte je Kostenart (über die Bezeichnung) einblenden, wenn der Toggle an ist. */
-  const vjMap = zeigeVorjahr ? nkVorjahrKostenMap(nkFindVorjahr(objekte, aktivIdx)) : null;
+  /* US-59: Vorjahreswerte je Kostenart (über die Bezeichnung) einblenden, wenn der Toggle an ist.
+     Dargestellt IM selben Betragsfeld (read-only, blau) – kein Layout-Sprung. */
+  const vjSnap = zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null;
+  const vjMap = vjSnap ? nkVorjahrKostenMap(vjSnap) : null;
+  /* Betragszelle: im Vorjahr-Modus den Vorjahreswert read-only/blau zeigen, sonst das normale,
+     editierbare Feld (mit US-90-Übernahme-Dreieck). */
+  function betragCellHtml(k, idx){
+    if(zeigeVorjahr){
+      const key=nkNormName(k.bez), hit=vjMap&&(key in vjMap);
+      return '<td class="num"><span class="betrag-wrap"><input class="short vj-field'+(hit?'':' vj-none')+'" type="text" readonly tabindex="-1" title="Vorjahreswert (zum Vergleich)" value="'+(hit?nkFmtBetrag(vjMap[key]):'–')+'"></span></td>';
+    }
+    return '<td class="num"><span class="betrag-wrap'+(k.vorjahr?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+'" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">'+(k.vorjahr?'<button type="button" class="vorjahr-tri" title="Vorjahreswert übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="uebernehmeKostenVorjahr('+idx+')"></button>':'')+'</span></td>';
+  }
   /* US-58: eine Kostenzeile (+ Detail) anhängen. */
   function appendKostenRow(k, idx){
     const st=k.status||'vorlaeufig', vf=k.verfuegbar||'vorhanden';
@@ -709,7 +710,7 @@ function renderKosten(){
     const tr=document.createElement('tr'); tr.id='krow-'+idx; if(k.vorjahr) tr.className='vorjahr';
     tr.innerHTML=
       '<td class="bez-col"><div class="bez-wrap"><span class="drag-grip" draggable="true" ondragstart="kostenDragStart(event,'+k.id+')" title="Ziehen zum Verschieben (Rubrik &amp; Reihenfolge)">⠿</span><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+'</span></div></td>'+
-      '<td class="num"><span class="betrag-wrap'+(k.vorjahr?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+'" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">'+(k.vorjahr?'<button type="button" class="vorjahr-tri" title="Vorjahreswert übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="uebernehmeKostenVorjahr('+idx+')"></button>':'')+'</span>'+vjInlineKosten(vjMap,k.bez)+'</td>'+
+      betragCellHtml(k,idx)+
       '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug). „Direkt" ordnet die Position einer einzelnen Einheit zu 100 % zu." onchange="setSchluessel('+idx+',this.value)">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button>'+
         (k.schluessel==='direkt'
           ? '<select class="direkt-select" title="Diese Kosten trägt eine Einheit zu 100 %" onchange="store.setKostenFeld('+idx+',\'direktEinheit\',+this.value)">'+state.einheiten.map(x=>'<option value="'+x.id+'"'+(k.direktEinheit===x.id?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>'
@@ -761,30 +762,54 @@ function renderKosten(){
       '<td class="num">'+eur(k.betrag||0)+'</td><td>'+schluesselAnzeige(k)+'</td><td></td><td></td>';
     tb.appendChild(tr);
   }
+  /* US-59: nur im Vorjahr vorhandene Kostenart – temporäre, read-only Zeile (blau); verschwindet,
+     sobald der Vorjahr-Modus wieder aus ist (sie wird nie in den State geschrieben). */
+  function appendVjOnlyRow(vk){
+    const tr=document.createElement('tr'); tr.className='vj-only-row';
+    tr.innerHTML='<td class="bez-col">'+esc(vk.bez)+' <span class="vj-only-badge">nur Vorjahr</span></td>'+
+      '<td class="num"><span class="betrag-wrap"><input class="short vj-field" type="text" readonly tabindex="-1" title="Vorjahreswert (nur im Vorjahr vorhanden)" value="'+nkFmtBetrag(vk.betrag)+'"></span></td>'+
+      '<td>'+schluesselAnzeige(vk)+'</td><td></td><td></td>';
+    tb.appendChild(tr);
+  }
   /* US-58/US-89: Positionen nach Rubrik (objekt-eigene Reihenfolge) gruppieren. Die Rubrik-
      Überschrift ist die Struktur-Fläche: ziehbar (umsortieren), ↑/↓/✎/× und Drop-Ziel. Leere
      Rubriken werden als Drop-Zone gezeigt, damit man Positionen per Drag hineinziehen kann. */
   const items=state.kosten.map((k,idx)=>({k,idx})).filter(o=>!(nurUngeprueft && (o.k.status||'vorlaeufig')==='geprueft'));
   const liste=nkRubrikenListe(state.objekt, state.kosten);
-  liste.forEach((rub,ri)=>{
+  /* US-59: Kostenarten, die es nur im Vorjahr gab, im Vorjahr-Modus zusätzlich einblenden. */
+  const curBez=new Set(state.kosten.map(k=>nkNormName(k.bez)).filter(Boolean));
+  const vjOnly=(zeigeVorjahr && vjSnap) ? (vjSnap.kosten||[]).filter(vk=>{ const key=nkNormName(vk.bez); return key && !curBez.has(key); }) : [];
+  const extraRub=[]; vjOnly.forEach(vk=>{ const r=nkRubrik(vk); if(liste.indexOf(r)<0 && extraRub.indexOf(r)<0) extraRub.push(r); });
+  const rubriken=liste.concat(extraRub);
+  rubriken.forEach((rub,ri)=>{
+    const transient = ri>=liste.length; /* nur-Vorjahr-Rubrik ohne Pendant im aktuellen Jahr */
     const grp=items.filter(o=>nkRubrik(o.k)===rub);
-    const hr=document.createElement('tr'); hr.className='rubrik-head';
-    hr.innerHTML='<td colspan="5"><div class="rh-inner">'+
-      '<span class="rh-grip" draggable="true" ondragstart="rubrikHeadDragStart(event,'+ri+')" title="Rubrik ziehen, um sie umzusortieren">⠿</span>'+
-      '<span class="rh-name">'+esc(rub)+'</span>'+
-      '<span class="rh-tools">'+
-      '<button class="rh-btn" title="nach oben" onclick="rubrikHoch('+ri+')"'+(ri===0?' disabled':'')+'>↑</button>'+
-      '<button class="rh-btn" title="nach unten" onclick="rubrikRunter('+ri+')"'+(ri===liste.length-1?' disabled':'')+'>↓</button>'+
-      '<button class="rh-btn" title="umbenennen" onclick="rubrikUmbenennen('+ri+')">✎</button>'+
-      (grp.length?'':'<button class="rh-btn rh-del" title="leere Rubrik löschen" onclick="rubrikLoeschen('+ri+')">×</button>')+
-      '</span>'+
-      '</div></td>';
-    hr.ondragover=dndOver; hr.ondragleave=dndLeave; hr.ondrop=(function(r){ return function(e){ headDrop(e, r); }; })(rub);
+    const vjHere=vjOnly.filter(vk=>nkRubrik(vk)===rub);
+    const hr=document.createElement('tr'); hr.className='rubrik-head'+(transient?' rubrik-head-vj':'');
+    if(transient){
+      hr.innerHTML='<td colspan="5"><div class="rh-inner"><span class="rh-name">'+esc(rub)+'</span> <span class="vj-only-badge">nur Vorjahr</span></div></td>';
+    } else {
+      hr.innerHTML='<td colspan="5"><div class="rh-inner">'+
+        '<span class="rh-grip" draggable="true" ondragstart="rubrikHeadDragStart(event,'+ri+')" title="Rubrik ziehen, um sie umzusortieren">⠿</span>'+
+        '<span class="rh-name">'+esc(rub)+'</span>'+
+        '<span class="rh-tools">'+
+        '<button class="rh-btn" title="nach oben" onclick="rubrikHoch('+ri+')"'+(ri===0?' disabled':'')+'>↑</button>'+
+        '<button class="rh-btn" title="nach unten" onclick="rubrikRunter('+ri+')"'+(ri===liste.length-1?' disabled':'')+'>↓</button>'+
+        '<button class="rh-btn" title="umbenennen" onclick="rubrikUmbenennen('+ri+')">✎</button>'+
+        ((grp.length||vjHere.length)?'':'<button class="rh-btn rh-del" title="leere Rubrik löschen" onclick="rubrikLoeschen('+ri+')">×</button>')+
+        '</span>'+
+        '</div></td>';
+      hr.ondragover=dndOver; hr.ondragleave=dndLeave; hr.ondrop=(function(r){ return function(e){ headDrop(e, r); }; })(rub);
+    }
     tb.appendChild(hr);
-    if(grp.length){
+    if(grp.length || vjHere.length){
       grp.forEach(o=>{ if(o.k.typ==='heizung') appendHeizHinweisRow(o.k); else appendKostenRow(o.k,o.idx); });
-      const sum=grp.reduce((s,o)=>s+(+o.k.betrag||0),0);
-      const sr=document.createElement('tr'); sr.className='rubrik-sum'; sr.innerHTML='<td>Zwischensumme '+esc(rub)+'</td><td class="num">'+eur(sum)+'</td><td colspan="3"></td>'; tb.appendChild(sr);
+      vjHere.forEach(vk=>appendVjOnlyRow(vk));
+      const sum = zeigeVorjahr
+        ? grp.reduce((s,o)=>{ const key=nkNormName(o.k.bez); return s+((vjMap&&key in vjMap)?vjMap[key]:0); },0)+vjHere.reduce((s,vk)=>s+(+vk.betrag||0),0)
+        : grp.reduce((s,o)=>s+(+o.k.betrag||0),0);
+      const sr=document.createElement('tr'); sr.className='rubrik-sum'+(zeigeVorjahr?' vj-sum':''); sr.dataset.rub=rub;
+      sr.innerHTML='<td>Zwischensumme '+esc(rub)+'</td><td class="num">'+eur(sum)+'</td><td colspan="3"></td>'; tb.appendChild(sr);
     } else {
       const er=document.createElement('tr'); er.className='rubrik-empty'; er.innerHTML='<td colspan="5">leer – Positionen hierher ziehen</td>';
       er.ondragover=dndOver; er.ondragleave=dndLeave; er.ondrop=(function(r){ return function(e){ headDrop(e, r); }; })(rub);
@@ -843,7 +868,16 @@ function toggleTeilnahme(idx, einheitId, checked){
   store.setKostenFeld(idx,'ausgeschlossen',aus);
 }
 /* US-11/US-90: Betrag bearbeiten = Vorjahreswert aktiv übernehmen → Markierung (Dreieck/Zeile) aufheben. */
-function updKostenBetrag(idx,val){ store.setKostenBetrag(idx, nkParseBetrag(val)); const k=store.kosten(idx); if(k.vorjahr){ store.setKostenFeld(idx,'vorjahr',false); const r=document.getElementById('krow-'+idx); if(r){ r.classList.remove('vorjahr'); const b=r.querySelector('.vorjahr-badge'); if(b) b.remove(); const w=r.querySelector('.betrag-wrap'); if(w) w.classList.remove('unbestaetigt'); const t=r.querySelector('.vorjahr-tri'); if(t) t.remove(); } finalizeVorjahrWennFertig(); renderVorjahrBanner(); } }
+function updKostenBetrag(idx,val){ store.setKostenBetrag(idx, nkParseBetrag(val)); const k=store.kosten(idx); if(k.vorjahr){ store.setKostenFeld(idx,'vorjahr',false); const r=document.getElementById('krow-'+idx); if(r){ r.classList.remove('vorjahr'); const b=r.querySelector('.vorjahr-badge'); if(b) b.remove(); const w=r.querySelector('.betrag-wrap'); if(w) w.classList.remove('unbestaetigt'); const t=r.querySelector('.vorjahr-tri'); if(t) t.remove(); } finalizeVorjahrWennFertig(); renderVorjahrBanner(); } refreshZwischensummen(); }
+/* US-59-Begleitfix: Zwischensummen je Rubrik live nachziehen (beim Tippen im Betragsfeld), ohne die
+   Tabelle neu aufzubauen – sonst würde der Fokus im Eingabefeld verloren gehen. */
+function refreshZwischensummen(){
+  document.querySelectorAll('#tbl_kosten tr.rubrik-sum').forEach(sr=>{
+    const rub=sr.dataset.rub; if(rub==null) return;
+    const sum=state.kosten.filter(k=>nkRubrik(k)===rub).reduce((s,k)=>s+(+k.betrag||0),0);
+    const cell=sr.querySelector('td.num'); if(cell) cell.textContent=eur(sum);
+  });
+}
 /* US-90: Vorjahreswert per Klick auf das blaue Dreieck übernehmen (Wert bleibt, Markierung weg). */
 function uebernehmeKostenVorjahr(idx){ const k=store.kosten(idx); if(!(k&&k.vorjahr)) return; store.setKostenFeld(idx,'vorjahr',false); finalizeVorjahrWennFertig(); renderKosten(); renderVorjahrBanner(); saveState(); updateSaveStatus(); }
 /* US-90: keine offenen Vorjahr-Kostenbeträge mehr → Vorjahr-Modus abschließen (auch MV-Marken lösen). */
