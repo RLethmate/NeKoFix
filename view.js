@@ -1022,6 +1022,7 @@ function heizKarte(k,idx){
   const fi=heizFaktorInfo(ea);
   const kwh=nkMengeZuKwh(k.menge, k.heizwert);
   const eurKwh=nkEurProKwh(k.betrag, kwh); /* US-95: Ø €/kWh nur als Kennzahl */
+  const grund=nkHeizGrundProzent(k), verbr=100-grund, vsum=verbrauchSumme(k); /* US-94: Grund-/Verbrauchsaufteilung */
   const eaOpts=NK_ENERGIEARTEN.map(e=>'<option value="'+e.key+'"'+(k.energieart===e.key?' selected':'')+'>'+esc(e.label)+'</option>').join('');
   const schlOpts=['flaeche','person','einheit','verbrauch'].map(s=>'<option value="'+s+'"'+(k.schluessel===s?' selected':'')+'>'+SCHLUESSEL[s]+'</option>').join('');
   const faktorFeld = fi.show
@@ -1041,15 +1042,18 @@ function heizKarte(k,idx){
       '<label>Heizkosten gesamt (€) <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag||0)+'" onchange="updHeizBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
       '<label title="Optional – nur für die Kennzahl Ø €/kWh (Energieträger-/Heizungsvergleich), keine Rechengrundlage.">'+fi.verbrauch+' <input class="short" type="number" step="any" value="'+(k.menge||0)+'" onchange="updHeiz('+idx+',\'menge\',this.value)"></label>'+
       faktorFeld+
-      '<label>Verteilerschlüssel <select onchange="setHeizSchluessel('+idx+',this.value)">'+schlOpts+'</select></label>'+
+      /* US-94: Grund-/Verbrauchsaufteilung statt eines einzelnen Verteilerschlüssels. */
+      '<label title="Grundkosten nach (beheizter) Fläche, Rest nach erfasstem Verbrauch (§ 7/§ 8 HeizkostenV). Zulässig: 30–50 % Grund (= 50–70 % Verbrauch).">Grundkosten % <input class="short" type="number" min="30" max="50" step="5" value="'+grund+'" onchange="updHeizGrund('+idx+',this.value)"> <span class="unit-f">→ '+verbr+' % Verbrauch</span></label>'+
       /* US-95: mittlerer Energiepreis als Kennzahl (nur wenn eine kWh-Menge vorliegt). */
       (eurKwh!=null ? '<span class="unit-f" title="Mittlerer Energiepreis – nur Kennzahl zum Vergleich (z. B. vor/nach Heizungswechsel)">Ø '+nkFmtBetrag(eurKwh)+' €/kWh</span>' : '<span class="unit-f" title="Für die Kennzahl Ø €/kWh den Verbrauch (kWh) eintragen">Ø €/kWh: –</span>')+
     '</div>'+
-    (k.schluessel==='verbrauch' ?  /* US-57/US-58: Verbrauch je Einheit auch im Heizung-Reiter */
-     '<div class="teilnahme"><span class="teilnahme-lbl">Verbrauch je Einheit:</span> '+
+    '<div class="hint" style="margin:2px 0 6px;">30 % Grund / 70 % Verbrauch ist Standard; bei älteren Öl-/Gas-Gebäuden sind 70 % Verbrauch ggf. verpflichtend (§ 7 Abs. 1 HeizkostenV). Wartungs-/Betriebskosten der Anlage gehören in diesen Block.</div>'+
+    /* US-94: Verbrauch je Einheit ist für den Verbrauchsanteil immer nötig (nicht mehr an einen Schlüssel gebunden). */
+    '<div class="teilnahme"><span class="teilnahme-lbl">Verbrauch je Einheit ('+esc(k.einheit||'kWh')+'):</span> '+
       state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>'<label class="teilnahme-item">'+esc(x.name)+' <input class="short" type="number" step="any" value="'+((k.verbrauch&&k.verbrauch[x.id])||0)+'" onchange="updHeizVerbrauch('+idx+','+x.id+',this.value)"></label>').join('')+
-      ' <span class="unit-f">Summe: '+nkFmtBetrag(verbrauchSumme(k))+'</span></div>'
-     : '')+
+      ' <span class="unit-f">Summe: '+nkFmtBetrag(vsum)+'</span>'+
+      (vsum>0 ? '' : '<div class="leer-hint" style="margin-top:6px;">⚠ Ohne erfassten Verbrauch wird '+verbr+' % nicht verbrauchsgerecht verteilt – der Block wird vorerst nach Fläche abgerechnet. Bitte Verbrauch je Einheit eintragen.</div>')+
+    '</div>'+
     // Aufräumen: Zeitraum (aktiv von/bis) standardmäßig eingeklappt; offen, wenn gesetzt, neu hinzugefügt oder aufgeklappt.
     ((mehrereHeiz || expandedHeizZeit.has(k.id) || k.von || k.bis)
       ? '<div class="detail-grid" title="US-06: Zeitraum, in dem dieser Heiztyp aktiv war. Leer = ganzer Abrechnungszeitraum. Bei Mieterwechsel wird der Block über diese Periode auf die anwesenden Mieter verteilt.">'+
@@ -1096,6 +1100,12 @@ function updHeiz(idx, field, val){
 /* US-95: Heizkostensumme direkt setzen (führender Wert; früher aus Menge×Preis errechnet). */
 function updHeizBetrag(idx, val){
   store.setKostenFeld(idx,'betrag', nkParseBetrag(val));
+  heizVorjahrBestaetigt(idx);
+  renderHeizung();
+}
+/* US-94: Grundkostenanteil (%) eines Heizblocks setzen (Klemmung auf 30–50 % erfolgt beim Lesen via nkHeizGrundProzent). */
+function updHeizGrund(idx, val){
+  store.setKostenFeld(idx,'grundProzent', nkParseBetrag(val));
   heizVorjahrBestaetigt(idx);
   renderHeizung();
 }

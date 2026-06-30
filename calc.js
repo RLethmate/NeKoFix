@@ -166,6 +166,46 @@ function nkVerbrauchSumme(k, einheiten) {
   const vb = (k && k.verbrauch) || {};
   return (einheiten || []).filter(x => nkTeilnahme(x, k)).reduce((s, x) => s + (+vb[x.id] || 0), 0);
 }
+/* US-94: Grundkostenanteil eines Heizblocks in Prozent (Default 30). Gesetzlich zulässig ist ein
+   Verbrauchsanteil von 50–70 % (§ 7/§ 8 HeizkostenV), also ein Grundanteil von 30–50 %; Werte
+   außerhalb werden in diesen Rahmen geklemmt. */
+function nkHeizGrundProzent(k) {
+  let g = k && k.grundProzent;
+  g = (g == null || isNaN(+g)) ? 30 : +g;
+  return Math.max(30, Math.min(50, g));
+}
+/* US-94: Ist für diesen Heizblock die Grund-/Verbrauchsaufteilung aktiv? Nur wenn es ein Heizblock
+   ist, noch keine Teilposition (_split), und tatsächlich Verbrauch je Einheit erfasst wurde – sonst
+   Fallback auf die bisherige Verteilung (mit Plausi-Warnung, siehe nkHeizOhneVerbrauch). */
+function nkHeizSplitAktiv(k, einheiten) {
+  return !!(k && k.typ === "heizung" && !k._split && nkVerbrauchSumme(k, einheiten) > 0);
+}
+/* US-94: Heizblöcke in zwei Teilpositionen aufteilen – Grundkosten (nach Fläche) und
+   Verbrauchskosten (nach erfasstem Verbrauch). Betrag, CO2 (kg/€) und begünstigte Arbeitskosten
+   werden anteilig auf beide Teile verteilt (Summe bleibt erhalten). Idempotent (Teilpositionen
+   tragen _split und werden nicht erneut geteilt). Nicht aufzuteilende Positionen bleiben unverändert. */
+function nkExpandHeizSplit(kosten, einheiten) {
+  const out = [];
+  (kosten || []).forEach(k => {
+    if (!nkHeizSplitAktiv(k, einheiten)) { out.push(k); return; }
+    const g = nkHeizGrundProzent(k), gf = g / 100, vf = 1 - gf;
+    const betrag = +k.betrag || 0, grundBetrag = betrag * gf;
+    const teil = (suffix, frac, schluessel, neuBetrag) => Object.assign({}, k, {
+      _split: suffix,
+      bez: k.bez + (suffix === "grund" ? " – Grundkosten (" + g + " %)" : " – Verbrauch (" + (100 - g) + " %)"),
+      betrag: neuBetrag, schluessel: schluessel,
+      co2Kg: (+k.co2Kg || 0) * frac, co2Kosten: (+k.co2Kosten || 0) * frac, arbeitskosten: (+k.arbeitskosten || 0) * frac
+    });
+    out.push(teil("grund", gf, "flaeche", grundBetrag));
+    out.push(teil("verbrauch", vf, "verbrauch", betrag - grundBetrag));
+  });
+  return out;
+}
+/* US-94: Heizblöcke, bei denen die gesetzliche Aufteilung mangels erfasstem Verbrauch (noch) nicht
+   greift – für eine Plausi-Warnung. */
+function nkHeizOhneVerbrauch(kosten, einheiten) {
+  return (kosten || []).filter(k => k && k.typ === "heizung" && !k._split && nkVerbrauchSumme(k, einheiten) <= 0);
+}
 function nkFaktorFuer(e, k, einheiten) {
   if (k && k.schluessel === "direkt") return e.id === k.direktEinheit ? 1 : 0; // US-22: 100 % auf eine Einheit
   if (!nkTeilnahme(e, k)) return 0;
@@ -183,7 +223,7 @@ function nkAusschlussNamen(k, einheiten) {
 }
 
 function nkAnteilOf(e, kosten, einheiten) {
-  return (kosten || []).reduce((s, k) => s + (+k.betrag || 0) * nkFaktorFuer(e, k, einheiten), 0);
+  return nkExpandHeizSplit(kosten || [], einheiten).reduce((s, k) => s + (+k.betrag || 0) * nkFaktorFuer(e, k, einheiten), 0);
 }
 
 /* US-59: Anzeige-Einheit je Verteilerschlüssel (kurz, ohne Zusatztext). Bei Verbrauch aus der
@@ -694,7 +734,7 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
   const mvBis = nkMvEnde(m, o.bis); // US-75: „läuft" → Ende des Abrechnungszeitraums
   const za = nkZeitanteil(m.von, mvBis, o.von, o.bis);
   const gewerblich = !!m.gewerblich;
-  const K = kosten || [];
+  const K = nkExpandHeizSplit(kosten || [], einheiten || []); // US-94: Heizblöcke in Grund-/Verbrauchsanteil aufteilen
   // US-07: gebäudeweite CO2-Grundgrößen und effektiver Vermieteranteil dieses Mietverhältnisses.
   const flaecheSumme = nkTotals(einheiten || []).flaeche;
   const spezCo2 = nkSpezCo2(nkCo2KgSumme(K), flaecheSumme);
@@ -1228,6 +1268,10 @@ if (typeof module !== "undefined" && module.exports) {
     nkMengeZuKwh,
     nkHeizkosten,
     nkEurProKwh,
+    nkHeizGrundProzent,
+    nkHeizSplitAktiv,
+    nkExpandHeizSplit,
+    nkHeizOhneVerbrauch,
     nkIbanGueltig,
     nkGiroCode,
     nkAnrede,

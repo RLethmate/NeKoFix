@@ -942,6 +942,39 @@ test("nkEurProKwh: Ø Energiepreis als Kennzahl (US-95)", () => {
   assert.equal(calc.nkEurProKwh(1000, ""), null);
   assert.equal(calc.nkEurProKwh("", 8000), 0);     // 0 € / Menge = 0
 });
+test("nkHeizGrundProzent: Default 30, geklemmt auf 30–50 % (US-94)", () => {
+  assert.equal(calc.nkHeizGrundProzent({}), 30);
+  assert.equal(calc.nkHeizGrundProzent({ grundProzent: 40 }), 40);
+  assert.equal(calc.nkHeizGrundProzent({ grundProzent: 20 }), 30); // Verbrauch max 70 %
+  assert.equal(calc.nkHeizGrundProzent({ grundProzent: 60 }), 50); // Verbrauch min 50 %
+});
+test("nkExpandHeizSplit: Heizblock in Grund (Fläche) + Verbrauch aufteilen (US-94)", () => {
+  const E = [{ id:1, name:"A", flaeche:60 }, { id:2, name:"B", flaeche:40 }];
+  const heiz = { typ:"heizung", energieart:"erdgas_kwh", bez:"Heizung", betrag:1000, grundProzent:30,
+                 schluessel:"flaeche", verbrauch:{ 1:30, 2:70 }, co2Kg:1000, co2Kosten:200 };
+  const ex = calc.nkExpandHeizSplit([heiz], E);
+  assert.equal(ex.length, 2);
+  assert.equal(ex[0]._split, "grund"); assert.equal(ex[0].schluessel, "flaeche"); assert.equal(ex[0].betrag, 300);
+  assert.equal(ex[1]._split, "verbrauch"); assert.equal(ex[1].schluessel, "verbrauch"); assert.equal(ex[1].betrag, 700);
+  // Betrag- und CO2-Summe bleiben erhalten
+  assert.equal(ex[0].betrag + ex[1].betrag, 1000);
+  assert.equal(Math.round((ex[0].co2Kg + ex[1].co2Kg)*1e6)/1e6, 1000);
+  assert.equal(Math.round((ex[0].co2Kosten + ex[1].co2Kosten)*1e6)/1e6, 200);
+  // Anteile je Einheit: A = 300*0,6 + 700*0,3 = 390 ; B = 300*0,4 + 700*0,7 = 610
+  assert.equal(Math.round(calc.nkAnteilOf(E[0], [heiz], E)*100)/100, 390);
+  assert.equal(Math.round(calc.nkAnteilOf(E[1], [heiz], E)*100)/100, 610);
+  // Idempotent: erneutes Expandieren ändert nichts (Teilpositionen tragen _split)
+  assert.equal(calc.nkExpandHeizSplit(ex, E).length, 2);
+});
+test("nkExpandHeizSplit: ohne erfassten Verbrauch -> kein Split (Fallback), Warnung möglich (US-94)", () => {
+  const E = [{ id:1, name:"A", flaeche:60 }, { id:2, name:"B", flaeche:40 }];
+  const heiz = { typ:"heizung", bez:"Heizung", betrag:1000, schluessel:"flaeche", verbrauch:{} };
+  const ex = calc.nkExpandHeizSplit([heiz], E);
+  assert.equal(ex.length, 1);                 // nicht aufgeteilt
+  assert.equal(calc.nkAnteilOf(E[0], [heiz], E), 600); // reine Flächenverteilung
+  assert.equal(calc.nkHeizOhneVerbrauch([heiz], E).length, 1);
+  assert.equal(calc.nkHeizSplitAktiv(heiz, E), false);
+});
 test("nkNormName: Umlaut-Faltung und Normalisierung fürs Matching (US-86)", () => {
   // Faltung ä/ö/ü/ß <-> ae/oe/ue/ss an generischen Wörtern (keine echten Namen/Firmen/IBANs).
   assert.equal(calc.nkNormName("Grün"), "gruen");
