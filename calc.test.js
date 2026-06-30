@@ -925,6 +925,81 @@ test("nkObjektDateiname: Vorschlag mit genau EINEM Jahr (kein doppeltes Anhänge
     "NeKoFix-Hauptstrasse 5-2023.json");
   assert.equal(calc.nkObjektDateiname({}), "NeKoFix-Objekt.json");
 });
+test("nkProzentDelta: prozentuale Veränderung ggü. Vorjahr (US-104)", () => {
+  assert.equal(calc.nkProzentDelta(110, 100), 10);
+  assert.equal(calc.nkProzentDelta(90, 100), -10);
+  assert.equal(calc.nkProzentDelta(1640, 1200), 36.7); // gerundet auf 1 NK
+  assert.equal(calc.nkProzentDelta(100, 100), 0);
+  assert.equal(calc.nkProzentDelta(100, 0), null);     // kein Bezug (Division durch 0)
+  assert.equal(calc.nkProzentDelta(100, ""), null);    // Vorjahr leer -> kein Bezug
+  assert.equal(calc.nkProzentDelta("", 100), -100);    // aktuell leer -> 0 -> -100 %
+  assert.equal(calc.nkProzentDelta(undefined, 100), null); // NaN -> null
+});
+test("nkEurProKwh: Ø Energiepreis als Kennzahl (US-95)", () => {
+  assert.equal(calc.nkEurProKwh(4620, 42000), 0.11);
+  assert.equal(calc.nkEurProKwh(1000, 8000), 0.125);
+  assert.equal(calc.nkEurProKwh(1000, 0), null);   // keine Menge -> keine Kennzahl
+  assert.equal(calc.nkEurProKwh(1000, ""), null);
+  assert.equal(calc.nkEurProKwh("", 8000), 0);     // 0 € / Menge = 0
+});
+test("nkHeizGrundProzent: Default 30, geklemmt auf 30–50 % (US-94)", () => {
+  assert.equal(calc.nkHeizGrundProzent({}), 30);
+  assert.equal(calc.nkHeizGrundProzent({ grundProzent: 40 }), 40);
+  assert.equal(calc.nkHeizGrundProzent({ grundProzent: 20 }), 30); // Verbrauch max 70 %
+  assert.equal(calc.nkHeizGrundProzent({ grundProzent: 60 }), 50); // Verbrauch min 50 %
+});
+test("nkExpandHeizSplit: Heizblock in Grund (Fläche) + Verbrauch aufteilen (US-94)", () => {
+  const E = [{ id:1, name:"A", flaeche:60 }, { id:2, name:"B", flaeche:40 }];
+  const heiz = { typ:"heizung", energieart:"erdgas_kwh", bez:"Heizung", betrag:1000, grundProzent:30,
+                 schluessel:"flaeche", verbrauch:{ 1:30, 2:70 }, co2Kg:1000, co2Kosten:200 };
+  const ex = calc.nkExpandHeizSplit([heiz], E);
+  assert.equal(ex.length, 2);
+  assert.equal(ex[0]._split, "grund"); assert.equal(ex[0].schluessel, "beheizt"); assert.equal(ex[0].betrag, 300); // US-96: Grundkosten nach beheizter Fläche
+  assert.equal(ex[1]._split, "verbrauch"); assert.equal(ex[1].schluessel, "verbrauch"); assert.equal(ex[1].betrag, 700);
+  // Betrag- und CO2-Summe bleiben erhalten
+  assert.equal(ex[0].betrag + ex[1].betrag, 1000);
+  assert.equal(Math.round((ex[0].co2Kg + ex[1].co2Kg)*1e6)/1e6, 1000);
+  assert.equal(Math.round((ex[0].co2Kosten + ex[1].co2Kosten)*1e6)/1e6, 200);
+  // Anteile je Einheit: A = 300*0,6 + 700*0,3 = 390 ; B = 300*0,4 + 700*0,7 = 610
+  assert.equal(Math.round(calc.nkAnteilOf(E[0], [heiz], E)*100)/100, 390);
+  assert.equal(Math.round(calc.nkAnteilOf(E[1], [heiz], E)*100)/100, 610);
+  // Idempotent: erneutes Expandieren ändert nichts (Teilpositionen tragen _split)
+  assert.equal(calc.nkExpandHeizSplit(ex, E).length, 2);
+});
+test("nkExpandHeizSplit: ohne erfassten Verbrauch -> kein Split (Fallback), Warnung möglich (US-94)", () => {
+  const E = [{ id:1, name:"A", flaeche:60 }, { id:2, name:"B", flaeche:40 }];
+  const heiz = { typ:"heizung", bez:"Heizung", betrag:1000, schluessel:"flaeche", verbrauch:{} };
+  const ex = calc.nkExpandHeizSplit([heiz], E);
+  assert.equal(ex.length, 1);                 // nicht aufgeteilt
+  assert.equal(calc.nkAnteilOf(E[0], [heiz], E), 600); // reine Flächenverteilung
+  assert.equal(calc.nkHeizOhneVerbrauch([heiz], E).length, 1);
+  assert.equal(calc.nkHeizSplitAktiv(heiz, E), false);
+});
+test("US-96: Heiz-Grundkosten nach beheizter Fläche (unbeheizt abgezogen)", () => {
+  assert.equal(calc.nkBeheizteFlaeche({ flaeche:100, unbeheizt:20 }), 80);
+  assert.equal(calc.nkBeheizteFlaeche({ flaeche:50 }), 50); // ohne unbeheizt = volle Fläche
+  assert.equal(calc.nkTotals([{ flaeche:100, unbeheizt:20 }, { flaeche:100 }]).beheizt, 180);
+  const E = [{ id:1, name:"A", flaeche:100, unbeheizt:20 }, { id:2, name:"B", flaeche:100 }];
+  const heiz = { typ:"heizung", bez:"Heizung", betrag:1000, grundProzent:30, verbrauch:{ 1:50, 2:50 } };
+  const a = calc.nkAnteilOf(E[0], [heiz], E), b = calc.nkAnteilOf(E[1], [heiz], E);
+  // Grund 300 nach beheizt (80/180,100/180) + Verbrauch 700 je 50% -> A 483,33 ; B 516,67
+  assert.equal(Math.round(a*100)/100, 483.33);
+  assert.equal(Math.round(b*100)/100, 516.67);
+  assert.equal(Math.round((a+b)*100)/100, 1000);
+});
+test("nkKleinrepWarnungen: Direktkosten je Einheit gegen Schwellen prüfen (US-103)", () => {
+  const objekt = { von:"2025-01-01", bis:"2025-12-31" };
+  const E = [{ id:1, name:"EG", mv:[{ von:"2025-01-01", bis:"2025-12-31", grundmiete:800 }] }];
+  // 5000 € Direktkosten: über Einzelgrenze (100 €) UND über Jahresdeckel (8 % von 9600 = 768 €)
+  const w = calc.nkKleinrepWarnungen(E, [{ schluessel:"direkt", direktEinheit:1, bez:"Reparatur", betrag:5000 }], objekt);
+  assert.equal(w.length, 2);
+  assert.ok(w.some(x => x.art === "jahr" && x.grenze === 768 && x.summe === 5000));
+  assert.ok(w.some(x => x.art === "einzel" && x.einzel === 100));
+  // kleiner Betrag unter beiden Grenzen -> keine Warnung
+  assert.equal(calc.nkKleinrepWarnungen(E, [{ schluessel:"direkt", direktEinheit:1, bez:"Kleinkram", betrag:50 }], objekt).length, 0);
+  // ohne Direktkosten -> keine Warnung
+  assert.equal(calc.nkKleinrepWarnungen(E, [{ schluessel:"flaeche", betrag:9999 }], objekt).length, 0);
+});
 test("nkNormName: Umlaut-Faltung und Normalisierung fürs Matching (US-86)", () => {
   // Faltung ä/ö/ü/ß <-> ae/oe/ue/ss an generischen Wörtern (keine echten Namen/Firmen/IBANs).
   assert.equal(calc.nkNormName("Grün"), "gruen");

@@ -36,6 +36,14 @@ const NK_ENERGIEARTEN = [
 function nkEnergieart(key) { return NK_ENERGIEARTEN.find(e => e.key === key) || NK_ENERGIEARTEN[0]; }
 function nkMengeZuKwh(menge, heizwert) { return (+menge || 0) * (+heizwert || 0); }
 function nkHeizkosten(menge, preis) { return (+menge || 0) * (+preis || 0); }
+/* US-95: mittlerer Energiepreis (€/kWh) aus direkt eingetragener Heizkostensumme und der
+   verbrauchten Energie (kWh). Nur Kennzahl (Energieträger-/Heizungsvergleich), keine
+   Rechengrundlage. Liefert null, wenn keine sinnvolle kWh-Menge vorliegt. Reine Funktion. */
+function nkEurProKwh(betrag, kwh) {
+  const b = +betrag, k = +kwh;
+  if (!isFinite(b) || !isFinite(k) || k <= 0) return null;
+  return Math.round((b / k) * 1000) / 1000;
+}
 
 /* US-07: CO2-Kostenaufteilung nach CO2KostAufG (seit 2023).
    Wohngebäude: 10-Stufen-Modell nach spez. Ausstoß (kg CO2/m²·a) → Vermieteranteil %.
@@ -132,9 +140,15 @@ function nkGiroCode(o) {
   ].join("\n");
 }
 
+/* US-96: beheizte Fläche einer Einheit = Gesamtfläche minus unbeheizte Fläche (z. B. Terrasse,
+   Balkon). Ohne gesetzte unbeheizte Fläche identisch zur Gesamtfläche (rückwärtskompatibel). */
+function nkBeheizteFlaeche(e) {
+  return Math.max(0, (+(e && e.flaeche) || 0) - (+(e && e.unbeheizt) || 0));
+}
 function nkTotals(einheiten) {
   return {
     flaeche: einheiten.reduce((s, e) => s + (+e.flaeche || 0), 0),
+    beheizt: einheiten.reduce((s, e) => s + nkBeheizteFlaeche(e), 0), // US-96
     personen: einheiten.reduce((s, e) => s + (+e.personen || 0), 0),
     einheiten: einheiten.length
   };
@@ -142,6 +156,7 @@ function nkTotals(einheiten) {
 
 function nkFactor(e, schluessel, t) {
   if (schluessel === "flaeche") return t.flaeche ? (e.flaeche / t.flaeche) : 0;
+  if (schluessel === "beheizt") return t.beheizt ? (nkBeheizteFlaeche(e) / t.beheizt) : 0; // US-96
   if (schluessel === "person")  return t.personen ? (e.personen / t.personen) : 0;
   return t.einheiten ? (1 / t.einheiten) : 0;
 }
@@ -157,6 +172,70 @@ function nkTeilnahme(e, k) {
 function nkVerbrauchSumme(k, einheiten) {
   const vb = (k && k.verbrauch) || {};
   return (einheiten || []).filter(x => nkTeilnahme(x, k)).reduce((s, x) => s + (+vb[x.id] || 0), 0);
+}
+/* US-94: Grundkostenanteil eines Heizblocks in Prozent (Default 30). Gesetzlich zulässig ist ein
+   Verbrauchsanteil von 50–70 % (§ 7/§ 8 HeizkostenV), also ein Grundanteil von 30–50 %; Werte
+   außerhalb werden in diesen Rahmen geklemmt. */
+function nkHeizGrundProzent(k) {
+  let g = k && k.grundProzent;
+  g = (g == null || isNaN(+g)) ? 30 : +g;
+  return Math.max(30, Math.min(50, g));
+}
+/* US-94: Ist für diesen Heizblock die Grund-/Verbrauchsaufteilung aktiv? Nur wenn es ein Heizblock
+   ist, noch keine Teilposition (_split), und tatsächlich Verbrauch je Einheit erfasst wurde – sonst
+   Fallback auf die bisherige Verteilung (mit Plausi-Warnung, siehe nkHeizOhneVerbrauch). */
+function nkHeizSplitAktiv(k, einheiten) {
+  return !!(k && k.typ === "heizung" && !k._split && nkVerbrauchSumme(k, einheiten) > 0);
+}
+/* US-94: Heizblöcke in zwei Teilpositionen aufteilen – Grundkosten (nach Fläche) und
+   Verbrauchskosten (nach erfasstem Verbrauch). Betrag, CO2 (kg/€) und begünstigte Arbeitskosten
+   werden anteilig auf beide Teile verteilt (Summe bleibt erhalten). Idempotent (Teilpositionen
+   tragen _split und werden nicht erneut geteilt). Nicht aufzuteilende Positionen bleiben unverändert. */
+function nkExpandHeizSplit(kosten, einheiten) {
+  const out = [];
+  (kosten || []).forEach(k => {
+    if (!nkHeizSplitAktiv(k, einheiten)) { out.push(k); return; }
+    const g = nkHeizGrundProzent(k), gf = g / 100, vf = 1 - gf;
+    const betrag = +k.betrag || 0, grundBetrag = betrag * gf;
+    const teil = (suffix, frac, schluessel, neuBetrag) => Object.assign({}, k, {
+      _split: suffix,
+      bez: k.bez + (suffix === "grund" ? " – Grundkosten (" + g + " %)" : " – Verbrauch (" + (100 - g) + " %)"),
+      betrag: neuBetrag, schluessel: schluessel,
+      co2Kg: (+k.co2Kg || 0) * frac, co2Kosten: (+k.co2Kosten || 0) * frac, arbeitskosten: (+k.arbeitskosten || 0) * frac
+    });
+    out.push(teil("grund", gf, "beheizt", grundBetrag)); // US-96: Grundkosten nach beheizter Fläche
+    out.push(teil("verbrauch", vf, "verbrauch", betrag - grundBetrag));
+  });
+  return out;
+}
+/* US-94: Heizblöcke, bei denen die gesetzliche Aufteilung mangels erfasstem Verbrauch (noch) nicht
+   greift – für eine Plausi-Warnung. */
+function nkHeizOhneVerbrauch(kosten, einheiten) {
+  return (kosten || []).filter(k => k && k.typ === "heizung" && !k._split && nkVerbrauchSumme(k, einheiten) <= 0);
+}
+/* US-103: Kleinreparaturen/Direktkosten je Einheit gegen die zulässigen Grenzen prüfen.
+   Datenbasis sind „direkt" einer Einheit zugeordnete Positionen. Anerkannte Grenzen (Rechtsprechung):
+   Jahresdeckel i. d. R. 6–8 % der Jahres(netto)kaltmiete (Default 8 %) und Einzelgrenze ~100 €.
+   Hinweis: Kleinreparaturen sind NICHT über die Betriebskosten umlagefähig – die Prüfung dient dem
+   Tracking der Kleinreparaturklausel. Liefert eine Liste von Warnungen (reine Funktion). */
+function nkKleinrepWarnungen(einheiten, kosten, objekt, opts) {
+  const prozent = (opts && opts.prozent != null) ? +opts.prozent : 8;
+  const einzel = (opts && opts.einzel != null) ? +opts.einzel : 100;
+  const o = objekt || {}, warn = [];
+  (einheiten || []).forEach(e => {
+    const direkt = (kosten || []).filter(k => k && k.schluessel === "direkt" && k.direktEinheit === e.id);
+    if (!direkt.length) return;
+    const summe = direkt.reduce((s, k) => s + (+k.betrag || 0), 0);
+    const jahresKalt = (e.mv || []).reduce((s, m) => {
+      const za = nkZeitanteil(m.von, nkMvEnde(m, o.bis), o.von, o.bis);
+      return s + (+m.grundmiete || 0) * 12 * za;
+    }, 0);
+    const grenze = jahresKalt > 0 ? Math.round(jahresKalt * prozent / 100 * 100) / 100 : null;
+    const einzelUeber = direkt.filter(k => (+k.betrag || 0) > einzel).map(k => k.bez || "(ohne Bezeichnung)");
+    if (grenze != null && summe > grenze + 0.005) warn.push({ einheit: e.name, art: "jahr", summe: summe, grenze: grenze, prozent: prozent, jahresKalt: Math.round(jahresKalt * 100) / 100 });
+    if (einzelUeber.length) warn.push({ einheit: e.name, art: "einzel", einzel: einzel, positionen: einzelUeber });
+  });
+  return warn;
 }
 function nkFaktorFuer(e, k, einheiten) {
   if (k && k.schluessel === "direkt") return e.id === k.direktEinheit ? 1 : 0; // US-22: 100 % auf eine Einheit
@@ -175,14 +254,14 @@ function nkAusschlussNamen(k, einheiten) {
 }
 
 function nkAnteilOf(e, kosten, einheiten) {
-  return (kosten || []).reduce((s, k) => s + (+k.betrag || 0) * nkFaktorFuer(e, k, einheiten), 0);
+  return nkExpandHeizSplit(kosten || [], einheiten).reduce((s, k) => s + (+k.betrag || 0) * nkFaktorFuer(e, k, einheiten), 0);
 }
 
 /* US-59: Anzeige-Einheit je Verteilerschlüssel (kurz, ohne Zusatztext). Bei Verbrauch aus der
    Position (k.einheit), z. B. „kWh" oder „m³". */
 function nkSchluesselEinheit(k) {
   const s = k && k.schluessel;
-  if (s === "flaeche") return "m²";
+  if (s === "flaeche" || s === "beheizt") return "m²";
   if (s === "person") return "Pers.";
   if (s === "einheit") return "Whg.";
   if (s === "verbrauch") return (k && k.einheit) || "Einh.";
@@ -196,6 +275,7 @@ function nkLineItemsFor(e, kosten, einheiten) {
     // US-59: Spaltenwerte für den Rechenweg (Gesamteinheiten, Ihre Einheiten, Preis je Einheit).
     let basis = 0, ihre = 0;
     if (k.schluessel === "flaeche") { basis = nkTotals(teil).flaeche; ihre = nkTeilnahme(e, k) ? (+e.flaeche || 0) : 0; }
+    else if (k.schluessel === "beheizt") { basis = nkTotals(teil).beheizt; ihre = nkTeilnahme(e, k) ? nkBeheizteFlaeche(e) : 0; } // US-96
     else if (k.schluessel === "person") { basis = nkTotals(teil).personen; ihre = nkTeilnahme(e, k) ? (+e.personen || 0) : 0; }
     else if (k.schluessel === "einheit") { basis = nkTotals(teil).einheiten; ihre = nkTeilnahme(e, k) ? 1 : 0; }
     else if (k.schluessel === "verbrauch") { basis = nkVerbrauchSumme(k, einheiten); ihre = nkTeilnahme(e, k) ? (+(k.verbrauch || {})[e.id] || 0) : 0; }
@@ -686,7 +766,7 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
   const mvBis = nkMvEnde(m, o.bis); // US-75: „läuft" → Ende des Abrechnungszeitraums
   const za = nkZeitanteil(m.von, mvBis, o.von, o.bis);
   const gewerblich = !!m.gewerblich;
-  const K = kosten || [];
+  const K = nkExpandHeizSplit(kosten || [], einheiten || []); // US-94: Heizblöcke in Grund-/Verbrauchsanteil aufteilen
   // US-07: gebäudeweite CO2-Grundgrößen und effektiver Vermieteranteil dieses Mietverhältnisses.
   const flaecheSumme = nkTotals(einheiten || []).flaeche;
   const spezCo2 = nkSpezCo2(nkCo2KgSumme(K), flaecheSumme);
@@ -867,6 +947,14 @@ function nkObjektJahr(s) {
   const v = s && s.objekt && (s.objekt.von || s.objekt.bis);
   const m = String(v == null ? "" : v).match(/(\d{4})/);
   return m ? m[1] : "";
+}
+
+/* US-104: prozentuale Veränderung neu ggü. alt (Vorjahr), auf eine Nachkommastelle gerundet.
+   Liefert null, wenn alt nicht endlich oder 0 ist (kein sinnvoller Bezug). Reine Funktion (Tests). */
+function nkProzentDelta(neu, alt) {
+  const a = +alt, n = +neu;
+  if (!isFinite(a) || a === 0 || !isFinite(n)) return null;
+  return Math.round(((n - a) / a) * 1000) / 10;
 }
 
 /* Speicher: vorgeschlagener Dateiname für ein Objekt-Snapshot. Basisname ist objekt.name||addr,
@@ -1211,6 +1299,13 @@ if (typeof module !== "undefined" && module.exports) {
     nkEnergieart,
     nkMengeZuKwh,
     nkHeizkosten,
+    nkEurProKwh,
+    nkHeizGrundProzent,
+    nkHeizSplitAktiv,
+    nkExpandHeizSplit,
+    nkHeizOhneVerbrauch,
+    nkBeheizteFlaeche,
+    nkKleinrepWarnungen,
     nkIbanGueltig,
     nkGiroCode,
     nkAnrede,
@@ -1246,6 +1341,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkHistCoalesce,
     nkNameAusDateiname,
     nkObjektDateiname,
+    nkProzentDelta,
     nkNormName,
     nkParseDatumDE,
     nkParseUmsatzCsv,

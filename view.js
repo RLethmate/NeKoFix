@@ -50,7 +50,7 @@ const KOSTEN_KATALOG = [
 const WARN_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
 const STATUS_BELEG={geschaetzt:"geschätzt",vorlaeufig:"vorläufig",geprueft:"geprüft"};
 const VERFUEGBAR={fehlt:"fehlt",kommt:"kommt noch",vorhanden:"vorhanden"};
-const STATUS_FARBE={geschaetzt:"var(--muted)",vorlaeufig:"#d99a2b",geprueft:"var(--accent)"};
+const STATUS_FARBE={geschaetzt:"var(--nachzahlung)",vorlaeufig:"#d99a2b",geprueft:"var(--accent)"}; /* US-100: geschätzt = rot (unsicher), vorläufig = gelb, geprüft = grün */
 const VERFUEGBAR_FARBE={fehlt:"var(--nachzahlung)",kommt:"#d99a2b",vorhanden:"var(--accent)"};
 let nurUngeprueft=false;
 let expandedKosten=new Set();
@@ -193,11 +193,16 @@ function renderEinheiten(){
     const personenInp = vjOn
       ? vjFeld(vjE && vjE.personen!=null ? vjE.personen : null)
       : '<input class="short" type="number" value="'+e.personen+'" oninput="updEinheit('+ei+',\'personen\',this.value)">';
+    /* US-96: unbeheizte Fläche (z. B. Terrasse) – wird bei den Heiz-Grundkosten von der Fläche abgezogen. */
+    const unbeheiztInp = vjOn
+      ? vjFeld(vjE && vjE.unbeheizt!=null ? vjE.unbeheizt : null)
+      : '<input class="short" type="number" value="'+(e.unbeheizt||0)+'" oninput="updEinheit('+ei+',\'unbeheizt\',this.value)">';
     box.insertAdjacentHTML('beforeend',
       '<div class="unit-card einheit-card">'+
         '<div class="unit-head">'+
           '<input class="unit-name" value="'+esc(e.name)+'" oninput="updEinheit('+ei+',\'name\',this.value)"'+(vjOn?' readonly':'')+'>'+
           '<label class="unit-f">Fläche m² '+flaecheInp+'</label>'+
+          '<label class="unit-f" title="Unbeheizte Fläche (z. B. Terrasse, Balkon). Wird nur bei den Heiz-Grundkosten von der Fläche abgezogen (US-96), sonst bleibt die volle Fläche maßgeblich.">unbeheizt m² '+unbeheiztInp+'</label>'+
           '<label class="unit-f">Personen '+personenInp+'</label>'+
           (vjOn?'':'<button class="row-del" title="Einheit entfernen" onclick="delEinheit('+ei+')" style="margin-left:auto;">×</button>')+
         '</div>'+
@@ -727,8 +732,22 @@ function renderVoraus(){
 }
 
 /* ---------- Step 3 ---------- */
+/* US-103: Warnung, wenn Direktkosten/Kleinreparaturen je Einheit die zulässigen Grenzen
+   überschreiten (Einzelgrenze ~100 €, Jahresdeckel ~8 % der Jahreskaltmiete). */
+function renderKleinrepWarn(){
+  const box=document.getElementById('kleinrep_warn'); if(!box) return;
+  const w=nkKleinrepWarnungen(state.einheiten, state.kosten, state.objekt);
+  if(!w.length){ box.innerHTML=''; return; }
+  const items=w.map(x=> x.art==='jahr'
+    ? '<li>Einheit „'+esc(x.einheit)+'": Direktkosten '+eur(x.summe)+' überschreiten den Kleinreparatur-Jahresdeckel von '+eur(x.grenze)+' ('+x.prozent+' % der Jahreskaltmiete '+eur(x.jahresKalt)+').</li>'
+    : '<li>Einheit „'+esc(x.einheit)+'": Einzelposition über '+eur(x.einzel)+' ('+x.positionen.map(esc).join(', ')+').</li>'
+  ).join('');
+  box.innerHTML='<div class="warn-box"><b>⚠ Kleinreparaturen/Direktkosten prüfen</b><ul>'+items+'</ul>'+
+    '<span class="warn-note">Kleinreparaturen sind nur bis zu diesen Grenzen auf den Mieter abwälzbar (Kleinreparaturklausel) und <b>nicht</b> über die Betriebskosten umlagefähig. Grenzen als Orientierung – Einzelfall prüfen.</span></div>';
+}
 function renderKosten(){
   ensureIds();
+  renderKleinrepWarn(); /* US-103 */
   const tb=document.querySelector('#tbl_kosten tbody'); tb.innerHTML='';
   /* US-59: Vorjahreswerte je Kostenart (über die Bezeichnung) einblenden, wenn der Toggle an ist.
      Dargestellt IM selben Betragsfeld (read-only, blau) – kein Layout-Sprung. */
@@ -740,7 +759,12 @@ function renderKosten(){
   function betragCellHtml(k, idx){
     if(vjOn){
       const key=nkNormName(k.bez), hit=vjMap&&(key in vjMap);
-      return '<td class="num"><span class="betrag-wrap"><input class="short vj-field'+(hit?'':' vj-none')+'" type="text" readonly tabindex="-1" title="Vorjahreswert (zum Vergleich)" value="'+(hit?nkFmtBetrag(vjMap[key]):'–')+'"></span></td>';
+      /* US-104: prozentuale Veränderung aktueller Betrag ggü. Vorjahr – farbig, im selben Feld (kein Layout-Sprung). */
+      const pct = hit ? nkProzentDelta(k.betrag, vjMap[key]) : null;
+      const delta = (pct!=null)
+        ? '<span class="vj-delta '+(pct>0?'up':pct<0?'down':'flat')+'" title="Veränderung gegenüber Vorjahr (aktuell '+nkFmtBetrag(k.betrag||0)+' €)">'+(pct>0?'+':'')+String(pct).replace('.',',')+' %</span>'
+        : '';
+      return '<td class="num"><span class="betrag-wrap"><input class="short vj-field'+(hit?'':' vj-none')+'" type="text" readonly tabindex="-1" title="Vorjahreswert (zum Vergleich)" value="'+(hit?nkFmtBetrag(vjMap[key]):'–')+'">'+delta+'</span></td>';
     }
     return '<td class="num"><span class="betrag-wrap'+(k.vorjahr?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+'" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">'+(k.vorjahr?'<button type="button" class="vorjahr-tri" title="Vorjahreswert übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="uebernehmeKostenVorjahr('+idx+')"></button>':'')+'</span></td>';
   }
@@ -771,15 +795,17 @@ function renderKosten(){
     const rub=nkRubrik(k); /* US-89 Phase 2: Drop auf diese Zeile = davor einsortieren, deren Rubrik übernehmen */
     tr.ondragover=dndOver; tr.ondragleave=dndLeave; tr.ondrop=function(e){ rowDrop(e, k.id, rub); };
     if(open){
-      let so=''; for(const key in STATUS_BELEG){ so+='<option value="'+key+'"'+(st===key?' selected':'')+'>'+STATUS_BELEG[key]+'</option>'; }
-      let vo=''; for(const key in VERFUEGBAR){ vo+='<option value="'+key+'"'+(vf===key?' selected':'')+'>'+VERFUEGBAR[key]+'</option>'; }
+      /* US-100: farbiger Punkt VOR dem Text in jeder Option (z. B. „● geschätzt"); Option-Farbe = Status-Farbe. */
+      let so=''; for(const key in STATUS_BELEG){ so+='<option value="'+key+'"'+(st===key?' selected':'')+' style="color:'+STATUS_FARBE[key]+'">●&nbsp;'+STATUS_BELEG[key]+'</option>'; }
+      let vo=''; for(const key in VERFUEGBAR){ vo+='<option value="'+key+'"'+(vf===key?' selected':'')+' style="color:'+VERFUEGBAR_FARBE[key]+'">●&nbsp;'+VERFUEGBAR[key]+'</option>'; }
       let vsOpts=''; [0,7,19].forEach(s=>{ vsOpts+='<option value="'+s+'"'+((+k.vorsteuer||0)===s?' selected':'')+'>'+s+' %</option>'; });
       const ro=nkRubrikenListe(state.objekt, state.kosten).map(r=>'<option value="'+esc(r)+'"'+(nkRubrik(k)===r?' selected':'')+'>'+esc(r)+'</option>').join('');
       const d=document.createElement('tr'); d.className='detail-row';
       d.innerHTML='<td colspan="5"><div class="detail-grid">'+
         '<label>Rubrik <select onchange="updKosten('+idx+',\'rubrik\',this.value)">'+ro+'</select></label>'+
-        '<label>Status <select onchange="updKosten('+idx+',\'status\',this.value)">'+so+'</select></label>'+
-        '<label>Verfügbarkeit <select onchange="updKosten('+idx+',\'verfuegbar\',this.value)">'+vo+'</select></label>'+
+        /* US-100: eigenes Dropdown – Punkt + Text farbig, sowohl zugeklappt als auch in der geöffneten Liste (native Selects färben die Liste auf macOS nicht ein). */
+        '<label>Status '+cddHtml('status', idx, st, STATUS_BELEG, STATUS_FARBE)+'</label>'+
+        '<label>Verfügbarkeit '+cddHtml('verfuegbar', idx, vf, VERFUEGBAR, VERFUEGBAR_FARBE)+'</label>'+
         '<label title="Im Beleg enthaltene Vorsteuer">Vorsteuer <select onchange="updKosten('+idx+',\'vorsteuer\',+this.value)">'+vsOpts+'</select></label>'+
         /* US-32: §35a-Kategorie + begünstigter Arbeitskosten-Anteil */
         '<label title="Steuerlich begünstigt nach §35a EStG (haushaltsnahe Dienstleistung oder Handwerkerleistung)">§35a <select onchange="updKosten('+idx+',\'p35a\',this.value)">'+
@@ -908,6 +934,23 @@ function headDrop(ev, rubrik){ ev.preventDefault(); const el=ev.currentTarget; i
   if(d.kind==='kosten'){ store.moveKosten(d.id, null, rubrik); renderKosten(); }
   else if(d.kind==='rubrik' && d.name!==rubrik){ const liste=nkRubrikenListe(state.objekt, state.kosten); store.moveRubrik(liste.indexOf(d.name), liste.indexOf(rubrik)); renderKosten(); } }
 function updKosten(idx,field,val){ store.setKostenFeld(idx,field,val); renderKosten(); }
+/* US-100: kleines Custom-Dropdown für Status/Verfügbarkeit – farbiger Punkt + Text, auch in der
+   geöffneten Liste (native <option>-Farben werden auf macOS nicht gerendert). */
+function cddHtml(kind, idx, current, map, farbe){
+  const id='cdd-'+kind+'-'+idx;
+  const opts=Object.keys(map).map(key=>
+    '<button type="button" class="cdd-opt'+(key===current?' sel':'')+'" style="color:'+farbe[key]+'" onclick="cddPick(\''+kind+'\','+idx+',\''+key+'\')">●&nbsp;'+esc(map[key])+'</button>').join('');
+  return '<span class="cdd" id="'+id+'">'+
+    '<button type="button" class="cdd-btn" style="color:'+farbe[current]+'" onclick="cddToggle(\''+id+'\',event)">●&nbsp;'+esc(map[current])+' <span class="cdd-caret" aria-hidden="true">▾</span></button>'+
+    '<div class="cdd-list" hidden>'+opts+'</div></span>';
+}
+function cddToggle(id, ev){ ev.stopPropagation();
+  const box=document.getElementById(id); if(!box) return; const list=box.querySelector('.cdd-list'); const willOpen=list.hidden;
+  document.querySelectorAll('.cdd-list').forEach(l=>l.hidden=true);
+  list.hidden=!willOpen;
+}
+function cddPick(kind, idx, key){ updKosten(idx, kind==='status'?'status':'verfuegbar', key); /* renderKosten schließt die Liste */ }
+document.addEventListener('click', function(){ document.querySelectorAll('.cdd-list').forEach(l=>l.hidden=true); });
 /* US-32: begünstigten Arbeitskosten-Anteil (€) je Position setzen. */
 function updKostenArbeit(idx,val){ store.setKostenFeld(idx,'arbeitskosten', nkParseBetrag(val)); renderKosten(); }
 /* US-50: Teilnahme einer Einheit an einer Kostenart umschalten (ausgeschlossen = Liste von IDs). */
@@ -1014,13 +1057,24 @@ function heizKarte(k,idx){
   const ea=nkEnergieart(k.energieart);
   const fi=heizFaktorInfo(ea);
   const kwh=nkMengeZuKwh(k.menge, k.heizwert);
+  const eurKwh=nkEurProKwh(k.betrag, kwh); /* US-95: Ø €/kWh nur als Kennzahl */
+  const grund=nkHeizGrundProzent(k), verbr=100-grund, vsum=verbrauchSumme(k); /* US-94: Grund-/Verbrauchsaufteilung */
   const eaOpts=NK_ENERGIEARTEN.map(e=>'<option value="'+e.key+'"'+(k.energieart===e.key?' selected':'')+'>'+esc(e.label)+'</option>').join('');
   const schlOpts=['flaeche','person','einheit','verbrauch'].map(s=>'<option value="'+s+'"'+(k.schluessel===s?' selected':'')+'>'+SCHLUESSEL[s]+'</option>').join('');
-  const faktorFeld = fi.show
-    ? '<label title="'+fi.tip.replace(/"/g,'&quot;')+'">'+fi.label+' <input class="short" type="number" step="any" value="'+(k.heizwert||0)+'" onchange="updHeiz('+idx+',\'heizwert\',this.value)"></label>'+
-      '<span class="unit-f">= '+nkFmtBetrag(kwh)+' '+fi.kwhLabel+'</span>'
-    : '';
   const mehrereHeiz=heizListe().length>=2; /* mehrere Heizblöcke: Zeitraum bei allen einblenden, damit die Perioden klar abgegrenzt sind */
+  /* UX-Schliff: alle Werte als gleichartige Feld-Boxen (Anzeigen = ausgegraute, nicht editierbare Inputs),
+     damit sie sauber in einem Raster aligned sind. hf() = beschriftetes Feld, ro() = Readonly-Anzeigefeld. */
+  const ro = (v)=>'<input type="text" class="ro" readonly tabindex="-1" value="'+v+'">';
+  const hf = (cap, inp, title)=>'<label class="hf"'+(title?' title="'+String(title).replace(/"/g,'&quot;')+'"':'')+'><span>'+cap+'</span>'+inp+'</label>';
+  let felder =
+    hf('Heizkosten gesamt (€)', '<input type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag||0)+'" onchange="updHeizBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">')+
+    hf(fi.verbrauch, '<input type="number" step="any" value="'+(k.menge||0)+'" onchange="updHeiz('+idx+',\'menge\',this.value)">', 'Optional – nur für die Kennzahl Ø €/kWh (Energieträger-/Heizungsvergleich), keine Rechengrundlage.')+
+    (fi.show ? hf(fi.label, '<input type="number" step="any" value="'+(k.heizwert||0)+'" onchange="updHeiz('+idx+',\'heizwert\',this.value)">', fi.tip)+hf('Wärmemenge', ro(nkFmtBetrag(kwh)+' '+fi.kwhLabel)) : '')+
+    hf('Grundkosten %', '<input type="number" min="30" max="50" step="5" value="'+grund+'" onchange="updHeizGrund('+idx+',this.value)">', 'Grundkosten nach (beheizter) Fläche, Rest nach erfasstem Verbrauch (§ 7/§ 8 HeizkostenV). Zulässig: 30–50 % Grund (= 50–70 % Verbrauch).')+
+    hf('Verbrauch %', ro(verbr+' %'))+
+    hf('Mittelwert (Ø €/kWh)', ro(eurKwh!=null ? nkFmtBetrag(eurKwh)+' €/kWh' : '– €/kWh'), 'Mittlerer Energiepreis – nur Kennzahl zum Vergleich (z. B. vor/nach Heizungswechsel).')+
+    (ea.fossil ? hf('CO₂-Emissionen (kg)', '<input type="number" step="any" value="'+(k.co2Kg||0)+'" onchange="updHeizNum('+idx+',\'co2Kg\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.')+hf('CO₂-Kosten (€)', '<input type="number" step="any" value="'+(k.co2Kosten||0)+'" onchange="updHeizNum('+idx+',\'co2Kosten\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.') : '');
+  const vbFelder = state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>hf(esc(x.name), '<input type="number" step="any" value="'+((k.verbrauch&&k.verbrauch[x.id])||0)+'" onchange="updHeizVerbrauch('+idx+','+x.id+',this.value)">')).join('')+hf('Summe', ro(nkFmtBetrag(vsum)+' '+esc(k.einheit||'kWh')));
   return '<div class="unit-card einheit-card'+(k.vorjahr?' vorjahr':'')+'">'+
     (k.vorjahr ? '<div class="heiz-vorjahr"><span><b>Aus dem Vorjahr vorbelegt.</b> Bitte Verbrauch und Preis prüfen.</span><button type="button" onclick="uebernehmeHeizVorjahr('+idx+')">Übernehmen</button></div>' : '')+
     '<div class="unit-head">'+
@@ -1028,34 +1082,21 @@ function heizKarte(k,idx){
       '<label class="unit-f">Energieart <select onchange="setEnergieart('+idx+',this.value)">'+eaOpts+'</select></label>'+
       '<button class="row-del" title="Heizblock entfernen" onclick="delHeizblock('+idx+')" style="margin-left:auto;">×</button>'+
     '</div>'+
-    '<div class="detail-grid">'+
-      '<label>'+fi.verbrauch+' <input class="short" type="number" step="any" value="'+(k.menge||0)+'" onchange="updHeiz('+idx+',\'menge\',this.value)"></label>'+
-      faktorFeld+
-      '<label>'+fi.preis+' <input class="short" type="number" step="any" value="'+(k.preis||0)+'" onchange="updHeiz('+idx+',\'preis\',this.value)"></label>'+
-      '<label>Verteilerschlüssel <select onchange="setHeizSchluessel('+idx+',this.value)">'+schlOpts+'</select></label>'+
-      '<span class="zahl-summe">Heizkosten: <b>'+eur(k.betrag||0)+'</b></span>'+
+    /* UX-Schliff: alle Felder im einheitlichen Raster, gleiche Box-Größe; Anzeigen ausgegraut. */
+    '<div class="heiz-felder">'+felder+'</div>'+
+    '<div class="hint" style="margin:2px 0 8px;">30 % Grund / 70 % Verbrauch ist Standard; bei älteren Öl-/Gas-Gebäuden sind 70 % Verbrauch ggf. verpflichtend (§ 7 Abs. 1 HeizkostenV). Wartungs-/Betriebskosten der Anlage gehören in diesen Block.'+(ea.fossil?' CO₂-Werte von der Brennstoffrechnung – Vermieteranteil wird automatisch ermittelt.':'')+'</div>'+
+    '<div class="heiz-vb"><div class="heiz-vb-lbl">Verbrauch je Einheit ('+esc(k.einheit||'kWh')+'):</div>'+
+      '<div class="heiz-felder">'+vbFelder+'</div>'+
+      (vsum>0 ? '' : '<div class="leer-hint" style="margin-top:6px;width:100%;">⚠ Ohne erfassten Verbrauch wird '+verbr+' % nicht verbrauchsgerecht verteilt – der Block wird vorerst nach Fläche abgerechnet. Bitte Verbrauch je Einheit eintragen.</div>')+
     '</div>'+
-    (k.schluessel==='verbrauch' ?  /* US-57/US-58: Verbrauch je Einheit auch im Heizung-Reiter */
-     '<div class="teilnahme"><span class="teilnahme-lbl">Verbrauch je Einheit:</span> '+
-      state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>'<label class="teilnahme-item">'+esc(x.name)+' <input class="short" type="number" step="any" value="'+((k.verbrauch&&k.verbrauch[x.id])||0)+'" onchange="updHeizVerbrauch('+idx+','+x.id+',this.value)"></label>').join('')+
-      ' <span class="unit-f">Summe: '+nkFmtBetrag(verbrauchSumme(k))+'</span></div>'
-     : '')+
     // Aufräumen: Zeitraum (aktiv von/bis) standardmäßig eingeklappt; offen, wenn gesetzt, neu hinzugefügt oder aufgeklappt.
     ((mehrereHeiz || expandedHeizZeit.has(k.id) || k.von || k.bis)
-      ? '<div class="detail-grid" title="US-06: Zeitraum, in dem dieser Heiztyp aktiv war. Leer = ganzer Abrechnungszeitraum. Bei Mieterwechsel wird der Block über diese Periode auf die anwesenden Mieter verteilt.">'+
-          '<label>aktiv von <input type="date" value="'+(k.von||'')+'" onchange="store.setKostenFeld('+idx+',\'von\',this.value)"></label>'+
-          '<label>aktiv bis <input type="date" value="'+(k.bis||'')+'" onchange="store.setKostenFeld('+idx+',\'bis\',this.value)"></label>'+
-          '<span class="unit-f">leer = ganzer Abrechnungszeitraum</span>'+
-          ((k.von||k.bis||mehrereHeiz) ? '' : '<button type="button" class="heiz-zeit-toggle" onclick="toggleHeizZeit('+k.id+')">ausblenden</button>')+
+      ? '<div class="heiz-felder" title="US-06: Zeitraum, in dem dieser Heiztyp aktiv war. Leer = ganzer Abrechnungszeitraum. Bei Mieterwechsel wird der Block über diese Periode auf die anwesenden Mieter verteilt.">'+
+          hf('aktiv von', '<input type="date" value="'+(k.von||'')+'" onchange="store.setKostenFeld('+idx+',\'von\',this.value)">')+
+          hf('aktiv bis', '<input type="date" value="'+(k.bis||'')+'" onchange="store.setKostenFeld('+idx+',\'bis\',this.value)">')+
+          ((k.von||k.bis||mehrereHeiz) ? '' : '<label class="hf"><span>&nbsp;</span><button type="button" class="heiz-zeit-toggle" onclick="toggleHeizZeit('+k.id+')">ausblenden</button></label>')+
         '</div>'
       : '<button type="button" class="heiz-zeit-toggle" onclick="toggleHeizZeit('+k.id+')">+ Zeitraum eingrenzen (Standard: ganzer Abrechnungszeitraum)</button>')+
-    (ea.fossil
-      ? '<div class="detail-grid" title="US-07 (CO2KostAufG): Werte von der Brennstoffrechnung übernehmen – seit 2023 Pflichtangabe des Lieferanten.">'+
-          '<label>CO2-Emissionen (kg) <input class="short" type="number" step="any" value="'+(k.co2Kg||0)+'" onchange="updHeizNum('+idx+',\'co2Kg\',this.value)"></label>'+
-          '<label>CO2-Kosten (€) <input class="short" type="number" step="any" value="'+(k.co2Kosten||0)+'" onchange="updHeizNum('+idx+',\'co2Kosten\',this.value)"></label>'+
-          '<span class="unit-f">von der Brennstoffrechnung – Vermieteranteil wird automatisch ermittelt</span>'+
-        '</div>'
-      : '')+
   '</div>';
 }
 function addHeizblock(){
@@ -1078,9 +1119,20 @@ function setEnergieart(idx, key){
   renderHeizung();
 }
 function updHeiz(idx, field, val){
+  /* US-95: Menge/Heizwert wirken nur noch auf die Kennzahl Ø €/kWh, NICHT mehr auf den Betrag. */
   store.setKostenFeld(idx, field, nkParseBetrag(val));
-  const k=store.kosten(idx);
-  store.setKostenFeld(idx,'betrag', nkHeizkosten(k.menge, k.preis));
+  heizVorjahrBestaetigt(idx);
+  renderHeizung();
+}
+/* US-95: Heizkostensumme direkt setzen (führender Wert; früher aus Menge×Preis errechnet). */
+function updHeizBetrag(idx, val){
+  store.setKostenFeld(idx,'betrag', nkParseBetrag(val));
+  heizVorjahrBestaetigt(idx);
+  renderHeizung();
+}
+/* US-94: Grundkostenanteil (%) eines Heizblocks setzen (Klemmung auf 30–50 % erfolgt beim Lesen via nkHeizGrundProzent). */
+function updHeizGrund(idx, val){
+  store.setKostenFeld(idx,'grundProzent', nkParseBetrag(val));
   heizVorjahrBestaetigt(idx);
   renderHeizung();
 }
@@ -1426,7 +1478,7 @@ function monatErhalten(m, key, soll){
 }
 /* US-83: Ansicht im Zahlungen-Reiter – „bis aktueller Monat" (nur fällige Monate, Standard)
    oder „ganzes Abrechnungsjahr". */
-let zahlBisAktuell=true;
+let zahlBisAktuell=false; /* US-98: Default = ganzes Abrechnungsjahr (nicht „bis aktueller Monat") */
 function aktuellerMonatKey(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
 function setZahlBisAktuell(v){
   zahlBisAktuell=v;
@@ -1453,16 +1505,23 @@ function renderZahlungen(){
       const st=nkZahlStatus(erhalten, soll);
       if(st==='teilweise') hatTeil=true;
       sumSoll+=soll; sumErh+=erhalten;
-      const offenM=Math.round((soll-erhalten)*100)/100; /* US-79: Mietrückstand dieses Monats */
+      /* US-97: Differenz zum Soll – bei Unterzahlung rot („offener Betrag"), bei Überzahlung blau. */
+      const diffBetrag=Math.round((soll-erhalten)*100)/100; /* >0 offen, <0 Überzahlung */
       /* US-77: Zusammensetzung des Solls als Tooltip (im jeweiligen Monat gültige Werte). */
       const teile=nkSollTeile(nkMieteAm(m, k+'-01'), nkMonatNK(m), m.stellAnzahl, m.stellPreis);
       const sollTitle=teile.length? eur(soll)+' = '+teile.map(t=>eur(t.betrag)+' '+t.label).join(' + ') : '';
+      const geprueft=(st==='bezahlt'||st==='ueberzahlt');
+      const diffHtml = st==='teilweise'
+          ? '<span class="zm-diff neg" title="Differenz zum Soll – noch offener Betrag">offener Betrag '+eur(diffBetrag)+'</span>'
+          : st==='ueberzahlt'
+          ? '<span class="zm-diff pos" title="mehr als das Soll erhalten">Überzahlung '+eur(Math.abs(diffBetrag))+'</span>'
+          : '';
       return '<div class="zahl-monat '+st+'">'+
         '<span class="zm-label">'+monatLabel(k)+'</span>'+
         '<span class="zm-soll"'+(sollTitle?' title="'+sollTitle+'"':'')+'>Soll '+eur(soll)+'</span>'+
-        (offenM>0? '<span class="zm-offen" title="Offener Betrag dieses Monats – Mietrückstand">offen '+eur(offenM)+'</span>' : '')+
         '<label class="zm-erh">erhalten <input class="short" type="text" inputmode="decimal" value="'+(erhalten?nkFmtBetrag(erhalten):'')+'" placeholder="'+nkFmtBetrag(soll)+'" onchange="updErhalten('+ei+','+mi+',\''+k+'\',this.value)"></label>'+
-        '<button class="zm-pruef'+(st==='bezahlt'||st==='ueberzahlt'?' aktiv':'')+'" title="Monat als geprüft markieren (setzt erhalten = Soll); erneut klicken hebt es wieder auf" onclick="toggleGeprueft('+ei+','+mi+',\''+k+'\')">geprüft</button>'+
+        diffHtml+
+        '<button class="zm-pruef'+(geprueft?' aktiv':'')+'" title="'+(geprueft?'Geprüft – erneut klicken hebt es auf':'Zahlungseingang als korrekt bestätigen (setzt erhalten = Soll)')+'" onclick="toggleGeprueft('+ei+','+mi+',\''+k+'\')">'+(geprueft?'geprüft':'zu prüfen')+'</button>'+
       '</div>';
     }).join('');
     const offenBetrag=Math.max(0, Math.round((sumSoll-sumErh)*100)/100);
