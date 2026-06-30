@@ -925,6 +925,16 @@ test("nkObjektDateiname: Vorschlag mit genau EINEM Jahr (kein doppeltes Anhänge
     "NeKoFix-Hauptstrasse 5-2023.json");
   assert.equal(calc.nkObjektDateiname({}), "NeKoFix-Objekt.json");
 });
+test("nkProzentDelta: prozentuale Veränderung ggü. Vorjahr (US-104)", () => {
+  assert.equal(calc.nkProzentDelta(110, 100), 10);
+  assert.equal(calc.nkProzentDelta(90, 100), -10);
+  assert.equal(calc.nkProzentDelta(1640, 1200), 36.7); // gerundet auf 1 NK
+  assert.equal(calc.nkProzentDelta(100, 100), 0);
+  assert.equal(calc.nkProzentDelta(100, 0), null);     // kein Bezug (Division durch 0)
+  assert.equal(calc.nkProzentDelta(100, ""), null);    // Vorjahr leer -> kein Bezug
+  assert.equal(calc.nkProzentDelta("", 100), -100);    // aktuell leer -> 0 -> -100 %
+  assert.equal(calc.nkProzentDelta(undefined, 100), null); // NaN -> null
+});
 test("nkNormName: Umlaut-Faltung und Normalisierung fürs Matching (US-86)", () => {
   // Faltung ä/ö/ü/ß <-> ae/oe/ue/ss an generischen Wörtern (keine echten Namen/Firmen/IBANs).
   assert.equal(calc.nkNormName("Grün"), "gruen");

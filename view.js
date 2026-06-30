@@ -740,7 +740,12 @@ function renderKosten(){
   function betragCellHtml(k, idx){
     if(vjOn){
       const key=nkNormName(k.bez), hit=vjMap&&(key in vjMap);
-      return '<td class="num"><span class="betrag-wrap"><input class="short vj-field'+(hit?'':' vj-none')+'" type="text" readonly tabindex="-1" title="Vorjahreswert (zum Vergleich)" value="'+(hit?nkFmtBetrag(vjMap[key]):'–')+'"></span></td>';
+      /* US-104: prozentuale Veränderung aktueller Betrag ggü. Vorjahr – farbig, im selben Feld (kein Layout-Sprung). */
+      const pct = hit ? nkProzentDelta(k.betrag, vjMap[key]) : null;
+      const delta = (pct!=null)
+        ? '<span class="vj-delta '+(pct>0?'up':pct<0?'down':'flat')+'" title="Veränderung gegenüber Vorjahr (aktuell '+nkFmtBetrag(k.betrag||0)+' €)">'+(pct>0?'+':'')+String(pct).replace('.',',')+' %</span>'
+        : '';
+      return '<td class="num"><span class="betrag-wrap"><input class="short vj-field'+(hit?'':' vj-none')+'" type="text" readonly tabindex="-1" title="Vorjahreswert (zum Vergleich)" value="'+(hit?nkFmtBetrag(vjMap[key]):'–')+'">'+delta+'</span></td>';
     }
     return '<td class="num"><span class="betrag-wrap'+(k.vorjahr?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+'" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">'+(k.vorjahr?'<button type="button" class="vorjahr-tri" title="Vorjahreswert übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="uebernehmeKostenVorjahr('+idx+')"></button>':'')+'</span></td>';
   }
@@ -778,8 +783,9 @@ function renderKosten(){
       const d=document.createElement('tr'); d.className='detail-row';
       d.innerHTML='<td colspan="5"><div class="detail-grid">'+
         '<label>Rubrik <select onchange="updKosten('+idx+',\'rubrik\',this.value)">'+ro+'</select></label>'+
-        '<label>Status <select onchange="updKosten('+idx+',\'status\',this.value)">'+so+'</select></label>'+
-        '<label>Verfügbarkeit <select onchange="updKosten('+idx+',\'verfuegbar\',this.value)">'+vo+'</select></label>'+
+        /* US-100: Farbpunkt vor dem Dropdown – dieselbe Farbcodierung wie die Punkte am zugeklappten Schalter, damit klar wird, wofür der Punkt steht. */
+        '<label>Status <span class="dot" style="background:'+STATUS_FARBE[st]+'"></span> <select onchange="updKosten('+idx+',\'status\',this.value)">'+so+'</select></label>'+
+        '<label>Verfügbarkeit <span class="dot" style="background:'+VERFUEGBAR_FARBE[vf]+'"></span> <select onchange="updKosten('+idx+',\'verfuegbar\',this.value)">'+vo+'</select></label>'+
         '<label title="Im Beleg enthaltene Vorsteuer">Vorsteuer <select onchange="updKosten('+idx+',\'vorsteuer\',+this.value)">'+vsOpts+'</select></label>'+
         /* US-32: §35a-Kategorie + begünstigter Arbeitskosten-Anteil */
         '<label title="Steuerlich begünstigt nach §35a EStG (haushaltsnahe Dienstleistung oder Handwerkerleistung)">§35a <select onchange="updKosten('+idx+',\'p35a\',this.value)">'+
@@ -1426,7 +1432,7 @@ function monatErhalten(m, key, soll){
 }
 /* US-83: Ansicht im Zahlungen-Reiter – „bis aktueller Monat" (nur fällige Monate, Standard)
    oder „ganzes Abrechnungsjahr". */
-let zahlBisAktuell=true;
+let zahlBisAktuell=false; /* US-98: Default = ganzes Abrechnungsjahr (nicht „bis aktueller Monat") */
 function aktuellerMonatKey(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
 function setZahlBisAktuell(v){
   zahlBisAktuell=v;
@@ -1453,16 +1459,23 @@ function renderZahlungen(){
       const st=nkZahlStatus(erhalten, soll);
       if(st==='teilweise') hatTeil=true;
       sumSoll+=soll; sumErh+=erhalten;
-      const offenM=Math.round((soll-erhalten)*100)/100; /* US-79: Mietrückstand dieses Monats */
+      /* US-97: Differenz zum Soll – bei Unterzahlung rot („offener Betrag"), bei Überzahlung blau. */
+      const diffBetrag=Math.round((soll-erhalten)*100)/100; /* >0 offen, <0 Überzahlung */
       /* US-77: Zusammensetzung des Solls als Tooltip (im jeweiligen Monat gültige Werte). */
       const teile=nkSollTeile(nkMieteAm(m, k+'-01'), nkMonatNK(m), m.stellAnzahl, m.stellPreis);
       const sollTitle=teile.length? eur(soll)+' = '+teile.map(t=>eur(t.betrag)+' '+t.label).join(' + ') : '';
+      const geprueft=(st==='bezahlt'||st==='ueberzahlt');
+      const diffHtml = st==='teilweise'
+          ? '<span class="zm-diff neg" title="Differenz zum Soll – noch offener Betrag">offener Betrag '+eur(diffBetrag)+'</span>'
+          : st==='ueberzahlt'
+          ? '<span class="zm-diff pos" title="mehr als das Soll erhalten">Überzahlung '+eur(Math.abs(diffBetrag))+'</span>'
+          : '';
       return '<div class="zahl-monat '+st+'">'+
         '<span class="zm-label">'+monatLabel(k)+'</span>'+
         '<span class="zm-soll"'+(sollTitle?' title="'+sollTitle+'"':'')+'>Soll '+eur(soll)+'</span>'+
-        (offenM>0? '<span class="zm-offen" title="Offener Betrag dieses Monats – Mietrückstand">offen '+eur(offenM)+'</span>' : '')+
         '<label class="zm-erh">erhalten <input class="short" type="text" inputmode="decimal" value="'+(erhalten?nkFmtBetrag(erhalten):'')+'" placeholder="'+nkFmtBetrag(soll)+'" onchange="updErhalten('+ei+','+mi+',\''+k+'\',this.value)"></label>'+
-        '<button class="zm-pruef'+(st==='bezahlt'||st==='ueberzahlt'?' aktiv':'')+'" title="Monat als geprüft markieren (setzt erhalten = Soll); erneut klicken hebt es wieder auf" onclick="toggleGeprueft('+ei+','+mi+',\''+k+'\')">geprüft</button>'+
+        diffHtml+
+        '<button class="zm-pruef'+(geprueft?' aktiv':'')+'" title="'+(geprueft?'Geprüft – erneut klicken hebt es auf':'Zahlungseingang als korrekt bestätigen (setzt erhalten = Soll)')+'" onclick="toggleGeprueft('+ei+','+mi+',\''+k+'\')">'+(geprueft?'geprüft':'zu prüfen')+'</button>'+
       '</div>';
     }).join('');
     const offenBetrag=Math.max(0, Math.round((sumSoll-sumErh)*100)/100);

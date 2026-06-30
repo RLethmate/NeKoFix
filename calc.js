@@ -869,6 +869,14 @@ function nkObjektJahr(s) {
   return m ? m[1] : "";
 }
 
+/* US-104: prozentuale Veränderung neu ggü. alt (Vorjahr), auf eine Nachkommastelle gerundet.
+   Liefert null, wenn alt nicht endlich oder 0 ist (kein sinnvoller Bezug). Reine Funktion (Tests). */
+function nkProzentDelta(neu, alt) {
+  const a = +alt, n = +neu;
+  if (!isFinite(a) || a === 0 || !isFinite(n)) return null;
+  return Math.round(((n - a) / a) * 1000) / 10;
+}
+
 /* Speicher: vorgeschlagener Dateiname für ein Objekt-Snapshot. Basisname ist objekt.name||addr,
    bereinigt um Sonderzeichen (·, /, …) und ein evtl. bereits enthaltenes Jahr – so wird beim
    wiederholten Speichern KEIN zweites Jahr angehängt. Genau ein Jahr (aus von/bis) wird ergänzt.
@@ -1246,6 +1254,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkHistCoalesce,
     nkNameAusDateiname,
     nkObjektDateiname,
+    nkProzentDelta,
     nkNormName,
     nkParseDatumDE,
     nkParseUmsatzCsv,

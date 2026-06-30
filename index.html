@@ -72,6 +72,11 @@
      Bewusst kein zusätzliches Element, damit sich Layout/Zeilenhöhe nicht ändern. */
   input.vj-field{color:#1565c0;font-style:italic;background:#f3f7fe;border-color:#c3d6f5;cursor:default;}
   input.vj-field.vj-none{color:#9aa0a6;font-style:italic;}
+  /* US-104: prozentuale Veränderung ggü. Vorjahr (Anstieg terrakotta, Rückgang grün) */
+  .vj-delta{margin-left:6px;font-size:11px;font-style:italic;font-weight:600;white-space:nowrap;}
+  .vj-delta.up{color:var(--nachzahlung);}
+  .vj-delta.down{color:var(--accent);}
+  .vj-delta.flat{color:var(--muted);}
   /* Titel-Suffix „… aus Vorjahr JJJJ (Alt+V)": Basis schwarz, Zusatz blau kursiv. */
   #kosten_titel_vj, .vj-titel{color:#1565c0;font-style:italic;font-weight:400;}
   #kosten_titel_vj.vj-titel-hint{color:#9aa0a6;}
@@ -281,15 +286,18 @@
   .zahl-summe{font-size:13px;margin-left:auto;}
   .zahl-monate{display:flex;flex-direction:column;gap:6px;}
   .zahl-monat{font-size:13px;border:1px solid var(--line);border-left-width:4px;border-radius:7px;padding:6px 10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
-  /* US-74: < Soll oder leer => rot, = Soll => grün, > Soll => blau */
-  .zahl-monat.offen{border-left-color:var(--nachzahlung);background:#fcf3ef;}
+  /* US-97: anfangs/„zu prüfen" => grau, < Soll => rot, = Soll => grün, > Soll => blau */
+  .zahl-monat.offen{border-left-color:#c2ccd6;background:#f6f8f9;}
   .zahl-monat.teilweise{border-left-color:var(--nachzahlung);background:#fcf3ef;}
   .zahl-monat.bezahlt{border-left-color:var(--accent);background:#f3faf6;}
   .zahl-monat.ueberzahlt{border-left-color:var(--ueberzahlt);background:#eef3fd;}
   .zm-label{min-width:80px;font-weight:600;}
   .zm-soll{color:var(--muted);min-width:120px;}
   .zm-soll[title]{cursor:help;text-decoration:underline dotted;text-underline-offset:2px;} /* US-77: Soll-Aufschlüsselung als Tooltip */
-  .zm-offen{font-size:11px;color:var(--nachzahlung);white-space:nowrap;} /* US-79: Mietrückstand je Monat (dezent) */
+  /* US-97: Differenz zum Soll – rot (offener Betrag) bzw. blau (Überzahlung) */
+  .zm-diff{font-size:11px;white-space:nowrap;font-weight:600;}
+  .zm-diff.neg{color:var(--nachzahlung);}
+  .zm-diff.pos{color:var(--ueberzahlt);}
   /* US-83: Umschalter fällige Monate / ganzes Jahr */
   .zahl-view{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:0 0 12px;}
   .zv-btn{background:#fff;border:0;border-right:1px solid var(--line);padding:5px 12px;font-size:12px;color:var(--muted);cursor:pointer;}
@@ -298,9 +306,11 @@
   .zm-erh{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;}
   .zm-erh input{max-width:120px;}
   .zm-add{padding:2px 8px;}
-  /* US-74: „geprüft"-Toggle – aktiv, wenn der Monat voll beglichen ist */
-  .zm-pruef{padding:2px 10px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--muted);cursor:pointer;font-size:12px;white-space:nowrap;}
+  /* US-97: Status-Button klar als Button erkennbar (Default „zu prüfen"); aktiv = geprüft (grün) */
+  .zm-pruef{margin-left:auto;padding:5px 14px;border:1px solid #bcc6d0;border-radius:7px;background:#eef2f6;color:#41505f;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 1px 0 rgba(0,0,0,.05);}
+  .zm-pruef:hover{background:#e2e8ef;border-color:#9fb0bf;}
   .zm-pruef.aktiv{border-color:var(--accent);background:var(--accent);color:#fff;}
+  .zm-pruef.aktiv:hover{background:var(--accent);filter:brightness(.96);}
   .leer-hint{font-size:12px;color:var(--nachzahlung);display:flex;align-items:center;gap:6px;margin-top:8px;}
   .chronik-titel{font-size:12px;color:var(--muted);font-weight:600;margin:10px 0 4px;}
   /* US-68: Indexmiete-Bereich */
@@ -685,10 +695,10 @@
     <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Kontoauszüge</b></span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Monatliche Soll-Mieten je Mietverhältnis abhaken und mit dem Kontoauszug abgleichen.</p>
     <div class="zahl-view" role="group" aria-label="Zeitraum der Anzeige">
-      <button id="zv_faellig" class="zv-btn active" onclick="setZahlBisAktuell(true)" title="Nur offene (noch nicht geprüfte) Monate bis zum aktuellen Monat">bis aktueller Monat</button>
-      <button id="zv_jahr" class="zv-btn" onclick="setZahlBisAktuell(false)" title="Alle Monate des Abrechnungszeitraums">ganzes Abrechnungsjahr</button>
+      <button id="zv_faellig" class="zv-btn" onclick="setZahlBisAktuell(true)" title="Nur offene (noch nicht geprüfte) Monate bis zum aktuellen Monat">bis aktueller Monat</button>
+      <button id="zv_jahr" class="zv-btn active" onclick="setZahlBisAktuell(false)" title="Alle Monate des Abrechnungszeitraums">ganzes Abrechnungsjahr</button>
     </div>
-    <p class="hint" id="zahl_laeuft_hint" style="margin:0 0 10px;">Falls aktuelle Monate des laufenden Jahres nicht angezeigt werden, prüfe unter „Mieter &amp; Vertrag", ob das Mietverhältnis auf „läuft" steht.</p>
+    <p class="hint" id="zahl_laeuft_hint" style="margin:0 0 10px;display:none;">Falls aktuelle Monate des laufenden Jahres nicht angezeigt werden, prüfe unter „Mieter &amp; Vertrag", ob das Mietverhältnis auf „läuft" steht.</p>
     <div id="zahlungen_box"></div>
     <div class="nav"><button class="btn-ghost" onclick="go(5)">Zurück</button></div>
   </section>

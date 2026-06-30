@@ -142,12 +142,10 @@ function buildTenantPdf(sel){
     p35aTab('dienstleistung','§35a Abs. 2 · Haushaltsnahe Dienstleistungen', NK_P35A.dienstleistung.elster);
     p35aTab('handwerker','§35a Abs. 3 · Handwerkerleistungen', NK_P35A.handwerker.elster);
   }
-  // Einwendungsfrist: gehört zur NK-Abrechnung, NICHT zur Zahlung einer Nachforderung (sonst Missverständnis,
-  // man habe 12 Monate Zahlungszeit). Daher hier – direkt unter der Abrechnung – und nicht beim Zahlungsrückstand.
-  y+=6; doc.setFontSize(8); doc.setTextColor(110);
-  doc.splitTextToSize('Hinweis zur Abrechnung: Einwendungen gegen diese Nebenkostenabrechnung können Sie innerhalb von 12 Monaten nach Zugang geltend machen (§ 556 Abs. 3 BGB). Diese Frist betrifft nur Einwendungen gegen die Abrechnung – nicht die Zahlung einer Nachforderung.', W).forEach(l=>{ if(y>790){doc.addPage();y=64;} doc.text(l,L,y); y+=11; });
-  doc.setFontSize(10); doc.setTextColor(0); y+=8;
-  // Zahlungsmodalitäten – klare, kurzfristige Zahlungsaufforderung (NICHT die 12-Monats-Einwendungsfrist)
+  // US-92: Der frühere 12-Monats-Einwendungshinweis (§ 556 Abs. 3 BGB) wurde auf Wunsch entfernt –
+  // es besteht keine Pflicht, die Einwendungsfrist des Mieters in der Abrechnung abzudrucken.
+  y+=8;
+  // Zahlungsmodalitäten – klare, kurzfristige Zahlungsaufforderung
   const vzweck='NK-Abr. '+(state.objekt.addr||'')+'-'+e.name+'-'+m.mieter+'-'+zeitraumText(); // US-55: Verwendungszweck
   if(saldo>0){
     doc.setFont(undefined,'bold');
@@ -155,6 +153,10 @@ function buildTenantPdf(sel){
     doc.setFont(undefined,'normal');
     nl('Empfänger: '+(z.empfaenger||'')+'    IBAN: '+(z.iban||'')+'    BIC: '+(z.bic||''));
     nl('Verwendungszweck: '+vzweck);
+    // US-93: Sicherheitshinweis gegen Bankverbindungs-Betrug.
+    y+=3; doc.setFontSize(8); doc.setTextColor(110);
+    doc.splitTextToSize('Hinweis zur Sicherheit: Eine Änderung unserer Bankverbindung teilen wir Ihnen ausschließlich schriftlich und niemals unaufgefordert per E-Mail mit. Im Zweifel prüfen Sie die hier genannte Bankverbindung oder fragen Sie unter der angegebenen Kontaktadresse nach.', W).forEach(l=>{ if(y>790){doc.addPage();y=64;} doc.text(l,L,y); y+=11; });
+    doc.setFontSize(10); doc.setTextColor(0); y+=4;
   } else {
     nl('Das Guthaben wird Ihnen innerhalb von '+((z.frist||'14 Tage').replace(/\s*nach Zugang/i,'').replace(/\bTage\b/,'Tagen'))+' erstattet.');
   }
