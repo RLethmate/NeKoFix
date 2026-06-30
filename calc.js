@@ -213,6 +213,30 @@ function nkExpandHeizSplit(kosten, einheiten) {
 function nkHeizOhneVerbrauch(kosten, einheiten) {
   return (kosten || []).filter(k => k && k.typ === "heizung" && !k._split && nkVerbrauchSumme(k, einheiten) <= 0);
 }
+/* US-103: Kleinreparaturen/Direktkosten je Einheit gegen die zulässigen Grenzen prüfen.
+   Datenbasis sind „direkt" einer Einheit zugeordnete Positionen. Anerkannte Grenzen (Rechtsprechung):
+   Jahresdeckel i. d. R. 6–8 % der Jahres(netto)kaltmiete (Default 8 %) und Einzelgrenze ~100 €.
+   Hinweis: Kleinreparaturen sind NICHT über die Betriebskosten umlagefähig – die Prüfung dient dem
+   Tracking der Kleinreparaturklausel. Liefert eine Liste von Warnungen (reine Funktion). */
+function nkKleinrepWarnungen(einheiten, kosten, objekt, opts) {
+  const prozent = (opts && opts.prozent != null) ? +opts.prozent : 8;
+  const einzel = (opts && opts.einzel != null) ? +opts.einzel : 100;
+  const o = objekt || {}, warn = [];
+  (einheiten || []).forEach(e => {
+    const direkt = (kosten || []).filter(k => k && k.schluessel === "direkt" && k.direktEinheit === e.id);
+    if (!direkt.length) return;
+    const summe = direkt.reduce((s, k) => s + (+k.betrag || 0), 0);
+    const jahresKalt = (e.mv || []).reduce((s, m) => {
+      const za = nkZeitanteil(m.von, nkMvEnde(m, o.bis), o.von, o.bis);
+      return s + (+m.grundmiete || 0) * 12 * za;
+    }, 0);
+    const grenze = jahresKalt > 0 ? Math.round(jahresKalt * prozent / 100 * 100) / 100 : null;
+    const einzelUeber = direkt.filter(k => (+k.betrag || 0) > einzel).map(k => k.bez || "(ohne Bezeichnung)");
+    if (grenze != null && summe > grenze + 0.005) warn.push({ einheit: e.name, art: "jahr", summe: summe, grenze: grenze, prozent: prozent, jahresKalt: Math.round(jahresKalt * 100) / 100 });
+    if (einzelUeber.length) warn.push({ einheit: e.name, art: "einzel", einzel: einzel, positionen: einzelUeber });
+  });
+  return warn;
+}
 function nkFaktorFuer(e, k, einheiten) {
   if (k && k.schluessel === "direkt") return e.id === k.direktEinheit ? 1 : 0; // US-22: 100 % auf eine Einheit
   if (!nkTeilnahme(e, k)) return 0;
@@ -1281,6 +1305,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkExpandHeizSplit,
     nkHeizOhneVerbrauch,
     nkBeheizteFlaeche,
+    nkKleinrepWarnungen,
     nkIbanGueltig,
     nkGiroCode,
     nkAnrede,

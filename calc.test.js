@@ -987,6 +987,19 @@ test("US-96: Heiz-Grundkosten nach beheizter Fläche (unbeheizt abgezogen)", () 
   assert.equal(Math.round(b*100)/100, 516.67);
   assert.equal(Math.round((a+b)*100)/100, 1000);
 });
+test("nkKleinrepWarnungen: Direktkosten je Einheit gegen Schwellen prüfen (US-103)", () => {
+  const objekt = { von:"2025-01-01", bis:"2025-12-31" };
+  const E = [{ id:1, name:"EG", mv:[{ von:"2025-01-01", bis:"2025-12-31", grundmiete:800 }] }];
+  // 5000 € Direktkosten: über Einzelgrenze (100 €) UND über Jahresdeckel (8 % von 9600 = 768 €)
+  const w = calc.nkKleinrepWarnungen(E, [{ schluessel:"direkt", direktEinheit:1, bez:"Reparatur", betrag:5000 }], objekt);
+  assert.equal(w.length, 2);
+  assert.ok(w.some(x => x.art === "jahr" && x.grenze === 768 && x.summe === 5000));
+  assert.ok(w.some(x => x.art === "einzel" && x.einzel === 100));
+  // kleiner Betrag unter beiden Grenzen -> keine Warnung
+  assert.equal(calc.nkKleinrepWarnungen(E, [{ schluessel:"direkt", direktEinheit:1, bez:"Kleinkram", betrag:50 }], objekt).length, 0);
+  // ohne Direktkosten -> keine Warnung
+  assert.equal(calc.nkKleinrepWarnungen(E, [{ schluessel:"flaeche", betrag:9999 }], objekt).length, 0);
+});
 test("nkNormName: Umlaut-Faltung und Normalisierung fürs Matching (US-86)", () => {
   // Faltung ä/ö/ü/ß <-> ae/oe/ue/ss an generischen Wörtern (keine echten Namen/Firmen/IBANs).
   assert.equal(calc.nkNormName("Grün"), "gruen");

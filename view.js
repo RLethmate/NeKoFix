@@ -732,8 +732,22 @@ function renderVoraus(){
 }
 
 /* ---------- Step 3 ---------- */
+/* US-103: Warnung, wenn Direktkosten/Kleinreparaturen je Einheit die zulässigen Grenzen
+   überschreiten (Einzelgrenze ~100 €, Jahresdeckel ~8 % der Jahreskaltmiete). */
+function renderKleinrepWarn(){
+  const box=document.getElementById('kleinrep_warn'); if(!box) return;
+  const w=nkKleinrepWarnungen(state.einheiten, state.kosten, state.objekt);
+  if(!w.length){ box.innerHTML=''; return; }
+  const items=w.map(x=> x.art==='jahr'
+    ? '<li>Einheit „'+esc(x.einheit)+'": Direktkosten '+eur(x.summe)+' überschreiten den Kleinreparatur-Jahresdeckel von '+eur(x.grenze)+' ('+x.prozent+' % der Jahreskaltmiete '+eur(x.jahresKalt)+').</li>'
+    : '<li>Einheit „'+esc(x.einheit)+'": Einzelposition über '+eur(x.einzel)+' ('+x.positionen.map(esc).join(', ')+').</li>'
+  ).join('');
+  box.innerHTML='<div class="warn-box"><b>⚠ Kleinreparaturen/Direktkosten prüfen</b><ul>'+items+'</ul>'+
+    '<span class="warn-note">Kleinreparaturen sind nur bis zu diesen Grenzen auf den Mieter abwälzbar (Kleinreparaturklausel) und <b>nicht</b> über die Betriebskosten umlagefähig. Grenzen als Orientierung – Einzelfall prüfen.</span></div>';
+}
 function renderKosten(){
   ensureIds();
+  renderKleinrepWarn(); /* US-103 */
   const tb=document.querySelector('#tbl_kosten tbody'); tb.innerHTML='';
   /* US-59: Vorjahreswerte je Kostenart (über die Bezeichnung) einblenden, wenn der Toggle an ist.
      Dargestellt IM selben Betragsfeld (read-only, blau) – kein Layout-Sprung. */
@@ -789,9 +803,9 @@ function renderKosten(){
       const d=document.createElement('tr'); d.className='detail-row';
       d.innerHTML='<td colspan="5"><div class="detail-grid">'+
         '<label>Rubrik <select onchange="updKosten('+idx+',\'rubrik\',this.value)">'+ro+'</select></label>'+
-        /* US-100: Punkt-Farbcodierung in den Optionen selbst; das Select trägt die Farbe der aktuellen Auswahl, damit der Punkt auch zugeklappt sichtbar ist. */
-        '<label>Status <select style="color:'+STATUS_FARBE[st]+'" onchange="updKosten('+idx+',\'status\',this.value)">'+so+'</select></label>'+
-        '<label>Verfügbarkeit <select style="color:'+VERFUEGBAR_FARBE[vf]+'" onchange="updKosten('+idx+',\'verfuegbar\',this.value)">'+vo+'</select></label>'+
+        /* US-100: eigenes Dropdown – Punkt + Text farbig, sowohl zugeklappt als auch in der geöffneten Liste (native Selects färben die Liste auf macOS nicht ein). */
+        '<label>Status '+cddHtml('status', idx, st, STATUS_BELEG, STATUS_FARBE)+'</label>'+
+        '<label>Verfügbarkeit '+cddHtml('verfuegbar', idx, vf, VERFUEGBAR, VERFUEGBAR_FARBE)+'</label>'+
         '<label title="Im Beleg enthaltene Vorsteuer">Vorsteuer <select onchange="updKosten('+idx+',\'vorsteuer\',+this.value)">'+vsOpts+'</select></label>'+
         /* US-32: §35a-Kategorie + begünstigter Arbeitskosten-Anteil */
         '<label title="Steuerlich begünstigt nach §35a EStG (haushaltsnahe Dienstleistung oder Handwerkerleistung)">§35a <select onchange="updKosten('+idx+',\'p35a\',this.value)">'+
@@ -920,6 +934,23 @@ function headDrop(ev, rubrik){ ev.preventDefault(); const el=ev.currentTarget; i
   if(d.kind==='kosten'){ store.moveKosten(d.id, null, rubrik); renderKosten(); }
   else if(d.kind==='rubrik' && d.name!==rubrik){ const liste=nkRubrikenListe(state.objekt, state.kosten); store.moveRubrik(liste.indexOf(d.name), liste.indexOf(rubrik)); renderKosten(); } }
 function updKosten(idx,field,val){ store.setKostenFeld(idx,field,val); renderKosten(); }
+/* US-100: kleines Custom-Dropdown für Status/Verfügbarkeit – farbiger Punkt + Text, auch in der
+   geöffneten Liste (native <option>-Farben werden auf macOS nicht gerendert). */
+function cddHtml(kind, idx, current, map, farbe){
+  const id='cdd-'+kind+'-'+idx;
+  const opts=Object.keys(map).map(key=>
+    '<button type="button" class="cdd-opt'+(key===current?' sel':'')+'" style="color:'+farbe[key]+'" onclick="cddPick(\''+kind+'\','+idx+',\''+key+'\')">●&nbsp;'+esc(map[key])+'</button>').join('');
+  return '<span class="cdd" id="'+id+'">'+
+    '<button type="button" class="cdd-btn" style="color:'+farbe[current]+'" onclick="cddToggle(\''+id+'\',event)">●&nbsp;'+esc(map[current])+' <span class="cdd-caret" aria-hidden="true">▾</span></button>'+
+    '<div class="cdd-list" hidden>'+opts+'</div></span>';
+}
+function cddToggle(id, ev){ ev.stopPropagation();
+  const box=document.getElementById(id); if(!box) return; const list=box.querySelector('.cdd-list'); const willOpen=list.hidden;
+  document.querySelectorAll('.cdd-list').forEach(l=>l.hidden=true);
+  list.hidden=!willOpen;
+}
+function cddPick(kind, idx, key){ updKosten(idx, kind==='status'?'status':'verfuegbar', key); /* renderKosten schließt die Liste */ }
+document.addEventListener('click', function(){ document.querySelectorAll('.cdd-list').forEach(l=>l.hidden=true); });
 /* US-32: begünstigten Arbeitskosten-Anteil (€) je Position setzen. */
 function updKostenArbeit(idx,val){ store.setKostenFeld(idx,'arbeitskosten', nkParseBetrag(val)); renderKosten(); }
 /* US-50: Teilnahme einer Einheit an einer Kostenart umschalten (ausgeschlossen = Liste von IDs). */
@@ -1047,17 +1078,21 @@ function heizKarte(k,idx){
       '<label>Heizkosten gesamt (€) <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag||0)+'" onchange="updHeizBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
       '<label title="Optional – nur für die Kennzahl Ø €/kWh (Energieträger-/Heizungsvergleich), keine Rechengrundlage.">'+fi.verbrauch+' <input class="short" type="number" step="any" value="'+(k.menge||0)+'" onchange="updHeiz('+idx+',\'menge\',this.value)"></label>'+
       faktorFeld+
-      /* US-94: Grund-/Verbrauchsaufteilung statt eines einzelnen Verteilerschlüssels. */
-      '<label title="Grundkosten nach (beheizter) Fläche, Rest nach erfasstem Verbrauch (§ 7/§ 8 HeizkostenV). Zulässig: 30–50 % Grund (= 50–70 % Verbrauch).">Grundkosten % <input class="short" type="number" min="30" max="50" step="5" value="'+grund+'" onchange="updHeizGrund('+idx+',this.value)"> <span class="unit-f">→ '+verbr+' % Verbrauch</span></label>'+
-      /* US-95: mittlerer Energiepreis als Kennzahl (nur wenn eine kWh-Menge vorliegt). */
-      (eurKwh!=null ? '<span class="unit-f" title="Mittlerer Energiepreis – nur Kennzahl zum Vergleich (z. B. vor/nach Heizungswechsel)">Ø '+nkFmtBetrag(eurKwh)+' €/kWh</span>' : '<span class="unit-f" title="Für die Kennzahl Ø €/kWh den Verbrauch (kWh) eintragen">Ø €/kWh: –</span>')+
+    '</div>'+
+    /* US-94/US-95-Schliff: Grundkosten % (editierbar) | Verbrauch % | Mittelwert Ø €/kWh – gleichmäßig nebeneinander. */
+    '<div class="detail-grid heiz-drei">'+
+      '<label title="Grundkosten nach (beheizter) Fläche, Rest nach erfasstem Verbrauch (§ 7/§ 8 HeizkostenV). Zulässig: 30–50 % Grund (= 50–70 % Verbrauch).">Grundkosten % <input class="short" type="number" min="30" max="50" step="5" value="'+grund+'" onchange="updHeizGrund('+idx+',this.value)"></label>'+
+      '<label>Verbrauch % <span class="heiz-val">'+verbr+' %</span></label>'+
+      '<label title="Mittlerer Energiepreis – nur Kennzahl zum Vergleich (z. B. vor/nach Heizungswechsel)">Mittelwert <span class="heiz-val">'+(eurKwh!=null ? nkFmtBetrag(eurKwh)+' €/kWh' : '– €/kWh')+'</span></label>'+
     '</div>'+
     '<div class="hint" style="margin:2px 0 6px;">30 % Grund / 70 % Verbrauch ist Standard; bei älteren Öl-/Gas-Gebäuden sind 70 % Verbrauch ggf. verpflichtend (§ 7 Abs. 1 HeizkostenV). Wartungs-/Betriebskosten der Anlage gehören in diesen Block.</div>'+
-    /* US-94: Verbrauch je Einheit ist für den Verbrauchsanteil immer nötig (nicht mehr an einen Schlüssel gebunden). */
-    '<div class="teilnahme"><span class="teilnahme-lbl">Verbrauch je Einheit ('+esc(k.einheit||'kWh')+'):</span> '+
+    /* US-94: Verbrauch je Einheit – Label in eigener Zeile, Einträge in Zweier-Reihen. */
+    '<div class="teilnahme"><span class="teilnahme-lbl heiz-vb-lbl">Verbrauch je Einheit ('+esc(k.einheit||'kWh')+'):</span>'+
+      '<div class="verbrauch-grid">'+
       state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>'<label class="teilnahme-item">'+esc(x.name)+' <input class="short" type="number" step="any" value="'+((k.verbrauch&&k.verbrauch[x.id])||0)+'" onchange="updHeizVerbrauch('+idx+','+x.id+',this.value)"></label>').join('')+
-      ' <span class="unit-f">Summe: '+nkFmtBetrag(vsum)+'</span>'+
-      (vsum>0 ? '' : '<div class="leer-hint" style="margin-top:6px;">⚠ Ohne erfassten Verbrauch wird '+verbr+' % nicht verbrauchsgerecht verteilt – der Block wird vorerst nach Fläche abgerechnet. Bitte Verbrauch je Einheit eintragen.</div>')+
+      '</div>'+
+      '<span class="unit-f">Summe: '+nkFmtBetrag(vsum)+'</span>'+
+      (vsum>0 ? '' : '<div class="leer-hint" style="margin-top:6px;width:100%;">⚠ Ohne erfassten Verbrauch wird '+verbr+' % nicht verbrauchsgerecht verteilt – der Block wird vorerst nach Fläche abgerechnet. Bitte Verbrauch je Einheit eintragen.</div>')+
     '</div>'+
     // Aufräumen: Zeitraum (aktiv von/bis) standardmäßig eingeklappt; offen, wenn gesetzt, neu hinzugefügt oder aufgeklappt.
     ((mehrereHeiz || expandedHeizZeit.has(k.id) || k.von || k.bis)
