@@ -140,9 +140,15 @@ function nkGiroCode(o) {
   ].join("\n");
 }
 
+/* US-96: beheizte Fläche einer Einheit = Gesamtfläche minus unbeheizte Fläche (z. B. Terrasse,
+   Balkon). Ohne gesetzte unbeheizte Fläche identisch zur Gesamtfläche (rückwärtskompatibel). */
+function nkBeheizteFlaeche(e) {
+  return Math.max(0, (+(e && e.flaeche) || 0) - (+(e && e.unbeheizt) || 0));
+}
 function nkTotals(einheiten) {
   return {
     flaeche: einheiten.reduce((s, e) => s + (+e.flaeche || 0), 0),
+    beheizt: einheiten.reduce((s, e) => s + nkBeheizteFlaeche(e), 0), // US-96
     personen: einheiten.reduce((s, e) => s + (+e.personen || 0), 0),
     einheiten: einheiten.length
   };
@@ -150,6 +156,7 @@ function nkTotals(einheiten) {
 
 function nkFactor(e, schluessel, t) {
   if (schluessel === "flaeche") return t.flaeche ? (e.flaeche / t.flaeche) : 0;
+  if (schluessel === "beheizt") return t.beheizt ? (nkBeheizteFlaeche(e) / t.beheizt) : 0; // US-96
   if (schluessel === "person")  return t.personen ? (e.personen / t.personen) : 0;
   return t.einheiten ? (1 / t.einheiten) : 0;
 }
@@ -196,7 +203,7 @@ function nkExpandHeizSplit(kosten, einheiten) {
       betrag: neuBetrag, schluessel: schluessel,
       co2Kg: (+k.co2Kg || 0) * frac, co2Kosten: (+k.co2Kosten || 0) * frac, arbeitskosten: (+k.arbeitskosten || 0) * frac
     });
-    out.push(teil("grund", gf, "flaeche", grundBetrag));
+    out.push(teil("grund", gf, "beheizt", grundBetrag)); // US-96: Grundkosten nach beheizter Fläche
     out.push(teil("verbrauch", vf, "verbrauch", betrag - grundBetrag));
   });
   return out;
@@ -230,7 +237,7 @@ function nkAnteilOf(e, kosten, einheiten) {
    Position (k.einheit), z. B. „kWh" oder „m³". */
 function nkSchluesselEinheit(k) {
   const s = k && k.schluessel;
-  if (s === "flaeche") return "m²";
+  if (s === "flaeche" || s === "beheizt") return "m²";
   if (s === "person") return "Pers.";
   if (s === "einheit") return "Whg.";
   if (s === "verbrauch") return (k && k.einheit) || "Einh.";
@@ -244,6 +251,7 @@ function nkLineItemsFor(e, kosten, einheiten) {
     // US-59: Spaltenwerte für den Rechenweg (Gesamteinheiten, Ihre Einheiten, Preis je Einheit).
     let basis = 0, ihre = 0;
     if (k.schluessel === "flaeche") { basis = nkTotals(teil).flaeche; ihre = nkTeilnahme(e, k) ? (+e.flaeche || 0) : 0; }
+    else if (k.schluessel === "beheizt") { basis = nkTotals(teil).beheizt; ihre = nkTeilnahme(e, k) ? nkBeheizteFlaeche(e) : 0; } // US-96
     else if (k.schluessel === "person") { basis = nkTotals(teil).personen; ihre = nkTeilnahme(e, k) ? (+e.personen || 0) : 0; }
     else if (k.schluessel === "einheit") { basis = nkTotals(teil).einheiten; ihre = nkTeilnahme(e, k) ? 1 : 0; }
     else if (k.schluessel === "verbrauch") { basis = nkVerbrauchSumme(k, einheiten); ihre = nkTeilnahme(e, k) ? (+(k.verbrauch || {})[e.id] || 0) : 0; }
@@ -1272,6 +1280,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkHeizSplitAktiv,
     nkExpandHeizSplit,
     nkHeizOhneVerbrauch,
+    nkBeheizteFlaeche,
     nkIbanGueltig,
     nkGiroCode,
     nkAnrede,

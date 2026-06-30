@@ -193,11 +193,16 @@ function renderEinheiten(){
     const personenInp = vjOn
       ? vjFeld(vjE && vjE.personen!=null ? vjE.personen : null)
       : '<input class="short" type="number" value="'+e.personen+'" oninput="updEinheit('+ei+',\'personen\',this.value)">';
+    /* US-96: unbeheizte Fläche (z. B. Terrasse) – wird bei den Heiz-Grundkosten von der Fläche abgezogen. */
+    const unbeheiztInp = vjOn
+      ? vjFeld(vjE && vjE.unbeheizt!=null ? vjE.unbeheizt : null)
+      : '<input class="short" type="number" value="'+(e.unbeheizt||0)+'" oninput="updEinheit('+ei+',\'unbeheizt\',this.value)">';
     box.insertAdjacentHTML('beforeend',
       '<div class="unit-card einheit-card">'+
         '<div class="unit-head">'+
           '<input class="unit-name" value="'+esc(e.name)+'" oninput="updEinheit('+ei+',\'name\',this.value)"'+(vjOn?' readonly':'')+'>'+
           '<label class="unit-f">Fläche m² '+flaecheInp+'</label>'+
+          '<label class="unit-f" title="Unbeheizte Fläche (z. B. Terrasse, Balkon). Wird nur bei den Heiz-Grundkosten von der Fläche abgezogen (US-96), sonst bleibt die volle Fläche maßgeblich.">unbeheizt m² '+unbeheiztInp+'</label>'+
           '<label class="unit-f">Personen '+personenInp+'</label>'+
           (vjOn?'':'<button class="row-del" title="Einheit entfernen" onclick="delEinheit('+ei+')" style="margin-left:auto;">×</button>')+
         '</div>'+

@@ -954,7 +954,7 @@ test("nkExpandHeizSplit: Heizblock in Grund (Fläche) + Verbrauch aufteilen (US-
                  schluessel:"flaeche", verbrauch:{ 1:30, 2:70 }, co2Kg:1000, co2Kosten:200 };
   const ex = calc.nkExpandHeizSplit([heiz], E);
   assert.equal(ex.length, 2);
-  assert.equal(ex[0]._split, "grund"); assert.equal(ex[0].schluessel, "flaeche"); assert.equal(ex[0].betrag, 300);
+  assert.equal(ex[0]._split, "grund"); assert.equal(ex[0].schluessel, "beheizt"); assert.equal(ex[0].betrag, 300); // US-96: Grundkosten nach beheizter Fläche
   assert.equal(ex[1]._split, "verbrauch"); assert.equal(ex[1].schluessel, "verbrauch"); assert.equal(ex[1].betrag, 700);
   // Betrag- und CO2-Summe bleiben erhalten
   assert.equal(ex[0].betrag + ex[1].betrag, 1000);
@@ -974,6 +974,18 @@ test("nkExpandHeizSplit: ohne erfassten Verbrauch -> kein Split (Fallback), Warn
   assert.equal(calc.nkAnteilOf(E[0], [heiz], E), 600); // reine Flächenverteilung
   assert.equal(calc.nkHeizOhneVerbrauch([heiz], E).length, 1);
   assert.equal(calc.nkHeizSplitAktiv(heiz, E), false);
+});
+test("US-96: Heiz-Grundkosten nach beheizter Fläche (unbeheizt abgezogen)", () => {
+  assert.equal(calc.nkBeheizteFlaeche({ flaeche:100, unbeheizt:20 }), 80);
+  assert.equal(calc.nkBeheizteFlaeche({ flaeche:50 }), 50); // ohne unbeheizt = volle Fläche
+  assert.equal(calc.nkTotals([{ flaeche:100, unbeheizt:20 }, { flaeche:100 }]).beheizt, 180);
+  const E = [{ id:1, name:"A", flaeche:100, unbeheizt:20 }, { id:2, name:"B", flaeche:100 }];
+  const heiz = { typ:"heizung", bez:"Heizung", betrag:1000, grundProzent:30, verbrauch:{ 1:50, 2:50 } };
+  const a = calc.nkAnteilOf(E[0], [heiz], E), b = calc.nkAnteilOf(E[1], [heiz], E);
+  // Grund 300 nach beheizt (80/180,100/180) + Verbrauch 700 je 50% -> A 483,33 ; B 516,67
+  assert.equal(Math.round(a*100)/100, 483.33);
+  assert.equal(Math.round(b*100)/100, 516.67);
+  assert.equal(Math.round((a+b)*100)/100, 1000);
 });
 test("nkNormName: Umlaut-Faltung und Normalisierung fürs Matching (US-86)", () => {
   // Faltung ä/ö/ü/ß <-> ae/oe/ue/ss an generischen Wörtern (keine echten Namen/Firmen/IBANs).
