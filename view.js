@@ -1061,11 +1061,20 @@ function heizKarte(k,idx){
   const grund=nkHeizGrundProzent(k), verbr=100-grund, vsum=verbrauchSumme(k); /* US-94: Grund-/Verbrauchsaufteilung */
   const eaOpts=NK_ENERGIEARTEN.map(e=>'<option value="'+e.key+'"'+(k.energieart===e.key?' selected':'')+'>'+esc(e.label)+'</option>').join('');
   const schlOpts=['flaeche','person','einheit','verbrauch'].map(s=>'<option value="'+s+'"'+(k.schluessel===s?' selected':'')+'>'+SCHLUESSEL[s]+'</option>').join('');
-  const faktorFeld = fi.show
-    ? '<label title="'+fi.tip.replace(/"/g,'&quot;')+'">'+fi.label+' <input class="short" type="number" step="any" value="'+(k.heizwert||0)+'" onchange="updHeiz('+idx+',\'heizwert\',this.value)"></label>'+
-      '<span class="unit-f">= '+nkFmtBetrag(kwh)+' '+fi.kwhLabel+'</span>'
-    : '';
   const mehrereHeiz=heizListe().length>=2; /* mehrere Heizblöcke: Zeitraum bei allen einblenden, damit die Perioden klar abgegrenzt sind */
+  /* UX-Schliff: alle Werte als gleichartige Feld-Boxen (Anzeigen = ausgegraute, nicht editierbare Inputs),
+     damit sie sauber in einem Raster aligned sind. hf() = beschriftetes Feld, ro() = Readonly-Anzeigefeld. */
+  const ro = (v)=>'<input type="text" class="ro" readonly tabindex="-1" value="'+v+'">';
+  const hf = (cap, inp, title)=>'<label class="hf"'+(title?' title="'+String(title).replace(/"/g,'&quot;')+'"':'')+'><span>'+cap+'</span>'+inp+'</label>';
+  let felder =
+    hf('Heizkosten gesamt (€)', '<input type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag||0)+'" onchange="updHeizBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">')+
+    hf(fi.verbrauch, '<input type="number" step="any" value="'+(k.menge||0)+'" onchange="updHeiz('+idx+',\'menge\',this.value)">', 'Optional – nur für die Kennzahl Ø €/kWh (Energieträger-/Heizungsvergleich), keine Rechengrundlage.')+
+    (fi.show ? hf(fi.label, '<input type="number" step="any" value="'+(k.heizwert||0)+'" onchange="updHeiz('+idx+',\'heizwert\',this.value)">', fi.tip)+hf('Wärmemenge', ro(nkFmtBetrag(kwh)+' '+fi.kwhLabel)) : '')+
+    hf('Grundkosten %', '<input type="number" min="30" max="50" step="5" value="'+grund+'" onchange="updHeizGrund('+idx+',this.value)">', 'Grundkosten nach (beheizter) Fläche, Rest nach erfasstem Verbrauch (§ 7/§ 8 HeizkostenV). Zulässig: 30–50 % Grund (= 50–70 % Verbrauch).')+
+    hf('Verbrauch %', ro(verbr+' %'))+
+    hf('Mittelwert (Ø €/kWh)', ro(eurKwh!=null ? nkFmtBetrag(eurKwh)+' €/kWh' : '– €/kWh'), 'Mittlerer Energiepreis – nur Kennzahl zum Vergleich (z. B. vor/nach Heizungswechsel).')+
+    (ea.fossil ? hf('CO₂-Emissionen (kg)', '<input type="number" step="any" value="'+(k.co2Kg||0)+'" onchange="updHeizNum('+idx+',\'co2Kg\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.')+hf('CO₂-Kosten (€)', '<input type="number" step="any" value="'+(k.co2Kosten||0)+'" onchange="updHeizNum('+idx+',\'co2Kosten\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.') : '');
+  const vbFelder = state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>hf(esc(x.name), '<input type="number" step="any" value="'+((k.verbrauch&&k.verbrauch[x.id])||0)+'" onchange="updHeizVerbrauch('+idx+','+x.id+',this.value)">')).join('')+hf('Summe', ro(nkFmtBetrag(vsum)+' '+esc(k.einheit||'kWh')));
   return '<div class="unit-card einheit-card'+(k.vorjahr?' vorjahr':'')+'">'+
     (k.vorjahr ? '<div class="heiz-vorjahr"><span><b>Aus dem Vorjahr vorbelegt.</b> Bitte Verbrauch und Preis prüfen.</span><button type="button" onclick="uebernehmeHeizVorjahr('+idx+')">Übernehmen</button></div>' : '')+
     '<div class="unit-head">'+
@@ -1073,43 +1082,21 @@ function heizKarte(k,idx){
       '<label class="unit-f">Energieart <select onchange="setEnergieart('+idx+',this.value)">'+eaOpts+'</select></label>'+
       '<button class="row-del" title="Heizblock entfernen" onclick="delHeizblock('+idx+')" style="margin-left:auto;">×</button>'+
     '</div>'+
-    '<div class="detail-grid">'+
-      /* US-95: Heizkosten als Summe direkt eingeben (so wie der Messdienst sie ausweist) – nicht mehr aus Menge×Preis errechnet. */
-      '<label>Heizkosten gesamt (€) <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag||0)+'" onchange="updHeizBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
-      '<label title="Optional – nur für die Kennzahl Ø €/kWh (Energieträger-/Heizungsvergleich), keine Rechengrundlage.">'+fi.verbrauch+' <input class="short" type="number" step="any" value="'+(k.menge||0)+'" onchange="updHeiz('+idx+',\'menge\',this.value)"></label>'+
-      faktorFeld+
-    '</div>'+
-    /* US-94/US-95-Schliff: Grundkosten % (editierbar) | Verbrauch % | Mittelwert Ø €/kWh – gleichmäßig nebeneinander. */
-    '<div class="detail-grid heiz-drei">'+
-      '<label title="Grundkosten nach (beheizter) Fläche, Rest nach erfasstem Verbrauch (§ 7/§ 8 HeizkostenV). Zulässig: 30–50 % Grund (= 50–70 % Verbrauch).">Grundkosten % <input class="short" type="number" min="30" max="50" step="5" value="'+grund+'" onchange="updHeizGrund('+idx+',this.value)"></label>'+
-      '<label>Verbrauch % <span class="heiz-val">'+verbr+' %</span></label>'+
-      '<label title="Mittlerer Energiepreis – nur Kennzahl zum Vergleich (z. B. vor/nach Heizungswechsel)">Mittelwert <span class="heiz-val">'+(eurKwh!=null ? nkFmtBetrag(eurKwh)+' €/kWh' : '– €/kWh')+'</span></label>'+
-    '</div>'+
-    '<div class="hint" style="margin:2px 0 6px;">30 % Grund / 70 % Verbrauch ist Standard; bei älteren Öl-/Gas-Gebäuden sind 70 % Verbrauch ggf. verpflichtend (§ 7 Abs. 1 HeizkostenV). Wartungs-/Betriebskosten der Anlage gehören in diesen Block.</div>'+
-    /* US-94: Verbrauch je Einheit – Label in eigener Zeile, Einträge in Zweier-Reihen. */
-    '<div class="teilnahme"><span class="teilnahme-lbl heiz-vb-lbl">Verbrauch je Einheit ('+esc(k.einheit||'kWh')+'):</span>'+
-      '<div class="verbrauch-grid">'+
-      state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>'<label class="teilnahme-item">'+esc(x.name)+' <input class="short" type="number" step="any" value="'+((k.verbrauch&&k.verbrauch[x.id])||0)+'" onchange="updHeizVerbrauch('+idx+','+x.id+',this.value)"></label>').join('')+
-      '</div>'+
-      '<span class="unit-f">Summe: '+nkFmtBetrag(vsum)+'</span>'+
+    /* UX-Schliff: alle Felder im einheitlichen Raster, gleiche Box-Größe; Anzeigen ausgegraut. */
+    '<div class="heiz-felder">'+felder+'</div>'+
+    '<div class="hint" style="margin:2px 0 8px;">30 % Grund / 70 % Verbrauch ist Standard; bei älteren Öl-/Gas-Gebäuden sind 70 % Verbrauch ggf. verpflichtend (§ 7 Abs. 1 HeizkostenV). Wartungs-/Betriebskosten der Anlage gehören in diesen Block.'+(ea.fossil?' CO₂-Werte von der Brennstoffrechnung – Vermieteranteil wird automatisch ermittelt.':'')+'</div>'+
+    '<div class="heiz-vb"><div class="heiz-vb-lbl">Verbrauch je Einheit ('+esc(k.einheit||'kWh')+'):</div>'+
+      '<div class="heiz-felder">'+vbFelder+'</div>'+
       (vsum>0 ? '' : '<div class="leer-hint" style="margin-top:6px;width:100%;">⚠ Ohne erfassten Verbrauch wird '+verbr+' % nicht verbrauchsgerecht verteilt – der Block wird vorerst nach Fläche abgerechnet. Bitte Verbrauch je Einheit eintragen.</div>')+
     '</div>'+
     // Aufräumen: Zeitraum (aktiv von/bis) standardmäßig eingeklappt; offen, wenn gesetzt, neu hinzugefügt oder aufgeklappt.
     ((mehrereHeiz || expandedHeizZeit.has(k.id) || k.von || k.bis)
-      ? '<div class="detail-grid" title="US-06: Zeitraum, in dem dieser Heiztyp aktiv war. Leer = ganzer Abrechnungszeitraum. Bei Mieterwechsel wird der Block über diese Periode auf die anwesenden Mieter verteilt.">'+
-          '<label>aktiv von <input type="date" value="'+(k.von||'')+'" onchange="store.setKostenFeld('+idx+',\'von\',this.value)"></label>'+
-          '<label>aktiv bis <input type="date" value="'+(k.bis||'')+'" onchange="store.setKostenFeld('+idx+',\'bis\',this.value)"></label>'+
-          '<span class="unit-f">leer = ganzer Abrechnungszeitraum</span>'+
-          ((k.von||k.bis||mehrereHeiz) ? '' : '<button type="button" class="heiz-zeit-toggle" onclick="toggleHeizZeit('+k.id+')">ausblenden</button>')+
+      ? '<div class="heiz-felder" title="US-06: Zeitraum, in dem dieser Heiztyp aktiv war. Leer = ganzer Abrechnungszeitraum. Bei Mieterwechsel wird der Block über diese Periode auf die anwesenden Mieter verteilt.">'+
+          hf('aktiv von', '<input type="date" value="'+(k.von||'')+'" onchange="store.setKostenFeld('+idx+',\'von\',this.value)">')+
+          hf('aktiv bis', '<input type="date" value="'+(k.bis||'')+'" onchange="store.setKostenFeld('+idx+',\'bis\',this.value)">')+
+          ((k.von||k.bis||mehrereHeiz) ? '' : '<label class="hf"><span>&nbsp;</span><button type="button" class="heiz-zeit-toggle" onclick="toggleHeizZeit('+k.id+')">ausblenden</button></label>')+
         '</div>'
       : '<button type="button" class="heiz-zeit-toggle" onclick="toggleHeizZeit('+k.id+')">+ Zeitraum eingrenzen (Standard: ganzer Abrechnungszeitraum)</button>')+
-    (ea.fossil
-      ? '<div class="detail-grid" title="US-07 (CO2KostAufG): Werte von der Brennstoffrechnung übernehmen – seit 2023 Pflichtangabe des Lieferanten.">'+
-          '<label>CO2-Emissionen (kg) <input class="short" type="number" step="any" value="'+(k.co2Kg||0)+'" onchange="updHeizNum('+idx+',\'co2Kg\',this.value)"></label>'+
-          '<label>CO2-Kosten (€) <input class="short" type="number" step="any" value="'+(k.co2Kosten||0)+'" onchange="updHeizNum('+idx+',\'co2Kosten\',this.value)"></label>'+
-          '<span class="unit-f">von der Brennstoffrechnung – Vermieteranteil wird automatisch ermittelt</span>'+
-        '</div>'
-      : '')+
   '</div>';
 }
 function addHeizblock(){
