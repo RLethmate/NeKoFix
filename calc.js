@@ -36,6 +36,14 @@ const NK_ENERGIEARTEN = [
 function nkEnergieart(key) { return NK_ENERGIEARTEN.find(e => e.key === key) || NK_ENERGIEARTEN[0]; }
 function nkMengeZuKwh(menge, heizwert) { return (+menge || 0) * (+heizwert || 0); }
 function nkHeizkosten(menge, preis) { return (+menge || 0) * (+preis || 0); }
+/* US-95: mittlerer Energiepreis (€/kWh) aus direkt eingetragener Heizkostensumme und der
+   verbrauchten Energie (kWh). Nur Kennzahl (Energieträger-/Heizungsvergleich), keine
+   Rechengrundlage. Liefert null, wenn keine sinnvolle kWh-Menge vorliegt. Reine Funktion. */
+function nkEurProKwh(betrag, kwh) {
+  const b = +betrag, k = +kwh;
+  if (!isFinite(b) || !isFinite(k) || k <= 0) return null;
+  return Math.round((b / k) * 1000) / 1000;
+}
 
 /* US-07: CO2-Kostenaufteilung nach CO2KostAufG (seit 2023).
    Wohngebäude: 10-Stufen-Modell nach spez. Ausstoß (kg CO2/m²·a) → Vermieteranteil %.
@@ -1219,6 +1227,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkEnergieart,
     nkMengeZuKwh,
     nkHeizkosten,
+    nkEurProKwh,
     nkIbanGueltig,
     nkGiroCode,
     nkAnrede,

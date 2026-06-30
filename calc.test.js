@@ -935,6 +935,13 @@ test("nkProzentDelta: prozentuale Veränderung ggü. Vorjahr (US-104)", () => {
   assert.equal(calc.nkProzentDelta("", 100), -100);    // aktuell leer -> 0 -> -100 %
   assert.equal(calc.nkProzentDelta(undefined, 100), null); // NaN -> null
 });
+test("nkEurProKwh: Ø Energiepreis als Kennzahl (US-95)", () => {
+  assert.equal(calc.nkEurProKwh(4620, 42000), 0.11);
+  assert.equal(calc.nkEurProKwh(1000, 8000), 0.125);
+  assert.equal(calc.nkEurProKwh(1000, 0), null);   // keine Menge -> keine Kennzahl
+  assert.equal(calc.nkEurProKwh(1000, ""), null);
+  assert.equal(calc.nkEurProKwh("", 8000), 0);     // 0 € / Menge = 0
+});
 test("nkNormName: Umlaut-Faltung und Normalisierung fürs Matching (US-86)", () => {
   // Faltung ä/ö/ü/ß <-> ae/oe/ue/ss an generischen Wörtern (keine echten Namen/Firmen/IBANs).
   assert.equal(calc.nkNormName("Grün"), "gruen");

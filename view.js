@@ -1021,6 +1021,7 @@ function heizKarte(k,idx){
   const ea=nkEnergieart(k.energieart);
   const fi=heizFaktorInfo(ea);
   const kwh=nkMengeZuKwh(k.menge, k.heizwert);
+  const eurKwh=nkEurProKwh(k.betrag, kwh); /* US-95: Ø €/kWh nur als Kennzahl */
   const eaOpts=NK_ENERGIEARTEN.map(e=>'<option value="'+e.key+'"'+(k.energieart===e.key?' selected':'')+'>'+esc(e.label)+'</option>').join('');
   const schlOpts=['flaeche','person','einheit','verbrauch'].map(s=>'<option value="'+s+'"'+(k.schluessel===s?' selected':'')+'>'+SCHLUESSEL[s]+'</option>').join('');
   const faktorFeld = fi.show
@@ -1036,11 +1037,13 @@ function heizKarte(k,idx){
       '<button class="row-del" title="Heizblock entfernen" onclick="delHeizblock('+idx+')" style="margin-left:auto;">×</button>'+
     '</div>'+
     '<div class="detail-grid">'+
-      '<label>'+fi.verbrauch+' <input class="short" type="number" step="any" value="'+(k.menge||0)+'" onchange="updHeiz('+idx+',\'menge\',this.value)"></label>'+
+      /* US-95: Heizkosten als Summe direkt eingeben (so wie der Messdienst sie ausweist) – nicht mehr aus Menge×Preis errechnet. */
+      '<label>Heizkosten gesamt (€) <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag||0)+'" onchange="updHeizBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
+      '<label title="Optional – nur für die Kennzahl Ø €/kWh (Energieträger-/Heizungsvergleich), keine Rechengrundlage.">'+fi.verbrauch+' <input class="short" type="number" step="any" value="'+(k.menge||0)+'" onchange="updHeiz('+idx+',\'menge\',this.value)"></label>'+
       faktorFeld+
-      '<label>'+fi.preis+' <input class="short" type="number" step="any" value="'+(k.preis||0)+'" onchange="updHeiz('+idx+',\'preis\',this.value)"></label>'+
       '<label>Verteilerschlüssel <select onchange="setHeizSchluessel('+idx+',this.value)">'+schlOpts+'</select></label>'+
-      '<span class="zahl-summe">Heizkosten: <b>'+eur(k.betrag||0)+'</b></span>'+
+      /* US-95: mittlerer Energiepreis als Kennzahl (nur wenn eine kWh-Menge vorliegt). */
+      (eurKwh!=null ? '<span class="unit-f" title="Mittlerer Energiepreis – nur Kennzahl zum Vergleich (z. B. vor/nach Heizungswechsel)">Ø '+nkFmtBetrag(eurKwh)+' €/kWh</span>' : '<span class="unit-f" title="Für die Kennzahl Ø €/kWh den Verbrauch (kWh) eintragen">Ø €/kWh: –</span>')+
     '</div>'+
     (k.schluessel==='verbrauch' ?  /* US-57/US-58: Verbrauch je Einheit auch im Heizung-Reiter */
      '<div class="teilnahme"><span class="teilnahme-lbl">Verbrauch je Einheit:</span> '+
@@ -1085,9 +1088,14 @@ function setEnergieart(idx, key){
   renderHeizung();
 }
 function updHeiz(idx, field, val){
+  /* US-95: Menge/Heizwert wirken nur noch auf die Kennzahl Ø €/kWh, NICHT mehr auf den Betrag. */
   store.setKostenFeld(idx, field, nkParseBetrag(val));
-  const k=store.kosten(idx);
-  store.setKostenFeld(idx,'betrag', nkHeizkosten(k.menge, k.preis));
+  heizVorjahrBestaetigt(idx);
+  renderHeizung();
+}
+/* US-95: Heizkostensumme direkt setzen (führender Wert; früher aus Menge×Preis errechnet). */
+function updHeizBetrag(idx, val){
+  store.setKostenFeld(idx,'betrag', nkParseBetrag(val));
   heizVorjahrBestaetigt(idx);
   renderHeizung();
 }
