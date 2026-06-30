@@ -895,6 +895,35 @@ test("nkNameAusDateiname: Objektname aus Dateiname (Speicher)", () => {
   assert.equal(calc.nkNameAusDateiname(""), "");
   assert.equal(calc.nkNameAusDateiname(null), "");
   assert.equal(calc.nkNameAusDateiname(undefined), "");
+  // Speicher: Jahr in anderer Trennform (· / _ ) – aus früherem doppelten Anhängen – wird entfernt
+  assert.equal(calc.nkNameAusDateiname("NeKoFix-Lindenhof · 2025.json"), "Lindenhof");
+  assert.equal(calc.nkNameAusDateiname("NeKoFix-Lindenhof _ 2025.json"), "Lindenhof");
+});
+test("nkObjektDateiname: Vorschlag mit genau EINEM Jahr (kein doppeltes Anhängen)", () => {
+  // Basisfall: Name + Jahr aus von/bis
+  assert.equal(
+    calc.nkObjektDateiname({ objekt:{ name:"Lindenhof", von:"2025-01-01", bis:"2025-12-31" } }),
+    "NeKoFix-Lindenhof-2025.json");
+  // Name enthält bereits ein Jahr (frühere Korruption) -> wird NICHT verdoppelt
+  assert.equal(
+    calc.nkObjektDateiname({ objekt:{ name:"Lindenhof _ 2025", von:"2025-01-01", bis:"2025-12-31" } }),
+    "NeKoFix-Lindenhof-2025.json");
+  assert.equal(
+    calc.nkObjektDateiname({ objekt:{ name:"Lindenhof · 2024", von:"2024-01-01", bis:"2024-12-31" } }),
+    "NeKoFix-Lindenhof-2024.json");
+  // Round-Trip stabil: Dateiname -> Name -> Dateiname
+  const dn = calc.nkObjektDateiname({ objekt:{ name:"Lindenhof", von:"2025-01-01", bis:"2025-12-31" } });
+  const nm = calc.nkNameAusDateiname(dn);
+  assert.equal(nm, "Lindenhof");
+  assert.equal(
+    calc.nkObjektDateiname({ objekt:{ name:nm, von:"2025-01-01", bis:"2025-12-31" } }), dn);
+  // ohne Jahr: nur Name
+  assert.equal(calc.nkObjektDateiname({ objekt:{ name:"Mein Objekt" } }), "NeKoFix-Mein Objekt.json");
+  // Fallback Adresse, dann "Objekt"
+  assert.equal(
+    calc.nkObjektDateiname({ objekt:{ addr:"Hauptstrasse 5", von:"2023-01-01" } }),
+    "NeKoFix-Hauptstrasse 5-2023.json");
+  assert.equal(calc.nkObjektDateiname({}), "NeKoFix-Objekt.json");
 });
 test("nkNormName: Umlaut-Faltung und Normalisierung fürs Matching (US-86)", () => {
   // Faltung ä/ö/ü/ß <-> ae/oe/ue/ss an generischen Wörtern (keine echten Namen/Firmen/IBANs).

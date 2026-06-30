@@ -1533,7 +1533,23 @@ onPersist(function(ok){ if(!ok){ setSaveStatus('⚠ nicht gespeichert'); } else 
 /* US-84: expliziter Speicherbefehl – setzt den gespeicherten Stand (Dokument). „Speichern unter…"
    schreibt zusätzlich die Datei. (Phase 2: „Speichern" schreibt in Chromium direkt in die Datei.) */
 function speichern(){ markGespeichert(); }
-async function speichernUnter(){ const ok = await exportObjekt(); if(ok!==false){ markGespeichert(); } }
+/* Speicher: „Speichern unter…" wie im Office – legt aus dem AKTUELLEN (ggf. geänderten) Stand ein
+   NEUES Dokument an und schaltet darauf um. Das Ausgangsobjekt wird auf seinen zuletzt
+   gespeicherten Stand zurückgesetzt (Änderungen dort verworfen). So bleiben Quelle und Kopie
+   getrennt (z. B. Folgejahr aus einem bestehenden Jahr ableiten). */
+async function speichernUnter(){
+  const modSnap = nkClone(snapshot());            /* aktueller, evtl. geänderter Stand = die Kopie */
+  const res = await schreibeDatei(JSON.stringify(modSnap,null,2), nkObjektDateiname(modSnap));
+  if(!res.ok) return;                              /* vom Nutzer abgebrochen */
+  const neuerName = nkNameAusDateiname(res.dateiname);
+  /* 1) Ausgangsobjekt auf den gespeicherten Stand zurücksetzen (Änderungen verwerfen). */
+  if(savedData[aktivIdx]) verwerfeAenderungen();
+  /* 2) Neues Dokument aus dem geänderten Stand anlegen, benennen und aktiv schalten. */
+  modSnap.objekt = modSnap.objekt || {};
+  if(neuerName) modSnap.objekt.name = neuerName;
+  objekte.push(modSnap); aktivIdx=objekte.length-1; ladeDaten(modSnap); ensureIds();
+  renderAll(); neuerVerlauf(); markGespeichert(); markDateiGesichert(); updateSaveStatus();
+}
 /* US-84: PDF/Abrechnung nur aus dem gespeicherten Stand. Bei Änderungen: erst speichern. */
 function pdfStandOk(){
   // US-90: Plausi-Tor – kein PDF, solange aus dem Vorjahr vorbelegte Kostenbeträge nicht übernommen sind.
@@ -1629,27 +1645,33 @@ function showBackupHinweis(){ const b=document.getElementById('backup_hinweis');
 function dismissBackupHinweis(){ const b=document.getElementById('backup_hinweis'); if(b) b.style.display='none'; }
 /* US-65: Objekt als Datei sichern – echter Speicherdialog (File System Access API), wo
    unterstützt; sonst Download-Fallback. Dateiname wird aus „Objekt/Adresse" vorgeschlagen. */
-async function exportObjekt(){
-  const d=snapshot(); const name=objektLabel(d,aktivIdx).replace(/[^\wäöüÄÖÜß.\- ]/g,'_').trim()||'Objekt'; const jahr=objektJahr(d);
-  const dateiname='NeKoFix-'+name+(jahr?'-'+jahr:'')+'.json';
-  const json=JSON.stringify(d,null,2);
+/* Speicher: JSON unter einem Vorschlagsnamen als PC-Datei schreiben. File System Access API,
+   wo unterstützt (echter Speicherdialog); sonst Download-Fallback. Liefert {ok, dateiname} –
+   bei Abbruch {ok:false}. dateiname ist der tatsächlich gewählte Name (Picker) bzw. der Vorschlag. */
+async function schreibeDatei(json, vorschlag){
   if(window.showSaveFilePicker){
     try{
-      const handle=await window.showSaveFilePicker({ suggestedName:dateiname, types:[{description:'NeKoFix-Objekt (JSON)', accept:{'application/json':['.json']}}] });
+      const handle=await window.showSaveFilePicker({ suggestedName:vorschlag, types:[{description:'NeKoFix-Objekt (JSON)', accept:{'application/json':['.json']}}] });
       const w=await handle.createWritable(); await w.write(json); await w.close();
-      /* US-65: „Speichern unter" benennt das Objekt nach dem gewählten Dateinamen um
-         (NeKoFix-Präfix und angehängtes Jahr werden ignoriert). */
-      const neuerName=nkNameAusDateiname(handle.name);
-      if(neuerName && neuerName!==state.objekt.name){ store.setObjektFeld('name', neuerName); renderObjTitle(); } /* US-65: Objektname (Header) folgt dem Dateinamen, Adressfeld bleibt unberührt */
-      markDateiGesichert(); /* US-76: aktueller Stand liegt jetzt als PC-Datei vor */
-      return true; /* US-84: Datei geschrieben */
-    }catch(e){ if(e && e.name==='AbortError') return false; /* vom Nutzer abgebrochen */ }
+      return { ok:true, dateiname:handle.name };
+    }catch(e){ if(e && e.name==='AbortError') return { ok:false }; /* vom Nutzer abgebrochen */ }
   }
   /* Fallback (Firefox/Safari): Download in den Browser-Download-Ordner. */
   const blob=new Blob([json],{type:'application/json;charset=utf-8'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=dateiname;
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=vorschlag;
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
-  markDateiGesichert(); /* US-76: Download als PC-Datei-Sicherung gewertet */
+  return { ok:true, dateiname:vorschlag };
+}
+/* US-65/US-76: aktuelles Objekt als Datei sichern (Backup-Hinweis-Button). Dateiname wird aus
+   „Objekt/Adresse" + Jahr vorgeschlagen (nkObjektDateiname – kein doppeltes Jahr). Der Objektname
+   (Header) folgt dem gewählten Dateinamen; das Adressfeld bleibt unberührt. */
+async function exportObjekt(){
+  const d=snapshot();
+  const res=await schreibeDatei(JSON.stringify(d,null,2), nkObjektDateiname(d));
+  if(!res.ok) return false;
+  const neuerName=nkNameAusDateiname(res.dateiname);
+  if(neuerName && neuerName!==state.objekt.name){ store.setObjektFeld('name', neuerName); renderObjTitle(); }
+  markDateiGesichert(); /* US-76: aktueller Stand liegt jetzt als PC-Datei vor */
   return true;
 }
 /* US-11: Folgejahr aus dem aktiven Objekt anlegen */

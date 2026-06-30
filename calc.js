@@ -846,7 +846,11 @@ function nkHistCoalesce(prevTs, nowTs, windowMs) {
    „Speichern unter" und vom Import, damit der Header-Name dem Dateinamen folgt (nicht dem
    Adressfeld). */
 function nkNameAusDateiname(dateiname) {
-  return String(dateiname || "").replace(/\.json$/i, "").replace(/^NeKoFix-/i, "").replace(/-\d{4}$/, "").trim();
+  return String(dateiname || "")
+    .replace(/\.json$/i, "")
+    .replace(/^NeKoFix-/i, "")
+    .replace(/[\s_·-]+\d{4}\s*$/, "") /* angehängtes Jahr in beliebiger Trennform (-2025, _ 2025, · 2025) */
+    .trim();
 }
 
 /* US-86: Namens-Normalisierung für das Matching (Zahlungsbeteiligter -> Regel). Faltet Umlaute
@@ -863,6 +867,19 @@ function nkObjektJahr(s) {
   const v = s && s.objekt && (s.objekt.von || s.objekt.bis);
   const m = String(v == null ? "" : v).match(/(\d{4})/);
   return m ? m[1] : "";
+}
+
+/* Speicher: vorgeschlagener Dateiname für ein Objekt-Snapshot. Basisname ist objekt.name||addr,
+   bereinigt um Sonderzeichen (·, /, …) und ein evtl. bereits enthaltenes Jahr – so wird beim
+   wiederholten Speichern KEIN zweites Jahr angehängt. Genau ein Jahr (aus von/bis) wird ergänzt.
+   Gegenstück zu nkNameAusDateiname (Round-Trip stabil). Reine Funktion (Tests). */
+function nkObjektDateiname(d) {
+  const jahr = nkObjektJahr(d);
+  let name = String((d && d.objekt && (d.objekt.name || d.objekt.addr)) || "Objekt");
+  name = name.replace(/[^\wäöüÄÖÜß.\- ]/g, "_"); /* Sonderzeichen -> _ (dateinamensicher) */
+  name = name.replace(/[\s_·-]+\d{4}\s*$/, "").trim(); /* schon enthaltenes Jahr entfernen */
+  if (!name) name = "Objekt";
+  return "NeKoFix-" + name + (jahr ? "-" + jahr : "") + ".json";
 }
 
 /* US-59: zum aktiven Objekt das Vorjahr finden — gleiche (normalisierte) Adresse und Jahr = aktiv-1.
@@ -1228,6 +1245,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkSig,
     nkHistCoalesce,
     nkNameAusDateiname,
+    nkObjektDateiname,
     nkNormName,
     nkParseDatumDE,
     nkParseUmsatzCsv,
