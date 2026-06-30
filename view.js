@@ -50,7 +50,7 @@ const KOSTEN_KATALOG = [
 const WARN_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
 const STATUS_BELEG={geschaetzt:"geschätzt",vorlaeufig:"vorläufig",geprueft:"geprüft"};
 const VERFUEGBAR={fehlt:"fehlt",kommt:"kommt noch",vorhanden:"vorhanden"};
-const STATUS_FARBE={geschaetzt:"var(--muted)",vorlaeufig:"#d99a2b",geprueft:"var(--accent)"};
+const STATUS_FARBE={geschaetzt:"var(--nachzahlung)",vorlaeufig:"#d99a2b",geprueft:"var(--accent)"}; /* US-100: geschätzt = rot (unsicher), vorläufig = gelb, geprüft = grün */
 const VERFUEGBAR_FARBE={fehlt:"var(--nachzahlung)",kommt:"#d99a2b",vorhanden:"var(--accent)"};
 let nurUngeprueft=false;
 let expandedKosten=new Set();
@@ -776,16 +776,17 @@ function renderKosten(){
     const rub=nkRubrik(k); /* US-89 Phase 2: Drop auf diese Zeile = davor einsortieren, deren Rubrik übernehmen */
     tr.ondragover=dndOver; tr.ondragleave=dndLeave; tr.ondrop=function(e){ rowDrop(e, k.id, rub); };
     if(open){
-      let so=''; for(const key in STATUS_BELEG){ so+='<option value="'+key+'"'+(st===key?' selected':'')+'>'+STATUS_BELEG[key]+'</option>'; }
-      let vo=''; for(const key in VERFUEGBAR){ vo+='<option value="'+key+'"'+(vf===key?' selected':'')+'>'+VERFUEGBAR[key]+'</option>'; }
+      /* US-100: farbiger Punkt VOR dem Text in jeder Option (z. B. „● geschätzt"); Option-Farbe = Status-Farbe. */
+      let so=''; for(const key in STATUS_BELEG){ so+='<option value="'+key+'"'+(st===key?' selected':'')+' style="color:'+STATUS_FARBE[key]+'">●&nbsp;'+STATUS_BELEG[key]+'</option>'; }
+      let vo=''; for(const key in VERFUEGBAR){ vo+='<option value="'+key+'"'+(vf===key?' selected':'')+' style="color:'+VERFUEGBAR_FARBE[key]+'">●&nbsp;'+VERFUEGBAR[key]+'</option>'; }
       let vsOpts=''; [0,7,19].forEach(s=>{ vsOpts+='<option value="'+s+'"'+((+k.vorsteuer||0)===s?' selected':'')+'>'+s+' %</option>'; });
       const ro=nkRubrikenListe(state.objekt, state.kosten).map(r=>'<option value="'+esc(r)+'"'+(nkRubrik(k)===r?' selected':'')+'>'+esc(r)+'</option>').join('');
       const d=document.createElement('tr'); d.className='detail-row';
       d.innerHTML='<td colspan="5"><div class="detail-grid">'+
         '<label>Rubrik <select onchange="updKosten('+idx+',\'rubrik\',this.value)">'+ro+'</select></label>'+
-        /* US-100: Farbpunkt vor dem Dropdown – dieselbe Farbcodierung wie die Punkte am zugeklappten Schalter, damit klar wird, wofür der Punkt steht. */
-        '<label>Status <span class="dot" style="background:'+STATUS_FARBE[st]+'"></span> <select onchange="updKosten('+idx+',\'status\',this.value)">'+so+'</select></label>'+
-        '<label>Verfügbarkeit <span class="dot" style="background:'+VERFUEGBAR_FARBE[vf]+'"></span> <select onchange="updKosten('+idx+',\'verfuegbar\',this.value)">'+vo+'</select></label>'+
+        /* US-100: Punkt-Farbcodierung in den Optionen selbst; das Select trägt die Farbe der aktuellen Auswahl, damit der Punkt auch zugeklappt sichtbar ist. */
+        '<label>Status <select style="color:'+STATUS_FARBE[st]+'" onchange="updKosten('+idx+',\'status\',this.value)">'+so+'</select></label>'+
+        '<label>Verfügbarkeit <select style="color:'+VERFUEGBAR_FARBE[vf]+'" onchange="updKosten('+idx+',\'verfuegbar\',this.value)">'+vo+'</select></label>'+
         '<label title="Im Beleg enthaltene Vorsteuer">Vorsteuer <select onchange="updKosten('+idx+',\'vorsteuer\',+this.value)">'+vsOpts+'</select></label>'+
         /* US-32: §35a-Kategorie + begünstigter Arbeitskosten-Anteil */
         '<label title="Steuerlich begünstigt nach §35a EStG (haushaltsnahe Dienstleistung oder Handwerkerleistung)">§35a <select onchange="updKosten('+idx+',\'p35a\',this.value)">'+
