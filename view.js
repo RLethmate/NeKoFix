@@ -255,7 +255,8 @@ function mvZeilen(e, ei){
            Statt eines doppelten Textblocks blenden wir NUR die Aktionen (PDF + „verschickt") unter dem
            passenden Chronik-Eintrag ein; das × löscht dann Anpassung UND Chronik-Eintrag zusammen. */
         const idxByDatum={}; if(m.mhTyp==='index') (m.idxAnpassungen||[]).forEach((a,ii)=>{ if(a&&a.datum!=null) idxByDatum[a.datum]=ii; });
-        const chronikRows=chronik.map((c,ci)=>{
+        /* US-109-Schliff: neueste zuerst (nach Datum absteigend); ci bleibt der Original-Index. */
+        const chronikRows=chronik.map((c,ci)=>({c,ci})).sort((a,b)=>String(b.c.datum||'').localeCompare(String(a.c.datum||''))).map(({c,ci})=>{
           const idxI=(m.mhTyp==='index' && c.datum!=null && idxByDatum[c.datum]!=null)?idxByDatum[c.datum]:null;
           const delCall=(idxI!=null)?'indexEintragLoeschen('+ei+','+mi+','+ci+','+idxI+')':'delChronik('+ei+','+mi+','+ci+')';
           let out='<div class="chronik-row"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea><button class="row-del" onclick="'+delCall+'">×</button></div>';
@@ -287,20 +288,10 @@ function mvZeilen(e, ei){
             hf('E-Mail','<input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de">','hf-wide')+
           '</div>'+
           indexBlock(m,ei,mi)+ /* US-68: Indexmiete-Bereich */
-          '<div class="chronik-titel">Anpassungs-Chronik</div>'+
+          /* US-109-Schliff: kleiner „+ Chronik-Eintrag" oben neben der Überschrift; Einträge neueste zuerst. */
+          '<div class="chronik-titel">Anpassungs-Chronik <button type="button" class="chronik-add" onclick="addChronik('+ei+','+mi+')">+ Chronik-Eintrag</button></div>'+
           chronikRows+
-          '<button class="addrow" onclick="addChronik('+ei+','+mi+')">+ Eintrag</button>'+
           ((bald && !m.mhTyp)?'<div class="leer-hint" style="margin-top:6px;">'+WARN_ICON+' Nächste Anpassung am '+fmtDatum(na)+' – in Kürze fällig.</div>':'')+ /* US-72: Relikt nur ohne aktiven Mieterhöhungstyp */
-          /* US-109: Dokumente & Fotos je Mieter (echter Ordner via File System Access, nur Chromium) */
-          '<div class="dok-block"><div class="chronik-titel">Dokumente &amp; Fotos</div>'+
-          ((typeof dokVerfuegbar==='function' && dokVerfuegbar())
-            ? '<div class="dok-bar"><button type="button" class="addrow" onclick="dokUpload('+ei+','+mi+')">+ Datei hinzufügen</button>'+
-              ((typeof dokBasisName==='function' && dokBasisName())
-                ? '<span class="hint">Ablage: '+esc(dokBasisName())+' › '+esc(nkDokPfad((state.objekt.name||state.objekt.addr||''),(typeof objektJahr==='function'?objektJahr(snapshot()):''),e.name,m.mieter).join(' › '))+'</span>'
-                : '<button type="button" class="addrow" onclick="dokBasisWaehlen()">Dokumentenordner wählen…</button>')+
-              '</div><div class="dok-liste" data-ei="'+ei+'" data-mi="'+mi+'" data-mid="'+m.id+'"></div>'
-            : '<div class="hint">Benötigt Chrome, Edge oder Brave (File System Access API).</div>')+
-          '</div>'+
         '</td></tr>';
       }
       return row;
@@ -325,7 +316,6 @@ function renderMieterVertrag(){
   /* US-66: Chronik-Textfelder initial an ihren Inhalt anpassen. */
   document.querySelectorAll('#mieter_vertrag_box .chronik-notiz').forEach(autoGrow);
   setVjTitel('vjt_mieter'); /* US-59 */
-  if(typeof dokAutoLoad==='function') dokAutoLoad(); /* US-109: Dateilisten der offenen Mietverhältnisse laden */
 }
 /* US-66: Textarea-Höhe an den Inhalt anpassen (auto-grow). */
 function autoGrow(el){ if(!el) return; el.style.height='auto'; el.style.height=(el.scrollHeight)+'px'; }
@@ -704,7 +694,7 @@ function indexBlock(m,ei,mi){
   h+='</div>';
   return h;
 }
-function addChronik(ei,mi){ store.addChronik(ei,mi); renderEinheiten(); }
+function addChronik(ei,mi){ store.addChronik(ei,mi); const m=store.mv(ei,mi); const ci=(m.chronik||[]).length-1; if(ci>=0) store.setChronikFeld(ei,mi,ci,'datum',heute()); renderEinheiten(); } /* US-109-Schliff: neuer Eintrag mit heutigem Datum -> steht bei „neueste zuerst" oben */
 function delChronik(ei,mi,ci){ if(!confirm('Diesen Chronik-Eintrag wirklich löschen?')) return; store.removeChronik(ei,mi,ci); renderEinheiten(); }
 function updChronik(ei,mi,ci,field,val){ store.setChronikFeld(ei,mi,ci,field,val); /* Datum: Neu-Zeichnen via onblur */ }
 function addEinheit(){ store.addEinheit(); renderEinheiten(); }
