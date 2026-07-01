@@ -1310,3 +1310,36 @@ test("nkVorjahrHeizblock: Heizblock über Bezeichnung", () => {
   assert.equal(calc.nkVorjahrHeizblock(snap, "Grundsteuer"), null); // keine Heizung
   assert.equal(calc.nkVorjahrHeizblock(snap, "gibtsnicht"), null);
 });
+
+/* US-115: Golden-Master über den realitätsnahen Lindenhof-Datensatz. Sichert ab, dass sich die
+   Abrechnung (Verteilung, Heizungs-Grund/Verbrauch-Split, USt, CO2, Summen, Saldo) nicht unbemerkt
+   ändert. Die Fixture (lindenhof-2025.fixture.json) enthält gemischte Vorsteuersätze, einen
+   Heizblock mit Verbrauch je Einheit und einen gewerblichen Mieter. Ändert sich die Rechenlogik
+   bewusst, wird `erwartet` mit Begründung aktualisiert (nicht stillschweigend). */
+test("Golden-Master: Lindenhof-Abrechnung bleibt stabil (US-115)", () => {
+  const d = require("./lindenhof-2025.fixture.json");
+  const r2 = n => Math.round((+n || 0) * 100) / 100;
+  const ab = calc.nkObjektAbrechnung(d.einheiten, d.kosten, d.objekt);
+  const snap = {
+    summeAnteil: r2(ab.summeAnteil), summeVoraus: r2(ab.summeVoraus), summeSaldo: r2(ab.summeSaldo),
+    einheiten: ab.einheiten.map(e => ({
+      name: e.name, unitShare: r2(e.unitShare), leerstandBetrag: r2(e.leerstandBetrag),
+      mv: e.mietverhaeltnisse.map(m => ({ mieter: m.mieter, gewerblich: !!m.gewerblich, netto: r2(m.netto), ust: r2(m.ust), brutto: r2(m.brutto), saldo: r2(m.saldo) }))
+    }))
+  };
+  const erwartet = {
+    summeAnteil: 14192.51, summeVoraus: 6820, summeSaldo: 7372.51,
+    einheiten: [
+      { name: "EG links", unitShare: 3544.02, leerstandBetrag: 0, mv: [
+        { mieter: "Familie Brandt", gewerblich: false, netto: 3544.02, ust: 0, brutto: 3476.5, saldo: 1676.5 } ] },
+      { name: "EG rechts", unitShare: 2705.81, leerstandBetrag: 0, mv: [
+        { mieter: "Frau Yilmaz", gewerblich: false, netto: 2705.81, ust: 0, brutto: 2654.51, saldo: 1214.51 } ] },
+      { name: "1. OG", unitShare: 4378.21, leerstandBetrag: 359.85, mv: [
+        { mieter: "Herr Novak", gewerblich: false, netto: 2914.81, ust: 0, brutto: 2859.94, saldo: 1499.94 },
+        { mieter: "Familie Schäfer", gewerblich: false, netto: 1103.55, ust: 0, brutto: 1082.78, saldo: 542.78 } ] },
+      { name: "DG", unitShare: 3601.96, leerstandBetrag: 0, mv: [
+        { mieter: "Herr Petersen", gewerblich: true, netto: 3212.35, ust: 610.35, brutto: 3758.93, saldo: 2078.93 } ] }
+    ]
+  };
+  assert.deepEqual(snap, erwartet);
+});
