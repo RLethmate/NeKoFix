@@ -190,6 +190,28 @@ function nkVerbrauchSumme(k, einheiten) {
   const vb = (k && k.verbrauch) || {};
   return (einheiten || []).filter(x => nkTeilnahme(x, k)).reduce((s, x) => s + (+vb[x.id] || 0), 0);
 }
+/* US-105: auffällig niedrigen Verbrauch je Einheit erkennen. Heuristik: je verbrauchsbasierter
+   Position (bzw. Heizblock mit Verbrauch) den Verbrauch je m² bilden und Einheiten melden, deren
+   Wert deutlich unter dem Median liegt (Default < 30 %). Nur bei genügend Einheiten (Default ≥ 3),
+   damit der Median aussagekräftig ist – Hinweis auf mögliche Zähler-/Erfassungsfehler, kein Tor.
+   Reine Funktion. */
+function nkVerbrauchAusreisser(einheiten, kosten, opts) {
+  const schwelle = (opts && opts.schwelle != null) ? +opts.schwelle : 0.3;
+  const minEinh = (opts && opts.minEinheiten != null) ? +opts.minEinheiten : 3;
+  const median = arr => { const a = arr.slice().sort((x, y) => x - y), m = a.length; return m ? (m % 2 ? a[(m - 1) / 2] : (a[m / 2 - 1] + a[m / 2]) / 2) : 0; };
+  const out = [];
+  (kosten || []).forEach(k => {
+    if (!(nkVerbrauchSumme(k, einheiten) > 0)) return;
+    const vb = k.verbrauch || {};
+    const teil = (einheiten || []).filter(e => nkTeilnahme(e, k) && (+e.flaeche || 0) > 0);
+    if (teil.length < minEinh) return;
+    const perQm = teil.map(e => ({ name: e.name, q: (+vb[e.id] || 0) / (+e.flaeche || 1) }));
+    const med = median(perQm.map(x => x.q));
+    if (!(med > 0)) return;
+    perQm.forEach(x => { if (x.q < schwelle * med) out.push({ einheit: x.name, kostenart: k.bez, perQm: Math.round(x.q * 1000) / 1000, median: Math.round(med * 1000) / 1000 }); });
+  });
+  return out;
+}
 /* US-94: Grundkostenanteil eines Heizblocks in Prozent (Default 30). Gesetzlich zulässig ist ein
    Verbrauchsanteil von 50–70 % (§ 7/§ 8 HeizkostenV), also ein Grundanteil von 30–50 %; Werte
    außerhalb werden in diesen Rahmen geklemmt. */
@@ -771,6 +793,10 @@ function nkPlausibilitaet(s) {
       punkte.push({ level: "warn", text: "Einheit „" + e.name + "“: überschneidende Mietzeiträume – " + tage + " Tag(e) doppelt belegt; Mietverhältnisse prüfen: " + namen + "." });
     }
   });
+  // US-105: auffällig niedriger Verbrauch je Einheit (mögliche Zähler-/Erfassungsfehler) – nur Hinweis.
+  nkVerbrauchAusreisser(E, K).forEach(a => {
+    punkte.push({ level: "warn", text: "Einheit „" + a.einheit + "“: auffällig niedriger Verbrauch bei „" + a.kostenart + "“ (" + a.perQm + " je m² gegenüber Median " + a.median + "). Bitte Zähler/Erfassung prüfen." });
+  });
   return { bereit: !punkte.some(p => p.level === "fehler"), punkte };
 }
 
@@ -1323,6 +1349,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkHeizkosten,
     nkColLetter,
     nkEurProQm,
+    nkVerbrauchAusreisser,
     nkEurProKwh,
     nkHeizGrundProzent,
     nkHeizSplitAktiv,
