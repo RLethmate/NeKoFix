@@ -1,0 +1,261 @@
+{
+  "objekt": {
+    "addr": "Lindenweg 7, 12345 Beispielstadt",
+    "name": "Lindenhof",
+    "von": "2025-01-01",
+    "bis": "2025-12-31",
+    "co2Denkmal": false,
+    "co2ProzentOverride": ""
+  },
+  "einheiten": [
+    {
+      "id": 1,
+      "name": "EG links",
+      "flaeche": 68,
+      "personen": 2,
+      "mv": [
+        {
+          "id": 11,
+          "mieter": "Familie Brandt",
+          "von": "2025-01-01",
+          "bis": "2025-12-31",
+          "laeuft": true,
+          "vmonat": 150,
+          "vmonate": 12,
+          "vjahr": 1800,
+          "einmal": 0,
+          "voraus": 1800,
+          "grundmiete": 720,
+          "stellAnzahl": 0,
+          "stellPreis": 45,
+          "bezahlt": {}
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "EG rechts",
+      "flaeche": 55,
+      "personen": 1,
+      "mv": [
+        {
+          "id": 21,
+          "mieter": "Frau Yilmaz",
+          "von": "2025-01-01",
+          "bis": "2025-12-31",
+          "laeuft": true,
+          "vmonat": 120,
+          "vmonate": 12,
+          "vjahr": 1440,
+          "einmal": 0,
+          "voraus": 1440,
+          "grundmiete": 580,
+          "stellAnzahl": 0,
+          "stellPreis": 45,
+          "bezahlt": {}
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "1. OG",
+      "flaeche": 82,
+      "personen": 3,
+      "mv": [
+        {
+          "id": 31,
+          "mieter": "Herr Novak",
+          "von": "2025-01-01",
+          "bis": "2025-08-31",
+          "laeuft": false,
+          "vmonat": 170,
+          "vmonate": 8,
+          "vjahr": 1360,
+          "einmal": 0,
+          "voraus": 1360,
+          "grundmiete": 810,
+          "stellAnzahl": 0,
+          "stellPreis": 45,
+          "bezahlt": {}
+        },
+        {
+          "id": 32,
+          "mieter": "Familie Schäfer",
+          "von": "2025-10-01",
+          "bis": "2025-12-31",
+          "laeuft": true,
+          "vmonat": 180,
+          "vmonate": 3,
+          "vjahr": 540,
+          "einmal": 0,
+          "voraus": 540,
+          "grundmiete": 850,
+          "stellAnzahl": 1,
+          "stellPreis": 45,
+          "bezahlt": {}
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "DG",
+      "flaeche": 74,
+      "personen": 2,
+      "mv": [
+        {
+          "id": 41,
+          "mieter": "Herr Petersen",
+          "von": "2025-01-01",
+          "bis": "2025-12-31",
+          "laeuft": true,
+          "vmonat": 140,
+          "vmonate": 12,
+          "vjahr": 1680,
+          "einmal": 0,
+          "voraus": 1680,
+          "grundmiete": 690,
+          "stellAnzahl": 1,
+          "stellPreis": 45,
+          "bezahlt": {},
+          "gewerblich": true
+        }
+      ]
+    }
+  ],
+  "kosten": [
+    {
+      "id": 101,
+      "bez": "Grundsteuer",
+      "betrag": 1640,
+      "schluessel": "flaeche",
+      "rubrik": "Betriebskosten",
+      "vorsteuer": 0
+    },
+    {
+      "id": 102,
+      "bez": "Wasser / Abwasser",
+      "betrag": 1820,
+      "schluessel": "person",
+      "rubrik": "Kaltwasserkosten",
+      "vorsteuer": 7
+    },
+    {
+      "id": 112,
+      "bez": "Niederschlagswasser",
+      "betrag": 280,
+      "schluessel": "flaeche",
+      "rubrik": "Kaltwasserkosten",
+      "vorsteuer": 7
+    },
+    {
+      "id": 103,
+      "bez": "Müllbeseitigung",
+      "betrag": 960,
+      "schluessel": "einheit",
+      "rubrik": "Betriebskosten",
+      "vorsteuer": 7
+    },
+    {
+      "id": 104,
+      "bez": "Gebäudeversicherung",
+      "betrag": 740,
+      "schluessel": "flaeche",
+      "rubrik": "Betriebskosten",
+      "vorsteuer": 0
+    },
+    {
+      "id": 105,
+      "bez": "Allgemeinstrom",
+      "betrag": 360,
+      "schluessel": "flaeche",
+      "rubrik": "Betriebskosten",
+      "vorsteuer": 19
+    },
+    {
+      "id": 106,
+      "bez": "Treppenhausreinigung",
+      "betrag": 1080,
+      "schluessel": "flaeche",
+      "rubrik": "Betriebskosten",
+      "vorsteuer": 19
+    },
+    {
+      "id": 107,
+      "bez": "Gartenpflege",
+      "betrag": 540,
+      "schluessel": "flaeche",
+      "rubrik": "Betriebskosten",
+      "vorsteuer": 19
+    },
+    {
+      "id": 109,
+      "bez": "Hausmeister",
+      "betrag": 1320,
+      "schluessel": "flaeche",
+      "rubrik": "Betriebskosten",
+      "vorsteuer": 19
+    },
+    {
+      "id": 110,
+      "bez": "Schornsteinfeger",
+      "betrag": 210,
+      "schluessel": "flaeche",
+      "rubrik": "Betriebskosten",
+      "vorsteuer": 19
+    },
+    {
+      "id": 108,
+      "bez": "Heizung (Erdgas)",
+      "typ": "heizung",
+      "energieart": "erdgas_kwh",
+      "einheit": "kWh",
+      "heizwert": 1,
+      "menge": 42000,
+      "preis": 0.11,
+      "betrag": 4620,
+      "schluessel": "flaeche",
+      "co2Kg": 8442,
+      "co2Kosten": 464,
+      "rubrik": "Heizkosten",
+      "vorsteuer": 19,
+      "grundProzent": 30,
+      "verbrauch": {
+        "1": 12000,
+        "2": 9000,
+        "3": 14000,
+        "4": 11000
+      }
+    },
+    {
+      "id": 111,
+      "bez": "Warmwasser (Erdgas)",
+      "typ": "heizung",
+      "energieart": "erdgas_kwh",
+      "einheit": "kWh",
+      "heizwert": 1,
+      "menge": 6000,
+      "preis": 0.11,
+      "betrag": 660,
+      "schluessel": "person",
+      "co2Kg": 1206,
+      "co2Kosten": 66,
+      "rubrik": "Warmwasserkosten",
+      "vorsteuer": 7,
+      "grundProzent": 30,
+      "verbrauch": {
+        "1": 1500,
+        "2": 1000,
+        "3": 2500,
+        "4": 1000
+      }
+    }
+  ],
+  "zahlung": {
+    "frist": "30 Tage nach Zugang",
+    "iban": "DE36 0000 0000 0000 0000 00",
+    "bic": "",
+    "empfaenger": "Hausverwaltung Lindenhof, M. Berger",
+    "anschrift": "Lindenweg 7, 12345 Beispielstadt"
+  },
+  "abrechnungStatus": "inArbeit"
+}
