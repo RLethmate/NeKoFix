@@ -371,6 +371,13 @@
   .index-hist.staffel-warn .ih-text{color:var(--nachzahlung);}
   /* US-102-Schliff: Aktionen unter dem Chronik-Eintrag einer Index-Anpassung (PDF links, „verschickt" rechts) */
   .ust-col{white-space:nowrap;} /* US-99: „19 %" nicht umbrechen */
+  /* US-106: €/m²-Marktvergleich – ungedockter Klappbereich */
+  .eurqm{margin:12px 0;border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:#f7fafb;}
+  .eurqm>summary{cursor:pointer;font-weight:600;color:#41505f;font-size:13px;}
+  .eurqm-tab{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px;}
+  .eurqm-tab th,.eurqm-tab td{text-align:left;padding:4px 8px;border-bottom:1px solid #eef2f6;}
+  .eurqm-tab td.num,.eurqm-tab th.num{text-align:right;font-variant-numeric:tabular-nums;}
+  .eurqm-tab .eurqm-total td{font-weight:700;border-top:1px solid var(--line);}
   .chronik-actions{display:flex;align-items:center;gap:16px;margin:2px 0 12px;flex-wrap:wrap;}
   .chronik-actions .staffel-ank{margin-left:auto;}
   .chronik-row{display:flex;gap:8px;align-items:center;margin:4px 0;}
@@ -692,6 +699,7 @@
       <tbody></tbody>
     </table>
     <div id="co2_info" class="legal" hidden></div>
+    <details id="eurqm_box" class="eurqm"><summary>Nebenkosten je m² (Marktvergleich)</summary><div id="eurqm_inhalt"></div></details>
     <div id="plausi_box" class="plausi"></div>
     <div class="legal">Saldiert wird mit den <b>vereinbarten (Soll-)Vorauszahlungen</b>. Tatsächliche Zahlungsausfälle (<b>Mietrückstand</b>) sind hier nicht enthalten und separat einzufordern – siehe Reiter „Zahlungseingänge (Ist)".</div>
     <div style="margin-top:10px;"><button class="btn-ghost" onclick="downloadRechenweg()">Rechenweg herunterladen (.md)</button></div>

@@ -40,6 +40,17 @@ function nkColLetter(n) {
   while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
   return s;
 }
+/* US-106: Nebenkosten je m² (Marktvergleich, z. B. Betriebskostenspiegel) – je Kostenart und gesamt,
+   bezogen auf die Gesamtfläche des Objekts. Reine Anzeige-Kennzahl (ändert keine Verteilung).
+   Liefert Jahres- und Monatswert (€/m²). Reine Funktion. */
+function nkEurProQm(kosten, flaeche) {
+  const f = +flaeche || 0;
+  const q = (b) => f > 0 ? Math.round(b / f * 100) / 100 : 0;
+  const qm = (b) => f > 0 ? Math.round(b / f / 12 * 100) / 100 : 0;
+  let sum = 0;
+  const zeilen = (kosten || []).map(k => { const b = +k.betrag || 0; sum += b; return { bez: k.bez, betrag: b, jahr: q(b), monat: qm(b) }; });
+  return { flaeche: f, zeilen: zeilen, gesamt: { betrag: sum, jahr: q(sum), monat: qm(sum) } };
+}
 function nkMengeZuKwh(menge, heizwert) { return (+menge || 0) * (+heizwert || 0); }
 function nkHeizkosten(menge, preis) { return (+menge || 0) * (+preis || 0); }
 /* US-95: mittlerer Energiepreis (€/kWh) aus direkt eingetragener Heizkostensumme und der
@@ -1311,6 +1322,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkMengeZuKwh,
     nkHeizkosten,
     nkColLetter,
+    nkEurProQm,
     nkEurProKwh,
     nkHeizGrundProzent,
     nkHeizSplitAktiv,

@@ -1242,9 +1242,23 @@ function computeView(){
   // US-07/AC9: kurz erläutern, welcher CO2-Fall greift (gilt fürs aktuelle Jahr).
   const ci=document.getElementById('co2_info');
   if(ci){ const t=co2GebaeudeText(); if(t && !vjSnap){ ci.textContent='CO2-Kostenaufteilung (CO2KostAufG): '+t; ci.hidden=false; } else { ci.hidden=true; ci.textContent=''; } }
+  renderEurProQm(ein, kos); /* US-106: Nebenkosten je m² (Marktvergleich) */
   if(vjSnap){ const pb=document.getElementById('plausi_box'); if(pb) pb.innerHTML='<div class="plausi-item">Vorjahr-Ansicht – die Prüfung gilt für das aktuelle Jahr (Alt+v zum Zurückschalten).</div>'; }
   else renderPlausi();
   setVjTitel('vjt_berech'); /* US-59 */
+}
+/* US-106: Nebenkosten je m² (Marktvergleich) – ungedockter Klappbereich im Berechnung-Reiter. */
+function renderEurProQm(ein, kos){
+  const box=document.getElementById('eurqm_inhalt'); if(!box) return;
+  const flaeche=nkTotals(ein||state.einheiten).flaeche;
+  if(!(flaeche>0)){ box.innerHTML='<div class="hint">Für die €/m²-Kennzahl bitte Wohnflächen erfassen.</div>'; return; }
+  const r=nkEurProQm(kos||state.kosten, flaeche);
+  const eq=n=>nkFmtBetrag(n)+' €';
+  const rows=r.zeilen.filter(z=>Math.round(z.betrag*100)!==0).map(z=>
+    '<tr><td>'+esc(z.bez)+'</td><td class="num">'+eq(z.jahr)+'</td><td class="num">'+eq(z.monat)+'</td></tr>').join('');
+  box.innerHTML='<p class="hint" style="margin:6px 0;">Zum Vergleich mit typischen Markt-Nebenkosten (Betriebskostenspiegel, meist €/m²·Monat). Bezogen auf '+nkFmtBetrag(flaeche)+' m² Gesamtfläche. Reine Kennzahl – ändert die Verteilung nicht.</p>'+
+    '<table class="eurqm-tab"><thead><tr><th>Kostenart</th><th class="num">€/m²·Jahr</th><th class="num">€/m²·Monat</th></tr></thead><tbody>'+rows+
+    '<tr class="eurqm-total"><td>Gesamt</td><td class="num">'+eq(r.gesamt.jahr)+'</td><td class="num">'+eq(r.gesamt.monat)+'</td></tr></tbody></table>';
 }
 /* US-14: Plausibilitätsprüfung + Rechenweg */
 function renderPlausi(){

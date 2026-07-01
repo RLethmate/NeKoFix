@@ -1369,3 +1369,13 @@ test("nkColLetter: Spaltenbuchstabe für Excel-Formeln (US-117)", () => {
   assert.equal(calc.nkColLetter(702), "ZZ");
   assert.equal(calc.nkColLetter(703), "AAA");
 });
+
+test("nkEurProQm: EUR/m² je Kostenart und gesamt (US-106)", () => {
+  const r = calc.nkEurProQm([{bez:"A",betrag:1200},{bez:"B",betrag:600}], 100);
+  assert.equal(r.flaeche, 100);
+  assert.equal(r.zeilen[0].jahr, 12); assert.equal(r.zeilen[0].monat, 1);
+  assert.equal(r.zeilen[1].jahr, 6);  assert.equal(r.zeilen[1].monat, 0.5);
+  assert.equal(r.gesamt.betrag, 1800); assert.equal(r.gesamt.jahr, 18); assert.equal(r.gesamt.monat, 1.5);
+  // ohne Fläche: 0 statt Division durch null
+  assert.equal(calc.nkEurProQm([{betrag:100}], 0).gesamt.jahr, 0);
+});
