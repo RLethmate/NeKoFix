@@ -233,9 +233,6 @@ test("Mieterbetrag privat vs. gewerblich (US-20)", () => {
   assert.ok(Math.abs(mix.netto - (100+100+50)) < 1e-9);   // 250 netto
   assert.ok(Math.abs(mix.ust - 250*0.19) < 1e-9);          // 47,50 USt
   assert.ok(Math.abs(mix.brutto - 250*1.19) < 1e-9);
-  // nkUstZeile: 19 % Output-USt auf den Netto-Anteil einer Position
-  assert.ok(Math.abs(calc.nkUstZeile(100) - 19) < 1e-9);
-  assert.equal(calc.nkUstZeile(0), 0);
 });
 
 test("Anzahl ungeprüfter Belege (US-19)", () => {

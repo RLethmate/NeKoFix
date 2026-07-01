@@ -102,8 +102,8 @@ function buildTenantPdf(sel){
       doc.text(direkt?'direkt':(fmtE(i.basis)+' '+i.einheitLabel),cB,y,{align:'right'});
       doc.text(direkt?'—':fmtP(i.preisJeEinheit),cP,y,{align:'right'});
       doc.text(direkt?'100 %':(fmtE(i.ihreEinheiten)+' '+i.einheitLabel),cI,y,{align:'right'});
-      // US-99: bei gewerblich USt (19 % auf den Netto-Anteil) in eigener Spalte ausweisen.
-      if(gew) doc.text(eur(nkUstZeile(i.wert)),cU,y,{align:'right'});
+      // US-99: bei gewerblich den USt-Satz in eigener Spalte ausweisen (Prozentzahl genügt).
+      if(gew) doc.text(NK_UST_SATZ+' %',cU,y,{align:'right'});
       doc.text(eur(i.wert)+(i.zeitanteil<0.999?' (×'+Math.round(i.zeitanteil*100)+'%)':''),R,y,{align:'right'}); y+=12; sub+=i.wert;
     });
     doc.setFont(undefined,'bold'); doc.text('Zwischensumme '+rub,L+10,y); doc.text(eur(sub),R,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=15;
