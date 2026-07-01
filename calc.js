@@ -306,9 +306,22 @@ function nkMieterBetrag(items, gewerblich) {
     const b = (items || []).reduce((s, i) => s + (+i.anteil || 0), 0);
     return { netto: b, ust: 0, brutto: b, gewerblich: false };
   }
+  // US-99: USt je Position mit deren eigenem Satz (0/7/19 %) – nicht pauschal ein Satz auf die
+  // Gesamt-Netto-Summe. brutto = Summe der (Brutto-)Anteile, ust = brutto − netto.
   const netto = (items || []).reduce((s, i) => s + nkNetto(i.anteil, i.vorsteuer), 0);
-  const ust = netto * (NK_UST_SATZ / 100);
-  return { netto: netto, ust: ust, brutto: netto + ust, gewerblich: true };
+  const brutto = (items || []).reduce((s, i) => s + (+i.anteil || 0), 0);
+  return { netto: netto, ust: brutto - netto, brutto: brutto, gewerblich: true };
+}
+/* US-99: USt-Aufschlüsselung je Steuersatz (für gewerbliche Mieter, Vorsteuerabzug). Liefert je
+   vorkommendem Satz die Netto-, USt- und Bruttosumme, aufsteigend nach Satz. Reine Funktion. */
+function nkUstNachSatz(items) {
+  const m = {};
+  (items || []).forEach(i => {
+    const satz = +i.vorsteuer || 0, brutto = +i.anteil || 0, netto = nkNetto(brutto, satz);
+    if (!m[satz]) m[satz] = { satz: satz, netto: 0, ust: 0, brutto: 0 };
+    m[satz].netto += netto; m[satz].ust += (brutto - netto); m[satz].brutto += brutto;
+  });
+  return Object.keys(m).map(k => m[k]).sort((a, b) => a.satz - b.satz);
 }
 
 /* Eigentümer-Gesamtübersicht (US-18): je Mieter Anteil, Vorauszahlung, Saldo plus Summen. */
@@ -1288,6 +1301,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkObjektAbrechnung,
     nkEsc,
     NK_UST_SATZ,
+    nkUstNachSatz,
     NK_LEERSTAND_EPS,
     nkFmtBetrag,
     nkParseBetrag,

@@ -101,14 +101,17 @@ function buildTenantPdf(sel){
       doc.text(direkt?'direkt':(fmtE(i.basis)+' '+i.einheitLabel),cB,y,{align:'right'});
       doc.text(direkt?'—':fmtP(i.preisJeEinheit),cP,y,{align:'right'});
       doc.text(direkt?'100 %':(fmtE(i.ihreEinheiten)+' '+i.einheitLabel),cI,y,{align:'right'});
-      doc.text(eur(i.wert)+(i.zeitanteil<0.999?' (×'+Math.round(i.zeitanteil*100)+'%)':''),R,y,{align:'right'}); y+=12; sub+=i.wert;
+      // US-99: bei gewerblich den USt-Satz der Position ausweisen.
+      const ustTxt = gew ? ' · '+(+i.vorsteuer||0)+'%' : '';
+      doc.text(eur(i.wert)+(i.zeitanteil<0.999?' (×'+Math.round(i.zeitanteil*100)+'%)':'')+ustTxt,R,y,{align:'right'}); y+=12; sub+=i.wert;
     });
     doc.setFont(undefined,'bold'); doc.text('Zwischensumme '+rub,L+10,y); doc.text(eur(sub),R,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=15;
   });
   doc.setFontSize(10); y+=2; doc.line(L,y,R,y); y+=16;
   if(gew){
+    // US-99: USt je vorkommendem Satz (0/7/19 %) ausweisen statt pauschal einem Satz.
     doc.text('Zwischensumme netto',L,y); doc.text(eur(ab.netto),R,y,{align:'right'}); y+=14;
-    doc.text('zzgl. '+NK_UST_SATZ+' % Umsatzsteuer',L,y); doc.text(eur(ab.ust),R,y,{align:'right'}); y+=16;
+    nkUstNachSatz(ab.zeilen).forEach(g=>{ if(g.ust>0.005){ if(y>772){doc.addPage();y=64;} doc.text('zzgl. '+g.satz+' % USt (auf netto '+eur(g.netto)+')',L,y); doc.text(eur(g.ust),R,y,{align:'right'}); y+=14; } });
     doc.setFont(undefined,'bold'); doc.text('Ihr Anteil (brutto)',L,y); doc.text(eur(anteil),R,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=16;
   } else {
     doc.setFont(undefined,'bold'); doc.text('Ihr Anteil an den Gesamtkosten',L,y); doc.text(eur(anteil),R,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=16;
