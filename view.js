@@ -212,6 +212,8 @@ function renderEinheiten(){
   renderMieterVertrag(); /* hält den Mieter-&-Vertrag-Reiter konsistent (gekoppelt) */
 }
 /* US-81: Mietverhältnis-Zeilen (Mieter, Zeitraum, Vertrag-Detail) einer Einheit. */
+/* US-102: einheitliches beschriftetes Feld (wie im Heizung-Reiter) für das Vertrags-Detail. */
+function hfFeld(cap, inp, cls){ return '<label class="hf'+(cls?' '+cls:'')+'"><span>'+cap+'</span>'+inp+'</label>'; }
 function mvZeilen(e, ei){
   const vjSnap = zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null; /* US-59 */
   const vjOn = zeigeVorjahr && !!vjSnap;
@@ -249,23 +251,39 @@ function mvZeilen(e, ei){
         const vg=(m.vertragGrundmiete!==undefined?m.vertragGrundmiete:(m.grundmiete||0));
         const vnk=(m.vertragNK!==undefined?m.vertragNK:(m.vmonat||0));
         const chronik=m.chronik||[];
-        const chronikRows=chronik.map((c,ci)=>'<div class="chronik-row"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea><button class="row-del" onclick="delChronik('+ei+','+mi+','+ci+')">×</button></div>').join('');
+        /* US-102-Schliff: Index-Anpassungen erzeugen bereits einen Chronik-Eintrag (gleiches Datum).
+           Statt eines doppelten Textblocks blenden wir NUR die Aktionen (PDF + „verschickt") unter dem
+           passenden Chronik-Eintrag ein; das × löscht dann Anpassung UND Chronik-Eintrag zusammen. */
+        const idxByDatum={}; if(m.mhTyp==='index') (m.idxAnpassungen||[]).forEach((a,ii)=>{ if(a&&a.datum!=null) idxByDatum[a.datum]=ii; });
+        const chronikRows=chronik.map((c,ci)=>{
+          const idxI=(m.mhTyp==='index' && c.datum!=null && idxByDatum[c.datum]!=null)?idxByDatum[c.datum]:null;
+          const delCall=(idxI!=null)?'indexEintragLoeschen('+ei+','+mi+','+ci+','+idxI+')':'delChronik('+ei+','+mi+','+ci+')';
+          let out='<div class="chronik-row"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea><button class="row-del" onclick="'+delCall+'">×</button></div>';
+          if(idxI!=null){ const a=m.idxAnpassungen[idxI], ang=!!a.angekuendigt;
+            out+='<div class="chronik-actions">'+
+              '<button class="addrow" onclick="indexAnschreibenPdfRow('+ei+','+mi+','+idxI+')">Ankündigung als PDF</button>'+
+              '<label class="staffel-ank"'+(ang&&typeof a.angekuendigt==='string'?' title="verschickt am '+fmtDatum(a.angekuendigt)+'"':'')+'><input type="checkbox" '+(ang?'checked':'')+' onchange="indexAnkuendigung('+ei+','+mi+','+idxI+',this.checked)"> Ankündigung verschickt</label>'+
+            '</div>'; }
+          return out;
+        }).join('');
         const bald=nkBaldFaellig(na, heute(), 3);
-        row+='<tr class="detail-row"><td colspan="7">'+
-          '<div class="detail-grid">'+
+        const hf=hfFeld;
+        row+='<tr class="detail-row"><td colspan="7" class="detail-cell">'+
+          '<div class="heiz-felder">'+
             /* US-72: Miete-Felder nur ohne aktiven Mieterhöhungstyp; bei Index/Staffel kommt die Miete aus dem Block. */
-            (m.mhTyp?'':'<label>Miete bei Einzug <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+'" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>')+
-            (m.mhTyp?'':'<label>Urspr. NK/Monat <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+'" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>')+
-            (m.mhTyp?'':'<label>Aktuelle Grundmiete <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+'" oninput="updVertrag('+ei+','+mi+',\'grundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>')+
-            '<label>Stellplätze (Anzahl) <input class="short" type="number" min="0" value="'+(m.stellAnzahl||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellAnzahl\',this.value,1)"></label>'+
-            '<label>Preis je Stellplatz <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stellPreis||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellPreis\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
-            (m.mhTyp?'':'<label>Letzte Anpassung <input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()"></label>')+
-            (m.mhTyp?'':'<label>Nächste Anpassung <input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)" onblur="renderEinheiten()"></label>')+
-            '<label>Anrede <select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value="">neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select></label>'+
-            '<label class="notiz-field">E-Mail <input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de"></label>'+
+            (m.mhTyp?'':hf('Miete bei Einzug','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+'" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">'))+
+            (m.mhTyp?'':hf('Urspr. NK/Monat','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+'" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">'))+
+            (m.mhTyp?'':hf('Aktuelle Grundmiete','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+'" oninput="updVertrag('+ei+','+mi+',\'grundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">'))+
+            hf('Stellplätze (Anzahl)','<input type="number" min="0" value="'+(m.stellAnzahl||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellAnzahl\',this.value,1)">')+
+            hf('Preis je Stellplatz','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stellPreis||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellPreis\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">')+
+            (m.mhTyp?'':hf('Letzte Anpassung','<input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()">'))+
+            (m.mhTyp?'':hf('Nächste Anpassung','<input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)" onblur="renderEinheiten()">'))+
+            hf('Anrede','<select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value="">neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select>')+
+            hf('E-Mail','<input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de">','hf-wide')+
           '</div>'+
           indexBlock(m,ei,mi)+ /* US-68: Indexmiete-Bereich */
-          '<div class="chronik-titel">Anpassungs-Chronik</div>'+chronikRows+
+          '<div class="chronik-titel">Anpassungs-Chronik</div>'+
+          chronikRows+
           '<button class="addrow" onclick="addChronik('+ei+','+mi+')">+ Eintrag</button>'+
           ((bald && !m.mhTyp)?'<div class="leer-hint" style="margin-top:6px;">'+WARN_ICON+' Nächste Anpassung am '+fmtDatum(na)+' – in Kürze fällig.</div>':'')+ /* US-72: Relikt nur ohne aktiven Mieterhöhungstyp */
         '</td></tr>';
@@ -552,14 +570,26 @@ function staffelAnschreibenPdf(ei,mi,datum,alteMiete,neueMiete,betrag){
   const daten=(ang && typeof ang==='object' && ang.snapshot) ? ang.snapshot : mhDatenStaffel(ei,mi,datum,alteMiete,neueMiete,betrag);
   buildMieterhoehungPdf(daten).save('Mieterhoehung-'+pdfSafeName(m.mieter)+'.pdf');
 }
+/* US-102-Schliff: Index-Anpassung samt zugehörigem Chronik-Eintrag löschen (gleiches Datum) und die
+   Miete neu berechnen – aufgerufen vom × der Chronik-Zeile, wenn sie zu einer Index-Anpassung gehört. */
+function indexEintragLoeschen(ei,mi,ci,idxAnp){
+  if(!confirm('Diese Index-Anpassung und den zugehörigen Chronik-Eintrag wirklich löschen?')) return;
+  const m=store.mv(ei,mi);
+  const liste=nkIndexAnpassungLoeschen(m.idxAnpassungen, idxAnp);
+  store.setMvFeld(ei,mi,'idxAnpassungen', liste);
+  store.setMvNum(ei,mi,'grundmiete', nkIndexAktuelleMiete(m.idxAusgangsmiete, liste));
+  store.removeChronik(ei,mi,ci);
+  renderEinheiten();
+}
 function indexBlock(m,ei,mi){
   const typ=m.mhTyp||'';
   let h='<div class="index-block">'+
-    '<label>Mieterhöhung <select onchange="updMhTyp('+ei+','+mi+',this.value)">'+
+    '<div class="heiz-felder">'+hfFeld('Mieterhöhung',
+      '<select onchange="updMhTyp('+ei+','+mi+',this.value)">'+
       '<option value=""'+(typ===''?' selected':'')+'>— keine —</option>'+
       '<option value="index"'+(typ==='index'?' selected':'')+'>Index (§ 557b)</option>'+
       '<option value="staffel"'+(typ==='staffel'?' selected':'')+'>Staffel (§ 557a)</option>'+
-    '</select></label>';
+      '</select>')+'</div>';
   if(typ==='index'){
     const anz=(m.idxAnpassungen||[]).length;
     const stichtag2=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
@@ -574,26 +604,15 @@ function indexBlock(m,ei,mi){
     const monatGewaehlt=m.idxIndexMonat||nkIndexVerwendeterMonat(stichtag2);
     const basisMonat=nkIndexBasisMonat(m.idxEinzug, m.idxAnpassungen);
     const mg=monatGewaehlt.split('-'); const my=mg[0]||'', mm=mg[1]||'';
-    h+='<div class="detail-grid">'+
-      '<label>Beginn / Einzug <input type="date" value="'+(m.idxEinzug||'')+'" onchange="store.setMvFeld('+ei+','+mi+',\'idxEinzug\',this.value)" onblur="renderEinheiten()"></label>'+
-      '<label>Miete bei Einzug <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.idxAusgangsmiete||0)+'" onchange="updIdxNum('+ei+','+mi+',\'idxAusgangsmiete\',this.value)"></label>'+
-      '<label>alle <input class="short" type="number" min="1" step="1" value="'+(m.idxFrequenz||1)+'" onchange="updIdxNum('+ei+','+mi+',\'idxFrequenz\',this.value)"> Jahre</label>'+
+    h+='<div class="heiz-felder">'+
+      hfFeld('Beginn / Einzug','<input type="date" value="'+(m.idxEinzug||'')+'" onchange="store.setMvFeld('+ei+','+mi+',\'idxEinzug\',this.value)" onblur="renderEinheiten()">')+
+      hfFeld('Miete bei Einzug','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.idxAusgangsmiete||0)+'" onchange="updIdxNum('+ei+','+mi+',\'idxAusgangsmiete\',this.value)">')+
+      hfFeld('Anpassung alle … Jahre','<input type="number" min="1" step="1" value="'+(m.idxFrequenz||1)+'" onchange="updIdxNum('+ei+','+mi+',\'idxFrequenz\',this.value)">')+
     '</div>';
     if(!nkIndexFrequenzGueltig(m.idxFrequenz||1)) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Frequenz muss eine ganze Zahl ab 1 Jahr sein (§ 557b).</div>';
     h+='<div class="mh-aktuell">Aktuell gültige Miete: <b>'+eur(basis)+'</b></div>';
-    /* Bisherige Anpassungen – „Ankündigung verschickt" in eigener Zeile */
-    const hist=(m.idxAnpassungen||[]);
-    if(hist.length){
-      h+='<div class="chronik-titel">Bisherige Anpassungen</div>';
-      h+=hist.map((a,i)=>{
-        const ang=!!a.angekuendigt;
-        return '<div class="index-hist">'+
-          '<div class="ih-text">'+fmtDatum(a.datum)+': '+eur(a.alteMiete)+' × (1 + '+nkFmtBetrag(a.prozent)+' %) = <b>'+eur(a.neueMiete)+'</b>'+(a.monat?' (VPI '+(a.basisMonat?nkMonatDE(a.basisMonat)+'→':'')+nkMonatDE(a.monat)+')':'')+' <button class="row-del" title="Anpassung löschen" onclick="indexAnpassungLoeschen('+ei+','+mi+','+i+')">×</button></div>'+
-          '<div class="ih-actions"><label class="staffel-ank"'+(ang&&typeof a.angekuendigt==='string'?' title="verschickt am '+fmtDatum(a.angekuendigt)+'"':'')+'><input type="checkbox" '+(ang?'checked':'')+' onchange="indexAnkuendigung('+ei+','+mi+','+i+',this.checked)"> Ankündigung verschickt</label>'+
-          ' <button class="addrow" onclick="indexAnschreibenPdfRow('+ei+','+mi+','+i+')">Ankündigung als PDF</button></div>'+
-        '</div>';
-      }).join('');
-    }
+    /* US-102-Schliff: „Bisherige Anpassungen" wandern nach unten in die Anpassungs-Chronik (indexHistRows),
+       damit sie sich nicht zwischen die oberen Eingabefelder quetschen. */
     /* Fälligkeits-Warnung – außerhalb der Box */
     h+='<div class="mh-titel" style="color:'+(faellig?'var(--nachzahlung)':'inherit')+';">Nächste Erhöhung zum <b>'+fmtDatum(stichtag2)+'</b>'+
       (faellig?' <span style="color:var(--nachzahlung);">'+WARN_ICON+' fällig</span>':(bald?' <span>'+WARN_ICON+' bald fällig</span>':''))+
@@ -625,12 +644,12 @@ function indexBlock(m,ei,mi){
     const ang=m.stafAngekuendigt||{};
     /* Beginn/Enddatum koppeln: Zeitraum max. 15 Jahre, sonst kein (riesiger) Plan + Hinweis. */
     const spanZuGross = (function(){ const e=nkDatum(m.stafEnde); return !!(e && nkDatum(m.stafBeginn) && e > nkDatum(nkPlusJahre(m.stafBeginn,15))); })();
-    h+='<div class="detail-grid">'+
-      '<label>Beginn <input type="date" value="'+(m.stafBeginn||'')+'" onchange="updStafDatum('+ei+','+mi+',\'stafBeginn\',this.value)" onblur="renderEinheiten()"></label>'+
-      '<label>Enddatum <input type="date" value="'+(m.stafEnde||'')+'" onchange="updStafDatum('+ei+','+mi+',\'stafEnde\',this.value)" onblur="renderEinheiten()"></label>'+
-      '<label>Miete bei Beginn <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stafAusgangsmiete||0)+'" onchange="updStaf('+ei+','+mi+',\'stafAusgangsmiete\',this.value)"></label>'+
-      '<label>Erhöhung je Staffel € <input class="short" type="text" inputmode="decimal" value="'+((+m.stafBetrag||0)?nkFmtBetrag(m.stafBetrag):'')+'" placeholder="z. B. 25,00" onchange="updStaf('+ei+','+mi+',\'stafBetrag\',this.value)"></label>'+
-      '<label>alle <input class="short" type="number" min="1" step="1" value="'+(m.stafFrequenz||1)+'" onchange="updStaf('+ei+','+mi+',\'stafFrequenz\',this.value)"> Jahre</label>'+
+    h+='<div class="heiz-felder">'+
+      hfFeld('Beginn','<input type="date" value="'+(m.stafBeginn||'')+'" onchange="updStafDatum('+ei+','+mi+',\'stafBeginn\',this.value)" onblur="renderEinheiten()">')+
+      hfFeld('Enddatum','<input type="date" value="'+(m.stafEnde||'')+'" onchange="updStafDatum('+ei+','+mi+',\'stafEnde\',this.value)" onblur="renderEinheiten()">')+
+      hfFeld('Miete bei Beginn','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stafAusgangsmiete||0)+'" onchange="updStaf('+ei+','+mi+',\'stafAusgangsmiete\',this.value)">')+
+      hfFeld('Erhöhung je Staffel €','<input type="text" inputmode="decimal" value="'+((+m.stafBetrag||0)?nkFmtBetrag(m.stafBetrag):'')+'" placeholder="z. B. 25,00" onchange="updStaf('+ei+','+mi+',\'stafBetrag\',this.value)">')+
+      hfFeld('Anpassung alle … Jahre','<input type="number" min="1" step="1" value="'+(m.stafFrequenz||1)+'" onchange="updStaf('+ei+','+mi+',\'stafFrequenz\',this.value)">')+
     '</div>';
     if(!m.stafEnde) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Bitte ein Enddatum der Staffelvereinbarung angeben.</div>';
     if(!nkIndexFrequenzGueltig(m.stafFrequenz||1)) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Frequenz muss eine ganze Zahl ab 1 Jahr sein (§ 557a).</div>';
@@ -1390,7 +1409,7 @@ function renderDoc(){
   /* US-59: Spaltenformat (Rechenweg) + US-58 Rubrik-Gruppierung mit Zwischensummen. */
   const fmtEinh=n=>(Number(n)||0).toLocaleString('de-DE',{maximumFractionDigits:2});
   const fmtPreis=n=>(Number(n)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:4});
-  const COLS=6, leer=c=>'<td colspan="'+c+'"></td>';
+  const COLS=gew?7:6, leer=c=>'<td colspan="'+c+'"></td>'; /* US-99: gewerblich = zusätzliche USt-Spalte */
   let rows='';
   nkRubrikenListe(src.objekt, src.kosten).forEach(rub=>{
     const grp=ab.zeilen.map((i,ix)=>({i,ix}))
@@ -1403,15 +1422,16 @@ function renderDoc(){
       const preisC=direkt?'—':(fmtPreis(i.preisJeEinheit)+' €');
       const ihreC=direkt?'100 %':(fmtEinh(i.ihreEinheiten)+' '+i.einheitLabel);
       const zeitC=(i.zeitanteil<0.999)?' <span class="muted">(×'+Math.round(i.zeitanteil*100)+' %)</span>':'';
-      rows+='<tr><td>'+esc(i.bez)+'</td><td class="num">'+eur(i.gesamt)+'</td><td class="num">'+basisC+'</td><td class="num">'+preisC+'</td><td class="num">'+ihreC+'</td><td class="num">'+eur(i.wert)+zeitC+'</td></tr>';
+      const ustC = gew ? '<td class="num ust-col">'+(+i.vorsteuer||0)+'&nbsp;%</td>' : ''; /* US-99: Satz der Kostenart (0/7/19 %) */
+      rows+='<tr><td>'+esc(i.bez)+'</td><td class="num">'+eur(i.gesamt)+'</td><td class="num">'+basisC+'</td><td class="num">'+preisC+'</td><td class="num">'+ihreC+'</td>'+ustC+'<td class="num">'+eur(i.wert)+zeitC+'</td></tr>';
     });
     const sub=grp.reduce((s,o)=>s+o.i.wert,0);
-    rows+='<tr class="rubrik-subtotal"><td>Zwischensumme '+esc(rub)+'</td>'+leer(4)+'<td class="num">'+eur(sub)+'</td></tr>';
+    rows+='<tr class="rubrik-subtotal"><td>Zwischensumme '+esc(rub)+'</td>'+leer(4)+(gew?'<td class="num"></td>':'')+'<td class="num">'+eur(sub)+'</td></tr>';
   });
   const summen = gew
-    ? '<tr class="total-row"><td>Zwischensumme netto</td>'+leer(4)+'<td class="num">'+eur(ab.netto)+'</td></tr>'+
-      '<tr><td>zzgl. '+NK_UST_SATZ+' % Umsatzsteuer</td>'+leer(4)+'<td class="num">'+eur(ab.ust)+'</td></tr>'+
-      '<tr class="total-row"><td>Ihr Anteil (brutto)</td>'+leer(4)+'<td class="num">'+eur(ab.brutto)+'</td></tr>'
+    ? '<tr class="total-row"><td>Zwischensumme netto</td>'+leer(5)+'<td class="num">'+eur(ab.netto)+'</td></tr>'+
+      '<tr><td>zzgl. '+NK_UST_SATZ+' % Umsatzsteuer</td>'+leer(5)+'<td class="num">'+eur(ab.ust)+'</td></tr>'+
+      '<tr class="total-row"><td>Ihr Anteil (brutto)</td>'+leer(5)+'<td class="num">'+eur(ab.brutto)+'</td></tr>'
     : '<tr class="total-row"><td>Ihr Anteil an den Gesamtkosten</td>'+leer(4)+'<td class="num">'+eur(ab.brutto)+'</td></tr>';
   docEl.innerHTML=
     '<h2>Betriebs- und Heizkostenabrechnung</h2>'+
@@ -1421,7 +1441,7 @@ function renderDoc(){
       '<div class="hl-row"><span>Ihre Vorauszahlung</span><span>'+eur(+m.voraus||0)+'</span></div>'+
       '<div class="hl-row hl-result"><span>'+(saldo>0?'Ihre Nachzahlung':'Ihr Guthaben')+'</span><span>'+eur(Math.abs(saldo))+'</span></div>'+
     '</div>'+
-    '<table><thead><tr><th>Kostenart</th><th class="num">Gesamtkosten</th><th class="num">Einheiten</th><th class="num">Preis/Einh.</th><th class="num">Ihre Einheiten</th><th class="num">'+(gew?'Ihr Anteil (netto)':'Ihr Anteil')+'</th></tr></thead><tbody>'+
+    '<table><thead><tr><th>Kostenart</th><th class="num">Gesamtkosten</th><th class="num">Einheiten</th><th class="num">Preis/Einh.</th><th class="num">Ihre Einheiten</th>'+(gew?'<th class="num ust-col">USt.</th>':'')+'<th class="num">'+(gew?'Ihr Anteil (netto)':'Ihr Anteil')+'</th></tr></thead><tbody>'+
     rows+
     summen+
     '</tbody></table>'+
