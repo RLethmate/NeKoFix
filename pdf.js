@@ -174,8 +174,8 @@ function buildTenantPdf(sel){
     }
     if(url){ y+=6; const qs=80; if(y+qs>800){ doc.addPage(); y=64; }
       doc.addImage(url,'GIF',L,y,qs,qs);
-      doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.text('GiroCode',L+qs+12,y+14); doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(110);
-      doc.splitTextToSize('In Ihrer Banking-App scannen – Betrag, IBAN und Verwendungszweck sind hinterlegt. Bitte vor dem Absenden prüfen.', W-qs-12).forEach((l,i)=>doc.text(l,L+qs+12,y+28+i*11));
+      doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.text('GiroCode Nebenkosten',L+qs+12,y+14); doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(110);
+      doc.splitTextToSize('Für die Nebenkosten-Nachzahlung. In Ihrer Banking-App scannen – Betrag, IBAN und Verwendungszweck sind hinterlegt. Bitte vor dem Absenden prüfen.', W-qs-12).forEach((l,i)=>doc.text(l,L+qs+12,y+28+i*11));
       doc.setTextColor(0); doc.setFontSize(10); y+=qs+10; }
   }
   // US-79: separater Mietrückstand-Block (neutral, kein Bestandteil der NK-Abrechnung)
@@ -191,6 +191,26 @@ function buildTenantPdf(sel){
     doc.setFont(undefined,'bold');
     doc.splitTextToSize('Bitte gleichen Sie den offenen Betrag von '+eur((saldo>0?saldo:0)+rueck)+' innerhalb von '+(z.frist||'14 Tage nach Zugang')+' aus.', W).forEach(l=>{ if(y>790){doc.addPage();y=64;} doc.text(l,L,y); y+=13; });
     doc.setFont(undefined,'normal'); y+=2;
+    // US-116: eigener GiroCode + Zahltext NUR für den Mietrückstand (getrennt vom NK-QR, eigener Zweck).
+    if(nkIbanGueltig(z.iban)){
+      doc.setFontSize(9);
+      nl('Zahlungsangaben Miete (bitte getrennt von der Nebenkostenabrechnung überweisen):');
+      const mzweck='Mietrückstand '+(state.objekt.addr||'')+'-'+e.name+'-'+m.mieter+'-'+zeitraumText();
+      nl('Empfänger: '+(z.empfaenger||'')+'    IBAN: '+(z.iban||'')+'    BIC: '+(z.bic||''));
+      nl('Verwendungszweck: '+mzweck);
+      const giroM=nkGiroCode({ empfaenger:z.empfaenger, iban:z.iban, bic:z.bic, betrag:rueck, zweck:mzweck });
+      let urlM=null;
+      if(giroM && typeof qrcode!=='undefined'){
+        try{ if(qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8']) qrcode.stringToBytes=qrcode.stringToBytesFuncs['UTF-8'];
+          const qr=qrcode(0,'M'); qr.addData(giroM); qr.make(); urlM=qr.createDataURL(4,8); }catch(e){ urlM=null; }
+      }
+      if(urlM){ y+=6; const qs=80; if(y+qs>800){ doc.addPage(); y=64; }
+        doc.addImage(urlM,'GIF',L,y,qs,qs);
+        doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.text('GiroCode Miete',L+qs+12,y+14); doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(110);
+        doc.splitTextToSize('Nur für den Mietrückstand ('+eur(rueck)+'). In Ihrer Banking-App scannen – Betrag, IBAN und Verwendungszweck sind hinterlegt. Bitte vor dem Absenden prüfen.', W-qs-12).forEach((l,i)=>doc.text(l,L+qs+12,y+28+i*11));
+        doc.setTextColor(0); doc.setFontSize(10); y+=qs+10; }
+      doc.setFontSize(10);
+    }
   }
   y+=20;
   nl('Mit freundlichen Grüßen'); y+=18; nl(String(z.empfaenger||''));
