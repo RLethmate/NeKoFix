@@ -522,6 +522,7 @@
       <div class="menu-sep"></div>
       <button onclick="neuesJahrAusVorjahr();toggleDateiMenu(true)">Neues Jahr aus Objekt…</button>
       <button onclick="document.getElementById('csv_import').click();toggleDateiMenu(true)">Kontoauszug (.csv) importieren</button>
+      <button onclick="exportExcel();toggleDateiMenu(true)" title="Objektdaten als Excel exportieren – Verteilung als prüfbare Formeln">Nach Excel exportieren (.xlsx)</button>
       <div class="menu-sep"></div>
       <button onclick="toggleVorjahr();toggleDateiMenu(true)">Vorjahr ein-/ausblenden<span class="menu-kbd">Alt+v</span></button>
     </div>
@@ -744,12 +745,13 @@
 
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 /* US-56: lokale Skripte mit Versionskennung laden (Cache-Busting). `v` wird beim Deploy
    automatisch auf den Commit-Hash gesetzt (siehe .github/workflows/pages.yml); lokal bleibt "0.4".
    Lokal (v unverändert "0.4") wird je Aufruf ein frischer Wert genutzt, damit beim lokalen Testen
    nie eine veraltete Datei aus dem Browser-Cache geladen wird. */
-(function(){ var v="0.4"; var bust=(v==="0.4")?String(Date.now()):v; var files=["calc.js","core.js","view.js","pdf.js"];
+(function(){ var v="0.4"; var bust=(v==="0.4")?String(Date.now()):v; var files=["calc.js","core.js","view.js","pdf.js","excel.js"];
   if(document.readyState==="loading"){ /* normaler Parse (Browser/Pages): schnellster Weg */
     files.forEach(function(f){ document.write('<script src="'+f+'?v='+encodeURIComponent(bust)+'"><\/script>'); });
   } else { /* Fallback (eingebettete Webview/nach dem Parsen): geordnetes Nachladen */
