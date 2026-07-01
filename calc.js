@@ -306,22 +306,19 @@ function nkMieterBetrag(items, gewerblich) {
     const b = (items || []).reduce((s, i) => s + (+i.anteil || 0), 0);
     return { netto: b, ust: 0, brutto: b, gewerblich: false };
   }
-  // US-99: USt je Position mit deren eigenem Satz (0/7/19 %) – nicht pauschal ein Satz auf die
-  // Gesamt-Netto-Summe. brutto = Summe der (Brutto-)Anteile, ust = brutto − netto.
+  // US-99/US-20: Nebenkosten sind bei umsatzsteueroptierter Gewerbevermietung eine unselbständige
+  // Nebenleistung der Vermietung und unterliegen EINHEITLICH dem Regelsatz (19 %) – unabhängig vom
+  // Vorsteuersatz der Eingangskosten (auch 7 %-Positionen wie Wasser und USt-freie wie Grundsteuer).
+  // Also: je Position den Netto-Wert bilden (Vorsteuer der Kostenart herausrechnen, da der Vermieter
+  // sie zieht) und auf die Netto-Summe 19 % USt aufschlagen. (BGH; Haufe/IVD.)
   const netto = (items || []).reduce((s, i) => s + nkNetto(i.anteil, i.vorsteuer), 0);
-  const brutto = (items || []).reduce((s, i) => s + (+i.anteil || 0), 0);
-  return { netto: netto, ust: brutto - netto, brutto: brutto, gewerblich: true };
+  const ust = netto * (NK_UST_SATZ / 100);
+  return { netto: netto, ust: ust, brutto: netto + ust, gewerblich: true };
 }
-/* US-99: USt-Aufschlüsselung je Steuersatz (für gewerbliche Mieter, Vorsteuerabzug). Liefert je
-   vorkommendem Satz die Netto-, USt- und Bruttosumme, aufsteigend nach Satz. Reine Funktion. */
-function nkUstNachSatz(items) {
-  const m = {};
-  (items || []).forEach(i => {
-    const satz = +i.vorsteuer || 0, brutto = +i.anteil || 0, netto = nkNetto(brutto, satz);
-    if (!m[satz]) m[satz] = { satz: satz, netto: 0, ust: 0, brutto: 0 };
-    m[satz].netto += netto; m[satz].ust += (brutto - netto); m[satz].brutto += brutto;
-  });
-  return Object.keys(m).map(k => m[k]).sort((a, b) => a.satz - b.satz);
+/* US-99: USt-Betrag (Output, 19 %) auf den Netto-Anteil einer einzelnen Abrechnungsposition –
+   für die Spalte „USt." in der Abrechnung. i.wert ist der Netto-Anteil des gewerblichen Mieters. */
+function nkUstZeile(nettoAnteil) {
+  return (+nettoAnteil || 0) * (NK_UST_SATZ / 100);
 }
 
 /* Eigentümer-Gesamtübersicht (US-18): je Mieter Anteil, Vorauszahlung, Saldo plus Summen. */
@@ -1301,7 +1298,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkObjektAbrechnung,
     nkEsc,
     NK_UST_SATZ,
-    nkUstNachSatz,
+    nkUstZeile,
     NK_LEERSTAND_EPS,
     nkFmtBetrag,
     nkParseBetrag,

@@ -1390,7 +1390,7 @@ function renderDoc(){
   /* US-59: Spaltenformat (Rechenweg) + US-58 Rubrik-Gruppierung mit Zwischensummen. */
   const fmtEinh=n=>(Number(n)||0).toLocaleString('de-DE',{maximumFractionDigits:2});
   const fmtPreis=n=>(Number(n)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:4});
-  const COLS=6, leer=c=>'<td colspan="'+c+'"></td>';
+  const COLS=gew?7:6, leer=c=>'<td colspan="'+c+'"></td>'; /* US-99: gewerblich = zusätzliche USt-Spalte */
   let rows='';
   nkRubrikenListe(src.objekt, src.kosten).forEach(rub=>{
     const grp=ab.zeilen.map((i,ix)=>({i,ix}))
@@ -1403,15 +1403,16 @@ function renderDoc(){
       const preisC=direkt?'—':(fmtPreis(i.preisJeEinheit)+' €');
       const ihreC=direkt?'100 %':(fmtEinh(i.ihreEinheiten)+' '+i.einheitLabel);
       const zeitC=(i.zeitanteil<0.999)?' <span class="muted">(×'+Math.round(i.zeitanteil*100)+' %)</span>':'';
-      rows+='<tr><td>'+esc(i.bez)+'</td><td class="num">'+eur(i.gesamt)+'</td><td class="num">'+basisC+'</td><td class="num">'+preisC+'</td><td class="num">'+ihreC+'</td><td class="num">'+eur(i.wert)+zeitC+'</td></tr>';
+      const ustC = gew ? '<td class="num">'+eur(nkUstZeile(i.wert))+'</td>' : '';
+      rows+='<tr><td>'+esc(i.bez)+'</td><td class="num">'+eur(i.gesamt)+'</td><td class="num">'+basisC+'</td><td class="num">'+preisC+'</td><td class="num">'+ihreC+'</td>'+ustC+'<td class="num">'+eur(i.wert)+zeitC+'</td></tr>';
     });
     const sub=grp.reduce((s,o)=>s+o.i.wert,0);
-    rows+='<tr class="rubrik-subtotal"><td>Zwischensumme '+esc(rub)+'</td>'+leer(4)+'<td class="num">'+eur(sub)+'</td></tr>';
+    rows+='<tr class="rubrik-subtotal"><td>Zwischensumme '+esc(rub)+'</td>'+leer(4)+(gew?'<td class="num">'+eur(nkUstZeile(sub))+'</td>':'')+'<td class="num">'+eur(sub)+'</td></tr>';
   });
   const summen = gew
-    ? '<tr class="total-row"><td>Zwischensumme netto</td>'+leer(4)+'<td class="num">'+eur(ab.netto)+'</td></tr>'+
-      '<tr><td>zzgl. '+NK_UST_SATZ+' % Umsatzsteuer</td>'+leer(4)+'<td class="num">'+eur(ab.ust)+'</td></tr>'+
-      '<tr class="total-row"><td>Ihr Anteil (brutto)</td>'+leer(4)+'<td class="num">'+eur(ab.brutto)+'</td></tr>'
+    ? '<tr class="total-row"><td>Zwischensumme netto</td>'+leer(5)+'<td class="num">'+eur(ab.netto)+'</td></tr>'+
+      '<tr><td>zzgl. '+NK_UST_SATZ+' % Umsatzsteuer</td>'+leer(5)+'<td class="num">'+eur(ab.ust)+'</td></tr>'+
+      '<tr class="total-row"><td>Ihr Anteil (brutto)</td>'+leer(5)+'<td class="num">'+eur(ab.brutto)+'</td></tr>'
     : '<tr class="total-row"><td>Ihr Anteil an den Gesamtkosten</td>'+leer(4)+'<td class="num">'+eur(ab.brutto)+'</td></tr>';
   docEl.innerHTML=
     '<h2>Betriebs- und Heizkostenabrechnung</h2>'+
@@ -1421,7 +1422,7 @@ function renderDoc(){
       '<div class="hl-row"><span>Ihre Vorauszahlung</span><span>'+eur(+m.voraus||0)+'</span></div>'+
       '<div class="hl-row hl-result"><span>'+(saldo>0?'Ihre Nachzahlung':'Ihr Guthaben')+'</span><span>'+eur(Math.abs(saldo))+'</span></div>'+
     '</div>'+
-    '<table><thead><tr><th>Kostenart</th><th class="num">Gesamtkosten</th><th class="num">Einheiten</th><th class="num">Preis/Einh.</th><th class="num">Ihre Einheiten</th><th class="num">'+(gew?'Ihr Anteil (netto)':'Ihr Anteil')+'</th></tr></thead><tbody>'+
+    '<table><thead><tr><th>Kostenart</th><th class="num">Gesamtkosten</th><th class="num">Einheiten</th><th class="num">Preis/Einh.</th><th class="num">Ihre Einheiten</th>'+(gew?'<th class="num">USt.</th>':'')+'<th class="num">'+(gew?'Ihr Anteil (netto)':'Ihr Anteil')+'</th></tr></thead><tbody>'+
     rows+
     summen+
     '</tbody></table>'+

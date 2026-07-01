@@ -81,11 +81,12 @@ function buildTenantPdf(sel){
   doc.setFont(undefined,'normal'); doc.setFontSize(10); y+=52+12;
   // Tabellenkopf
   // US-59: Spaltenformat (Gesamt · Einheiten · Preis/Einh. · Ihre Einheiten · Anteil), je Rubrik gruppiert.
-  const cG=250, cB=330, cP=400, cI=470; // rechte Kanten der Zahlenspalten
+  // US-99: bei gewerblich enger schieben und eine USt-Spalte (links vom Netto-Anteil) einfügen.
+  const cG=gew?226:250, cB=gew?300:330, cP=gew?366:400, cI=gew?432:470, cU=gew?490:null; // rechte Kanten der Zahlenspalten
   const fmtE=n=>(Number(n)||0).toLocaleString('de-DE',{maximumFractionDigits:2});
   const fmtP=n=>(Number(n)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:4});
   doc.setFont(undefined,'bold'); doc.setFontSize(8);
-  doc.text('Kostenart',L,y); doc.text('Gesamt',cG,y,{align:'right'}); doc.text('Einh.',cB,y,{align:'right'}); doc.text('Preis',cP,y,{align:'right'}); doc.text('Ihre Einh.',cI,y,{align:'right'}); doc.text(gew?'Anteil netto':'Anteil',R,y,{align:'right'});
+  doc.text('Kostenart',L,y); doc.text('Gesamt',cG,y,{align:'right'}); doc.text('Einh.',cB,y,{align:'right'}); doc.text('Preis',cP,y,{align:'right'}); doc.text('Ihre Einh.',cI,y,{align:'right'}); if(gew) doc.text('USt.',cU,y,{align:'right'}); doc.text(gew?'Anteil netto':'Anteil',R,y,{align:'right'});
   doc.setFont(undefined,'normal'); doc.setFontSize(10); y+=4; doc.line(L,y,R,y); y+=13;
   nkRubrikenListe(state.objekt, state.kosten).forEach(rub=>{
     const grp=ab.zeilen.map((i,ix)=>({i,ix})).filter(o=>Math.round(o.i.anteil*100)!==0 && nkRubrik(state.kosten[o.ix])===rub);
@@ -101,17 +102,17 @@ function buildTenantPdf(sel){
       doc.text(direkt?'direkt':(fmtE(i.basis)+' '+i.einheitLabel),cB,y,{align:'right'});
       doc.text(direkt?'—':fmtP(i.preisJeEinheit),cP,y,{align:'right'});
       doc.text(direkt?'100 %':(fmtE(i.ihreEinheiten)+' '+i.einheitLabel),cI,y,{align:'right'});
-      // US-99: bei gewerblich den USt-Satz der Position ausweisen.
-      const ustTxt = gew ? ' · '+(+i.vorsteuer||0)+'%' : '';
-      doc.text(eur(i.wert)+(i.zeitanteil<0.999?' (×'+Math.round(i.zeitanteil*100)+'%)':'')+ustTxt,R,y,{align:'right'}); y+=12; sub+=i.wert;
+      // US-99: bei gewerblich USt (19 % auf den Netto-Anteil) in eigener Spalte ausweisen.
+      if(gew) doc.text(eur(nkUstZeile(i.wert)),cU,y,{align:'right'});
+      doc.text(eur(i.wert)+(i.zeitanteil<0.999?' (×'+Math.round(i.zeitanteil*100)+'%)':''),R,y,{align:'right'}); y+=12; sub+=i.wert;
     });
     doc.setFont(undefined,'bold'); doc.text('Zwischensumme '+rub,L+10,y); doc.text(eur(sub),R,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=15;
   });
   doc.setFontSize(10); y+=2; doc.line(L,y,R,y); y+=16;
   if(gew){
-    // US-99: USt je vorkommendem Satz (0/7/19 %) ausweisen statt pauschal einem Satz.
+    // US-99: Nebenkosten teilen als Nebenleistung den Satz der Vermietung – einheitlich 19 % auf die Netto-Summe.
     doc.text('Zwischensumme netto',L,y); doc.text(eur(ab.netto),R,y,{align:'right'}); y+=14;
-    nkUstNachSatz(ab.zeilen).forEach(g=>{ if(g.ust>0.005){ if(y>772){doc.addPage();y=64;} doc.text('zzgl. '+g.satz+' % USt (auf netto '+eur(g.netto)+')',L,y); doc.text(eur(g.ust),R,y,{align:'right'}); y+=14; } });
+    doc.text('zzgl. '+NK_UST_SATZ+' % Umsatzsteuer',L,y); doc.text(eur(ab.ust),R,y,{align:'right'}); y+=16;
     doc.setFont(undefined,'bold'); doc.text('Ihr Anteil (brutto)',L,y); doc.text(eur(anteil),R,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=16;
   } else {
     doc.setFont(undefined,'bold'); doc.text('Ihr Anteil an den Gesamtkosten',L,y); doc.text(eur(anteil),R,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=16;
