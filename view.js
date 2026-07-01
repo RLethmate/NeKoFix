@@ -251,7 +251,21 @@ function mvZeilen(e, ei){
         const vg=(m.vertragGrundmiete!==undefined?m.vertragGrundmiete:(m.grundmiete||0));
         const vnk=(m.vertragNK!==undefined?m.vertragNK:(m.vmonat||0));
         const chronik=m.chronik||[];
-        const chronikRows=chronik.map((c,ci)=>'<div class="chronik-row"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea><button class="row-del" onclick="delChronik('+ei+','+mi+','+ci+')">×</button></div>').join('');
+        /* US-102-Schliff: Index-Anpassungen erzeugen bereits einen Chronik-Eintrag (gleiches Datum).
+           Statt eines doppelten Textblocks blenden wir NUR die Aktionen (PDF + „verschickt") unter dem
+           passenden Chronik-Eintrag ein; das × löscht dann Anpassung UND Chronik-Eintrag zusammen. */
+        const idxByDatum={}; if(m.mhTyp==='index') (m.idxAnpassungen||[]).forEach((a,ii)=>{ if(a&&a.datum!=null) idxByDatum[a.datum]=ii; });
+        const chronikRows=chronik.map((c,ci)=>{
+          const idxI=(m.mhTyp==='index' && c.datum!=null && idxByDatum[c.datum]!=null)?idxByDatum[c.datum]:null;
+          const delCall=(idxI!=null)?'indexEintragLoeschen('+ei+','+mi+','+ci+','+idxI+')':'delChronik('+ei+','+mi+','+ci+')';
+          let out='<div class="chronik-row"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea><button class="row-del" onclick="'+delCall+'">×</button></div>';
+          if(idxI!=null){ const a=m.idxAnpassungen[idxI], ang=!!a.angekuendigt;
+            out+='<div class="chronik-actions">'+
+              '<button class="addrow" onclick="indexAnschreibenPdfRow('+ei+','+mi+','+idxI+')">Ankündigung als PDF</button>'+
+              '<label class="staffel-ank"'+(ang&&typeof a.angekuendigt==='string'?' title="verschickt am '+fmtDatum(a.angekuendigt)+'"':'')+'><input type="checkbox" '+(ang?'checked':'')+' onchange="indexAnkuendigung('+ei+','+mi+','+idxI+',this.checked)"> Ankündigung verschickt</label>'+
+            '</div>'; }
+          return out;
+        }).join('');
         const bald=nkBaldFaellig(na, heute(), 3);
         const hf=hfFeld;
         row+='<tr class="detail-row"><td colspan="7" class="detail-cell">'+
@@ -269,7 +283,6 @@ function mvZeilen(e, ei){
           '</div>'+
           indexBlock(m,ei,mi)+ /* US-68: Indexmiete-Bereich */
           '<div class="chronik-titel">Anpassungs-Chronik</div>'+
-          (m.mhTyp==='index'?indexHistRows(m,ei,mi):'')+ /* US-102-Schliff: Index-Anpassungen hier, mit Datum */
           chronikRows+
           '<button class="addrow" onclick="addChronik('+ei+','+mi+')">+ Eintrag</button>'+
           ((bald && !m.mhTyp)?'<div class="leer-hint" style="margin-top:6px;">'+WARN_ICON+' Nächste Anpassung am '+fmtDatum(na)+' – in Kürze fällig.</div>':'')+ /* US-72: Relikt nur ohne aktiven Mieterhöhungstyp */
@@ -557,20 +570,16 @@ function staffelAnschreibenPdf(ei,mi,datum,alteMiete,neueMiete,betrag){
   const daten=(ang && typeof ang==='object' && ang.snapshot) ? ang.snapshot : mhDatenStaffel(ei,mi,datum,alteMiete,neueMiete,betrag);
   buildMieterhoehungPdf(daten).save('Mieterhoehung-'+pdfSafeName(m.mieter)+'.pdf');
 }
-/* US-102-Schliff: bisherige Index-Anpassungen als Chronik-Einträge (mit Datum, „Ankündigung
-   verschickt" und PDF), damit sie unten in der Anpassungs-Chronik erscheinen statt oben zwischen den
-   Eingabefeldern. */
-function indexHistRows(m, ei, mi){
-  const hist=(m.idxAnpassungen||[]);
-  if(!hist.length) return '';
-  return hist.map((a,i)=>{
-    const ang=!!a.angekuendigt;
-    return '<div class="index-hist">'+
-      '<div class="ih-text">'+fmtDatum(a.datum)+': '+eur(a.alteMiete)+' × (1 + '+nkFmtBetrag(a.prozent)+' %) = <b>'+eur(a.neueMiete)+'</b>'+(a.monat?' (VPI '+(a.basisMonat?nkMonatDE(a.basisMonat)+'→':'')+nkMonatDE(a.monat)+')':'')+' <button class="row-del" title="Anpassung löschen" onclick="indexAnpassungLoeschen('+ei+','+mi+','+i+')">×</button></div>'+
-      '<div class="ih-actions"><label class="staffel-ank"'+(ang&&typeof a.angekuendigt==='string'?' title="verschickt am '+fmtDatum(a.angekuendigt)+'"':'')+'><input type="checkbox" '+(ang?'checked':'')+' onchange="indexAnkuendigung('+ei+','+mi+','+i+',this.checked)"> Ankündigung verschickt</label>'+
-      ' <button class="addrow" onclick="indexAnschreibenPdfRow('+ei+','+mi+','+i+')">Ankündigung als PDF</button></div>'+
-    '</div>';
-  }).join('');
+/* US-102-Schliff: Index-Anpassung samt zugehörigem Chronik-Eintrag löschen (gleiches Datum) und die
+   Miete neu berechnen – aufgerufen vom × der Chronik-Zeile, wenn sie zu einer Index-Anpassung gehört. */
+function indexEintragLoeschen(ei,mi,ci,idxAnp){
+  if(!confirm('Diese Index-Anpassung und den zugehörigen Chronik-Eintrag wirklich löschen?')) return;
+  const m=store.mv(ei,mi);
+  const liste=nkIndexAnpassungLoeschen(m.idxAnpassungen, idxAnp);
+  store.setMvFeld(ei,mi,'idxAnpassungen', liste);
+  store.setMvNum(ei,mi,'grundmiete', nkIndexAktuelleMiete(m.idxAusgangsmiete, liste));
+  store.removeChronik(ei,mi,ci);
+  renderEinheiten();
 }
 function indexBlock(m,ei,mi){
   const typ=m.mhTyp||'';
@@ -1413,7 +1422,7 @@ function renderDoc(){
       const preisC=direkt?'—':(fmtPreis(i.preisJeEinheit)+' €');
       const ihreC=direkt?'100 %':(fmtEinh(i.ihreEinheiten)+' '+i.einheitLabel);
       const zeitC=(i.zeitanteil<0.999)?' <span class="muted">(×'+Math.round(i.zeitanteil*100)+' %)</span>':'';
-      const ustC = gew ? '<td class="num">'+NK_UST_SATZ+' %</td>' : ''; /* US-99: nur der Satz genügt */
+      const ustC = gew ? '<td class="num ust-col">'+(+i.vorsteuer||0)+'&nbsp;%</td>' : ''; /* US-99: Satz der Kostenart (0/7/19 %) */
       rows+='<tr><td>'+esc(i.bez)+'</td><td class="num">'+eur(i.gesamt)+'</td><td class="num">'+basisC+'</td><td class="num">'+preisC+'</td><td class="num">'+ihreC+'</td>'+ustC+'<td class="num">'+eur(i.wert)+zeitC+'</td></tr>';
     });
     const sub=grp.reduce((s,o)=>s+o.i.wert,0);
@@ -1432,7 +1441,7 @@ function renderDoc(){
       '<div class="hl-row"><span>Ihre Vorauszahlung</span><span>'+eur(+m.voraus||0)+'</span></div>'+
       '<div class="hl-row hl-result"><span>'+(saldo>0?'Ihre Nachzahlung':'Ihr Guthaben')+'</span><span>'+eur(Math.abs(saldo))+'</span></div>'+
     '</div>'+
-    '<table><thead><tr><th>Kostenart</th><th class="num">Gesamtkosten</th><th class="num">Einheiten</th><th class="num">Preis/Einh.</th><th class="num">Ihre Einheiten</th>'+(gew?'<th class="num">USt.</th>':'')+'<th class="num">'+(gew?'Ihr Anteil (netto)':'Ihr Anteil')+'</th></tr></thead><tbody>'+
+    '<table><thead><tr><th>Kostenart</th><th class="num">Gesamtkosten</th><th class="num">Einheiten</th><th class="num">Preis/Einh.</th><th class="num">Ihre Einheiten</th>'+(gew?'<th class="num ust-col">USt.</th>':'')+'<th class="num">'+(gew?'Ihr Anteil (netto)':'Ihr Anteil')+'</th></tr></thead><tbody>'+
     rows+
     summen+
     '</tbody></table>'+
