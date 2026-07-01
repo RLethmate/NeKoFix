@@ -315,11 +315,6 @@ function nkMieterBetrag(items, gewerblich) {
   const ust = netto * (NK_UST_SATZ / 100);
   return { netto: netto, ust: ust, brutto: netto + ust, gewerblich: true };
 }
-/* US-99: USt-Betrag (Output, 19 %) auf den Netto-Anteil einer einzelnen Abrechnungsposition –
-   für die Spalte „USt." in der Abrechnung. i.wert ist der Netto-Anteil des gewerblichen Mieters. */
-function nkUstZeile(nettoAnteil) {
-  return (+nettoAnteil || 0) * (NK_UST_SATZ / 100);
-}
 
 /* Eigentümer-Gesamtübersicht (US-18): je Mieter Anteil, Vorauszahlung, Saldo plus Summen. */
 function nkOwnerOverview(einheiten, kosten) {
@@ -1298,7 +1293,6 @@ if (typeof module !== "undefined" && module.exports) {
     nkObjektAbrechnung,
     nkEsc,
     NK_UST_SATZ,
-    nkUstZeile,
     NK_LEERSTAND_EPS,
     nkFmtBetrag,
     nkParseBetrag,

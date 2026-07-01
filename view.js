@@ -268,7 +268,9 @@ function mvZeilen(e, ei){
             hf('E-Mail','<input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de">','hf-wide')+
           '</div>'+
           indexBlock(m,ei,mi)+ /* US-68: Indexmiete-Bereich */
-          '<div class="chronik-titel">Anpassungs-Chronik</div>'+chronikRows+
+          '<div class="chronik-titel">Anpassungs-Chronik</div>'+
+          (m.mhTyp==='index'?indexHistRows(m,ei,mi):'')+ /* US-102-Schliff: Index-Anpassungen hier, mit Datum */
+          chronikRows+
           '<button class="addrow" onclick="addChronik('+ei+','+mi+')">+ Eintrag</button>'+
           ((bald && !m.mhTyp)?'<div class="leer-hint" style="margin-top:6px;">'+WARN_ICON+' Nächste Anpassung am '+fmtDatum(na)+' – in Kürze fällig.</div>':'')+ /* US-72: Relikt nur ohne aktiven Mieterhöhungstyp */
         '</td></tr>';
@@ -555,6 +557,21 @@ function staffelAnschreibenPdf(ei,mi,datum,alteMiete,neueMiete,betrag){
   const daten=(ang && typeof ang==='object' && ang.snapshot) ? ang.snapshot : mhDatenStaffel(ei,mi,datum,alteMiete,neueMiete,betrag);
   buildMieterhoehungPdf(daten).save('Mieterhoehung-'+pdfSafeName(m.mieter)+'.pdf');
 }
+/* US-102-Schliff: bisherige Index-Anpassungen als Chronik-Einträge (mit Datum, „Ankündigung
+   verschickt" und PDF), damit sie unten in der Anpassungs-Chronik erscheinen statt oben zwischen den
+   Eingabefeldern. */
+function indexHistRows(m, ei, mi){
+  const hist=(m.idxAnpassungen||[]);
+  if(!hist.length) return '';
+  return hist.map((a,i)=>{
+    const ang=!!a.angekuendigt;
+    return '<div class="index-hist">'+
+      '<div class="ih-text">'+fmtDatum(a.datum)+': '+eur(a.alteMiete)+' × (1 + '+nkFmtBetrag(a.prozent)+' %) = <b>'+eur(a.neueMiete)+'</b>'+(a.monat?' (VPI '+(a.basisMonat?nkMonatDE(a.basisMonat)+'→':'')+nkMonatDE(a.monat)+')':'')+' <button class="row-del" title="Anpassung löschen" onclick="indexAnpassungLoeschen('+ei+','+mi+','+i+')">×</button></div>'+
+      '<div class="ih-actions"><label class="staffel-ank"'+(ang&&typeof a.angekuendigt==='string'?' title="verschickt am '+fmtDatum(a.angekuendigt)+'"':'')+'><input type="checkbox" '+(ang?'checked':'')+' onchange="indexAnkuendigung('+ei+','+mi+','+i+',this.checked)"> Ankündigung verschickt</label>'+
+      ' <button class="addrow" onclick="indexAnschreibenPdfRow('+ei+','+mi+','+i+')">Ankündigung als PDF</button></div>'+
+    '</div>';
+  }).join('');
+}
 function indexBlock(m,ei,mi){
   const typ=m.mhTyp||'';
   let h='<div class="index-block">'+
@@ -585,19 +602,8 @@ function indexBlock(m,ei,mi){
     '</div>';
     if(!nkIndexFrequenzGueltig(m.idxFrequenz||1)) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Frequenz muss eine ganze Zahl ab 1 Jahr sein (§ 557b).</div>';
     h+='<div class="mh-aktuell">Aktuell gültige Miete: <b>'+eur(basis)+'</b></div>';
-    /* Bisherige Anpassungen – „Ankündigung verschickt" in eigener Zeile */
-    const hist=(m.idxAnpassungen||[]);
-    if(hist.length){
-      h+='<div class="chronik-titel">Bisherige Anpassungen</div>';
-      h+=hist.map((a,i)=>{
-        const ang=!!a.angekuendigt;
-        return '<div class="index-hist">'+
-          '<div class="ih-text">'+fmtDatum(a.datum)+': '+eur(a.alteMiete)+' × (1 + '+nkFmtBetrag(a.prozent)+' %) = <b>'+eur(a.neueMiete)+'</b>'+(a.monat?' (VPI '+(a.basisMonat?nkMonatDE(a.basisMonat)+'→':'')+nkMonatDE(a.monat)+')':'')+' <button class="row-del" title="Anpassung löschen" onclick="indexAnpassungLoeschen('+ei+','+mi+','+i+')">×</button></div>'+
-          '<div class="ih-actions"><label class="staffel-ank"'+(ang&&typeof a.angekuendigt==='string'?' title="verschickt am '+fmtDatum(a.angekuendigt)+'"':'')+'><input type="checkbox" '+(ang?'checked':'')+' onchange="indexAnkuendigung('+ei+','+mi+','+i+',this.checked)"> Ankündigung verschickt</label>'+
-          ' <button class="addrow" onclick="indexAnschreibenPdfRow('+ei+','+mi+','+i+')">Ankündigung als PDF</button></div>'+
-        '</div>';
-      }).join('');
-    }
+    /* US-102-Schliff: „Bisherige Anpassungen" wandern nach unten in die Anpassungs-Chronik (indexHistRows),
+       damit sie sich nicht zwischen die oberen Eingabefelder quetschen. */
     /* Fälligkeits-Warnung – außerhalb der Box */
     h+='<div class="mh-titel" style="color:'+(faellig?'var(--nachzahlung)':'inherit')+';">Nächste Erhöhung zum <b>'+fmtDatum(stichtag2)+'</b>'+
       (faellig?' <span style="color:var(--nachzahlung);">'+WARN_ICON+' fällig</span>':(bald?' <span>'+WARN_ICON+' bald fällig</span>':''))+
@@ -1407,11 +1413,11 @@ function renderDoc(){
       const preisC=direkt?'—':(fmtPreis(i.preisJeEinheit)+' €');
       const ihreC=direkt?'100 %':(fmtEinh(i.ihreEinheiten)+' '+i.einheitLabel);
       const zeitC=(i.zeitanteil<0.999)?' <span class="muted">(×'+Math.round(i.zeitanteil*100)+' %)</span>':'';
-      const ustC = gew ? '<td class="num">'+eur(nkUstZeile(i.wert))+'</td>' : '';
+      const ustC = gew ? '<td class="num">'+NK_UST_SATZ+' %</td>' : ''; /* US-99: nur der Satz genügt */
       rows+='<tr><td>'+esc(i.bez)+'</td><td class="num">'+eur(i.gesamt)+'</td><td class="num">'+basisC+'</td><td class="num">'+preisC+'</td><td class="num">'+ihreC+'</td>'+ustC+'<td class="num">'+eur(i.wert)+zeitC+'</td></tr>';
     });
     const sub=grp.reduce((s,o)=>s+o.i.wert,0);
-    rows+='<tr class="rubrik-subtotal"><td>Zwischensumme '+esc(rub)+'</td>'+leer(4)+(gew?'<td class="num">'+eur(nkUstZeile(sub))+'</td>':'')+'<td class="num">'+eur(sub)+'</td></tr>';
+    rows+='<tr class="rubrik-subtotal"><td>Zwischensumme '+esc(rub)+'</td>'+leer(4)+(gew?'<td class="num"></td>':'')+'<td class="num">'+eur(sub)+'</td></tr>';
   });
   const summen = gew
     ? '<tr class="total-row"><td>Zwischensumme netto</td>'+leer(5)+'<td class="num">'+eur(ab.netto)+'</td></tr>'+
