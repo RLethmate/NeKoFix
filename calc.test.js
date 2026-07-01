@@ -1379,3 +1379,16 @@ test("nkEurProQm: EUR/m² je Kostenart und gesamt (US-106)", () => {
   // ohne Fläche: 0 statt Division durch null
   assert.equal(calc.nkEurProQm([{betrag:100}], 0).gesamt.jahr, 0);
 });
+
+test("nkVerbrauchAusreisser: auffällig niedriger Verbrauch je Einheit (US-105)", () => {
+  const E=[{id:1,name:"A",flaeche:100},{id:2,name:"B",flaeche:100},{id:3,name:"C",flaeche:100},{id:4,name:"D",flaeche:100}];
+  const k={bez:"Heizung",schluessel:"verbrauch",verbrauch:{1:1000,2:1050,3:950,4:50}}; // D extrem niedrig
+  const r=calc.nkVerbrauchAusreisser(E,[k]);
+  assert.equal(r.length,1); assert.equal(r[0].einheit,"D");
+  // gleichmäßig -> keine Meldung
+  assert.equal(calc.nkVerbrauchAusreisser(E,[{bez:"H",schluessel:"verbrauch",verbrauch:{1:1000,2:1000,3:1000,4:1000}}]).length,0);
+  // zu wenige Einheiten -> keine Meldung
+  assert.equal(calc.nkVerbrauchAusreisser(E.slice(0,2),[k]).length,0);
+  // ohne Verbrauchsdaten -> keine Meldung
+  assert.equal(calc.nkVerbrauchAusreisser(E,[{bez:"Grundsteuer",schluessel:"flaeche"}]).length,0);
+});
