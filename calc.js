@@ -34,6 +34,15 @@ const NK_ENERGIEARTEN = [
   { key: "strom_wp",    label: "Strom (Wärmepumpe)",   einheit: "kWh", hi: 3.5,  faktorTyp: "jaz",    fossil: false }
 ];
 function nkEnergieart(key) { return NK_ENERGIEARTEN.find(e => e.key === key) || NK_ENERGIEARTEN[0]; }
+/* US-109: dateisystem-sicherer Ordnername (verbotene Zeichen -> _, Whitespace normalisiert,
+   gekappt). Leere Eingabe -> "_". Reine Funktion. */
+function nkDokSegment(s) {
+  return String(s == null ? "" : s).replace(/[\/\\:*?"<>|]/g, "_").replace(/\s+/g, " ").trim().slice(0, 80) || "_";
+}
+/* US-109: Ordnerpfad-Segmente je Mieter: Objekt / Jahr / Einheit / Mieter (bereinigt). Reine Funktion. */
+function nkDokPfad(objekt, jahr, einheit, mieter) {
+  return [nkDokSegment(objekt), nkDokSegment(jahr || "ohne Jahr"), nkDokSegment(einheit), nkDokSegment(mieter)];
+}
 /* US-117: Spaltenbuchstabe (1-basiert) für Excel-Formeln – 1→A, 26→Z, 27→AA. Reine Funktion. */
 function nkColLetter(n) {
   let s = ""; n = Math.max(1, Math.floor(n));
@@ -1348,6 +1357,8 @@ if (typeof module !== "undefined" && module.exports) {
     nkMengeZuKwh,
     nkHeizkosten,
     nkColLetter,
+    nkDokSegment,
+    nkDokPfad,
     nkEurProQm,
     nkVerbrauchAusreisser,
     nkEurProKwh,

@@ -62,6 +62,15 @@
   .dlg-cur{outline:2px solid var(--primary);}
   .dlg-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid #e6ebf0;}
   .linklike-obj{background:none;border:none;color:var(--primary);font-weight:600;cursor:pointer;font-size:13px;}
+  /* US-109: Dokumentenablage je Mieter */
+  .dok-block{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);}
+  .dok-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0;}
+  .dok-liste{display:flex;flex-direction:column;gap:3px;margin-top:4px;}
+  .dok-item{display:flex;align-items:center;gap:8px;font-size:13px;}
+  .dok-item span{flex:1;}
+  .chronik-anh{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 10px;font-size:12px;}
+  .dok-chip{background:var(--soft,#eef3f8);border:1px solid var(--line);border-radius:12px;padding:1px 8px;white-space:nowrap;}
+  .linklike{background:none;border:none;color:var(--primary);cursor:pointer;font-size:12px;padding:0;text-decoration:underline;}
   header.app{flex-wrap:wrap;}
   .vorjahr-banner{background:#fbf4e6;border:1px solid #e6c878;border-radius:10px;padding:12px 16px;margin:12px 0;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
   .vorjahr-banner .vb-text{font-size:13px;color:#7a5a12;flex:1;min-width:240px;}
@@ -759,7 +768,7 @@
    automatisch auf den Commit-Hash gesetzt (siehe .github/workflows/pages.yml); lokal bleibt "0.4".
    Lokal (v unverändert "0.4") wird je Aufruf ein frischer Wert genutzt, damit beim lokalen Testen
    nie eine veraltete Datei aus dem Browser-Cache geladen wird. */
-(function(){ var v="0.4"; var bust=(v==="0.4")?String(Date.now()):v; var files=["calc.js","core.js","view.js","pdf.js","excel.js"];
+(function(){ var v="0.4"; var bust=(v==="0.4")?String(Date.now()):v; var files=["calc.js","core.js","view.js","pdf.js","excel.js","docs.js"];
   if(document.readyState==="loading"){ /* normaler Parse (Browser/Pages): schnellster Weg */
     files.forEach(function(f){ document.write('<script src="'+f+'?v='+encodeURIComponent(bust)+'"><\/script>'); });
   } else { /* Fallback (eingebettete Webview/nach dem Parsen): geordnetes Nachladen */

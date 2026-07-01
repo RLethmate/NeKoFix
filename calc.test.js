@@ -1392,3 +1392,14 @@ test("nkVerbrauchAusreisser: auffällig niedriger Verbrauch je Einheit (US-105)"
   // ohne Verbrauchsdaten -> keine Meldung
   assert.equal(calc.nkVerbrauchAusreisser(E,[{bez:"Grundsteuer",schluessel:"flaeche"}]).length,0);
 });
+
+test("nkDokSegment / nkDokPfad: dateisystem-sichere Ordnernamen (US-109)", () => {
+  assert.equal(calc.nkDokSegment("EG links"), "EG links");
+  assert.ok(!/[\/\\:*?"<>|]/.test(calc.nkDokSegment('A/B:C*?"<>|'))); // keine verbotenen Zeichen mehr
+  assert.equal(calc.nkDokSegment("A/B"), "A_B");
+  assert.equal(calc.nkDokSegment("  x   y  "), "x y");
+  assert.equal(calc.nkDokSegment(""), "_");
+  assert.equal(calc.nkDokSegment(null), "_");
+  assert.deepEqual(calc.nkDokPfad("Lindenhof","2025","EG links","Familie Brandt"), ["Lindenhof","2025","EG links","Familie Brandt"]);
+  assert.deepEqual(calc.nkDokPfad("Haus/1","","E1","M1"), ["Haus_1","ohne Jahr","E1","M1"]); // leeres Jahr -> Platzhalter
+});
