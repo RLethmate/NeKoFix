@@ -224,8 +224,23 @@ test("Mieterbetrag privat vs. gewerblich (US-20)", () => {
   assert.equal(privat.ust, 0);
   const gew = calc.nkMieterBetrag([{anteil:107, vorsteuer:7}], true);
   assert.ok(Math.abs(gew.netto - 100) < 1e-9);
-  assert.ok(Math.abs(gew.ust - 19) < 1e-9);
-  assert.ok(Math.abs(gew.brutto - 119) < 1e-9);
+  assert.ok(Math.abs(gew.ust - 7) < 1e-9);     // US-99: USt mit dem Satz der Position (7 %), nicht pauschal 19 %
+  assert.ok(Math.abs(gew.brutto - 107) < 1e-9);
+  // US-99: gemischte Sätze – USt je Position summiert
+  const mix = calc.nkMieterBetrag([{anteil:119, vorsteuer:19},{anteil:107, vorsteuer:7},{anteil:50, vorsteuer:0}], true);
+  assert.ok(Math.abs(mix.netto - (100+100+50)) < 1e-9);
+  assert.ok(Math.abs(mix.ust - (19+7+0)) < 1e-9);
+  assert.ok(Math.abs(mix.brutto - 276) < 1e-9);
+});
+test("nkUstNachSatz: USt-Aufschlüsselung je Steuersatz (US-99)", () => {
+  const r = calc.nkUstNachSatz([{anteil:119, vorsteuer:19},{anteil:107, vorsteuer:7},{anteil:50, vorsteuer:0},{anteil:238, vorsteuer:19}]);
+  assert.equal(r.length, 3);                       // 0, 7, 19 – aufsteigend
+  assert.deepEqual(r.map(x=>x.satz), [0,7,19]);
+  const s19 = r.find(x=>x.satz===19);
+  assert.ok(Math.abs(s19.netto - 300) < 1e-9);     // 119+238 = 357 brutto -> 300 netto
+  assert.ok(Math.abs(s19.ust - 57) < 1e-9);
+  const s0 = r.find(x=>x.satz===0);
+  assert.ok(Math.abs(s0.ust - 0) < 1e-9);
 });
 
 test("Anzahl ungeprüfter Belege (US-19)", () => {

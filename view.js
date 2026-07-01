@@ -1190,7 +1190,7 @@ function computeView(){
   ab.einheiten.forEach(er=>{
     er.mietverhaeltnisse.forEach(mv=>{
       const a=mv.brutto, v=mv.vorauszahlung, s=mv.saldo;
-      const ustHint = mv.gewerblich ? ' <span class="pill">inkl. '+NK_UST_SATZ+'% USt</span>' : '';
+      const ustHint = mv.gewerblich ? ' <span class="pill" title="enthaltene Umsatzsteuer (je Kostenart 0/7/19 %)">inkl. USt '+eur(mv.ust)+'</span>' : '';
       const tr=document.createElement('tr');
       tr.innerHTML='<td>'+esc(mv.mieter)+' <span class="pill">'+esc(er.name)+'</span>'+ustHint+'</td>'+
         '<td class="num">'+eur(a)+'</td>'+
