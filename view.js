@@ -264,6 +264,11 @@ function mvZeilen(e, ei){
               '<button class="addrow" onclick="indexAnschreibenPdfRow('+ei+','+mi+','+idxI+')">Ankündigung als PDF</button>'+
               '<label class="staffel-ank"'+(ang&&typeof a.angekuendigt==='string'?' title="verschickt am '+fmtDatum(a.angekuendigt)+'"':'')+'><input type="checkbox" '+(ang?'checked':'')+' onchange="indexAnkuendigung('+ei+','+mi+','+idxI+',this.checked)"> Ankündigung verschickt</label>'+
             '</div>'; }
+          /* US-109: Dateien an diesen Chronik-Eintrag anhängen (in den Mieter-Ordner) + Chips zum Öffnen. */
+          if(typeof dokVerfuegbar==='function' && dokVerfuegbar()){
+            const chips=(c.dateien||[]).map(nm=>'<span class="dok-chip">'+esc(nm)+' <button type="button" class="linklike" onclick="dokOeffnen('+ei+','+mi+',\''+encodeURIComponent(nm)+'\')">öffnen</button></span>').join('');
+            out+='<div class="chronik-anh"><button type="button" class="linklike" onclick="dokChronikAnhang('+ei+','+mi+','+ci+')">📎 Datei anhängen</button> '+chips+'</div>';
+          }
           return out;
         }).join('');
         const bald=nkBaldFaellig(na, heute(), 3);
@@ -286,6 +291,16 @@ function mvZeilen(e, ei){
           chronikRows+
           '<button class="addrow" onclick="addChronik('+ei+','+mi+')">+ Eintrag</button>'+
           ((bald && !m.mhTyp)?'<div class="leer-hint" style="margin-top:6px;">'+WARN_ICON+' Nächste Anpassung am '+fmtDatum(na)+' – in Kürze fällig.</div>':'')+ /* US-72: Relikt nur ohne aktiven Mieterhöhungstyp */
+          /* US-109: Dokumente & Fotos je Mieter (echter Ordner via File System Access, nur Chromium) */
+          '<div class="dok-block"><div class="chronik-titel">Dokumente &amp; Fotos</div>'+
+          ((typeof dokVerfuegbar==='function' && dokVerfuegbar())
+            ? '<div class="dok-bar"><button type="button" class="addrow" onclick="dokUpload('+ei+','+mi+')">+ Datei hinzufügen</button>'+
+              ((typeof dokBasisName==='function' && dokBasisName())
+                ? '<span class="hint">Ablage: '+esc(dokBasisName())+' › '+esc(nkDokPfad((state.objekt.name||state.objekt.addr||''),(typeof objektJahr==='function'?objektJahr(snapshot()):''),e.name,m.mieter).join(' › '))+'</span>'
+                : '<button type="button" class="addrow" onclick="dokBasisWaehlen()">Dokumentenordner wählen…</button>')+
+              '</div><div class="dok-liste" data-ei="'+ei+'" data-mi="'+mi+'" data-mid="'+m.id+'"></div>'
+            : '<div class="hint">Benötigt Chrome, Edge oder Brave (File System Access API).</div>')+
+          '</div>'+
         '</td></tr>';
       }
       return row;
@@ -310,6 +325,7 @@ function renderMieterVertrag(){
   /* US-66: Chronik-Textfelder initial an ihren Inhalt anpassen. */
   document.querySelectorAll('#mieter_vertrag_box .chronik-notiz').forEach(autoGrow);
   setVjTitel('vjt_mieter'); /* US-59 */
+  if(typeof dokAutoLoad==='function') dokAutoLoad(); /* US-109: Dateilisten der offenen Mietverhältnisse laden */
 }
 /* US-66: Textarea-Höhe an den Inhalt anpassen (auto-grow). */
 function autoGrow(el){ if(!el) return; el.style.height='auto'; el.style.height=(el.scrollHeight)+'px'; }
