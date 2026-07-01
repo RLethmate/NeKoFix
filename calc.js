@@ -34,6 +34,12 @@ const NK_ENERGIEARTEN = [
   { key: "strom_wp",    label: "Strom (Wärmepumpe)",   einheit: "kWh", hi: 3.5,  faktorTyp: "jaz",    fossil: false }
 ];
 function nkEnergieart(key) { return NK_ENERGIEARTEN.find(e => e.key === key) || NK_ENERGIEARTEN[0]; }
+/* US-117: Spaltenbuchstabe (1-basiert) für Excel-Formeln – 1→A, 26→Z, 27→AA. Reine Funktion. */
+function nkColLetter(n) {
+  let s = ""; n = Math.max(1, Math.floor(n));
+  while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
 function nkMengeZuKwh(menge, heizwert) { return (+menge || 0) * (+heizwert || 0); }
 function nkHeizkosten(menge, preis) { return (+menge || 0) * (+preis || 0); }
 /* US-95: mittlerer Energiepreis (€/kWh) aus direkt eingetragener Heizkostensumme und der
@@ -1304,6 +1310,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkEnergieart,
     nkMengeZuKwh,
     nkHeizkosten,
+    nkColLetter,
     nkEurProKwh,
     nkHeizGrundProzent,
     nkHeizSplitAktiv,

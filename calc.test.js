@@ -1359,3 +1359,13 @@ test("US-115: Lindenhof-Fixture deckt die abrechnungsrelevanten Pfade ab", () =>
   const saetze = new Set(d.kosten.map(k => +k.vorsteuer || 0));
   [0, 7, 19].forEach(s => assert.ok(saetze.has(s), "Vorsteuersatz " + s + " % in den Kosten vertreten"));
 });
+
+test("nkColLetter: Spaltenbuchstabe für Excel-Formeln (US-117)", () => {
+  assert.equal(calc.nkColLetter(1), "A");
+  assert.equal(calc.nkColLetter(26), "Z");
+  assert.equal(calc.nkColLetter(27), "AA");
+  assert.equal(calc.nkColLetter(52), "AZ");
+  assert.equal(calc.nkColLetter(53), "BA");
+  assert.equal(calc.nkColLetter(702), "ZZ");
+  assert.equal(calc.nkColLetter(703), "AAA");
+});
