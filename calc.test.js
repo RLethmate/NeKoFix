@@ -1343,3 +1343,19 @@ test("Golden-Master: Lindenhof-Abrechnung bleibt stabil (US-115)", () => {
   };
   assert.deepEqual(snap, erwartet);
 });
+
+/* US-115 (letztes AC): Abdeckungs-Wächter – stellt sicher, dass die Lindenhof-Fixture die
+   abrechnungsrelevanten Pfade weiterhin enthält, damit die Abdeckung nicht unbemerkt erodiert.
+   Definition of Done: Wer ein neues abrechnungsrelevantes Feature baut, erweitert die Fixture um
+   den neuen Pfad UND diese Liste (siehe CLAUDE.md). */
+test("US-115: Lindenhof-Fixture deckt die abrechnungsrelevanten Pfade ab", () => {
+  const d = require("./lindenhof-2025.fixture.json");
+  const mvs = d.einheiten.reduce((a, e) => a.concat(e.mv || []), []);
+  assert.ok(d.einheiten.length >= 3, "mehrere Einheiten");
+  assert.ok(mvs.some(m => m.gewerblich), "mindestens ein gewerblicher Mieter (USt-Pfad)");
+  assert.ok(d.einheiten.some(e => (e.mv || []).length > 1), "Mieterwechsel/unterjähriges Mietverhältnis");
+  const heiz = d.kosten.filter(k => k.typ === "heizung");
+  assert.ok(heiz.some(k => calc.nkHeizSplitAktiv(k, d.einheiten)), "Heizblock mit aktivem Grund-/Verbrauchs-Split");
+  const saetze = new Set(d.kosten.map(k => +k.vorsteuer || 0));
+  [0, 7, 19].forEach(s => assert.ok(saetze.has(s), "Vorsteuersatz " + s + " % in den Kosten vertreten"));
+});
