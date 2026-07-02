@@ -1007,26 +1007,23 @@ function setNurUngeprueft(v){ nurUngeprueft=v; renderKosten(); }
 function renderPicker(){
   const box = document.getElementById('kosten_auswahl'); if(!box) return;
   const vorhanden = new Set(state.kosten.map(k=>k.bez));
-  const sorted = KOSTEN_KATALOG.slice().sort((a,b)=>a.localeCompare(b,'de'));
-  box.innerHTML = sorted.map(name=>{
-    const used = vorhanden.has(name);
+  const sorted = KOSTEN_KATALOG.slice().sort((a,b)=>a.localeCompare(b,'de')).filter(name=>!vorhanden.has(name));
+  box.innerHTML = sorted.length ? sorted.map(name=>{
     const info = nkUmlageInfo(name);
     const warn = info.umlagefaehig ? '' : ' <span class="warn" title="'+info.grund.replace(/"/g,'')+'">'+WARN_ICON+'</span>';
-    return '<label class="'+(used?'used':'')+'"><input type="checkbox" value="'+esc(name)+'"'+(used?' disabled':'')+'>'+esc(name)+warn+'</label>';
-  }).join('');
+    return '<button type="button" class="picker-item" data-n="'+esc(name)+'" onclick="addKostenSofort(this.dataset.n)">'+esc(name)+warn+'</button>';
+  }).join('') : '<div class="pick-empty">Alle typischen Kostenarten sind angelegt – eigene unten hinzufügen.</div>';
 }
 function toggleKostenDropdown(ev){ if(ev) ev.stopPropagation(); const dd=document.getElementById('kosten_dd'); dd.style.display = dd.style.display==='none' ? 'block' : 'none'; }
 document.addEventListener('click', e=>{ const add=document.getElementById('kosten_add'); const dd=document.getElementById('kosten_dd'); if(dd && add && !add.contains(e.target)) dd.style.display='none'; });
-function addAusgewaehlteKosten(){
-  document.querySelectorAll('#kosten_auswahl input[type=checkbox]:checked').forEach(c=> store.addKosten(c.value));
-  renderKosten();
-  document.getElementById('kosten_dd').style.display='none';
-}
+/* Kostenart aus der Liste mit einem Klick übernehmen (oben in „Betriebskosten"); Dropdown bleibt
+   offen, damit mehrere nacheinander hinzugefügt werden können (die übernommene verschwindet aus der Liste). */
+function addKostenSofort(name){ name=String(name||'').trim(); if(!name) return; store.addKostenOben(name); renderKosten(); }
 function addSonstigeKosten(){
   const inp = document.getElementById('sonstige_bez');
   const bez = (inp.value||'').trim();
   if(!bez) return;
-  store.addKosten(bez);
+  store.addKostenOben(bez);
   inp.value=''; renderKosten();
 }
 function deleteKostenRow(idx){ store.removeKosten(idx); renderKosten(); }

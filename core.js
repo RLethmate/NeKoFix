@@ -67,6 +67,10 @@ const store = {
   setChronikFeld(ei,mi,ci,field,val){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik)m.chronik=[]; m.chronik[ci][field]=val; commit(); },
   // Kosten
   addKosten(bez){ if(!state.kosten.some(k=>k.bez===bez)) state.kosten.push({bez, betrag:0, schluessel:nkVorschlagSchluessel(bez)}); commit(); },
+  /* Kostenart oben in die Rubrik „Betriebskosten" einfügen (sofort sichtbar; per Drag verschiebbar). */
+  addKostenOben(bez){ bez=String(bez||'').trim(); if(!bez || state.kosten.some(k=>k.bez===bez)) return;
+    const id=state.kosten.reduce((m,k)=>Math.max(m,k.id||0),0)+1;
+    state.kosten.unshift({ id:id, bez:bez, betrag:0, schluessel:nkVorschlagSchluessel(bez), rubrik:'Betriebskosten' }); commit(); },
   addKostenPos(pos){ state.kosten.push(pos); commit(); }, /* US-05: vollständige Position (z. B. Heizblock) */
   removeKosten(idx){ state.kosten.splice(idx,1); commit(); },
   setKostenFeld(idx,field,val){ state.kosten[idx][field]=val; commit(); },
