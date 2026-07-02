@@ -1333,9 +1333,9 @@ function nkMieterhoehungTermine(einheiten, heuteDatum) {
       typ = "Staffel";
     }
     if (!datum) return;
+    const bez = (m.terminBez && String(m.terminBez).trim()) ? m.terminBez : ("Mieterhöhung: " + (m.mieter || "Mieter") + " · " + (e.name || ""));
     out.push({ quelle: "mieterhoehung", art: "mieterhoehung", intervallMonate: 0,
-      bez: "Mieterhöhung: " + (m.mieter || "Mieter") + " · " + (e.name || ""),
-      datum: datum, typ: typ, einheitId: e.id, mvId: m.id });
+      bez: bez, datum: datum, typ: typ, einheitId: e.id, mvId: m.id });
   }); });
   return out;
 }
@@ -1392,6 +1392,7 @@ function nkTerminIcs(items) {
       L.push("DTSTART;VALUE=DATE:" + start, "DTEND;VALUE=DATE:" + dtend);
     }
     L.push("SUMMARY:" + esc(t.bez));
+    L.push("CLASS:PRIVATE"); /* privat – in geteilten Kalendern für andere nicht als Detail sichtbar */
     if (t.notiz) L.push("DESCRIPTION:" + esc(t.notiz));
     const iv = +t.intervallMonate || 0;
     if (iv > 0) L.push(iv % 12 === 0 ? ("RRULE:FREQ=YEARLY;INTERVAL=" + (iv / 12)) : ("RRULE:FREQ=MONTHLY;INTERVAL=" + iv));

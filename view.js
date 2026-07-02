@@ -1989,22 +1989,37 @@ function terminTageBadge(t){
 }
 function terminZeile(t){
   if(t.quelle==='mieterhoehung'){
-    return '<div class="termin-row mh">'+terminTageBadge(t)+'<span class="termin-datum">'+(t.datum?fmtDatum(t.datum):'—')+'</span>'+
-      '<span class="termin-bez">'+esc(t.bez)+' <span class="pill">'+esc(t.typ)+'</span></span>'+
-      '<span class="termin-meta">Mieterhöhung · read-only</span>'+
-      '<span class="termin-akt"><button type="button" class="linklike" onclick="go(7)">in „Mieter &amp; Vertrag" öffnen</button></span></div>';
+    /* Zeile 1: Bezeichnung (editierbar) + Typ; Zeile 2: Datum, Hinweis, Öffnen. */
+    return '<div class="termin-row mh">'+
+      '<div class="termin-l1">'+terminTageBadge(t)+
+        '<input type="text" class="termin-bez-in mh-bez" value="'+esc(t.bez)+'" title="Bezeichnung der Mieterhöhung anpassen" onchange="setMhTerminBez('+t.einheitId+','+t.mvId+',this.value)">'+
+        '<span class="pill">'+esc(t.typ)+'</span></div>'+
+      '<div class="termin-l2"><span class="termin-datum">'+(t.datum?fmtDatum(t.datum):'—')+'</span>'+
+        '<span class="termin-meta">Mieterhöhung · Termin aus „Mieter &amp; Vertrag"</span>'+
+        '<span class="termin-akt"><button type="button" class="linklike" onclick="go(7)">öffnen</button></span></div>'+
+    '</div>';
   }
-  return '<div class="termin-row'+(t.erledigt?' erledigt':'')+'">'+terminTageBadge(t)+
-    '<input type="date" class="termin-datum-in" value="'+(t.datum||'')+'" onchange="setTerminDatum('+t.id+',this.value)">'+
-    '<input type="time" class="termin-zeit-in" value="'+(t.zeit||'')+'" title="Uhrzeit (optional)" onchange="setTerminFeldUi('+t.id+',\'zeit\',this.value)">'+
-    '<textarea rows="1" class="termin-bez-in" title="Bezeichnung – Ecke unten rechts zum Verbreitern ziehen" placeholder="Was steht an?" onchange="setTerminFeldUi('+t.id+',\'bez\',this.value)">'+esc(t.bez)+'</textarea>'+
-    terminArtSelect(t.id,t.art)+terminIntervallSelect(t.id,t.intervallMonate)+
-    '<label class="termin-verschickt" title="Kalender/.ics bereits verschickt"><input type="checkbox" '+(t.icsVerschickt?'checked':'')+' onchange="setTerminFeldUi('+t.id+',\'icsVerschickt\',this.checked)"> verschickt</label>'+
-    '<span class="termin-akt">'+
-      '<button type="button" class="linklike" onclick="toggleErledigtUi('+t.id+')" title="Status umschalten (geplant/erledigt) – löscht nicht">'+(t.erledigt?'als geplant':'als erledigt')+'</button>'+
-      '<button type="button" class="linklike" onclick="exportTerminIcs('+t.id+')" title="Diesen Termin als Kalenderdatei (.ics)">.ics</button>'+
-      '<button type="button" class="row-del" title="Termin löschen" onclick="delTermin('+t.id+')">×</button>'+
-    '</span></div>';
+  /* Zeile 1: Tage + Bezeichnung (breit); Zeile 2: Datum, Uhrzeit, Rubrik, Fälligkeit, angekündigt, erledigt, .ics, ×. */
+  return '<div class="termin-row'+(t.erledigt?' erledigt':'')+'">'+
+    '<div class="termin-l1">'+terminTageBadge(t)+
+      '<textarea rows="1" class="termin-bez-in" title="Bezeichnung – Ecke unten rechts zum Verbreitern ziehen" placeholder="Was steht an?" onchange="setTerminFeldUi('+t.id+',\'bez\',this.value)">'+esc(t.bez)+'</textarea></div>'+
+    '<div class="termin-l2">'+
+      '<input type="date" class="termin-datum-in" value="'+(t.datum||'')+'" onchange="setTerminDatum('+t.id+',this.value)">'+
+      '<input type="time" class="termin-zeit-in" value="'+(t.zeit||'')+'" title="Uhrzeit (optional)" onchange="setTerminFeldUi('+t.id+',\'zeit\',this.value)">'+
+      terminArtSelect(t.id,t.art)+terminIntervallSelect(t.id,t.intervallMonate)+
+      '<label class="termin-verschickt" title="Termin/Ankündigung bereits verschickt bzw. in den Kalender übernommen"><input type="checkbox" '+(t.icsVerschickt?'checked':'')+' onchange="setTerminFeldUi('+t.id+',\'icsVerschickt\',this.checked)"> angekündigt</label>'+
+      '<span class="termin-akt">'+
+        '<button type="button" class="linklike" onclick="toggleErledigtUi('+t.id+')" title="Status umschalten (geplant/erledigt) – löscht nicht">'+(t.erledigt?'als geplant':'als erledigt')+'</button>'+
+        '<button type="button" class="linklike" onclick="exportTerminIcs('+t.id+')" title="Diesen Termin als Kalenderdatei (.ics)">.ics</button>'+
+        '<button type="button" class="row-del" title="Termin löschen" onclick="delTermin('+t.id+')">×</button>'+
+      '</span></div>'+
+  '</div>';
+}
+/* US-111: Bezeichnung eines aggregierten Mieterhöhungs-Termins überschreiben (auf dem Mietverhältnis). */
+function setMhTerminBez(einheitId, mvId, val){
+  const ei=state.einheiten.findIndex(e=>e.id===einheitId); if(ei<0) return;
+  const mi=state.einheiten[ei].mv.findIndex(m=>m.id===mvId); if(mi<0) return;
+  store.setMvFeld(ei,mi,'terminBez',val); renderTermine();
 }
 function renderTermine(){
   const box=document.getElementById('termine_box'); if(!box) return;
