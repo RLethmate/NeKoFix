@@ -131,16 +131,22 @@ function toggleNavPlausi(){
   if(s && s.classList.contains('collapsed')){ s.classList.remove('collapsed'); try{ localStorage.setItem(NAV_KEY,'0'); }catch(e){} }
   navPlausiOpen=!navPlausiOpen; renderNavPlausi();
 }
+/* AC-1 (US-118): EINE Schritt->Render-Zuordnung für go() und renderAll(), damit ein neuer Reiter
+   nur an einer Stelle registriert wird (vorher doppelt und inkonsistent gepflegt).
+   renderEinheiten/renderVoraus/renderKosten (Funktions-Deklarationen) sind gehoisted. */
+const RENDERERS = {
+  0: renderEinheiten,     /* Objekt/Einheiten */
+  7: renderMieterVertrag, /* Mieter & Vertrag */
+  1: renderVoraus,        /* Vorauszahlung */
+  2: renderHeizung,       /* Heizung */
+  3: renderKosten,        /* Kosten */
+  4: computeView,         /* Berechnung */
+  5: renderDoc,           /* Abrechnung */
+  6: renderZahlungen,     /* Zahlungen */
+  8: renderTermine,       /* Termine & Wartung */
+};
 function go(i){
-  if(i===0) renderEinheiten();   /* US-49: Ziel-Reiter beim Wechsel aus aktuellem Zustand neu zeichnen */
-  if(i===7) renderMieterVertrag(); /* US-81 */
-  if(i===1) renderVoraus();
-  if(i===2) renderHeizung();     /* US-05 – Heizung jetzt vor Kosten im Ablauf */
-  if(i===3) renderKosten();
-  if(i===4) computeView();
-  if(i===5) renderDoc();
-  if(i===6) renderZahlungen();
-  if(i===8) renderTermine(); /* US-111 */
+  const r=RENDERERS[i]; if(r) r();
   current=i;
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', +p.dataset.step===i));
   renderStepper();
@@ -1703,7 +1709,7 @@ function renderMruSub(){ const s=document.getElementById('mru_sub'); if(!s) retu
 function renderAll(){ renderObjTitle(); renderVorjahrBanner(); fillObjektKopf();
   const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus;
   renderEinheiten(); renderVoraus(); renderKosten();
-  if(current===2) renderHeizung(); else if(current===4) computeView(); else if(current===5) renderDoc(); else if(current===6) renderZahlungen(); else if(current===8) renderTermine();
+  const r=RENDERERS[current]; if(r) r(); /* aktuellen Reiter über dieselbe Tabelle wie go() rendern */
   renderStepper(); }
 /* Speicher: Objektwechsel mit Schutz vor stillem Mitschleppen ungespeicherter Änderungen.
    Bei ungespeichertem Stand: speichern / verwerfen / abbrechen (zwei native Dialoge =
