@@ -531,16 +531,24 @@
   .termin-liste{border:1px solid var(--line);border-radius:8px;overflow:hidden;}
   .termin-rubrik{font-weight:700;font-size:12.5px;color:#1d2733;background:var(--soft);padding:6px 10px;border-top:1px solid var(--line);}
   .termin-liste .termin-rubrik:first-child{border-top:none;}
-  .termin-row{display:flex;align-items:center;gap:10px;padding:6px 10px;border-top:1px solid var(--line);}
+  .termin-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 10px;border-top:1px solid var(--line);}
   .termin-liste .termin-row:first-child{border-top:none;}
   .termin-row.mh{background:#fafbfc;}
-  .termin-dot{width:10px;height:10px;border-radius:50%;flex:none;}
-  .termin-dot.faellig{background:#b3392e;} .termin-dot.bald{background:#c77700;} .termin-dot.ok{background:#1d7a3a;}
+  .termin-row.erledigt{opacity:.6;}
+  .termin-row.erledigt .termin-bez-in{text-decoration:line-through;}
+  /* Tage-Badge (Farbcode) */
+  .termin-tage{flex:none;width:72px;text-align:center;font-size:11.5px;font-weight:600;border-radius:6px;padding:2px 0;color:#fff;background:#9aa4af;}
+  .termin-tage.rot{background:#b3392e;} .termin-tage.orange{background:#c77700;} .termin-tage.gruen{background:#1d7a3a;}
+  .termin-tage.done{background:none;color:var(--muted);font-weight:500;}
   .termin-datum{width:96px;color:#41505f;font-size:13px;flex:none;}
   .termin-datum-in{width:140px;flex:none;font-size:12.5px;padding:2px 4px;}
-  .termin-bez{flex:1;min-width:120px;} .termin-bez-in{flex:1;min-width:120px;font-size:13px;padding:3px 6px;}
-  .termin-sel{font-size:12px;padding:2px 4px;}
+  .termin-zeit-in{width:88px;flex:none;font-size:12.5px;padding:2px 4px;}
+  .termin-bez{flex:1;min-width:120px;}
+  /* Bezeichnung: füllt den Platz und ist per Ziehgriff (unten rechts) verbreiterbar */
+  .termin-bez-in{flex:1 1 220px;min-width:180px;font-size:13px;padding:3px 6px;font-family:inherit;line-height:1.3;height:30px;resize:horizontal;white-space:nowrap;overflow-x:auto;}
+  .termin-sel{font-size:12px;padding:2px 4px;flex:none;}
   .termin-meta,.termin-art{color:var(--muted);font-size:12px;}
+  .termin-verschickt{font-size:12px;color:#41505f;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer;flex:none;}
   .termin-akt{margin-left:auto;display:flex;gap:10px;align-items:center;white-space:nowrap;}
   .csv-modal .csv-cancel{background:#7a8593;}
   .csv-modal .csv-cancel:hover{background:#69727d;}

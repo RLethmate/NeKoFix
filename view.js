@@ -1980,21 +1980,28 @@ function terminArtSelect(id, art){ return '<select class="termin-sel" onchange="
   Object.keys(NK_TERMIN_ARTEN).map(k=>'<option value="'+k+'"'+(k===art?' selected':'')+'>'+esc(NK_TERMIN_ARTEN[k])+'</option>').join('')+'</select>'; }
 function terminIntervallSelect(id, iv){ const opts=[[0,'einmalig'],[3,'vierteljährlich'],[6,'halbjährlich'],[12,'jährlich'],[24,'alle 2 Jahre']];
   return '<select class="termin-sel" onchange="setTerminIntervall('+id+',this.value)">'+opts.map(o=>'<option value="'+o[0]+'"'+((+iv||0)===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'; }
+/* Tage-Badge mit Farbcode (rot <=1 Tag, orange < 2 Monate, grün > 2 Monate); verschwindet bei erledigt. */
+function terminTageBadge(t){
+  if(t.erledigt) return '<span class="termin-tage done">erledigt</span>';
+  if(t.tage==null) return '<span class="termin-tage"></span>';
+  const label = t.tage<0 ? 'überfällig' : (t.tage===0 ? 'heute' : (t.tage+' T'));
+  return '<span class="termin-tage '+(t.tageFarbe||'')+'" title="Tage bis zum Termin">'+label+'</span>';
+}
 function terminZeile(t){
-  const amp=({faellig:'faellig',bald:'bald',ok:'ok'})[t.ampel]||'ok';
-  const dot='<span class="termin-dot '+amp+'" title="'+(amp==='faellig'?'fällig/überfällig':amp==='bald'?'bald fällig':'ok')+'"></span>';
   if(t.quelle==='mieterhoehung'){
-    return '<div class="termin-row mh">'+dot+'<span class="termin-datum">'+(t.datum?fmtDatum(t.datum):'—')+'</span>'+
+    return '<div class="termin-row mh">'+terminTageBadge(t)+'<span class="termin-datum">'+(t.datum?fmtDatum(t.datum):'—')+'</span>'+
       '<span class="termin-bez">'+esc(t.bez)+' <span class="pill">'+esc(t.typ)+'</span></span>'+
       '<span class="termin-meta">Mieterhöhung · read-only</span>'+
       '<span class="termin-akt"><button type="button" class="linklike" onclick="go(7)">in „Mieter &amp; Vertrag" öffnen</button></span></div>';
   }
-  return '<div class="termin-row">'+dot+
+  return '<div class="termin-row'+(t.erledigt?' erledigt':'')+'">'+terminTageBadge(t)+
     '<input type="date" class="termin-datum-in" value="'+(t.datum||'')+'" onchange="setTerminDatum('+t.id+',this.value)">'+
-    '<input type="text" class="termin-bez-in" value="'+esc(t.bez)+'" onchange="setTerminFeldUi('+t.id+',\'bez\',this.value)">'+
+    '<input type="time" class="termin-zeit-in" value="'+(t.zeit||'')+'" title="Uhrzeit (optional)" onchange="setTerminFeldUi('+t.id+',\'zeit\',this.value)">'+
+    '<textarea rows="1" class="termin-bez-in" title="Bezeichnung – Ecke unten rechts zum Verbreitern ziehen" placeholder="Was steht an?" onchange="setTerminFeldUi('+t.id+',\'bez\',this.value)">'+esc(t.bez)+'</textarea>'+
     terminArtSelect(t.id,t.art)+terminIntervallSelect(t.id,t.intervallMonate)+
+    '<label class="termin-verschickt" title="Kalender/.ics bereits verschickt"><input type="checkbox" '+(t.icsVerschickt?'checked':'')+' onchange="setTerminFeldUi('+t.id+',\'icsVerschickt\',this.checked)"> verschickt</label>'+
     '<span class="termin-akt">'+
-      '<button type="button" class="linklike" onclick="erledigeTerminUi('+t.id+')" title="Als erledigt markieren – wiederkehrend rückt zum nächsten Termin, einmalig entfällt">erledigt</button>'+
+      '<button type="button" class="linklike" onclick="toggleErledigtUi('+t.id+')" title="Status umschalten (geplant/erledigt) – löscht nicht">'+(t.erledigt?'als geplant':'als erledigt')+'</button>'+
       '<button type="button" class="linklike" onclick="exportTerminIcs('+t.id+')" title="Diesen Termin als Kalenderdatei (.ics)">.ics</button>'+
       '<button type="button" class="row-del" title="Termin löschen" onclick="delTermin('+t.id+')">×</button>'+
     '</span></div>';
@@ -2002,9 +2009,10 @@ function terminZeile(t){
 function renderTermine(){
   const box=document.getElementById('termine_box'); if(!box) return;
   const h=heute(); const liste=nkTermineGesamt(state.objekt, state.einheiten, h);
-  const nFaellig=liste.filter(t=>t.ampel==='faellig').length, nBald=liste.filter(t=>t.ampel==='bald').length;
-  const banner=(nFaellig||nBald)
-    ? '<div class="termin-banner warn">'+WARN_ICON+' '+(nFaellig?('<b>'+nFaellig+' fällig/überfällig</b>'):'')+(nFaellig&&nBald?' · ':'')+(nBald?(nBald+' bald fällig'):'')+'</div>'
+  const aktiv=liste.filter(t=>!t.erledigt);
+  const nRot=aktiv.filter(t=>t.tageFarbe==='rot').length, nOrange=aktiv.filter(t=>t.tageFarbe==='orange').length;
+  const banner=(nRot||nOrange)
+    ? '<div class="termin-banner warn">'+WARN_ICON+' '+(nRot?('<b>'+nRot+' fällig/überfällig</b>'):'')+(nRot&&nOrange?' · ':'')+(nOrange?(nOrange+' bald fällig'):'')+'</div>'
     : '<div class="termin-banner ok">Aktuell nichts fällig.</div>';
   const vorlagen=NK_TERMIN_VORLAGEN.map(v=>'<button type="button" class="termin-add" onclick="addTerminVorlage(\''+v.key+'\')">+ '+esc(v.bez)+'</button>').join('');
   const addbar='<div class="termin-addbar">'+vorlagen+'<button type="button" class="termin-add" onclick="addTerminEigen()">+ Eigener Termin</button></div>';
@@ -2025,12 +2033,17 @@ function addTerminEigen(){ store.addTermin({ bez:'Neuer Termin', art:'sonstiges'
 function setTerminFeldUi(id,f,v){ store.setTerminFeld(id,f,v); renderTermine(); }
 function setTerminDatum(id,v){ store.setTerminFeld(id,'naechster',v); renderTermine(); }
 function setTerminIntervall(id,v){ store.setTerminFeld(id,'intervallMonate',+v||0); renderTermine(); }
-function erledigeTerminUi(id){ store.erledigeTermin(id); renderTermine(); }
+function toggleErledigtUi(id){ store.toggleTerminErledigt(id); renderTermine(); }
 function delTermin(id){ if(!confirm('Diesen Termin löschen?')) return; store.removeTermin(id); renderTermine(); }
 function terminIcsDownload(liste, base){ const ics=nkTerminIcs(liste); const blob=new Blob([ics],{type:'text/calendar;charset=utf-8'});
   const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=base+'.ics'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),5000); }
-function exportTermineIcs(){ const liste=nkTermineGesamt(state.objekt, state.einheiten, heute()); if(!liste.length){ alert('Keine Termine zum Exportieren.'); return; } terminIcsDownload(liste,'NeKoFix-Termine'); }
-function exportTerminIcs(id){ const liste=nkTermineGesamt(state.objekt, state.einheiten, heute()).filter(t=>t.quelle==='wartung'&&t.id===id); if(liste.length) terminIcsDownload(liste,'NeKoFix-Termin'); }
+/* Export markiert die exportierten eigenen Termine als „verschickt" (Häkchen). Erledigte werden nicht exportiert. */
+function exportTermineIcs(){ const liste=nkTermineGesamt(state.objekt, state.einheiten, heute()).filter(t=>!t.erledigt);
+  if(!liste.length){ alert('Keine offenen Termine zum Exportieren.'); return; }
+  terminIcsDownload(liste,'NeKoFix-Termine');
+  liste.forEach(t=>{ if(t.quelle==='wartung') store.setTerminFeld(t.id,'icsVerschickt',true); }); renderTermine(); }
+function exportTerminIcs(id){ const liste=nkTermineGesamt(state.objekt, state.einheiten, heute()).filter(t=>t.quelle==='wartung'&&t.id===id);
+  if(!liste.length) return; terminIcsDownload(liste,'NeKoFix-Termin'); store.setTerminFeld(id,'icsVerschickt',true); renderTermine(); }
 function setAbrStatus(v){ store.setAbrechnungStatus(v); }
 /* US-82: Undo/Redo – Bedienung. Datenlogik liegt in core.js (histUndo/histRedo/histReset). */
 function undo(){ if(histUndo()) renderAll(); updateHistButtons(); }
