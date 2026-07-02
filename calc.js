@@ -1320,11 +1320,17 @@ function nkMieterhoehungTermine(einheiten, heuteDatum) {
     if (!m || !m.mhTyp) return;
     let datum = "", typ = "";
     if (m.mhTyp === "index") { datum = nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, (m.idxAnpassungen || []).length); typ = "Index"; }
-    else if (m.mhTyp === "staffel") {
-      const plan = nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag);
+    else if (m.mhTyp === "staffel" && m.stafBeginn) {
+      /* Nächste noch nicht angekündigte Staffel-Stufe – unabhängig vom (optionalen) Enddatum
+         rechnerisch bestimmt (nkStaffelPlan liefert ohne Ende keine Stichtage). */
       const ang = m.stafAngekuendigt || {};
-      const offen = (plan || []).filter(s => s.datum && !ang[s.datum]).map(s => s.datum).sort();
-      datum = offen.find(d => d >= String(heuteDatum || "")) || offen[0] || ""; typ = "Staffel";
+      const freq = Math.max(1, Math.floor(+m.stafFrequenz) || 1);
+      for (let k = 1; k <= 400; k++) {
+        const d = nkPlusJahre(m.stafBeginn, freq * k);
+        if (m.stafEnde && d > m.stafEnde) break;
+        if (!ang[d]) { datum = d; break; }
+      }
+      typ = "Staffel";
     }
     if (!datum) return;
     out.push({ quelle: "mieterhoehung", art: "mieterhoehung", intervallMonate: 0,
@@ -1333,14 +1339,30 @@ function nkMieterhoehungTermine(einheiten, heuteDatum) {
   }); });
   return out;
 }
+/* Tage bis zum Termin (kann negativ sein = überfällig). */
+function nkTageBis(datum, heuteDatum) {
+  const d = nkDatum(datum), h = nkDatum(heuteDatum);
+  if (!d || !h) return null;
+  return Math.round((d.getTime() - h.getTime()) / 86400000);
+}
+/* Farbcode für die „Tage"-Spalte: rot bei <= 1 Tag (inkl. überfällig), grün bei mehr als
+   ~2 Monaten, sonst orange (dazwischen). */
+function nkTageFarbe(tage) {
+  if (tage == null) return "";
+  if (tage <= 1) return "rot";
+  if (tage > 62) return "gruen";
+  return "orange";
+}
 /* Gesamtliste für den Reiter: eigene Termine (objekt.termine) + aggregierte Mieterhöhungen,
-   je mit Ampel, sortiert nach Datum aufsteigend (Dringlichstes zuerst). */
+   je mit Ampel, Tagen bis Termin und Farbcode, sortiert nach Datum aufsteigend. */
 function nkTermineGesamt(objekt, einheiten, heuteDatum) {
   const user = (((objekt || {}).termine) || []).map(t => ({
     quelle: "wartung", id: t.id, art: t.art || "sonstiges", bez: t.bez || "",
-    datum: t.naechster || "", intervallMonate: +t.intervallMonate || 0, notiz: t.notiz || "" }));
+    datum: t.naechster || "", intervallMonate: +t.intervallMonate || 0, notiz: t.notiz || "",
+    zeit: t.zeit || "", erledigt: !!t.erledigt, icsVerschickt: !!t.icsVerschickt }));
   const alle = user.concat(nkMieterhoehungTermine(einheiten, heuteDatum))
-    .map(t => Object.assign({}, t, { ampel: nkTerminAmpel(t.datum, heuteDatum) }));
+    .map(t => { const tage = nkTageBis(t.datum, heuteDatum);
+      return Object.assign({ erledigt: false, zeit: "" }, t, { ampel: nkTerminAmpel(t.datum, heuteDatum), tage: tage, tageFarbe: nkTageFarbe(tage) }); });
   alle.sort((a, b) => String(a.datum || "").localeCompare(String(b.datum || "")));
   return alle;
 }
@@ -1359,7 +1381,17 @@ function nkTerminIcs(items) {
     const nd = new Date(Date.UTC(y, mo - 1, da + 1));
     const dtend = nd.getUTCFullYear() + pad(nd.getUTCMonth() + 1) + pad(nd.getUTCDate());
     const uid = (t.quelle === "mieterhoehung" ? ("mh-" + t.einheitId + "-" + t.mvId) : ("wartung-" + (t.id != null ? t.id : start))) + "@nekofix";
-    L.push("BEGIN:VEVENT", "UID:" + uid, "DTSTAMP:" + stamp, "DTSTART;VALUE=DATE:" + start, "DTEND;VALUE=DATE:" + dtend, "SUMMARY:" + esc(t.bez));
+    L.push("BEGIN:VEVENT", "UID:" + uid, "DTSTAMP:" + stamp);
+    const zt = String(t.zeit || "").match(/^(\d{1,2}):(\d{2})$/); /* optionale Uhrzeit -> zeitgebundener Termin */
+    if (zt) {
+      const s = start + "T" + pad(+zt[1]) + pad(+zt[2]) + "00";
+      const endD = new Date(Date.UTC(y, mo - 1, da, +zt[1] + 1, +zt[2]));
+      const e = endD.getUTCFullYear() + pad(endD.getUTCMonth() + 1) + pad(endD.getUTCDate()) + "T" + pad(endD.getUTCHours()) + pad(endD.getUTCMinutes()) + "00";
+      L.push("DTSTART:" + s, "DTEND:" + e);
+    } else {
+      L.push("DTSTART;VALUE=DATE:" + start, "DTEND;VALUE=DATE:" + dtend);
+    }
+    L.push("SUMMARY:" + esc(t.bez));
     if (t.notiz) L.push("DESCRIPTION:" + esc(t.notiz));
     const iv = +t.intervallMonate || 0;
     if (iv > 0) L.push(iv % 12 === 0 ? ("RRULE:FREQ=YEARLY;INTERVAL=" + (iv / 12)) : ("RRULE:FREQ=MONTHLY;INTERVAL=" + iv));
@@ -1503,6 +1535,8 @@ if (typeof module !== "undefined" && module.exports) {
     nkImportPlan,
     nkPlusMonate,
     nkTerminAmpel,
+    nkTageBis,
+    nkTageFarbe,
     nkMieterhoehungTermine,
     nkTermineGesamt,
     nkTerminIcs,

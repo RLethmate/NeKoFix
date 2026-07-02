@@ -1444,3 +1444,30 @@ test("nkTerminIcs: VEVENT mit stabiler UID, RRULE bei Intervall, VALARM", () => 
   assert.ok(/DTSTART;VALUE=DATE:20260301/.test(ics));
   assert.ok(/BEGIN:VALARM[\s\S]*TRIGGER:-P14D/.test(ics));
 });
+
+/* ---- US-111 Schliff: Staffel ohne Ende, Tage-Spalte, Uhrzeit ---- */
+test("nkMieterhoehungTermine: Staffel ohne Enddatum liefert nächste Stufe", () => {
+  const einh = [{ id: 9, name: "EG", mv: [
+    { id: 3, mieter: "Staf", mhTyp: "staffel", stafBeginn: "2024-01-01", stafEnde: "", stafFrequenz: 1, stafAusgangsmiete: 800, stafBetrag: 20, stafAngekuendigt: {} },
+  ] }];
+  const t = calc.nkMieterhoehungTermine(einh, "2026-06-01");
+  assert.equal(t.length, 1);
+  assert.equal(t[0].datum, "2025-01-01"); // erste noch nicht angekündigte Stufe (überfällig)
+  const einh2 = [{ id: 9, name: "EG", mv: [
+    Object.assign({}, einh[0].mv[0], { stafAngekuendigt: { "2025-01-01": true, "2026-01-01": true } }) ] }];
+  assert.equal(calc.nkMieterhoehungTermine(einh2, "2026-06-01")[0].datum, "2027-01-01"); // nächste offene
+});
+test("nkTageBis / nkTageFarbe: Tage bis Termin + Farbcode", () => {
+  assert.equal(calc.nkTageBis("2026-01-11", "2026-01-01"), 10);
+  assert.equal(calc.nkTageBis("2025-12-31", "2026-01-01"), -1); // überfällig
+  assert.equal(calc.nkTageFarbe(0), "rot");
+  assert.equal(calc.nkTageFarbe(1), "rot");
+  assert.equal(calc.nkTageFarbe(20), "orange");  // < 2 Monate
+  assert.equal(calc.nkTageFarbe(100), "gruen");  // > 2 Monate
+});
+test("nkTerminIcs: optionale Uhrzeit erzeugt zeitgebundenen Termin", () => {
+  const ics = calc.nkTerminIcs([{ quelle: "wartung", id: 5, bez: "Termin vor Ort", datum: "2026-03-10", zeit: "09:30", intervallMonate: 0 }]);
+  assert.ok(/DTSTART:20260310T093000/.test(ics));
+  assert.ok(/DTEND:20260310T103000/.test(ics)); // +1 Stunde
+  assert.ok(!/VALUE=DATE/.test(ics)); // kein Ganztagestermin
+});
