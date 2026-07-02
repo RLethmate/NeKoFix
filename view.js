@@ -255,8 +255,9 @@ function mvZeilen(e, ei){
            Statt eines doppelten Textblocks blenden wir NUR die Aktionen (PDF + „verschickt") unter dem
            passenden Chronik-Eintrag ein; das × löscht dann Anpassung UND Chronik-Eintrag zusammen. */
         const idxByDatum={}; if(m.mhTyp==='index') (m.idxAnpassungen||[]).forEach((a,ii)=>{ if(a&&a.datum!=null) idxByDatum[a.datum]=ii; });
-        /* US-109-Schliff: neueste zuerst (nach Datum absteigend); ci bleibt der Original-Index. */
-        const chronikRows=chronik.map((c,ci)=>({c,ci})).sort((a,b)=>String(b.c.datum||'').localeCompare(String(a.c.datum||''))).map(({c,ci})=>{
+        /* US-109-Schliff: umgekehrte Reihenfolge – zuletzt hinzugefügter Eintrag oben (unabhängig vom
+           Datum, damit ein neuer Eintrag immer ganz oben erscheint); ci bleibt der Original-Index. */
+        const chronikRows=chronik.map((c,ci)=>({c,ci})).reverse().map(({c,ci})=>{
           const idxI=(m.mhTyp==='index' && c.datum!=null && idxByDatum[c.datum]!=null)?idxByDatum[c.datum]:null;
           const delCall=(idxI!=null)?'indexEintragLoeschen('+ei+','+mi+','+ci+','+idxI+')':'delChronik('+ei+','+mi+','+ci+')';
           let out='<div class="chronik-row"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea><button class="row-del" onclick="'+delCall+'">×</button></div>';
