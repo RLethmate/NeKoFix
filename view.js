@@ -434,7 +434,7 @@ function mhWarnung(m){
   const h=heute();
   if(m.mhTyp==='index'){
     const st=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, (m.idxAnpassungen||[]).length);
-    return nkIndexFaellig(st,h) || nkBaldFaellig(st,h,3);
+    return (nkIndexFaellig(st,h) || nkBaldFaellig(st,h,3)) && !((m.mhAngekuendigt||{})[st]); /* AC-2a: angekündigte Anpassung warnt nicht mehr */
   }
   if(m.mhTyp==='staffel'){
     const plan=nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag);
@@ -513,6 +513,9 @@ function indexAnkuendigung(ei,mi,idx,checked){
   store.setMvFeld(ei,mi,'idxAnpassungen', liste);
   renderEinheiten();
 }
+/* AC-2a (US-118): Ankündigung der kommenden (noch nicht übernommenen) Index-Anpassung.
+   Nutzt dieselbe mhAngekuendigt-Map wie der Termine-Reiter (Stichtag-keyed) -> beidseitig verknüpft. */
+function idxVorabAnkuendigung(ei,mi,stichtag,checked){ store.setMhAngekuendigt(ei,mi,stichtag,checked); renderEinheiten(); }
 /* US-70: Staffel – gültige Miete automatisch aus dem Plan ableiten und als Soll setzen. */
 function staffelSync(ei,mi){
   const m=store.mv(ei,mi);
@@ -655,7 +658,10 @@ function indexBlock(m,ei,mi){
       '</div>'+
       '<div class="mh-formel">'+eur(basis)+' × (1 + '+nkFmtBetrag(proz)+' %) = '+eur(rohNeu)+' → <b title="abgerundet auf volle Euro">'+eur(neue)+'</b> <span class="hint">(abgerundet)</span>'+
         ' <button class="addrow" onclick="indexUebernehmen('+ei+','+mi+')">Anpassung übernehmen</button>'+
-        ' <button class="addrow" onclick="indexAnschreibenPdf('+ei+','+mi+')">Ankündigung als PDF</button></div>'+
+        ' <button class="addrow" onclick="indexAnschreibenPdf('+ei+','+mi+')">Ankündigung als PDF</button>'+
+        /* AC-2a (US-118): Ankündigung der KOMMENDEN Index-Anpassung – verbunden mit dem Termine-Reiter
+           (mhAngekuendigt, Stichtag-keyed). Setzen rückt dort den nächsten Termin nach. */
+        ' <label class="staffel-ank"><input type="checkbox" '+(((m.mhAngekuendigt||{})[stichtag2])?'checked':'')+' onchange="idxVorabAnkuendigung('+ei+','+mi+',\''+stichtag2+'\',this.checked)"> angekündigt</label></div>'+
     '</div>';
   }
   if(typ==='staffel'){
