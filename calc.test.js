@@ -1493,3 +1493,18 @@ test("nkTageLabel: Tage/Monate/Jahre abgekürzt", () => {
   assert.equal(calc.nkTageLabel(366), "1J 1T"); // wie im Wunsch
   assert.equal(calc.nkTageLabel(400), "1J 1M 5T");
 });
+
+/* ---- US-111 Schliff 4: jährliche Wiederkehr + Vorrücken beim Ankündigen ---- */
+test("nkMieterhoehungTermine: intervallMonate = Frequenz*12 (jährliche .ics-Serie)", () => {
+  const einh = [{ id: 1, name: "E", mv: [{ id: 1, mieter: "M", mhTyp: "index", idxEinzug: "2024-01-01", idxFrequenz: 1, idxAnpassungen: [] }] }];
+  const t = calc.nkMieterhoehungTermine(einh, "2026-01-01")[0];
+  assert.equal(t.intervallMonate, 12);
+  const ics = calc.nkTerminIcs([t]);
+  assert.ok(/RRULE:FREQ=YEARLY;INTERVAL=1/.test(ics));
+});
+test("nkMieterhoehungTermine: Index rückt nach, wenn Stichtag vorab angekündigt (mhAngekuendigt)", () => {
+  const base = { id: 1, name: "E", mv: [{ id: 1, mieter: "M", mhTyp: "index", idxEinzug: "2024-01-01", idxFrequenz: 1, idxAnpassungen: [] }] };
+  assert.equal(calc.nkMieterhoehungTermine([base], "2026-01-01")[0].datum, "2025-01-01");
+  base.mv[0].mhAngekuendigt = { "2025-01-01": true };
+  assert.equal(calc.nkMieterhoehungTermine([base], "2026-01-01")[0].datum, "2026-01-01"); // Folgejahr rückt nach
+});
