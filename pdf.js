@@ -1,6 +1,6 @@
 /* NeKoFix – PDF-Export (US-18), ausgelagert aus index.html (US-33).
    Klassisches Script, nach calc.js und dem Haupt-Skript geladen. Nutzt die globalen
-   Helfer/Daten (state, eur, fmtDatum, zeitraumText, alleMV, activeMieter) und den
+   Helfer/Daten (state, eur, fmtDatum, zeitraumText, alleMV, ui.activeMieter) und den
    Rechenkern (nkMieterAbrechnung, nkObjektAbrechnung, nkTotals). Erfordert jsPDF. */
 
 function pdfSafeName(s){ return String(s).replace(/[^\wäöüÄÖÜß .-]/g,'_').trim(); }
@@ -217,7 +217,7 @@ function buildTenantPdf(sel){
   pdfWasserzeichen(doc); /* US-40: Vorschau bis Freischaltung */
   return doc;
 }
-function exportTenantPdf(){ if(!ensurePdfLib())return; if(!pdfStandOk())return; const sel=alleMV()[activeMieter]; if(sel){ buildTenantPdf(sel).save("Abrechnung-"+pdfSafeName(sel.m.mieter)+".pdf"); showBackupHinweis(); } } /* US-76: Backup-Hinweis nach Export */
+function exportTenantPdf(){ if(!ensurePdfLib())return; if(!pdfStandOk())return; const sel=alleMV()[ui.activeMieter]; if(sel){ buildTenantPdf(sel).save("Abrechnung-"+pdfSafeName(sel.m.mieter)+".pdf"); showBackupHinweis(); } } /* US-76: Backup-Hinweis nach Export */
 /* US-69: Mieterhöhungs-Anschreiben als DIN-Brief (Index § 557b oder Staffel § 557a).
    `a` = {typ:'index'|'staffel', stichtag, stichtag1, alteMiete, neueMiete, prozent, rohNeu,
    betrag, monatVon, monatBis, frist}. Briefkopf/Adresse wie buildTenantPdf (US-53). */
@@ -295,7 +295,7 @@ function buildMieterhoehungPdf(a){
    sonst Fallback: herunterladen und manuell anhängen. */
 async function sharePdfAktiv(){
   if(!ensurePdfLib()) return;
-  const sel=alleMV()[activeMieter]; if(!sel) return;
+  const sel=alleMV()[ui.activeMieter]; if(!sel) return;
   const doc=buildTenantPdf(sel);
   const fname="Abrechnung-"+pdfSafeName(sel.m.mieter)+".pdf";
   const email=(sel.m.email||"").trim();

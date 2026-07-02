@@ -820,7 +820,7 @@
    automatisch auf den Commit-Hash gesetzt (siehe .github/workflows/pages.yml); lokal bleibt "0.4".
    Lokal (v unverändert "0.4") wird je Aufruf ein frischer Wert genutzt, damit beim lokalen Testen
    nie eine veraltete Datei aus dem Browser-Cache geladen wird. */
-(function(){ var v="0.4"; var bust=(v==="0.4")?String(Date.now()):v; var files=["calc.js","core.js","view.js","pdf.js","excel.js","docs.js"];
+(function(){ var v="0.4"; var bust=(v==="0.4")?String(Date.now()):v; var files=["calc.js","core.js","view-shell.js","view-mieter.js","view-kosten.js","view-heizung.js","view-abrechnung.js","view-csv.js","view-termine.js","view-init.js","pdf.js","excel.js","docs.js"];
   if(document.readyState==="loading"){ /* normaler Parse (Browser/Pages): schnellster Weg */
     files.forEach(function(f){ document.write('<script src="'+f+'?v='+encodeURIComponent(bust)+'"><\/script>'); });
   } else { /* Fallback (eingebettete Webview/nach dem Parsen): geordnetes Nachladen */
