@@ -803,7 +803,7 @@ function renderKosten(){
     const info = nkUmlageInfo(k.bez);
     const warn = info.umlagefaehig ? '' : ' <span class="warn" title="'+info.grund.replace(/"/g,'')+'">'+WARN_ICON+'</span>';
     const dots='<span class="dot" style="background:'+STATUS_FARBE[st]+'" title="Status: '+STATUS_BELEG[st]+'"></span>'+
-               '<span class="dot" style="background:'+VERFUEGBAR_FARBE[vf]+'" title="Verfügbarkeit: '+VERFUEGBAR[vf]+'"></span>';
+               '<span class="dot" style="background:'+VERFUEGBAR_FARBE[vf]+'" title="Beleg: '+VERFUEGBAR[vf]+'"></span>';
     const open=expandedKosten.has(k.id);
     const ausNamen=nkAusschlussNamen(k, state.einheiten);
     const tr=document.createElement('tr'); tr.id='krow-'+idx; if(k.vorjahr) tr.className='vorjahr';
@@ -831,7 +831,7 @@ function renderKosten(){
         '<label>Rubrik <select onchange="updKosten('+idx+',\'rubrik\',this.value)">'+ro+'</select></label>'+
         /* US-100: eigenes Dropdown – Punkt + Text farbig, sowohl zugeklappt als auch in der geöffneten Liste (native Selects färben die Liste auf macOS nicht ein). */
         '<label>Status '+cddHtml('status', idx, st, STATUS_BELEG, STATUS_FARBE)+'</label>'+
-        '<label>Verfügbarkeit '+cddHtml('verfuegbar', idx, vf, VERFUEGBAR, VERFUEGBAR_FARBE)+'</label>'+
+        '<label>Beleg '+cddHtml('verfuegbar', idx, vf, VERFUEGBAR, VERFUEGBAR_FARBE)+'</label>'+
         '<label title="Im Beleg enthaltene Vorsteuer">Vorsteuer <select onchange="updKosten('+idx+',\'vorsteuer\',+this.value)">'+vsOpts+'</select></label>'+
         /* US-32: §35a-Kategorie + begünstigter Arbeitskosten-Anteil */
         '<label title="Steuerlich begünstigt nach §35a EStG (haushaltsnahe Dienstleistung oder Handwerkerleistung)">§35a <select onchange="updKosten('+idx+',\'p35a\',this.value)">'+
