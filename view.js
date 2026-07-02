@@ -1815,9 +1815,11 @@ function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ 
    Geparst wird über die reine Funktion nkParseUmsatzCsv (calc.js). UTF-8 erzwungen (Umlaute).
    Zuordnung zu Mietern/Kostenarten und Übernahme folgen in US-86–88. */
 let _csvImport={ buchungen:[], dateiname:'', fehler:null }; /* US-85/86: aktueller Import-Stand fürs Re-Rendern */
+let _csvAutoProtokoll=false; /* US-108: Prüfprotokoll nach dem Import automatisch öffnen (Sitzungs-Merker) */
+function setCsvAutoProtokoll(v){ _csvAutoProtokoll=!!v; }
 function importUmsaetze(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ return; }
   const dateiname=f.name; const r=new FileReader();
-  r.onload=function(){ try{ const res=nkParseUmsatzCsv(String(r.result||'')); _csvImport={ buchungen:res.buchungen||[], dateiname:dateiname, fehler:res.fehler }; renderUmsatzReview(); }
+  r.onload=function(){ try{ const res=nkParseUmsatzCsv(String(r.result||'')); _csvImport={ buchungen:res.buchungen||[], dateiname:dateiname, fehler:res.fehler, header:res.header||[], betragIdx:(res.betragIdx==null?-1:res.betragIdx) }; renderUmsatzReview(); }
     catch(e){ alert('CSV konnte nicht gelesen werden.'); } finally{ ev.target.value=''; } };
   r.readAsText(f,'utf-8'); }
 /* US-85: Anzeige-Mapping der reinen Vorsortierung (calc.js: nkVorsortierung) auf Badge + Label. */
@@ -1883,6 +1885,7 @@ function uebernehmeUmsaetze(){
     store.setErhalten(ei, mi, z.monat, cur+z.betrag);
   });
   store.setObjektFeld('importGesehen', (state.objekt.importGesehen||[]).concat(plan.fingerprints));
+  if(_csvAutoProtokoll) exportUmsatzProtokoll(); /* US-108: Prüfprotokoll auf Wunsch direkt öffnen (vor dem Schließen, solange die Daten noch da sind) */
   closeUmsatzReview(); renderAll();
   if(plan.kosten.length) go(2); else if(plan.zahlungen.length) go(6); /* US-87/88: nach der Übernahme zum betroffenen Reiter (Kosten bzw. Zahlungen) */
   alert('Übernommen: '+teile.join(' und ')+'. Kosten ggf. im Reiter „Kosten" benennen und einer Rubrik zuordnen.');
@@ -1916,7 +1919,7 @@ function renderUmsatzReview(){
   const filterZeile='<div class="csv-filterzeile"><label class="csv-filter"><input type="checkbox"'+(nurOffen?' checked':'')+' onchange="toggleNurOffen(this.checked)"> nur nicht zugeordnete</label></div>';
   /* US-107: Kontrollzeile – alle Buchungen berücksichtigt, Betragskontrolle, weiche Warnung, Vertrauens-Hinweis. */
   const netto=sumPos+sumNeg;
-  const csvKontrolle = bs.length ? '<div class="csv-kontrolle"><b>Kontrolle:</b> alle '+bs.length+' Buchungen berücksichtigt · Eingänge '+nkFmtBetrag(sumPos)+' € − Kosten '+nkFmtBetrag(Math.abs(sumNeg))+' € = <b>'+nkFmtBetrag(netto)+' €</b> (Saldo der Datei) '+(nOffen?'<span class="csv-offen">⚠ '+nOffen+' nicht zugeordnet – werden NICHT importiert</span>':'<span class="csv-ok">✓ alle zugeordnet</span>')+'<br><span class="csv-hinweis">Es wird nichts gespeichert, bis Sie auf „Importieren" klicken. Prüfen Sie die Zuordnung und laden Sie bei Bedarf das Prüfprotokoll (.xlsx).</span></div>' : '';
+  const csvKontrolle = bs.length ? '<div class="csv-kontrolle"><b>Kontrolle:</b> alle '+bs.length+' Buchungen berücksichtigt · Eingänge '+nkFmtBetrag(sumPos)+' € − Kosten '+nkFmtBetrag(Math.abs(sumNeg))+' € = <b>'+nkFmtBetrag(netto)+' €</b> (Saldo der Datei) '+(nOffen?'<span class="csv-orange">⚠ '+nOffen+' Umsätze bitte noch zuordnen, falls relevant</span>':'<span class="csv-ok">✓ alle zugeordnet</span>')+'<br><span class="csv-hinweis">Es wird nichts gespeichert, bis Sie auf „Importieren" klicken. Prüfen Sie die Zuordnung und laden Sie bei Bedarf das Prüfprotokoll (.xlsx).</span></div>' : '';
   const wrap0=box.querySelector('.csv-tablewrap'); const scroll0=wrap0?wrap0.scrollTop:0; /* Scroll-Position über das Re-Rendern erhalten */
   box.innerHTML='<h2>Kontoumsätze importieren – Zuordnung</h2>'+
     '<div class="csv-meta">'+esc(_csvImport.dateiname)+' · '+bs.length+' Buchungen · '+pos.length+' Eingänge ('+nkFmtBetrag(sumPos)+' €) · '+neg.length+' Kosten ('+nkFmtBetrag(sumNeg)+' €) · Zeitraum '+esc(zeitraum)+'</div>'+
@@ -1924,8 +1927,9 @@ function renderUmsatzReview(){
       '<div class="csv-tablewrap"><table class="csv-table"><thead><tr><th>Datum</th><th>Name</th><th>Verwendungszweck</th><th>Betrag €</th><th>Vorschlag</th><th>Ziel</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
               : '<div class="csv-err">Keine Buchungen gefunden (Kopfzeile erkannt, aber keine Datenzeilen).</div>')+
     '<div class="csv-foot"><span class="csv-note">Zuordnungen werden als Regel am Objekt gemerkt (IBAN bzw. Name) und beim nächsten Import automatisch vorgeschlagen. „Importieren" übernimmt: Kosten je Kostenart summiert (neue werden angelegt – Name/Rubrik später im Reiter „Kosten"), Zahlungseingänge als „erhalten" je Mieter/Monat. Bereits übernommene Buchungen werden beim erneuten Import übersprungen; eine gelöschte Kostenart wird durch erneuten Import wiederhergestellt.</span>'+
+    (bs.length? '<label class="csv-autoprot"><input type="checkbox"'+(_csvAutoProtokoll?' checked':'')+' onchange="setCsvAutoProtokoll(this.checked)"> Prüfprotokoll nach Import öffnen</label>':'')+
     '<button class="csv-close csv-cancel" onclick="closeUmsatzReview()">Schließen</button>'+
-    (bs.length? '<button class="csv-close csv-cancel" onclick="exportUmsatzProtokoll()" title="Originalzeilen + Zuordnung + Kontrollsummen als Excel (selbstprüfend)">Prüfprotokoll (.xlsx)</button>':'')+
+    (bs.length? '<button class="csv-close csv-cancel" onclick="exportUmsatzProtokoll()" title="Exakte Original-Tabelle + Spalte „erfasst" + Kontrollsummen als Excel (selbstprüfend)">Prüfprotokoll (.xlsx)</button>':'')+
     '<button class="csv-close" onclick="uebernehmeUmsaetze()">Importieren</button></div>';
   const wrap1=box.querySelector('.csv-tablewrap'); if(wrap1) wrap1.scrollTop=scroll0;
   o.style.display='flex';
@@ -1938,32 +1942,35 @@ function exportUmsatzProtokoll(){
   if(typeof ensureXlsxLib!=='function' || !ensureXlsxLib()) return;
   const XL=window.XLSX; const bs=_csvImport.buchungen||[]; if(!bs.length) return;
   const regeln=state.objekt.importRegeln||[];
-  const zielName=(z)=>{ if(!z) return '(nicht zugeordnet)'; if(z.art==='ignorieren') return 'ignorieren';
-    if(z.art==='kosten') return z.bez||'Kosten';
-    if(z.art==='mieter'){ const e=(state.einheiten||[]).find(x=>x.id===z.einheitId); const m=e&&(e.mv||[]).find(y=>y.id===z.mvId); return m?(m.mieter+' · '+e.name):'Mieter'; }
-    return ''; };
-  const aoa=[['Datum','Name','Verwendungszweck','Betrag (€)','Kategorie','Ziel','erfasst']];
-  bs.forEach(b=>{ const z=nkMatchRegel(b,regeln); const erfasst=(z&&(z.art==='mieter'||z.art==='kosten'))?'X':'';
-    aoa.push([b.buchungstag||b.datum||'', b.name||'', b.zweck||'', +b.betrag||0, umsatzKategorie(b).label, zielName(z), erfasst]); });
+  const header=_csvImport.header||[]; const nCols=header.length;
+  const bIdx=(_csvImport.betragIdx==null?-1:_csvImport.betragIdx);
+  const erfasstVon=b=>{ const z=nkMatchRegel(b,regeln); return !!(z&&(z.art==='mieter'||z.art==='kosten')); };
+  /* Blatt „Umsätze" = exakte Kopie der Original-Tabelle, „erfasst" (x) als erste Spalte A. */
+  const erklaerung='Alle importierten (erfassten) Umsätze sind in Spalte „erfasst" mit „x" gekennzeichnet.';
+  const aoa=[[erklaerung], ['erfasst'].concat(header)];
+  bs.forEach(b=>{ const roh=b.roh||[]; const row=[erfasstVon(b)?'x':''];
+    for(let j=0;j<nCols;j++){ row.push(j===bIdx ? (+b.betrag||0) : String(roh[j]==null?'':roh[j])); }
+    aoa.push(row); });
   const wb=XL.utils.book_new();
   XL.utils.book_append_sheet(wb, XL.utils.aoa_to_sheet(aoa), 'Umsätze');
-  /* Kontrollsummen – Formeln über das Blatt „Umsätze" (D = Betrag, G = erfasst). */
-  const n=bs.length, R=n+1, q="'Umsätze'";
+  /* Kontrollsummen – Formeln über „Umsätze": A=erfasst; Betrag-Spalte dynamisch (Original + 1 für erfasst). */
+  const n=bs.length, first=3, last=n+2, q="'Umsätze'"; /* Datenzeilen: Zeile 3..(n+2) */
+  const bCol=(bIdx>=0)?nkColLetter(bIdx+2):null; /* +1 für erfasst-Spalte, +1 für 1-basiert */
   const sumPos=bs.filter(b=>b.betrag>0).reduce((s,b)=>s+b.betrag,0);
   const sumNeg=bs.filter(b=>b.betrag<0).reduce((s,b)=>s+b.betrag,0);
-  const erf=bs.filter(b=>{ const z=nkMatchRegel(b,regeln); return z&&(z.art==='mieter'||z.art==='kosten'); }).length;
-  const kAoa=[['Kontrolle','Wert'],['Buchungen gesamt',null],['Summe Eingänge (Betrag > 0)',null],['Summe Kosten (Betrag < 0)',null],['Netto (Datei-Saldo)',null],['davon erfasst (X)',null],['nicht erfasst',null]];
+  const erf=bs.filter(erfasstVon).length;
+  const kAoa=[['Kontrolle','Wert'],['Buchungen gesamt',null],['Summe Eingänge (Betrag > 0)',null],['Summe Kosten (Betrag < 0)',null],['Netto (Datei-Saldo)',null],['davon erfasst (x)',null],['nicht erfasst',null]];
   const kws=XL.utils.aoa_to_sheet(kAoa);
   const setF=(r,f,v)=>{ const c={t:'n',f:f}; if(isFinite(v)) c.v=Math.round(v*100)/100; kws[XL.utils.encode_cell({r:r,c:1})]=c; };
-  setF(1,'COUNTA('+q+'!A2:A'+R+')', n);
-  setF(2,'SUMIF('+q+'!D2:D'+R+',">0")', sumPos);
-  setF(3,'SUMIF('+q+'!D2:D'+R+',"<0")', sumNeg);
-  setF(4,'SUM('+q+'!D2:D'+R+')', sumPos+sumNeg);
-  setF(5,'COUNTIF('+q+'!G2:G'+R+',"X")', erf);
+  setF(1,'COUNTA('+q+'!A'+first+':A'+last+')', n);
+  if(bCol){ setF(2,'SUMIF('+q+'!'+bCol+first+':'+bCol+last+',">0")', sumPos);
+    setF(3,'SUMIF('+q+'!'+bCol+first+':'+bCol+last+',"<0")', sumNeg);
+    setF(4,'SUM('+q+'!'+bCol+first+':'+bCol+last+')', sumPos+sumNeg); }
+  setF(5,'COUNTIF('+q+'!A'+first+':A'+last+',"x")', erf);
   setF(6,'B2-B6', n-erf);
   XL.utils.book_append_sheet(wb, kws, 'Kontrollsummen');
   const base=(_csvImport.dateiname||'Umsaetze').replace(/\.[^.]+$/,'');
-  XL.writeFile(wb, 'NeKoFix-Pruefprotokoll-'+base+'.xlsx');
+  XL.writeFile(wb, base+'_importiert.xlsx');
 }
 function setAbrStatus(v){ store.setAbrechnungStatus(v); }
 /* US-82: Undo/Redo – Bedienung. Datenlogik liegt in core.js (histUndo/histRedo/histReset). */

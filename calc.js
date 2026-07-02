@@ -1152,6 +1152,8 @@ function nkParseUmsatzCsv(text) {
     Object.keys(fb).forEach(k => { if (idx[k] < 0) idx[k] = fb[k]; });
   }
   if ((idx.tag < 0 && idx.valuta < 0) || idx.betrag < 0) { res.fehler = "Pflichtspalten fehlen (Buchungstag/Betrag)."; return res; }
+  res.header = header;         /* US-108: Original-Spaltenüberschriften (für das exakte Prüfprotokoll) */
+  res.betragIdx = idx.betrag;  /* Position der Betrags-Spalte im Original (für die Kontrollsummen-Formel) */
   const get = (cells, i) => (i >= 0 && i < cells.length) ? String(cells[i]).trim() : "";
   for (let i = hi + 1; i < lines.length; i++) {
     if (lines[i] == null || lines[i].trim() === "") continue;
@@ -1170,6 +1172,7 @@ function nkParseUmsatzCsv(text) {
       zweck: get(cells, idx.zweck),
       betrag: nkParseBetrag(betragStr),
       waehrung: get(cells, idx.waehrung) || "EUR",
+      roh: cells, /* US-108: Original-Zellen der Zeile (exakte Kopie fürs Prüfprotokoll) */
     });
     if (!res.konto.iban) { res.konto = { iban: get(cells, idx.kiban), bic: get(cells, idx.kbic), bez: get(cells, idx.bez) }; }
   }
