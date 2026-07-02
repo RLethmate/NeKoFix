@@ -1318,23 +1318,29 @@ function nkMieterhoehungTermine(einheiten, heuteDatum) {
   const out = [];
   (einheiten || []).forEach(e => { (e.mv || []).forEach(m => {
     if (!m || !m.mhTyp) return;
-    let datum = "", typ = "";
-    if (m.mhTyp === "index") { datum = nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, (m.idxAnpassungen || []).length); typ = "Index"; }
-    else if (m.mhTyp === "staffel" && m.stafBeginn) {
+    let datum = "", typ = "", freq = 1;
+    if (m.mhTyp === "index") {
+      typ = "Index"; freq = Math.max(1, Math.floor(+m.idxFrequenz) || 1);
+      /* Nächster Index-Stichtag; bereits (vorab) angekündigte werden übersprungen -> Folgejahr rückt nach. */
+      const anz = (m.idxAnpassungen || []).length; const ang = m.mhAngekuendigt || {};
+      datum = nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
+      let k = 0; while (datum && ang[datum] && k < 60) { k++; datum = nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz + k); }
+    } else if (m.mhTyp === "staffel" && m.stafBeginn) {
       /* Nächste noch nicht angekündigte Staffel-Stufe – unabhängig vom (optionalen) Enddatum
          rechnerisch bestimmt (nkStaffelPlan liefert ohne Ende keine Stichtage). */
+      typ = "Staffel"; freq = Math.max(1, Math.floor(+m.stafFrequenz) || 1);
       const ang = m.stafAngekuendigt || {};
-      const freq = Math.max(1, Math.floor(+m.stafFrequenz) || 1);
       for (let k = 1; k <= 400; k++) {
         const d = nkPlusJahre(m.stafBeginn, freq * k);
         if (m.stafEnde && d > m.stafEnde) break;
         if (!ang[d]) { datum = d; break; }
       }
-      typ = "Staffel";
     }
     if (!datum) return;
     const bez = (m.terminBez && String(m.terminBez).trim()) ? m.terminBez : ("Mieterhöhung: " + (m.mieter || "Mieter") + " · " + (e.name || ""));
-    out.push({ quelle: "mieterhoehung", art: "mieterhoehung", intervallMonate: 0,
+    /* intervallMonate = Frequenz*12 -> im .ics eine jährliche Serie (RRULE), damit der Kalender jedes
+       Jahr erinnert; im Reiter rückt der nächste Termin beim „angekündigt" nach. */
+    out.push({ quelle: "mieterhoehung", art: "mieterhoehung", intervallMonate: freq * 12, frequenzJahre: freq,
       bez: bez, datum: datum, typ: typ, einheitId: e.id, mvId: m.id });
   }); });
   return out;

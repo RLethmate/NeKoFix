@@ -53,6 +53,10 @@ const store = {
   setTerminFeld(id,field,val){ const t=(state.objekt.termine||[]).find(x=>x.id===id); if(t){ t[field]=val; commit(); } },
   /* „Erledigt": togglet nur den Status geplant/erledigt (kein Löschen; Löschen nur via ×). */
   toggleTerminErledigt(id){ const t=(state.objekt.termine||[]).find(x=>x.id===id); if(t){ t.erledigt=!t.erledigt; commit(); } },
+  /* US-111: Ankündigung einer (Index-)Mieterhöhung aus dem Termine-Reiter merken (Datum-keyed);
+     der nächste Stichtag rückt dadurch nach. Staffel läuft über stafAngekuendigt (Vertragsteil). */
+  setMhAngekuendigt(ei,mi,datum,checked){ const m=state.einheiten[ei].mv[mi]; if(!m.mhAngekuendigt)m.mhAngekuendigt={};
+    if(checked) m.mhAngekuendigt[datum]=true; else delete m.mhAngekuendigt[datum]; commit(); },
   setZahlungFeld(field,val){ if(!state.zahlung) state.zahlung={}; state.zahlung[field]=val; commit(); }, /* US-51 */
   setAbrechnungStatus(val){ state.abrechnungStatus=val; commit(); },
   // Einheiten

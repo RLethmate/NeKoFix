@@ -261,10 +261,13 @@ function mvZeilen(e, ei){
         const chronikRows=chronik.map((c,ci)=>({c,ci})).reverse().map(({c,ci})=>{
           const idxI=(m.mhTyp==='index' && c.datum!=null && idxByDatum[c.datum]!=null)?idxByDatum[c.datum]:null;
           const delCall=(idxI!=null)?'indexEintragLoeschen('+ei+','+mi+','+ci+','+idxI+')':'delChronik('+ei+','+mi+','+ci+')';
-          /* Fälligkeits-Badge wie im Termine-Reiter (gleiches Colorcoding) für das Eintrags-Datum. */
+          /* Fälligkeits-Badge wie im Termine-Reiter (gleiches Colorcoding); erledigte Einträge neutral. */
           const cTage=nkTageBis(c.datum, heute());
-          const cBadge=c.datum ? '<span class="termin-tage '+(nkTageFarbe(cTage)||'')+'" title="Zeit bis zum Termin">'+nkTageLabel(cTage)+'</span>' : '<span class="termin-tage"></span>';
-          let out='<div class="chronik-row">'+cBadge+'<input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea><button class="row-del" onclick="'+delCall+'">×</button></div>';
+          const cBadge = c.erledigt ? '<span class="termin-tage done">erledigt</span>'
+            : (c.datum ? '<span class="termin-tage '+(nkTageFarbe(cTage)||'')+'" title="Zeit bis zum Termin">'+nkTageLabel(cTage)+'</span>' : '<span class="termin-tage"></span>');
+          let out='<div class="chronik-row'+(c.erledigt?' erledigt':'')+'">'+cBadge+'<input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea>'+
+            '<label class="chronik-erledigt" title="Als erledigt markieren – Badge wird neutral"><input type="checkbox" '+(c.erledigt?'checked':'')+' onchange="setChronikErledigt('+ei+','+mi+','+ci+',this.checked)"> erledigt</label>'+
+            '<button class="row-del" onclick="'+delCall+'">×</button></div>';
           if(idxI!=null){ const a=m.idxAnpassungen[idxI], ang=!!a.angekuendigt;
             out+='<div class="chronik-actions">'+
               '<button class="addrow" onclick="indexAnschreibenPdfRow('+ei+','+mi+','+idxI+')">Ankündigung als PDF</button>'+
@@ -702,6 +705,7 @@ function indexBlock(m,ei,mi){
 function addChronik(ei,mi){ store.addChronik(ei,mi); const m=store.mv(ei,mi); const ci=(m.chronik||[]).length-1; if(ci>=0) store.setChronikFeld(ei,mi,ci,'datum',heute()); renderEinheiten(); } /* US-109-Schliff: neuer Eintrag mit heutigem Datum -> steht bei „neueste zuerst" oben */
 function delChronik(ei,mi,ci){ if(!confirm('Diesen Chronik-Eintrag wirklich löschen?')) return; store.removeChronik(ei,mi,ci); renderEinheiten(); }
 function updChronik(ei,mi,ci,field,val){ store.setChronikFeld(ei,mi,ci,field,val); /* Datum: Neu-Zeichnen via onblur */ }
+function setChronikErledigt(ei,mi,ci,checked){ store.setChronikFeld(ei,mi,ci,'erledigt',checked); renderEinheiten(); }
 function addEinheit(){ store.addEinheit(); renderEinheiten(); }
 function delEinheit(ei){ store.removeEinheit(ei); renderEinheiten(); }
 
@@ -1991,14 +1995,19 @@ function terminTageBadge(t){
 }
 function terminZeile(t){
   if(t.quelle==='mieterhoehung'){
-    /* Zeile 1: Bezeichnung (editierbar) + Typ; Zeile 2: Datum, Hinweis, Öffnen. */
+    /* Zeile 1: Bezeichnung (editierbar) + Typ; Zeile 2 wie die anderen Einträge, aber read-only:
+       Datum, Rubrik, Fälligkeit; „angekündigt"-Haken (mit dem Vertragsteil verbunden) + Vertrag öffnen. */
+    const faellig=terminIntervallText(t.intervallMonate);
     return '<div class="termin-row mh">'+
       '<div class="termin-l1">'+terminTageBadge(t)+
         '<input type="text" class="termin-bez-in mh-bez" value="'+esc(t.bez)+'" title="Bezeichnung der Mieterhöhung anpassen" onchange="setMhTerminBez('+t.einheitId+','+t.mvId+',this.value)">'+
         '<span class="pill">'+esc(t.typ)+'</span></div>'+
-      '<div class="termin-l2"><span class="termin-datum">'+(t.datum?fmtDatum(t.datum):'—')+'</span>'+
-        '<span class="termin-meta">Mieterhöhung · Termin aus „Mieter &amp; Vertrag"</span>'+
-        '<span class="termin-akt"><button type="button" class="linklike" onclick="go(7)">öffnen</button></span></div>'+
+      '<div class="termin-l2">'+
+        '<input type="date" class="termin-datum-in" value="'+(t.datum||'')+'" disabled title="Stichtag – im Vertrag ändern">'+
+        '<input type="text" class="termin-sel" value="Mieterhöhung" disabled title="Rubrik">'+
+        '<input type="text" class="termin-sel" value="'+esc(faellig)+'" disabled title="Fälligkeit">'+
+        '<label class="termin-verschickt" title="Ankündigung verschickt – verbunden mit dem Vertragsteil"><input type="checkbox" onchange="setMhAngekuendigtUi('+t.einheitId+','+t.mvId+',\''+t.datum+'\',\''+esc(t.typ)+'\',this.checked)"> angekündigt</label>'+
+        '<span class="termin-akt"><button type="button" class="linklike" onclick="go(7)">Vertrag öffnen</button></span></div>'+
     '</div>';
   }
   /* Zeile 1: Tage + Bezeichnung (breit); Zeile 2: Datum, Uhrzeit, Rubrik, Fälligkeit, angekündigt, erledigt, .ics, ×. */
@@ -2022,6 +2031,16 @@ function setMhTerminBez(einheitId, mvId, val){
   const ei=state.einheiten.findIndex(e=>e.id===einheitId); if(ei<0) return;
   const mi=state.einheiten[ei].mv.findIndex(m=>m.id===mvId); if(mi<0) return;
   store.setMvFeld(ei,mi,'terminBez',val); renderTermine();
+}
+/* Fälligkeits-Text aus Intervall in Monaten (für die read-only Mieterhöhungs-Zeile). */
+function terminIntervallText(iv){ iv=+iv||0; if(iv<=0) return 'einmalig'; if(iv%12===0) return (iv/12===1?'jährlich':'alle '+(iv/12)+' Jahre'); return 'alle '+iv+' Monate'; }
+/* „angekündigt" im Reiter setzen – Staffel über stafAngekuendigt (identisch zum Vertragsteil),
+   Index über die Vorab-Ankündigung; der nächste Stichtag rückt danach nach. */
+function setMhAngekuendigtUi(einheitId, mvId, datum, typ, checked){
+  const ei=state.einheiten.findIndex(e=>e.id===einheitId); if(ei<0) return;
+  const mi=state.einheiten[ei].mv.findIndex(m=>m.id===mvId); if(mi<0) return;
+  if(typ==='Staffel'){ staffelAnkuendigung(ei,mi,datum,checked); } else { store.setMhAngekuendigt(ei,mi,datum,checked); }
+  renderTermine();
 }
 function renderTermine(){
   const box=document.getElementById('termine_box'); if(!box) return;
