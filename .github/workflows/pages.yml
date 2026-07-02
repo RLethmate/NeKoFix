@@ -16,9 +16,12 @@ permissions:
   pages: write
   id-token: write
 
+# cancel-in-progress: false — laufende Pages-Deployments NICHT abbrechen. Ein mitten im
+# actions/deploy-pages-Schritt abgebrochener Lauf hinterlässt sonst ein hängendes „queued"
+# Deployment, das Folge-Deploys bis zum Timeout blockiert (beobachtet bei schnellen Merges).
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
