@@ -657,9 +657,8 @@
         <div id="kosten_dd" class="combo-dd" style="display:none;">
           <div id="kosten_auswahl" class="picker-list"></div>
           <div class="dd-footer">
-            <input id="sonstige_bez" class="sonstige-input" placeholder="Eigene …">
-            <button class="btn-ghost" onclick="addSonstigeKosten()">hinzufügen</button>
-            <button class="btn-primary" onclick="addAusgewaehlteKosten()">Übernehmen</button>
+            <input id="sonstige_bez" class="sonstige-input" placeholder="Eigene …" onkeydown="if(event.key==='Enter')addSonstigeKosten()">
+            <button class="btn-primary" onclick="addSonstigeKosten()">hinzufügen</button>
           </div>
         </div>
       </div>
