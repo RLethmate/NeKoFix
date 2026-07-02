@@ -7,9 +7,7 @@
 /* US-81: „Mieter & Vertrag" als Index 7 angehängt (keine Umnummerierung der bestehenden
    data-step/go()-Indizes); die Anzeige-Reihenfolge steuert STEP_GROUPS. */
 const STEPS = ["Objekt","Vorauszahlung (Soll)","Heizung","Kosten","Berechnung","Abrechnung","Zahlungen (Ist)","Mieter & Vertrag","Termine & Wartung"];
-let current = 0, activeMieter = 0;
-let vorausModus = "monatlich";
-let zeigeVorjahr = false; /* US-59: Vorjahreswerte je Feld einblenden (Toggle via Shortcut "v"). */
+const ui = { current:0, activeMieter:0, vorausModus:"monatlich", zeigeVorjahr:false, nurUngeprueft:false, expandedKosten:new Set(), expandedHeizZeit:new Set(), expandedMV:new Set(), navPlausiOpen:false, drag:null, zahlBisAktuell:false, csvImport:{ buchungen:[], dateiname:"", fehler:null }, csvAutoProtokoll:false, termineAnsicht:"faellig" }; /* AC-3 (US-118): gebündelter UI-/Sitzungs-State */
 
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit", verbrauch:"nach Verbrauch", direkt:"Direkt (eine Einheit)" };
@@ -25,7 +23,7 @@ function schluesselAnzeige(k){
 function setSchluessel(idx,val){
   const k=store.kosten(idx); store.setKostenFeld(idx,'schluessel',val);
   if(val==='direkt' && !k.direktEinheit && state.einheiten[0]) store.setKostenFeld(idx,'direktEinheit',state.einheiten[0].id);
-  if(val==='verbrauch') expandedKosten.add(k.id); /* US-57: Verbrauch-Eingabe gleich sichtbar */
+  if(val==='verbrauch') ui.expandedKosten.add(k.id); /* US-57: Verbrauch-Eingabe gleich sichtbar */
   renderKosten();
 }
 /* US-57: Summe der erfassten Verbräuche (teilnehmende Einheiten) – für Anzeige. */
@@ -52,10 +50,6 @@ const STATUS_BELEG={geschaetzt:"geschätzt",vorlaeufig:"vorläufig",geprueft:"ge
 const VERFUEGBAR={fehlt:"fehlt",kommt:"kommt noch",vorhanden:"vorhanden"};
 const STATUS_FARBE={geschaetzt:"var(--nachzahlung)",vorlaeufig:"#d99a2b",geprueft:"var(--accent)"}; /* US-100: geschätzt = rot (unsicher), vorläufig = gelb, geprüft = grün */
 const VERFUEGBAR_FARBE={fehlt:"var(--nachzahlung)",kommt:"#d99a2b",vorhanden:"var(--accent)"};
-let nurUngeprueft=false;
-let expandedKosten=new Set();
-let expandedHeizZeit=new Set(); /* US-06/Aufräumen: je Heizblock, ob die Zeitraum-Eingrenzung aufgeklappt ist */
-let expandedMV=new Set();
 function heute(){ return new Date().toISOString().slice(0,10); }
 
 /* Rechenkern ausgelagert nach calc.js (testbar): nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor */
@@ -83,13 +77,13 @@ function renderStepper(){
   const el = document.getElementById('stepper'); if(!el) return; el.innerHTML='';
   /* Nummer und „done"-Status nach Anzeige-Position (nicht nach numerischem Index). */
   const order=[]; STEP_GROUPS.forEach(g=>g.steps.forEach(i=>order.push(i)));
-  const curPos=order.indexOf(current);
+  const curPos=order.indexOf(ui.current);
   STEP_GROUPS.forEach(g=>{
     const gt=document.createElement('div'); gt.className='nav-group'; gt.textContent=g.titel; el.appendChild(gt);
     g.steps.forEach(i=>{
       const pos=order.indexOf(i);
       const d=document.createElement('div');
-      d.className='step'+(i===current?' active':'')+((curPos>=0 && pos<curPos)?' done':'');
+      d.className='step'+(i===ui.current?' active':'')+((curPos>=0 && pos<curPos)?' done':'');
       d.title=STEPS[i];
       d.innerHTML='<span class="n">'+(pos+1)+'</span><span class="lbl">'+STEPS[i]+'</span><span class="abbr">'+STEP_ABBR[i]+'</span>';
       d.onclick=()=>go(i);
@@ -109,7 +103,6 @@ function dokZu(){ try{ return localStorage.getItem(DOK_KEY)==="1"; }catch(e){ re
 function applyDokAnker(){ document.body.classList.toggle('dok-zu', dokZu()); }
 function toggleDokAnker(){ const v=!dokZu(); try{ localStorage.setItem(DOK_KEY, v?"1":"0"); }catch(e){} applyDokAnker(); }
 /* US-54: dauerhaft sichtbare Versand-/Plausi-Ampel; bereit = keine blockierenden Fehler. */
-let navPlausiOpen=false;
 function renderNavPlausi(){
   const box=document.getElementById('nav_plausi'); if(!box) return;
   const r=nkPlausibilitaet(state);
@@ -118,8 +111,8 @@ function renderNavPlausi(){
   const kurz=r.bereit ? '✓ Versandfertig' : (fehler+' offene'+(fehler===1?'r Punkt':' Punkte'));
   const symMap={ok:'✓',warn:'!',fehler:'✗'};
   let html='<button class="nav-plausi-head '+(r.bereit?'ok':'bad')+'" onclick="toggleNavPlausi()" title="Plausibilitätsprüfung – klicken für Details">'+
-    '<span class="dot"></span><span class="np-label">'+kurz+'</span><span class="np-caret">'+(navPlausiOpen?'▴':'▾')+'</span></button>';
-  if(navPlausiOpen){
+    '<span class="dot"></span><span class="np-label">'+kurz+'</span><span class="np-caret">'+(ui.navPlausiOpen?'▴':'▾')+'</span></button>';
+  if(ui.navPlausiOpen){
     html+='<div class="nav-plausi-list">'+r.punkte.map(p=>'<div class="plausi-item '+p.level+'">'+symMap[p.level]+' '+p.text+'</div>').join('')+'</div>';
   } else if(warn>0){
     html+='<div class="nav-plausi-sub">'+warn+' Hinweis'+(warn===1?'':'e')+'</div>';
@@ -129,7 +122,7 @@ function renderNavPlausi(){
 function toggleNavPlausi(){
   const s=document.getElementById('sidenav');
   if(s && s.classList.contains('collapsed')){ s.classList.remove('collapsed'); try{ localStorage.setItem(NAV_KEY,'0'); }catch(e){} }
-  navPlausiOpen=!navPlausiOpen; renderNavPlausi();
+  ui.navPlausiOpen=!ui.navPlausiOpen; renderNavPlausi();
 }
 /* AC-1 (US-118): EINE Schritt->Render-Zuordnung für go() und renderAll(), damit ein neuer Reiter
    nur an einer Stelle registriert wird (vorher doppelt und inkonsistent gepflegt).
@@ -147,7 +140,7 @@ const RENDERERS = {
 };
 function go(i){
   const r=RENDERERS[i]; if(r) r();
-  current=i;
+  ui.current=i;
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', +p.dataset.step===i));
   renderStepper();
   window.scrollTo({top:0,behavior:'smooth'});
@@ -180,7 +173,7 @@ function vjFeld(val){
 /* US-59: Titel-Zusatz „ aus Vorjahr JJJJ (Alt+v)" (blau kursiv), wenn der Vergleich aktiv ist und ein
    Vorjahr existiert; sonst leer. Wird in den Reiter-Titeln gesetzt (kein Layout-Sprung). */
 function vjTitelSuffix(){
-  if(!zeigeVorjahr) return '';
+  if(!ui.zeigeVorjahr) return '';
   const vj=nkFindVorjahr(objekte, aktivIdx);
   return vj? ' aus Vorjahr '+(nkObjektJahr(vj)||'')+' (Alt+v)' : ''; /* führendes geschütztes Leerzeichen, sonst verschluckt das Rendering den Abstand */
 }
@@ -190,8 +183,8 @@ function setVjTitel(id){ const el=document.getElementById(id); if(el) el.textCon
 function renderEinheiten(){
   ensureIds();
   const box = document.getElementById('einheiten_box'); box.innerHTML='';
-  const vjSnap = zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null; /* US-59 */
-  const vjOn = zeigeVorjahr && !!vjSnap;
+  const vjSnap = ui.zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null; /* US-59 */
+  const vjOn = ui.zeigeVorjahr && !!vjSnap;
   state.einheiten.forEach((e,ei)=>{
     const vjE = vjSnap ? nkVorjahrEinheit(vjSnap, e.name) : null; /* US-59: Einheit über Namen matchen */
     const flaecheInp = vjOn
@@ -222,8 +215,8 @@ function renderEinheiten(){
 /* US-102: einheitliches beschriftetes Feld (wie im Heizung-Reiter) für das Vertrags-Detail. */
 function hfFeld(cap, inp, cls){ return '<label class="hf'+(cls?' '+cls:'')+'"><span>'+cap+'</span>'+inp+'</label>'; }
 function mvZeilen(e, ei){
-  const vjSnap = zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null; /* US-59 */
-  const vjOn = zeigeVorjahr && !!vjSnap;
+  const vjSnap = ui.zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null; /* US-59 */
+  const vjOn = ui.zeigeVorjahr && !!vjSnap;
   return e.mv.map((m,mi)=>{
       if(vjOn){
         /* US-59: ohne Vertragsteil – nur Mieter + Zeitraum aus dem Vorjahr, read-only (Match je Einheit/Position). */
@@ -242,7 +235,7 @@ function mvZeilen(e, ei){
       const badge = m.mhTyp
         ? (mhWarnung(m) ? ' <span class="warn" title="Mieterhöhung fällig – Ankündigung noch nicht verschickt">'+WARN_ICON+'</span>' : '')
         : (nkBaldFaellig(na, heute(), 3) ? ' <span class="warn" title="Mieterhöhung bald fällig ('+fmtDatum(na)+')">'+WARN_ICON+'</span>' : '');
-      const open = expandedMV.has(m.id);
+      const open = ui.expandedMV.has(m.id);
       let row='<tr>'+
         '<td><span class="bez-cell"><input value="'+esc(m.mieter)+'" oninput="updMV('+ei+','+mi+',\'mieter\',this.value)">'+badge+'</span></td>'+
         '<td><input type="date" value="'+m.von+'" onchange="updMV('+ei+','+mi+',\'von\',this.value)" onblur="renderEinheiten()"></td>'+
@@ -361,7 +354,7 @@ function updMVLaeuft(ei,mi,checked){ store.setMvFeld(ei,mi,'laeuft', !!checked);
 function addMV(ei){ store.addMv(ei); renderEinheiten(); }
 function delMV(ei,mi){ store.removeMv(ei,mi); renderEinheiten(); }
 /* US-21: Vertrag & Anpassungs-Chronik je Mietverhältnis */
-function toggleVertrag(id){ if(expandedMV.has(id)) expandedMV.delete(id); else expandedMV.add(id); renderEinheiten(); }
+function toggleVertrag(id){ if(ui.expandedMV.has(id)) ui.expandedMV.delete(id); else ui.expandedMV.add(id); renderEinheiten(); }
 function updVertrag(ei,mi,field,val,num){ store.setVertragFeld(ei,mi,field, num? nkParseBetrag(val): val, num); /* Datum: Neu-Zeichnen via onblur */ }
 /* US-68/US-70 (Redesign): Mieterhöhung als Stichtag-Modell. */
 const NK_MONATSNAMEN=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
@@ -723,7 +716,7 @@ function delEinheit(ei){ store.removeEinheit(ei); renderEinheiten(); }
 
 /* ---------- Step 2 ---------- */
 function recomputeVoraus(m){
-  m.voraus = vorausModus==='monatlich'
+  m.voraus = ui.vorausModus==='monatlich'
     ? nkVorauszahlungGesamt(m.vmonat, m.vmonate, m.einmal)
     : nkVorauszahlungGesamt(m.vjahr, 1, m.einmal);
 }
@@ -748,8 +741,8 @@ function renderVoraus(){
       '<th class="num">Nebenkosten (€)</th><th class="op-col">=</th>'+
       '<th class="num">Gesamt (€)</th><th>Notiz</th>'+
     '</tr>';
-  const vjSnap = zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null; /* US-59 */
-  const vjOn = zeigeVorjahr && !!vjSnap;
+  const vjSnap = ui.zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null; /* US-59 */
+  const vjOn = ui.zeigeVorjahr && !!vjSnap;
   alleMV().forEach(({e,m,ei,mi})=>{
     recomputeVoraus(m);
     const gesamtMonat=nkSollMonat(m.grundmiete, m.vmonat, m.stellAnzahl, m.stellPreis);
@@ -797,8 +790,8 @@ function renderKosten(){
   const tb=document.querySelector('#tbl_kosten tbody'); tb.innerHTML='';
   /* US-59: Vorjahreswerte je Kostenart (über die Bezeichnung) einblenden, wenn der Toggle an ist.
      Dargestellt IM selben Betragsfeld (read-only, blau) – kein Layout-Sprung. */
-  const vjSnap = zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null;
-  const vjOn = zeigeVorjahr && !!vjSnap; /* nur einblenden, wenn wirklich ein Vorjahr existiert */
+  const vjSnap = ui.zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null;
+  const vjOn = ui.zeigeVorjahr && !!vjSnap; /* nur einblenden, wenn wirklich ein Vorjahr existiert */
   const vjMap = vjSnap ? nkVorjahrKostenMap(vjSnap) : null;
   /* Betragszelle: im Vorjahr-Modus den Vorjahreswert read-only/blau zeigen, sonst das normale,
      editierbare Feld (mit US-90-Übernahme-Dreieck). */
@@ -824,7 +817,7 @@ function renderKosten(){
     const warn = info.umlagefaehig ? '' : ' <span class="warn" title="'+info.grund.replace(/"/g,'')+'">'+WARN_ICON+'</span>';
     const dots='<span class="dot" style="background:'+STATUS_FARBE[st]+'" title="Status: '+STATUS_BELEG[st]+'"></span>'+
                '<span class="dot" style="background:'+VERFUEGBAR_FARBE[vf]+'" title="Beleg: '+VERFUEGBAR[vf]+'"></span>';
-    const open=expandedKosten.has(k.id);
+    const open=ui.expandedKosten.has(k.id);
     const ausNamen=nkAusschlussNamen(k, state.einheiten);
     const tr=document.createElement('tr'); tr.id='krow-'+idx; if(k.vorjahr) tr.className='vorjahr';
     tr.innerHTML=
@@ -895,11 +888,11 @@ function renderKosten(){
   /* US-58/US-89: Positionen nach Rubrik (objekt-eigene Reihenfolge) gruppieren. Die Rubrik-
      Überschrift ist die Struktur-Fläche: ziehbar (umsortieren), ↑/↓/✎/× und Drop-Ziel. Leere
      Rubriken werden als Drop-Zone gezeigt, damit man Positionen per Drag hineinziehen kann. */
-  const items=state.kosten.map((k,idx)=>({k,idx})).filter(o=>!(nurUngeprueft && (o.k.status||'vorlaeufig')==='geprueft'));
+  const items=state.kosten.map((k,idx)=>({k,idx})).filter(o=>!(ui.nurUngeprueft && (o.k.status||'vorlaeufig')==='geprueft'));
   const liste=nkRubrikenListe(state.objekt, state.kosten);
   /* US-59: Kostenarten, die es nur im Vorjahr gab, im Vorjahr-Modus zusätzlich einblenden. */
   const curBez=new Set(state.kosten.map(k=>nkNormName(k.bez)).filter(Boolean));
-  const vjOnly=(zeigeVorjahr && vjSnap) ? (vjSnap.kosten||[]).filter(vk=>{ const key=nkNormName(vk.bez); return key && !curBez.has(key); }) : [];
+  const vjOnly=(ui.zeigeVorjahr && vjSnap) ? (vjSnap.kosten||[]).filter(vk=>{ const key=nkNormName(vk.bez); return key && !curBez.has(key); }) : [];
   const extraRub=[]; vjOnly.forEach(vk=>{ const r=nkRubrik(vk); if(liste.indexOf(r)<0 && extraRub.indexOf(r)<0) extraRub.push(r); });
   const rubriken=liste.concat(extraRub);
   rubriken.forEach((rub,ri)=>{
@@ -968,26 +961,25 @@ function rubrikRunter(i){ store.moveRubrik(i, i+1); renderKosten(); }
    - Rubrik-Überschrift / leere Drop-Zone: Position in diese Rubrik (ans Ende) ODER, wenn eine
      Rubrik gezogen wird, diese vor die Ziel-Rubrik einsortieren.
    Reihenfolge/Rubrik/Rubriken-Reihenfolge persistieren über den Store. */
-let _drag=null; /* {kind:'kosten', id} | {kind:'rubrik', name} */
 function dndStart(ev){ if(ev.dataTransfer){ ev.dataTransfer.effectAllowed='move'; try{ ev.dataTransfer.setData('text/plain','x'); }catch(e){} } }
-function kostenDragStart(ev, id){ _drag={kind:'kosten', id:id}; dndStart(ev); }
-function rubrikHeadDragStart(ev, ri){ const liste=nkRubrikenListe(state.objekt, state.kosten); _drag={kind:'rubrik', name:liste[ri]}; dndStart(ev); }
-function dndOver(ev){ if(!_drag) return; ev.preventDefault(); if(ev.dataTransfer) ev.dataTransfer.dropEffect='move'; const el=ev.currentTarget; if(el&&el.classList) el.classList.add('drag-over'); }
+function kostenDragStart(ev, id){ ui.drag={kind:'kosten', id:id}; dndStart(ev); }
+function rubrikHeadDragStart(ev, ri){ const liste=nkRubrikenListe(state.objekt, state.kosten); ui.drag={kind:'rubrik', name:liste[ri]}; dndStart(ev); }
+function dndOver(ev){ if(!ui.drag) return; ev.preventDefault(); if(ev.dataTransfer) ev.dataTransfer.dropEffect='move'; const el=ev.currentTarget; if(el&&el.classList) el.classList.add('drag-over'); }
 function dndLeave(ev){ const el=ev.currentTarget; if(el&&el.classList) el.classList.remove('drag-over'); }
-function rowDrop(ev, zielId, rubrik){ ev.preventDefault(); const el=ev.currentTarget; if(el&&el.classList) el.classList.remove('drag-over'); const d=_drag; _drag=null;
+function rowDrop(ev, zielId, rubrik){ ev.preventDefault(); const el=ev.currentTarget; if(el&&el.classList) el.classList.remove('drag-over'); const d=ui.drag; ui.drag=null;
   if(!d || d.kind!=='kosten' || d.id===zielId) return; store.moveKosten(d.id, zielId, rubrik); renderKosten(); }
-function headDrop(ev, rubrik){ ev.preventDefault(); const el=ev.currentTarget; if(el&&el.classList) el.classList.remove('drag-over'); const d=_drag; _drag=null; if(!d) return;
+function headDrop(ev, rubrik){ ev.preventDefault(); const el=ev.currentTarget; if(el&&el.classList) el.classList.remove('drag-over'); const d=ui.drag; ui.drag=null; if(!d) return;
   if(d.kind==='kosten'){ store.moveKosten(d.id, null, rubrik); renderKosten(); }
   else if(d.kind==='rubrik' && d.name!==rubrik){ const liste=nkRubrikenListe(state.objekt, state.kosten); store.moveRubrik(liste.indexOf(d.name), liste.indexOf(rubrik)); renderKosten(); } }
 function updKosten(idx,field,val){ store.setKostenFeld(idx,field,val); renderKosten(); }
 /* US-100: kleines Custom-Dropdown für Status/Verfügbarkeit – farbiger Punkt + Text, auch in der
    geöffneten Liste (native <option>-Farben werden auf macOS nicht gerendert). */
-function cddHtml(kind, idx, current, map, farbe){
+function cddHtml(kind, idx, cur, map, farbe){
   const id='cdd-'+kind+'-'+idx;
   const opts=Object.keys(map).map(key=>
-    '<button type="button" class="cdd-opt'+(key===current?' sel':'')+'" style="color:'+farbe[key]+'" onclick="cddPick(\''+kind+'\','+idx+',\''+key+'\')">●&nbsp;'+esc(map[key])+'</button>').join('');
+    '<button type="button" class="cdd-opt'+(key===cur?' sel':'')+'" style="color:'+farbe[key]+'" onclick="cddPick(\''+kind+'\','+idx+',\''+key+'\')">●&nbsp;'+esc(map[key])+'</button>').join('');
   return '<span class="cdd" id="'+id+'">'+
-    '<button type="button" class="cdd-btn" style="color:'+farbe[current]+'" onclick="cddToggle(\''+id+'\',event)">●&nbsp;'+esc(map[current])+' <span class="cdd-caret" aria-hidden="true">▾</span></button>'+
+    '<button type="button" class="cdd-btn" style="color:'+farbe[cur]+'" onclick="cddToggle(\''+id+'\',event)">●&nbsp;'+esc(map[cur])+' <span class="cdd-caret" aria-hidden="true">▾</span></button>'+
     '<div class="cdd-list" hidden>'+opts+'</div></span>';
 }
 function cddToggle(id, ev){ ev.stopPropagation();
@@ -1021,8 +1013,8 @@ function refreshZwischensummen(){
 function uebernehmeKostenVorjahr(idx){ const k=store.kosten(idx); if(!(k&&k.vorjahr)) return; store.setKostenFeld(idx,'vorjahr',false); finalizeVorjahrWennFertig(); renderKosten(); renderVorjahrBanner(); saveState(); updateSaveStatus(); }
 /* US-90: keine offenen Vorjahr-Kostenbeträge mehr → Vorjahr-Modus abschließen (auch MV-Marken lösen). */
 function finalizeVorjahrWennFertig(){ if(state.vorjahr && !nkOffeneVorjahrKosten(state.kosten).length){ state.vorjahr=false; (state.einheiten||[]).forEach(e=>{ e.vorjahr=false; (e.mv||[]).forEach(m=>{ m.vorjahr=false; }); }); saveState(); updateSaveStatus(); } }
-function toggleKostenDetail(id){ if(expandedKosten.has(id)) expandedKosten.delete(id); else expandedKosten.add(id); renderKosten(); }
-function setNurUngeprueft(v){ nurUngeprueft=v; renderKosten(); }
+function toggleKostenDetail(id){ if(ui.expandedKosten.has(id)) ui.expandedKosten.delete(id); else ui.expandedKosten.add(id); renderKosten(); }
+function setNurUngeprueft(v){ ui.nurUngeprueft=v; renderKosten(); }
 /* US-04: Auswahl-Liste der Kostenarten; bereits übernommene ausgegraut, nicht umlagefähige mit ! */
 function renderPicker(){
   const box = document.getElementById('kosten_auswahl'); if(!box) return;
@@ -1057,8 +1049,8 @@ function renderHeizung(){
   const box=document.getElementById('heizung_box'); if(!box) return;
   ensureIds(); /* Heizkarten brauchen stabile k.id (Zeitraum-Aufklapp-Status) */
   const liste=heizListe();
-  const vjSnap = zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null;
-  if(zeigeVorjahr && vjSnap){ /* US-59: kompakte read-only Vorjahr-Karten (Match je Heizblock über die Bezeichnung) */
+  const vjSnap = ui.zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null;
+  if(ui.zeigeVorjahr && vjSnap){ /* US-59: kompakte read-only Vorjahr-Karten (Match je Heizblock über die Bezeichnung) */
     box.innerHTML = liste.length
       ? liste.map(({k})=>heizKarteVj(k, nkVorjahrHeizblock(vjSnap,k.bez))).join('')
       : '<p class="hint">Keine Heizblöcke vorhanden.</p>';
@@ -1133,7 +1125,7 @@ function heizKarte(k,idx){
       (vsum>0 ? '' : '<div class="leer-hint" style="margin-top:6px;width:100%;">⚠ Ohne erfassten Verbrauch wird '+verbr+' % nicht verbrauchsgerecht verteilt – der Block wird vorerst nach Fläche abgerechnet. Bitte Verbrauch je Einheit eintragen.</div>')+
     '</div>'+
     // Aufräumen: Zeitraum (aktiv von/bis) standardmäßig eingeklappt; offen, wenn gesetzt, neu hinzugefügt oder aufgeklappt.
-    ((mehrereHeiz || expandedHeizZeit.has(k.id) || k.von || k.bis)
+    ((mehrereHeiz || ui.expandedHeizZeit.has(k.id) || k.von || k.bis)
       ? '<div class="heiz-felder" title="US-06: Zeitraum, in dem dieser Heiztyp aktiv war. Leer = ganzer Abrechnungszeitraum. Bei Mieterwechsel wird der Block über diese Periode auf die anwesenden Mieter verteilt.">'+
           hf('aktiv von', '<input type="date" value="'+(k.von||'')+'" onchange="store.setKostenFeld('+idx+',\'von\',this.value)">')+
           hf('aktiv bis', '<input type="date" value="'+(k.bis||'')+'" onchange="store.setKostenFeld('+idx+',\'bis\',this.value)">')+
@@ -1146,11 +1138,11 @@ function addHeizblock(){
   const ea=NK_ENERGIEARTEN[0];
   store.addKostenPos({ typ:'heizung', bez:'Heizung ('+ea.label+')', energieart:ea.key, einheit:ea.einheit, heizwert:ea.hi, menge:0, preis:0, betrag:0, schluessel:'flaeche' });
   ensureIds();
-  const neu=state.kosten[state.kosten.length-1]; if(neu && neu.id) expandedHeizZeit.add(neu.id); // neuer Block: Zeitraum gleich aufgeklappt
+  const neu=state.kosten[state.kosten.length-1]; if(neu && neu.id) ui.expandedHeizZeit.add(neu.id); // neuer Block: Zeitraum gleich aufgeklappt
   renderHeizung();
 }
 /* US-06/Aufräumen: Zeitraum-Eingrenzung eines Heizblocks ein-/ausklappen. */
-function toggleHeizZeit(id){ if(expandedHeizZeit.has(id)) expandedHeizZeit.delete(id); else expandedHeizZeit.add(id); renderHeizung(); }
+function toggleHeizZeit(id){ if(ui.expandedHeizZeit.has(id)) ui.expandedHeizZeit.delete(id); else ui.expandedHeizZeit.add(id); renderHeizung(); }
 function setEnergieart(idx, key){
   const ea=nkEnergieart(key); const k=store.kosten(idx);
   store.setKostenFeld(idx,'energieart',key);
@@ -1224,7 +1216,7 @@ function renderCo2Settings(){
 function computeView(){
   const tb=document.querySelector('#tbl_ergebnis tbody'); tb.innerHTML='';
   /* US-59: im Vorjahr-Modus dieselbe Ergebnis-Tabelle aus den Vorjahresdaten berechnen (read-only, blau). */
-  const vjSnap = zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null;
+  const vjSnap = ui.zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null;
   const tbl=document.getElementById('tbl_ergebnis'); if(tbl) tbl.classList.toggle('vj-view', !!vjSnap);
   const ein = vjSnap ? (vjSnap.einheiten||[]) : state.einheiten;
   const kos = vjSnap ? (vjSnap.kosten||[]) : state.kosten;
@@ -1415,19 +1407,19 @@ function renderDoc(){
   renderFreischalt(); /* US-40: Freischaltungs-Status/Button (unabhängig vom gewählten Mieter) */
   const list=alleMV();
   const tabs=document.getElementById('mieter_tabs'); tabs.innerHTML='';
-  if(activeMieter>=list.length) activeMieter=0;
+  if(ui.activeMieter>=list.length) ui.activeMieter=0;
   list.forEach((it,idx)=>{
     const b=document.createElement('div');
-    b.className='mtab'+(idx===activeMieter?' active':'');
-    b.textContent=it.m.mieter+' · '+it.e.name; b.onclick=()=>{activeMieter=idx;renderDoc();};
+    b.className='mtab'+(idx===ui.activeMieter?' active':'');
+    b.textContent=it.m.mieter+' · '+it.e.name; b.onclick=()=>{ui.activeMieter=idx;renderDoc();};
     tabs.appendChild(b);
   });
-  const sel=list[activeMieter]; if(!sel){ document.getElementById('doc').innerHTML=''; const vb0=document.getElementById('versand_box'); if(vb0) vb0.innerHTML=''; return; }
+  const sel=list[ui.activeMieter]; if(!sel){ document.getElementById('doc').innerHTML=''; const vb0=document.getElementById('versand_box'); if(vb0) vb0.innerHTML=''; return; }
   const docEl=document.getElementById('doc');
   /* US-59: im Vorjahr-Modus das Dokument aus den Vorjahresdaten des passenden Mieters berechnen
      (read-only). Quelle „src" zeigt dann auf das Vorjahr-Snapshot; der PDF-/Versand-Export bleibt
      unangetastet (gilt fürs aktuelle Jahr) und wird in der VJ-Ansicht ausgeblendet. */
-  const vjSnap = zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null;
+  const vjSnap = ui.zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null;
   let e=sel.e, m=sel.m, src=state, vjDoc=false;
   if(docEl) docEl.classList.toggle('vj-view', !!vjSnap);
   setVjTitel('vjt_abr');
@@ -1536,10 +1528,9 @@ function monatErhalten(m, key, soll){
 }
 /* US-83: Ansicht im Zahlungen-Reiter – „bis aktueller Monat" (nur fällige Monate, Standard)
    oder „ganzes Abrechnungsjahr". */
-let zahlBisAktuell=false; /* US-98: Default = ganzes Abrechnungsjahr (nicht „bis aktueller Monat") */
 function aktuellerMonatKey(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
 function setZahlBisAktuell(v){
-  zahlBisAktuell=v;
+  ui.zahlBisAktuell=v;
   const a=document.getElementById('zv_faellig'), b=document.getElementById('zv_jahr');
   if(a) a.classList.toggle('active', v); if(b) b.classList.toggle('active', !v);
   const h=document.getElementById('zahl_laeuft_hint'); if(h) h.style.display = v ? '' : 'none'; /* US-83: Hinweis nur in der Gegenwartssicht */
@@ -1549,7 +1540,7 @@ function renderZahlungen(){
   const box=document.getElementById('zahlungen_box'); box.innerHTML='';
   alleMV().forEach(({e,m,ei,mi})=>{
     let monate=nkAktiveMonate(m.von, nkMvEnde(m,state.objekt.bis), state.objekt.von, state.objekt.bis);
-    if(zahlBisAktuell){ /* US-83: offene (ungehakte) Monate von Mietbeginn bis zum aktuellen Monat –
+    if(ui.zahlBisAktuell){ /* US-83: offene (ungehakte) Monate von Mietbeginn bis zum aktuellen Monat –
         Gegenwartssicht, bewusst auch über den Abrechnungszeitraum hinaus (z. B. 2025-Objekt, heute 2026). */
       const curEnd=aktuellerMonatKey()+'-01';
       const mvEnde=m.laeuft? curEnd : (m.bis || curEnd);
@@ -1588,7 +1579,7 @@ function renderZahlungen(){
       '<div class="unit-card">'+
         '<div class="unit-head"><b>'+esc(m.mieter)+'</b> <span class="pill">'+esc(e.name)+'</span></div>'+
         '<div class="hint" style="margin:2px 0 6px;">Soll je Monat aus der jeweils gültigen Miete; „erhalten" frei erfassbar (auch Teilzahlungen). Voll bezahlte Monate frieren ihr Soll ein.</div>'+
-        '<div class="zahl-monate">'+(rows||'<span class="hint">'+(zahlBisAktuell?'Bis zum aktuellen Monat alles beglichen.':'keine aktiven Monate im Zeitraum')+'</span>')+'</div>'+
+        '<div class="zahl-monate">'+(rows||'<span class="hint">'+(ui.zahlBisAktuell?'Bis zum aktuellen Monat alles beglichen.':'keine aktiven Monate im Zeitraum')+'</span>')+'</div>'+
         '<div class="leer-hint" style="margin-top:8px;">'+summary+'</div>'+
         (hatTeil? '<div class="legal" style="margin-top:6px;">Bei Teilzahlung wird – sofern der Mieter nichts anderes bestimmt – die NK-Vorauszahlung vorrangig vor der Kaltmiete getilgt (§ 366 Abs. 2 BGB; BGH, 21.03.2018, VIII ZR 84/17). Der offene Rest ist daher i. d. R. ein Kaltmieten-Rückstand.</div>' : '')+
       '</div>');
@@ -1715,7 +1706,7 @@ function renderMruSub(){ const s=document.getElementById('mru_sub'); if(!s) retu
 function renderAll(){ renderObjTitle(); renderVorjahrBanner(); fillObjektKopf();
   const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus;
   renderEinheiten(); renderVoraus(); renderKosten();
-  const r=RENDERERS[current]; if(r) r(); /* aktuellen Reiter über dieselbe Tabelle wie go() rendern */
+  const r=RENDERERS[ui.current]; if(r) r(); /* aktuellen Reiter über dieselbe Tabelle wie go() rendern */
   renderStepper(); }
 /* Speicher: Objektwechsel mit Schutz vor stillem Mitschleppen ungespeicherter Änderungen.
    Bei ungespeichertem Stand: speichern / verwerfen / abbrechen (zwei native Dialoge =
@@ -1742,7 +1733,7 @@ function switchObjekt(idx){
    bleibt erhalten und ist über „Öffnen"/„Zuletzt verwendet" wieder erreichbar. */
 function neuesObjekt(){
   if(!confirm('Neues, leeres Objekt anlegen?\n\nDas aktuelle Objekt bleibt erhalten und ist über „Datei → Öffnen" oder „Zuletzt verwendet" wieder erreichbar.')) return;
-  saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
+  saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); ui.current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
 }
 /* US-91: aktuelles Objekt löschen (mit Bestätigung) – damit versehentlich angelegte Objekte
    wieder entfernt werden können. */
@@ -1753,7 +1744,7 @@ function objektLoeschen(){
     ? 'Dies ist das einzige Objekt. „Löschen" leert es und lädt ein neues, leeres Objekt.\n\nFortfahren?'
     : 'Objekt „'+name+'" wirklich löschen? Das kann nicht rückgängig gemacht werden.';
   if(!confirm(msg)) return;
-  deleteAktivesObjekt(); current=0; renderAll(); go(0); neuerVerlauf(); updateSaveStatus();
+  deleteAktivesObjekt(); ui.current=0; renderAll(); go(0); neuerVerlauf(); updateSaveStatus();
 }
 /* US-76/US-84: Backup-Hinweis nach PDF-Export. „Gespeichert" (US-84) bedeutet nur localStorage,
    nicht „als Datei auf dem PC". Daher wird der Hinweis nur eingeblendet, wenn der aktuelle Stand
@@ -1798,7 +1789,7 @@ function neuesJahrAusVorjahr(){
   saveState();
   const neu=nkVorjahrUebernehmen(snapshot());
   if(objekte.some(d=>objSignatur(d)===objSignatur(neu)) && !confirm('Für diese Adresse und diesen Zeitraum gibt es bereits ein Objekt. Trotzdem ein weiteres anlegen?')) return;
-  objekte.push(neu); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
+  objekte.push(neu); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); ui.current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
   vorjahrHinweisEinmal();
 }
 /* US-90: Einmalige Erklärung des Vorbeleg-/Übernehmen-Musters (beim ersten Jahreswechsel). */
@@ -1828,18 +1819,16 @@ function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ 
       if(objekte.some(x=>JSON.stringify(x)===sig) && !confirm('Dieses Objekt ist bereits vorhanden (identische Daten). Trotzdem importieren?')) return;
       const nameAusDatei=nkNameAusDateiname(dateiname); /* Speicher: Header-Name aus Dateiname (ohne .json/NeKoFix-/-JJJJ) */
       if(nameAusDatei){ d.objekt=d.objekt||{}; d.objekt.name=nameAusDatei; }
-      saveState(); objekte.push(d); aktivIdx=objekte.length-1; ladeDaten(d); ensureIds(); current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
+      saveState(); objekte.push(d); aktivIdx=objekte.length-1; ladeDaten(d); ensureIds(); ui.current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
     }catch(e){ alert('Datei konnte nicht gelesen werden.'); } finally{ ev.target.value=''; } };
   r.readAsText(f); }
 /* US-85: Kontoumsätze aus VR-/Volksbank-CSV einlesen und als read-only Vorschau zeigen.
    Geparst wird über die reine Funktion nkParseUmsatzCsv (calc.js). UTF-8 erzwungen (Umlaute).
    Zuordnung zu Mietern/Kostenarten und Übernahme folgen in US-86–88. */
-let _csvImport={ buchungen:[], dateiname:'', fehler:null }; /* US-85/86: aktueller Import-Stand fürs Re-Rendern */
-let _csvAutoProtokoll=false; /* US-108: Prüfprotokoll nach dem Import automatisch öffnen (Sitzungs-Merker) */
-function setCsvAutoProtokoll(v){ _csvAutoProtokoll=!!v; }
+function setCsvAutoProtokoll(v){ ui.csvAutoProtokoll=!!v; }
 function importUmsaetze(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ return; }
   const dateiname=f.name; const r=new FileReader();
-  r.onload=function(){ try{ const res=nkParseUmsatzCsv(String(r.result||'')); _csvImport={ buchungen:res.buchungen||[], dateiname:dateiname, fehler:res.fehler, header:res.header||[], betragIdx:(res.betragIdx==null?-1:res.betragIdx) }; renderUmsatzReview(); }
+  r.onload=function(){ try{ const res=nkParseUmsatzCsv(String(r.result||'')); ui.csvImport={ buchungen:res.buchungen||[], dateiname:dateiname, fehler:res.fehler, header:res.header||[], betragIdx:(res.betragIdx==null?-1:res.betragIdx) }; renderUmsatzReview(); }
     catch(e){ alert('CSV konnte nicht gelesen werden.'); } finally{ ev.target.value=''; } };
   r.readAsText(f,'utf-8'); }
 /* US-85: Anzeige-Mapping der reinen Vorsortierung (calc.js: nkVorsortierung) auf Badge + Label. */
@@ -1871,7 +1860,7 @@ function umsatzZielSelect(b, i){
 /* US-86: Zuordnung setzen -> als Regel am Objekt merken (IBAN/Name) -> auf gleiche Gegenkonten
    automatisch anwenden (Re-Render). Kein Schreiben in Kosten/Zahlungen (Übernahme: US-87/88). */
 function setUmsatzZiel(i, val){
-  const tx=_csvImport.buchungen[i]; if(!tx) return;
+  const tx=ui.csvImport.buchungen[i]; if(!tx) return;
   let ziel;
   if(val==='kosten_neu'){
     const name=(prompt('Name der neuen Kostenart (später im Reiter „Kosten" anpassbar):', tx.name||'')||'').trim();
@@ -1885,7 +1874,7 @@ function setUmsatzZiel(i, val){
    angelegt), Zahlungen als „erhalten" je Mietverhältnis/Monat. Bereits übernommene werden über
    den Fingerabdruck übersprungen (Dedupe). Schreibt über den Store; danach App neu zeichnen. */
 function uebernehmeUmsaetze(){
-  const plan=nkImportPlan(_csvImport.buchungen, state.objekt.importRegeln||[], { kostenBez:(state.kosten||[]).map(k=>k.bez), gesehen:state.objekt.importGesehen||[] });
+  const plan=nkImportPlan(ui.csvImport.buchungen, state.objekt.importRegeln||[], { kostenBez:(state.kosten||[]).map(k=>k.bez), gesehen:state.objekt.importGesehen||[] });
   if(!plan.kosten.length && !plan.zahlungen.length){
     alert('Nichts zu übernehmen.'+(plan.offen?(' '+plan.offen+' Buchung(en) sind noch nicht zugeordnet.'):'')); return;
   }
@@ -1905,20 +1894,20 @@ function uebernehmeUmsaetze(){
     store.setErhalten(ei, mi, z.monat, cur+z.betrag);
   });
   store.setObjektFeld('importGesehen', (state.objekt.importGesehen||[]).concat(plan.fingerprints));
-  if(_csvAutoProtokoll) exportUmsatzProtokoll(); /* US-108: Prüfprotokoll auf Wunsch direkt öffnen (vor dem Schließen, solange die Daten noch da sind) */
+  if(ui.csvAutoProtokoll) exportUmsatzProtokoll(); /* US-108: Prüfprotokoll auf Wunsch direkt öffnen (vor dem Schließen, solange die Daten noch da sind) */
   closeUmsatzReview(); renderAll();
   if(plan.kosten.length) go(2); else if(plan.zahlungen.length) go(6); /* US-87/88: nach der Übernahme zum betroffenen Reiter (Kosten bzw. Zahlungen) */
   alert('Übernommen: '+teile.join(' und ')+'. Kosten ggf. im Reiter „Kosten" benennen und einer Rubrik zuordnen.');
 }
 function renderUmsatzReview(){
   const o=document.getElementById('csv_overlay'), box=document.getElementById('csv_modal'); if(!o||!box) return;
-  if(_csvImport.fehler){
-    box.innerHTML='<h2>Kontoumsätze importieren</h2><div class="csv-err">'+esc(_csvImport.fehler)+'</div>'+
+  if(ui.csvImport.fehler){
+    box.innerHTML='<h2>Kontoumsätze importieren</h2><div class="csv-err">'+esc(ui.csvImport.fehler)+'</div>'+
       '<div class="csv-foot"><span class="csv-note">Erwartet wird ein VR-/Volksbank-CSV-Export (mit der Spalte „Bezeichnung Auftragskonto"). Andere Bankformate folgen später.</span>'+
       '<button class="csv-close" onclick="closeUmsatzReview()">Schließen</button></div>';
     o.style.display='flex'; return;
   }
-  const bs=_csvImport.buchungen, regeln=state.objekt.importRegeln||[];
+  const bs=ui.csvImport.buchungen, regeln=state.objekt.importRegeln||[];
   const pos=bs.filter(b=>b.betrag>0), neg=bs.filter(b=>b.betrag<0);
   const sumPos=pos.reduce((s,b)=>s+b.betrag,0), sumNeg=neg.reduce((s,b)=>s+b.betrag,0);
   const daten=bs.map(b=>b.datum).filter(Boolean).sort();
@@ -1929,7 +1918,7 @@ function renderUmsatzReview(){
     if(!z){ nOffen++; } else if(z.art==='mieter'){ nMieter++; sMieter+=b.betrag; }
     else if(z.art==='kosten'){ nKosten++; sKosten+=Math.abs(b.betrag); } else { nIgnor++; } });
   /* US-86: Filter „nur nicht zugeordnete" – Originalindex i bleibt erhalten (für setUmsatzZiel). */
-  const nurOffen=!!_csvImport.nurOffen, rowsArr=[];
+  const nurOffen=!!ui.csvImport.nurOffen, rowsArr=[];
   bs.forEach((b,i)=>{ if(nurOffen && nkMatchRegel(b, regeln)) return;
     const k=umsatzKategorie(b); const cls=b.betrag>0?'pos':(b.betrag<0?'neg':'');
     rowsArr.push('<tr><td>'+esc(b.buchungstag||'')+'</td><td>'+esc(b.name||'')+'</td><td class="zweck">'+esc(b.zweck||'')+'</td>'+
@@ -1942,12 +1931,12 @@ function renderUmsatzReview(){
   const csvKontrolle = bs.length ? '<div class="csv-kontrolle"><b>Kontrolle:</b> alle '+bs.length+' Buchungen berücksichtigt · Eingänge '+nkFmtBetrag(sumPos)+' € − Kosten '+nkFmtBetrag(Math.abs(sumNeg))+' € = <b>'+nkFmtBetrag(netto)+' €</b> (Saldo der Datei) '+(nOffen?'<span class="csv-orange">⚠ '+nOffen+' Umsätze bitte noch zuordnen, falls relevant</span>':'<span class="csv-ok">✓ alle zugeordnet</span>')+'<br><span class="csv-hinweis">Es wird nichts gespeichert, bis Sie auf „Importieren" klicken. Prüfen Sie die Zuordnung und laden Sie bei Bedarf das Prüfprotokoll (.xlsx).</span></div>' : '';
   const wrap0=box.querySelector('.csv-tablewrap'); const scroll0=wrap0?wrap0.scrollTop:0; /* Scroll-Position über das Re-Rendern erhalten */
   box.innerHTML='<h2>Kontoumsätze importieren – Zuordnung</h2>'+
-    '<div class="csv-meta">'+esc(_csvImport.dateiname)+' · '+bs.length+' Buchungen · '+pos.length+' Eingänge ('+nkFmtBetrag(sumPos)+' €) · '+neg.length+' Kosten ('+nkFmtBetrag(sumNeg)+' €) · Zeitraum '+esc(zeitraum)+'</div>'+
+    '<div class="csv-meta">'+esc(ui.csvImport.dateiname)+' · '+bs.length+' Buchungen · '+pos.length+' Eingänge ('+nkFmtBetrag(sumPos)+' €) · '+neg.length+' Kosten ('+nkFmtBetrag(sumNeg)+' €) · Zeitraum '+esc(zeitraum)+'</div>'+
     (bs.length? '<div class="csv-summe">Zugeordnet: '+nMieter+' Mieter-Eingänge ('+nkFmtBetrag(sMieter)+' €) · '+nKosten+' Kosten ('+nkFmtBetrag(sKosten)+' €) · '+nIgnor+' ignoriert · <b'+(nOffen?' class="csv-offen"':'')+'>'+nOffen+' nicht zugeordnet</b></div>'+csvKontrolle+filterZeile+
       '<div class="csv-tablewrap"><table class="csv-table"><thead><tr><th>Datum</th><th>Name</th><th>Verwendungszweck</th><th>Betrag €</th><th>Vorschlag</th><th>Ziel</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
               : '<div class="csv-err">Keine Buchungen gefunden (Kopfzeile erkannt, aber keine Datenzeilen).</div>')+
     '<div class="csv-foot"><span class="csv-note">Zuordnungen werden als Regel am Objekt gemerkt (IBAN bzw. Name) und beim nächsten Import automatisch vorgeschlagen. „Importieren" übernimmt: Kosten je Kostenart summiert (neue werden angelegt – Name/Rubrik später im Reiter „Kosten"), Zahlungseingänge als „erhalten" je Mieter/Monat. Bereits übernommene Buchungen werden beim erneuten Import übersprungen; eine gelöschte Kostenart wird durch erneuten Import wiederhergestellt.</span>'+
-    (bs.length? '<label class="csv-autoprot"><input type="checkbox"'+(_csvAutoProtokoll?' checked':'')+' onchange="setCsvAutoProtokoll(this.checked)"> Prüfprotokoll nach Import öffnen</label>':'')+
+    (bs.length? '<label class="csv-autoprot"><input type="checkbox"'+(ui.csvAutoProtokoll?' checked':'')+' onchange="setCsvAutoProtokoll(this.checked)"> Prüfprotokoll nach Import öffnen</label>':'')+
     '<button class="csv-close csv-cancel" onclick="closeUmsatzReview()">Schließen</button>'+
     (bs.length? '<button class="csv-close csv-cancel" onclick="exportUmsatzProtokoll()" title="Exakte Original-Tabelle + Spalte „erfasst" + Kontrollsummen als Excel (selbstprüfend)">Prüfprotokoll (.xlsx)</button>':'')+
     '<button class="csv-close" onclick="uebernehmeUmsaetze()">Importieren</button></div>';
@@ -1955,15 +1944,15 @@ function renderUmsatzReview(){
   o.style.display='flex';
 }
 /* US-86: Filter „nur nicht zugeordnete" in der Review-Liste umschalten. */
-function toggleNurOffen(v){ _csvImport.nurOffen=!!v; renderUmsatzReview(); }
+function toggleNurOffen(v){ ui.csvImport.nurOffen=!!v; renderUmsatzReview(); }
 /* US-108: Prüfprotokoll des Imports als .xlsx – Reiter „Umsätze" (Originalzeilen + Kategorie/Ziel/
    erfasst) und „Kontrollsummen" mit lebenden Formeln (selbstprüfend). Nutzt SheetJS (excel.js). */
 function exportUmsatzProtokoll(){
   if(typeof ensureXlsxLib!=='function' || !ensureXlsxLib()) return;
-  const XL=window.XLSX; const bs=_csvImport.buchungen||[]; if(!bs.length) return;
+  const XL=window.XLSX; const bs=ui.csvImport.buchungen||[]; if(!bs.length) return;
   const regeln=state.objekt.importRegeln||[];
-  const header=_csvImport.header||[]; const nCols=header.length;
-  const bIdx=(_csvImport.betragIdx==null?-1:_csvImport.betragIdx);
+  const header=ui.csvImport.header||[]; const nCols=header.length;
+  const bIdx=(ui.csvImport.betragIdx==null?-1:ui.csvImport.betragIdx);
   const erfasstVon=b=>{ const z=nkMatchRegel(b,regeln); return !!(z&&(z.art==='mieter'||z.art==='kosten')); };
   /* Blatt „Umsätze" = exakte Kopie der Original-Tabelle, „erfasst" (x) als erste Spalte A. */
   const erklaerung='Alle importierten (erfassten) Umsätze sind in Spalte „erfasst" mit „x" gekennzeichnet.';
@@ -1989,12 +1978,11 @@ function exportUmsatzProtokoll(){
   setF(5,'COUNTIF('+q+'!A'+first+':A'+last+',"x")', erf);
   setF(6,'B2-B6', n-erf);
   XL.utils.book_append_sheet(wb, kws, 'Kontrollsummen');
-  const base=(_csvImport.dateiname||'Umsaetze').replace(/\.[^.]+$/,'');
+  const base=(ui.csvImport.dateiname||'Umsaetze').replace(/\.[^.]+$/,'');
   XL.writeFile(wb, base+'_importiert.xlsx');
 }
 /* ================= US-111: Termine & Wartung ================= */
-let _termineAnsicht='faellig'; /* 'faellig' (flach, nach Datum) | 'rubrik' (gruppiert nach Art) */
-function setTermineAnsicht(v){ _termineAnsicht=v; renderTermine(); }
+function setTermineAnsicht(v){ ui.termineAnsicht=v; renderTermine(); }
 function terminArtSelect(id, art){ return '<select class="termin-sel" onchange="setTerminFeldUi('+id+',\'art\',this.value)">'+
   Object.keys(NK_TERMIN_ARTEN).map(k=>'<option value="'+k+'"'+(k===art?' selected':'')+'>'+esc(NK_TERMIN_ARTEN[k])+'</option>').join('')+'</select>'; }
 function terminIntervallSelect(id, iv){ const opts=[[0,'einmalig'],[3,'vierteljährlich'],[6,'halbjährlich'],[12,'jährlich'],[24,'alle 2 Jahre']];
@@ -2065,12 +2053,12 @@ function renderTermine(){
   const vorlagen=NK_TERMIN_VORLAGEN.map(v=>'<button type="button" class="termin-add" onclick="addTerminVorlage(\''+v.key+'\')">+ '+esc(v.bez)+'</button>').join('');
   const addbar='<div class="termin-addbar">'+vorlagen+'<button type="button" class="termin-add" onclick="addTerminEigen()">+ Eigener Termin</button></div>';
   const toggle='<div class="termin-ansicht"><span class="termin-ansicht-lbl">Ansicht:</span>'+
-    '<button type="button" class="'+(_termineAnsicht==='faellig'?'aktiv':'')+'" onclick="setTermineAnsicht(\'faellig\')">Nach Fälligkeit</button>'+
-    '<button type="button" class="'+(_termineAnsicht==='rubrik'?'aktiv':'')+'" onclick="setTermineAnsicht(\'rubrik\')">Nach Rubrik</button>'+
+    '<button type="button" class="'+(ui.termineAnsicht==='faellig'?'aktiv':'')+'" onclick="setTermineAnsicht(\'faellig\')">Nach Fälligkeit</button>'+
+    '<button type="button" class="'+(ui.termineAnsicht==='rubrik'?'aktiv':'')+'" onclick="setTermineAnsicht(\'rubrik\')">Nach Rubrik</button>'+
     '<button type="button" class="termin-ics" onclick="exportTermineIcs()" title="Alle Termine als Kalenderdatei (.ics). Stabile UID: Re-Import aktualisiert statt zu duplizieren.">Kalender (.ics) exportieren</button></div>';
   let body;
   if(!liste.length){ body='<div class="leer-hint">Noch keine Termine. Lege oben eine Wartung an – anstehende Mieterhöhungen erscheinen hier automatisch.</div>'; }
-  else if(_termineAnsicht==='rubrik'){
+  else if(ui.termineAnsicht==='rubrik'){
     body=Object.keys(NK_TERMIN_ARTEN_ALLE).map(art=>{ const items=liste.filter(t=>t.art===art); if(!items.length) return '';
       return '<div class="termin-rubrik">'+esc(NK_TERMIN_ARTEN_ALLE[art])+' ('+items.length+')</div>'+items.map(terminZeile).join(''); }).join('');
   } else { body=liste.map(terminZeile).join(''); }
@@ -2131,8 +2119,8 @@ document.addEventListener('keydown', function(e){
 /* US-59: Vorjahreswerte ein-/ausblenden. Ohne auffindbares Vorjahr nur ein kurzer Hinweis im Titel. */
 function toggleVorjahr(){
   const vj=nkFindVorjahr(objekte, aktivIdx);
-  if(!zeigeVorjahr && !vj){ flashKeinVorjahr(); return; }
-  zeigeVorjahr=!zeigeVorjahr;
+  if(!ui.zeigeVorjahr && !vj){ flashKeinVorjahr(); return; }
+  ui.zeigeVorjahr=!ui.zeigeVorjahr;
   renderAll(); /* alle Reiter (Einheiten, Vorauszahlung, Kosten …) + Titel mitziehen */
 }
 
@@ -2142,8 +2130,8 @@ function renderKostenTitel(){
   const base=document.getElementById('kosten_titel_base'), vjs=document.getElementById('kosten_titel_vj');
   if(!base||!vjs) return;
   if(vjs.classList.contains('vj-titel-hint')) return; /* laufenden „kein Vorjahr"-Hinweis nicht überschreiben */
-  const vj = zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null;
-  if(zeigeVorjahr && vj){ base.textContent='4 · Kosten'; vjs.textContent=' aus Vorjahr '+(nkObjektJahr(vj)||'')+' (Alt+v)'; }
+  const vj = ui.zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null;
+  if(ui.zeigeVorjahr && vj){ base.textContent='4 · Kosten'; vjs.textContent=' aus Vorjahr '+(nkObjektJahr(vj)||'')+' (Alt+v)'; }
   else { base.textContent='4 · Kosten erfassen'; vjs.textContent=''; }
 }
 
