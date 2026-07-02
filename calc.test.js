@@ -1403,3 +1403,44 @@ test("nkDokSegment / nkDokPfad: dateisystem-sichere Ordnernamen (US-109)", () =>
   assert.deepEqual(calc.nkDokPfad("Lindenhof","2025","EG links","Familie Brandt"), ["Lindenhof","2025","EG links","Familie Brandt"]);
   assert.deepEqual(calc.nkDokPfad("Haus/1","","E1","M1"), ["Haus_1","ohne Jahr","E1","M1"]); // leeres Jahr -> Platzhalter
 });
+
+/* ---- US-111: Termine & Wartung ---- */
+test("nkPlusMonate: Monate addieren mit Tag-Klammerung", () => {
+  assert.equal(calc.nkPlusMonate("2025-01-15", 12), "2026-01-15");
+  assert.equal(calc.nkPlusMonate("2025-01-31", 1), "2025-02-28"); // Februar klammert
+  assert.equal(calc.nkPlusMonate("2025-03-10", 24), "2027-03-10");
+});
+test("nkTerminAmpel: überfällig/bald/ok", () => {
+  assert.equal(calc.nkTerminAmpel("2025-01-01", "2026-01-01"), "faellig"); // Vergangenheit
+  assert.equal(calc.nkTerminAmpel("2026-02-01", "2026-01-01"), "bald");    // < 3 Monate
+  assert.equal(calc.nkTerminAmpel("2027-01-01", "2026-01-01"), "ok");      // fern
+  assert.equal(calc.nkTerminAmpel("", "2026-01-01"), "ok");
+});
+test("nkTermineGesamt: eigene Termine + Mieterhöhungen, sortiert mit Ampel", () => {
+  const objekt = { termine: [
+    { id: 1, bez: "Feuerlöscher", art: "vorort", intervallMonate: 24, naechster: "2027-05-01" },
+    { id: 2, bez: "Frist X", art: "verwaltung", intervallMonate: 0, naechster: "2026-01-10" },
+  ] };
+  const einh = [{ id: 9, name: "EG", mv: [
+    { id: 3, mieter: "Meier", mhTyp: "index", idxEinzug: "2024-01-01", idxFrequenz: 1, idxAnpassungen: [] },
+  ] }];
+  const liste = calc.nkTermineGesamt(objekt, einh, "2026-01-01");
+  assert.equal(liste.length, 3);
+  assert.deepEqual(liste.map(t => t.datum), ["2025-01-01", "2026-01-10", "2027-05-01"]); // aufsteigend
+  const mh = liste.find(t => t.quelle === "mieterhoehung");
+  assert.ok(mh && /Mieterhöhung: Meier/.test(mh.bez) && mh.art === "mieterhoehung");
+  assert.equal(liste[0].ampel, "faellig"); // 2025-01-01 liegt in der Vergangenheit -> überfällig
+  assert.equal(liste[1].ampel, "bald");    // 2026-01-10 < 3 Monate
+});
+test("nkTerminIcs: VEVENT mit stabiler UID, RRULE bei Intervall, VALARM", () => {
+  const ics = calc.nkTerminIcs([
+    { quelle: "wartung", id: 7, bez: "Rauchmelder", datum: "2026-03-01", intervallMonate: 12, notiz: "Alle Wohnungen" },
+    { quelle: "mieterhoehung", einheitId: 9, mvId: 3, bez: "Mieterhöhung: Meier", datum: "2026-05-01", intervallMonate: 0 },
+  ]);
+  assert.ok(/BEGIN:VCALENDAR/.test(ics) && /END:VCALENDAR/.test(ics));
+  assert.ok(/UID:wartung-7@nekofix/.test(ics));
+  assert.ok(/UID:mh-9-3@nekofix/.test(ics));
+  assert.ok(/RRULE:FREQ=YEARLY;INTERVAL=1/.test(ics)); // 12 Monate -> jährlich
+  assert.ok(/DTSTART;VALUE=DATE:20260301/.test(ics));
+  assert.ok(/BEGIN:VALARM[\s\S]*TRIGGER:-P14D/.test(ics));
+});
