@@ -1471,3 +1471,15 @@ test("nkTerminIcs: optionale Uhrzeit erzeugt zeitgebundenen Termin", () => {
   assert.ok(/DTEND:20260310T103000/.test(ics)); // +1 Stunde
   assert.ok(!/VALUE=DATE/.test(ics)); // kein Ganztagestermin
 });
+
+/* ---- US-111 Schliff 2: editierbarer Mieterhöhungs-Titel + private Kalendereinträge ---- */
+test("nkMieterhoehungTermine: eigener terminBez überschreibt Default", () => {
+  const einh = [{ id: 9, name: "EG", mv: [
+    { id: 3, mieter: "Meier", mhTyp: "index", idxEinzug: "2024-01-01", idxFrequenz: 1, idxAnpassungen: [], terminBez: "Meine Indexmiete Meier" },
+  ] }];
+  assert.equal(calc.nkMieterhoehungTermine(einh, "2026-01-01")[0].bez, "Meine Indexmiete Meier");
+});
+test("nkTerminIcs: Termine sind als privat gekennzeichnet (CLASS:PRIVATE)", () => {
+  const ics = calc.nkTerminIcs([{ quelle: "wartung", id: 1, bez: "X", datum: "2026-03-01", intervallMonate: 0 }]);
+  assert.ok(/CLASS:PRIVATE/.test(ics));
+});
