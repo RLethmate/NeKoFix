@@ -1353,6 +1353,21 @@ function nkTageFarbe(tage) {
   if (tage > 62) return "gruen";
   return "orange";
 }
+/* Kurzlabel für die „Tage"-Anzeige: bis 31 Tage „N T"; darüber in Jahre/Monate/Tage abgekürzt
+   (z. B. 366 -> „1J 1T"). Negativ = überfällig, 0 = heute. */
+function nkTageLabel(tage) {
+  if (tage == null) return "";
+  if (tage < 0) return "überfällig";
+  if (tage === 0) return "heute";
+  if (tage <= 31) return tage + " T";
+  const y = Math.floor(tage / 365); const rem = tage - y * 365;
+  const mo = Math.floor(rem / 30); const d = rem - mo * 30;
+  const parts = [];
+  if (y) parts.push(y + "J");
+  if (mo) parts.push(mo + "M");
+  if (d) parts.push(d + "T");
+  return parts.join(" ");
+}
 /* Gesamtliste für den Reiter: eigene Termine (objekt.termine) + aggregierte Mieterhöhungen,
    je mit Ampel, Tagen bis Termin und Farbcode, sortiert nach Datum aufsteigend. */
 function nkTermineGesamt(objekt, einheiten, heuteDatum) {
@@ -1538,6 +1553,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkTerminAmpel,
     nkTageBis,
     nkTageFarbe,
+    nkTageLabel,
     nkMieterhoehungTermine,
     nkTermineGesamt,
     nkTerminIcs,

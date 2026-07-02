@@ -1483,3 +1483,13 @@ test("nkTerminIcs: Termine sind als privat gekennzeichnet (CLASS:PRIVATE)", () =
   const ics = calc.nkTerminIcs([{ quelle: "wartung", id: 1, bez: "X", datum: "2026-03-01", intervallMonate: 0 }]);
   assert.ok(/CLASS:PRIVATE/.test(ics));
 });
+
+test("nkTageLabel: Tage/Monate/Jahre abgekürzt", () => {
+  assert.equal(calc.nkTageLabel(0), "heute");
+  assert.equal(calc.nkTageLabel(-3), "überfällig");
+  assert.equal(calc.nkTageLabel(20), "20 T");
+  assert.equal(calc.nkTageLabel(31), "31 T");
+  assert.equal(calc.nkTageLabel(45), "1M 15T");
+  assert.equal(calc.nkTageLabel(366), "1J 1T"); // wie im Wunsch
+  assert.equal(calc.nkTageLabel(400), "1J 1M 5T");
+});

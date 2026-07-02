@@ -261,11 +261,14 @@ function mvZeilen(e, ei){
         const chronikRows=chronik.map((c,ci)=>({c,ci})).reverse().map(({c,ci})=>{
           const idxI=(m.mhTyp==='index' && c.datum!=null && idxByDatum[c.datum]!=null)?idxByDatum[c.datum]:null;
           const delCall=(idxI!=null)?'indexEintragLoeschen('+ei+','+mi+','+ci+','+idxI+')':'delChronik('+ei+','+mi+','+ci+')';
-          let out='<div class="chronik-row"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea><button class="row-del" onclick="'+delCall+'">×</button></div>';
+          /* Fälligkeits-Badge wie im Termine-Reiter (gleiches Colorcoding) für das Eintrags-Datum. */
+          const cTage=nkTageBis(c.datum, heute());
+          const cBadge=c.datum ? '<span class="termin-tage '+(nkTageFarbe(cTage)||'')+'" title="Zeit bis zum Termin">'+nkTageLabel(cTage)+'</span>' : '<span class="termin-tage"></span>';
+          let out='<div class="chronik-row">'+cBadge+'<input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea><button class="row-del" onclick="'+delCall+'">×</button></div>';
           if(idxI!=null){ const a=m.idxAnpassungen[idxI], ang=!!a.angekuendigt;
             out+='<div class="chronik-actions">'+
               '<button class="addrow" onclick="indexAnschreibenPdfRow('+ei+','+mi+','+idxI+')">Ankündigung als PDF</button>'+
-              '<label class="staffel-ank"'+(ang&&typeof a.angekuendigt==='string'?' title="verschickt am '+fmtDatum(a.angekuendigt)+'"':'')+'><input type="checkbox" '+(ang?'checked':'')+' onchange="indexAnkuendigung('+ei+','+mi+','+idxI+',this.checked)"> Ankündigung verschickt</label>'+
+              '<label class="staffel-ank"'+(ang&&typeof a.angekuendigt==='string'?' title="verschickt am '+fmtDatum(a.angekuendigt)+'"':'')+'><input type="checkbox" '+(ang?'checked':'')+' onchange="indexAnkuendigung('+ei+','+mi+','+idxI+',this.checked)"> angekündigt</label>'+
             '</div>'; }
           /* US-109: Dateien an diesen Chronik-Eintrag anhängen (in den Mieter-Ordner) + Chips zum Öffnen. */
           if(typeof dokVerfuegbar==='function' && dokVerfuegbar()){
@@ -674,7 +677,7 @@ function indexBlock(m,ei,mi){
         return '<div class="index-hist'+(warn?' staffel-warn':'')+'">'+
           '<div class="ih-text">'+fmtDatum(s.datum)+': '+eur(s.alteMiete)+' + '+eur(s.neueMiete-s.alteMiete)+' = <b>'+eur(s.neueMiete)+'</b>'+
           (warn?' <span style="color:var(--nachzahlung);">'+WARN_ICON+' fällig</span>':'')+'</div>'+
-          '<div class="ih-actions"><label class="staffel-ank"'+(istAng&&angDatum?' title="verschickt am '+fmtDatum(angDatum)+'"':'')+'><input type="checkbox" '+(istAng?'checked':'')+' onchange="staffelAnkuendigung('+ei+','+mi+',\''+s.datum+'\',this.checked)"> Ankündigung verschickt</label>'+
+          '<div class="ih-actions"><label class="staffel-ank"'+(istAng&&angDatum?' title="verschickt am '+fmtDatum(angDatum)+'"':'')+'><input type="checkbox" '+(istAng?'checked':'')+' onchange="staffelAnkuendigung('+ei+','+mi+',\''+s.datum+'\',this.checked)"> angekündigt</label>'+
           ' <button class="addrow" onclick="staffelAnschreibenPdf('+ei+','+mi+',\''+s.datum+'\','+s.alteMiete+','+s.neueMiete+','+(s.neueMiete-s.alteMiete)+')">Ankündigung als PDF</button></div>'+
         '</div>';
       }).join('');
@@ -1984,8 +1987,7 @@ function terminIntervallSelect(id, iv){ const opts=[[0,'einmalig'],[3,'viertelj�
 function terminTageBadge(t){
   if(t.erledigt) return '<span class="termin-tage done">erledigt</span>';
   if(t.tage==null) return '<span class="termin-tage"></span>';
-  const label = t.tage<0 ? 'überfällig' : (t.tage===0 ? 'heute' : (t.tage+' T'));
-  return '<span class="termin-tage '+(t.tageFarbe||'')+'" title="Tage bis zum Termin">'+label+'</span>';
+  return '<span class="termin-tage '+(t.tageFarbe||'')+'" title="Zeit bis zum Termin">'+nkTageLabel(t.tage)+'</span>';
 }
 function terminZeile(t){
   if(t.quelle==='mieterhoehung'){
