@@ -1286,6 +1286,89 @@ function nkFreischaltGueltig(code, objekt) {
   return !!String(code || "").trim() && norm(code) === norm(nkFreischaltCode(objekt));
 }
 
+/* ================= US-111: Termine & Wartung ("Chronik der Zukunft") ================= */
+/* Feste Rubriken (Art) für die gruppierte Ansicht. "mieterhoehung" ist synthetisch (aggregiert). */
+const NK_TERMIN_ARTEN = { vorort: "Vor Ort", verwaltung: "Schreibtisch/Verwaltung", sonstiges: "Sonstiges" };
+const NK_TERMIN_ARTEN_ALLE = { mieterhoehung: "Mieterhöhung", vorort: "Vor Ort", verwaltung: "Schreibtisch/Verwaltung", sonstiges: "Sonstiges" };
+/* Vorlagen für schnelles Anlegen (Intervall in Monaten). */
+const NK_TERMIN_VORLAGEN = [
+  { key: "rauchmelder", bez: "Rauchwarnmelder-Prüfung", art: "vorort", intervallMonate: 12 },
+  { key: "feuerloescher", bez: "Feuerlöscher-Prüfung", art: "vorort", intervallMonate: 24 },
+  { key: "heizung", bez: "Heizungswartung", art: "vorort", intervallMonate: 12 },
+];
+/* Datum (ISO) um n Monate verschieben (Tag wird bei kürzeren Monaten geklammert). */
+function nkPlusMonate(d, n) {
+  const p = String(d || "").split("-"); if (p.length !== 3) return d;
+  const y = +p[0], mo = +p[1] - 1, da = +p[2];
+  const dt = new Date(Date.UTC(y, mo + (+n || 0), 1));
+  const letzter = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 0)).getUTCDate();
+  dt.setUTCDate(Math.min(da, letzter));
+  return dt.toISOString().slice(0, 10);
+}
+/* Ampel für einen Termin: 'faellig' (überfällig/heute), 'bald' (<= 3 Monate), sonst 'ok'. */
+function nkTerminAmpel(datum, heuteDatum) {
+  if (!datum) return "ok";
+  if (nkIndexFaellig(datum, heuteDatum)) return "faellig";
+  if (nkBaldFaellig(datum, heuteDatum, 3)) return "bald";
+  return "ok";
+}
+/* Anstehende Mieterhöhungen aus allen Einheiten (Index: nächster Stichtag; Staffel: nächste Stufe)
+   – read-only als Erinnerung im Termine-Reiter (Quelle bleibt "Mieter & Vertrag"). */
+function nkMieterhoehungTermine(einheiten, heuteDatum) {
+  const out = [];
+  (einheiten || []).forEach(e => { (e.mv || []).forEach(m => {
+    if (!m || !m.mhTyp) return;
+    let datum = "", typ = "";
+    if (m.mhTyp === "index") { datum = nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, (m.idxAnpassungen || []).length); typ = "Index"; }
+    else if (m.mhTyp === "staffel") {
+      const plan = nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag);
+      const ang = m.stafAngekuendigt || {};
+      const offen = (plan || []).filter(s => s.datum && !ang[s.datum]).map(s => s.datum).sort();
+      datum = offen.find(d => d >= String(heuteDatum || "")) || offen[0] || ""; typ = "Staffel";
+    }
+    if (!datum) return;
+    out.push({ quelle: "mieterhoehung", art: "mieterhoehung", intervallMonate: 0,
+      bez: "Mieterhöhung: " + (m.mieter || "Mieter") + " · " + (e.name || ""),
+      datum: datum, typ: typ, einheitId: e.id, mvId: m.id });
+  }); });
+  return out;
+}
+/* Gesamtliste für den Reiter: eigene Termine (objekt.termine) + aggregierte Mieterhöhungen,
+   je mit Ampel, sortiert nach Datum aufsteigend (Dringlichstes zuerst). */
+function nkTermineGesamt(objekt, einheiten, heuteDatum) {
+  const user = (((objekt || {}).termine) || []).map(t => ({
+    quelle: "wartung", id: t.id, art: t.art || "sonstiges", bez: t.bez || "",
+    datum: t.naechster || "", intervallMonate: +t.intervallMonate || 0, notiz: t.notiz || "" }));
+  const alle = user.concat(nkMieterhoehungTermine(einheiten, heuteDatum))
+    .map(t => Object.assign({}, t, { ampel: nkTerminAmpel(t.datum, heuteDatum) }));
+  alle.sort((a, b) => String(a.datum || "").localeCompare(String(b.datum || "")));
+  return alle;
+}
+/* .ics-Kalenderdatei (VEVENT je Termin, RRULE bei Intervall, VALARM 14 Tage vorher, stabile UID –
+   Re-Import aktualisiert statt zu duplizieren). Ganztägige Termine (VALUE=DATE). Reine Funktion. */
+function nkTerminIcs(items) {
+  const pad = n => String(n).padStart(2, "0");
+  const dv = iso => { const p = String(iso || "").split("-"); return p.length === 3 ? (p[0] + pad(p[1]) + pad(p[2])) : ""; };
+  const esc = s => String(s == null ? "" : s).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+  const now = new Date();
+  const stamp = now.getUTCFullYear() + pad(now.getUTCMonth() + 1) + pad(now.getUTCDate()) + "T" + pad(now.getUTCHours()) + pad(now.getUTCMinutes()) + pad(now.getUTCSeconds()) + "Z";
+  const L = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//NeKoFix//Termine//DE", "CALSCALE:GREGORIAN"];
+  (items || []).forEach(t => {
+    const start = dv(t.datum); if (!start) return;
+    const y = +start.slice(0, 4), mo = +start.slice(4, 6), da = +start.slice(6, 8);
+    const nd = new Date(Date.UTC(y, mo - 1, da + 1));
+    const dtend = nd.getUTCFullYear() + pad(nd.getUTCMonth() + 1) + pad(nd.getUTCDate());
+    const uid = (t.quelle === "mieterhoehung" ? ("mh-" + t.einheitId + "-" + t.mvId) : ("wartung-" + (t.id != null ? t.id : start))) + "@nekofix";
+    L.push("BEGIN:VEVENT", "UID:" + uid, "DTSTAMP:" + stamp, "DTSTART;VALUE=DATE:" + start, "DTEND;VALUE=DATE:" + dtend, "SUMMARY:" + esc(t.bez));
+    if (t.notiz) L.push("DESCRIPTION:" + esc(t.notiz));
+    const iv = +t.intervallMonate || 0;
+    if (iv > 0) L.push(iv % 12 === 0 ? ("RRULE:FREQ=YEARLY;INTERVAL=" + (iv / 12)) : ("RRULE:FREQ=MONTHLY;INTERVAL=" + iv));
+    L.push("BEGIN:VALARM", "TRIGGER:-P14D", "ACTION:DISPLAY", "DESCRIPTION:" + esc(t.bez), "END:VALARM", "END:VEVENT");
+  });
+  L.push("END:VCALENDAR");
+  return L.join("\r\n");
+}
+
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
    und die Funktionen stehen global zur Verfügung.
    Eine Funktion pro Zeile (mit Komma am Ende) – das entschärft Merge-Konflikte beim
@@ -1418,5 +1501,13 @@ if (typeof module !== "undefined" && module.exports) {
     nkUmsatzFingerprint,
     nkMonatAusZweck,
     nkImportPlan,
+    nkPlusMonate,
+    nkTerminAmpel,
+    nkMieterhoehungTermine,
+    nkTermineGesamt,
+    nkTerminIcs,
+    NK_TERMIN_VORLAGEN,
+    NK_TERMIN_ARTEN,
+    NK_TERMIN_ARTEN_ALLE,
   };
 }

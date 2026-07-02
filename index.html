@@ -516,6 +516,32 @@
   .csv-modal .csv-hinweis{color:var(--muted);font-size:12px;}
   .csv-modal .csv-autoprot{font-size:12.5px;color:#41505f;margin-right:auto;display:inline-flex;align-items:center;gap:5px;cursor:pointer;}
   .csv-table select.csv-ziel{max-width:230px;font-size:12px;padding:2px 4px;}
+  /* US-111: Termine & Wartung */
+  .termin-banner{padding:8px 12px;border-radius:8px;margin:0 0 10px;font-size:13px;}
+  .termin-banner.warn{background:#fdf3e6;border:1px solid #e9d8bd;color:#7a4a00;}
+  .termin-banner.ok{background:#eef7f0;border:1px solid #cfe6d6;color:#1d5f33;}
+  .termin-addbar{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px;}
+  .termin-add{font-size:12px;font-weight:600;color:var(--primary);background:none;border:1px solid var(--line);border-radius:6px;padding:3px 10px;cursor:pointer;}
+  .termin-add:hover{border-color:var(--primary);}
+  .termin-ansicht{display:flex;align-items:center;gap:6px;margin:0 0 8px;font-size:12.5px;flex-wrap:wrap;}
+  .termin-ansicht-lbl{color:var(--muted);}
+  .termin-ansicht button{font-size:12px;border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;color:var(--ink);}
+  .termin-ansicht button.aktiv{background:var(--primary);color:#fff;border-color:var(--primary);}
+  .termin-ics{margin-left:auto;}
+  .termin-liste{border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .termin-rubrik{font-weight:700;font-size:12.5px;color:#1d2733;background:var(--soft);padding:6px 10px;border-top:1px solid var(--line);}
+  .termin-liste .termin-rubrik:first-child{border-top:none;}
+  .termin-row{display:flex;align-items:center;gap:10px;padding:6px 10px;border-top:1px solid var(--line);}
+  .termin-liste .termin-row:first-child{border-top:none;}
+  .termin-row.mh{background:#fafbfc;}
+  .termin-dot{width:10px;height:10px;border-radius:50%;flex:none;}
+  .termin-dot.faellig{background:#b3392e;} .termin-dot.bald{background:#c77700;} .termin-dot.ok{background:#1d7a3a;}
+  .termin-datum{width:96px;color:#41505f;font-size:13px;flex:none;}
+  .termin-datum-in{width:140px;flex:none;font-size:12.5px;padding:2px 4px;}
+  .termin-bez{flex:1;min-width:120px;} .termin-bez-in{flex:1;min-width:120px;font-size:13px;padding:3px 6px;}
+  .termin-sel{font-size:12px;padding:2px 4px;}
+  .termin-meta,.termin-art{color:var(--muted);font-size:12px;}
+  .termin-akt{margin-left:auto;display:flex;gap:10px;align-items:center;white-space:nowrap;}
   .csv-modal .csv-cancel{background:#7a8593;}
   .csv-modal .csv-cancel:hover{background:#69727d;}
   .csv-modal .csv-filter{white-space:nowrap;cursor:pointer;}
@@ -759,7 +785,14 @@
     </div>
     <p class="hint" id="zahl_laeuft_hint" style="margin:0 0 10px;display:none;">Falls aktuelle Monate des laufenden Jahres nicht angezeigt werden, prüfe unter „Mieter &amp; Vertrag", ob das Mietverhältnis auf „läuft" steht.</p>
     <div id="zahlungen_box"></div>
-    <div class="nav"><button class="btn-ghost" onclick="go(5)">Zurück</button></div>
+    <div class="nav"><button class="btn-ghost" onclick="go(5)">Zurück</button><button class="btn-primary" onclick="go(8)">Weiter zu Terminen</button></div>
+  </section>
+
+  <section class="panel" data-step="8">
+    <h1>8 · Termine &amp; Wartung</h1>
+    <p class="sub">Wiederkehrende Wartungen (Rauchmelder, Feuerlöscher, Heizung) und eigene Fristen – gebündelt mit den anstehenden Mieterhöhungen aus „Mieter &amp; Vertrag". Ampel zeigt, was dringlich ist; per Kalender-Export (.ics) ins eigene Kalenderprogramm übernehmen (Erinnerung inklusive).</p>
+    <div id="termine_box"></div>
+    <div class="nav"><button class="btn-ghost" onclick="go(6)">Zurück</button></div>
   </section>
   </div>
 </div>

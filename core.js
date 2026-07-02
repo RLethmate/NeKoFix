@@ -45,6 +45,18 @@ const store = {
   kosten(idx){ return state.kosten[idx]; },
   // Objekt
   setObjektFeld(field,val){ state.objekt[field]=val; commit(); },
+  /* US-111: Termine & Wartung (objektbezogen). "naechster" = nächster Stichtag (ISO), intervallMonate=0 = einmalig. */
+  addTermin(t){ if(!state.objekt.termine) state.objekt.termine=[];
+    const id=state.objekt.termine.reduce((m,x)=>Math.max(m,x.id||0),0)+1;
+    state.objekt.termine.push(Object.assign({ bez:'', art:'sonstiges', intervallMonate:0, naechster:'', notiz:'' }, t, { id:id })); commit(); },
+  removeTermin(id){ state.objekt.termine=(state.objekt.termine||[]).filter(t=>t.id!==id); commit(); },
+  setTerminFeld(id,field,val){ const t=(state.objekt.termine||[]).find(x=>x.id===id); if(t){ t[field]=val; commit(); } },
+  /* „Erledigt": wiederkehrend -> nächster Termin rückt ein Intervall weiter; einmalig -> Termin entfällt. */
+  erledigeTermin(id){ const t=(state.objekt.termine||[]).find(x=>x.id===id); if(!t) return;
+    const iv=+t.intervallMonate||0;
+    if(iv>0 && t.naechster){ t.naechster=nkPlusMonate(t.naechster, iv); }
+    else { state.objekt.termine=(state.objekt.termine||[]).filter(x=>x.id!==id); }
+    commit(); },
   setZahlungFeld(field,val){ if(!state.zahlung) state.zahlung={}; state.zahlung[field]=val; commit(); }, /* US-51 */
   setAbrechnungStatus(val){ state.abrechnungStatus=val; commit(); },
   // Einheiten

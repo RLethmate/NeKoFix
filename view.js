@@ -6,7 +6,7 @@
    `aktivIdx`, `store`, `commit`, `saveState/loadState` u. a. sind dort global definiert. */
 /* US-81: „Mieter & Vertrag" als Index 7 angehängt (keine Umnummerierung der bestehenden
    data-step/go()-Indizes); die Anzeige-Reihenfolge steuert STEP_GROUPS. */
-const STEPS = ["Objekt","Vorauszahlung (Soll)","Heizung","Kosten","Berechnung","Abrechnung","Zahlungen (Ist)","Mieter & Vertrag"];
+const STEPS = ["Objekt","Vorauszahlung (Soll)","Heizung","Kosten","Berechnung","Abrechnung","Zahlungen (Ist)","Mieter & Vertrag","Termine & Wartung"];
 let current = 0, activeMieter = 0;
 let vorausModus = "monatlich";
 let zeigeVorjahr = false; /* US-59: Vorjahreswerte je Feld einblenden (Toggle via Shortcut "v"). */
@@ -73,11 +73,11 @@ function alleMV(){ const out=[]; state.einheiten.forEach((e,ei)=>{ (e.mv||[]).fo
 function leerstandZa(e){ const s=(e.mv||[]).reduce((a,m)=>a+nkZeitanteil(m.von,nkMvEnde(m,state.objekt.bis),state.objekt.von,state.objekt.bis),0); return Math.max(0,1-s); }
 
 /* ---------- Stepper (US-54: seitliche Lasche, Gruppen, Kürzel, Versand-Ampel) ---------- */
-const STEP_ABBR = ["OB","VZ","HE","KO","BE","AB","ZA","MV"];
+const STEP_ABBR = ["OB","VZ","HE","KO","BE","AB","ZA","MV","TW"];
 /* Anzeige-Reihenfolge: Objekt → Mieter & Vertrag (7) → Vorauszahlung → Kosten → … */
 const STEP_GROUPS = [
   { titel:"Abrechnung erstellen", steps:[0,7,1,2,3,4,5] },
-  { titel:"Nachverfolgung",        steps:[6] }
+  { titel:"Nachverfolgung",        steps:[6,8] }
 ];
 function renderStepper(){
   const el = document.getElementById('stepper'); if(!el) return; el.innerHTML='';
@@ -140,6 +140,7 @@ function go(i){
   if(i===4) computeView();
   if(i===5) renderDoc();
   if(i===6) renderZahlungen();
+  if(i===8) renderTermine(); /* US-111 */
   current=i;
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', +p.dataset.step===i));
   renderStepper();
@@ -1695,7 +1696,7 @@ function renderMruSub(){ const s=document.getElementById('mru_sub'); if(!s) retu
 function renderAll(){ renderObjTitle(); renderVorjahrBanner(); fillObjektKopf();
   const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus;
   renderEinheiten(); renderVoraus(); renderKosten();
-  if(current===2) renderHeizung(); else if(current===4) computeView(); else if(current===5) renderDoc(); else if(current===6) renderZahlungen();
+  if(current===2) renderHeizung(); else if(current===4) computeView(); else if(current===5) renderDoc(); else if(current===6) renderZahlungen(); else if(current===8) renderTermine();
   renderStepper(); }
 /* Speicher: Objektwechsel mit Schutz vor stillem Mitschleppen ungespeicherter Änderungen.
    Bei ungespeichertem Stand: speichern / verwerfen / abbrechen (zwei native Dialoge =
@@ -1972,6 +1973,64 @@ function exportUmsatzProtokoll(){
   const base=(_csvImport.dateiname||'Umsaetze').replace(/\.[^.]+$/,'');
   XL.writeFile(wb, base+'_importiert.xlsx');
 }
+/* ================= US-111: Termine & Wartung ================= */
+let _termineAnsicht='faellig'; /* 'faellig' (flach, nach Datum) | 'rubrik' (gruppiert nach Art) */
+function setTermineAnsicht(v){ _termineAnsicht=v; renderTermine(); }
+function terminArtSelect(id, art){ return '<select class="termin-sel" onchange="setTerminFeldUi('+id+',\'art\',this.value)">'+
+  Object.keys(NK_TERMIN_ARTEN).map(k=>'<option value="'+k+'"'+(k===art?' selected':'')+'>'+esc(NK_TERMIN_ARTEN[k])+'</option>').join('')+'</select>'; }
+function terminIntervallSelect(id, iv){ const opts=[[0,'einmalig'],[3,'vierteljährlich'],[6,'halbjährlich'],[12,'jährlich'],[24,'alle 2 Jahre']];
+  return '<select class="termin-sel" onchange="setTerminIntervall('+id+',this.value)">'+opts.map(o=>'<option value="'+o[0]+'"'+((+iv||0)===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'; }
+function terminZeile(t){
+  const amp=({faellig:'faellig',bald:'bald',ok:'ok'})[t.ampel]||'ok';
+  const dot='<span class="termin-dot '+amp+'" title="'+(amp==='faellig'?'fällig/überfällig':amp==='bald'?'bald fällig':'ok')+'"></span>';
+  if(t.quelle==='mieterhoehung'){
+    return '<div class="termin-row mh">'+dot+'<span class="termin-datum">'+(t.datum?fmtDatum(t.datum):'—')+'</span>'+
+      '<span class="termin-bez">'+esc(t.bez)+' <span class="pill">'+esc(t.typ)+'</span></span>'+
+      '<span class="termin-meta">Mieterhöhung · read-only</span>'+
+      '<span class="termin-akt"><button type="button" class="linklike" onclick="go(7)">in „Mieter &amp; Vertrag" öffnen</button></span></div>';
+  }
+  return '<div class="termin-row">'+dot+
+    '<input type="date" class="termin-datum-in" value="'+(t.datum||'')+'" onchange="setTerminDatum('+t.id+',this.value)">'+
+    '<input type="text" class="termin-bez-in" value="'+esc(t.bez)+'" onchange="setTerminFeldUi('+t.id+',\'bez\',this.value)">'+
+    terminArtSelect(t.id,t.art)+terminIntervallSelect(t.id,t.intervallMonate)+
+    '<span class="termin-akt">'+
+      '<button type="button" class="linklike" onclick="erledigeTerminUi('+t.id+')" title="Als erledigt markieren – wiederkehrend rückt zum nächsten Termin, einmalig entfällt">erledigt</button>'+
+      '<button type="button" class="linklike" onclick="exportTerminIcs('+t.id+')" title="Diesen Termin als Kalenderdatei (.ics)">.ics</button>'+
+      '<button type="button" class="row-del" title="Termin löschen" onclick="delTermin('+t.id+')">×</button>'+
+    '</span></div>';
+}
+function renderTermine(){
+  const box=document.getElementById('termine_box'); if(!box) return;
+  const h=heute(); const liste=nkTermineGesamt(state.objekt, state.einheiten, h);
+  const nFaellig=liste.filter(t=>t.ampel==='faellig').length, nBald=liste.filter(t=>t.ampel==='bald').length;
+  const banner=(nFaellig||nBald)
+    ? '<div class="termin-banner warn">'+WARN_ICON+' '+(nFaellig?('<b>'+nFaellig+' fällig/überfällig</b>'):'')+(nFaellig&&nBald?' · ':'')+(nBald?(nBald+' bald fällig'):'')+'</div>'
+    : '<div class="termin-banner ok">Aktuell nichts fällig.</div>';
+  const vorlagen=NK_TERMIN_VORLAGEN.map(v=>'<button type="button" class="termin-add" onclick="addTerminVorlage(\''+v.key+'\')">+ '+esc(v.bez)+'</button>').join('');
+  const addbar='<div class="termin-addbar">'+vorlagen+'<button type="button" class="termin-add" onclick="addTerminEigen()">+ Eigener Termin</button></div>';
+  const toggle='<div class="termin-ansicht"><span class="termin-ansicht-lbl">Ansicht:</span>'+
+    '<button type="button" class="'+(_termineAnsicht==='faellig'?'aktiv':'')+'" onclick="setTermineAnsicht(\'faellig\')">Nach Fälligkeit</button>'+
+    '<button type="button" class="'+(_termineAnsicht==='rubrik'?'aktiv':'')+'" onclick="setTermineAnsicht(\'rubrik\')">Nach Rubrik</button>'+
+    '<button type="button" class="termin-ics" onclick="exportTermineIcs()" title="Alle Termine als Kalenderdatei (.ics). Stabile UID: Re-Import aktualisiert statt zu duplizieren.">Kalender (.ics) exportieren</button></div>';
+  let body;
+  if(!liste.length){ body='<div class="leer-hint">Noch keine Termine. Lege oben eine Wartung an – anstehende Mieterhöhungen erscheinen hier automatisch.</div>'; }
+  else if(_termineAnsicht==='rubrik'){
+    body=Object.keys(NK_TERMIN_ARTEN_ALLE).map(art=>{ const items=liste.filter(t=>t.art===art); if(!items.length) return '';
+      return '<div class="termin-rubrik">'+esc(NK_TERMIN_ARTEN_ALLE[art])+' ('+items.length+')</div>'+items.map(terminZeile).join(''); }).join('');
+  } else { body=liste.map(terminZeile).join(''); }
+  box.innerHTML=banner+addbar+toggle+'<div class="termin-liste">'+body+'</div>';
+}
+function addTerminVorlage(key){ const v=NK_TERMIN_VORLAGEN.find(x=>x.key===key); if(!v) return; store.addTermin({ bez:v.bez, art:v.art, intervallMonate:v.intervallMonate, naechster:heute() }); renderTermine(); }
+function addTerminEigen(){ store.addTermin({ bez:'Neuer Termin', art:'sonstiges', intervallMonate:0, naechster:heute() }); renderTermine(); }
+function setTerminFeldUi(id,f,v){ store.setTerminFeld(id,f,v); renderTermine(); }
+function setTerminDatum(id,v){ store.setTerminFeld(id,'naechster',v); renderTermine(); }
+function setTerminIntervall(id,v){ store.setTerminFeld(id,'intervallMonate',+v||0); renderTermine(); }
+function erledigeTerminUi(id){ store.erledigeTermin(id); renderTermine(); }
+function delTermin(id){ if(!confirm('Diesen Termin löschen?')) return; store.removeTermin(id); renderTermine(); }
+function terminIcsDownload(liste, base){ const ics=nkTerminIcs(liste); const blob=new Blob([ics],{type:'text/calendar;charset=utf-8'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=base+'.ics'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),5000); }
+function exportTermineIcs(){ const liste=nkTermineGesamt(state.objekt, state.einheiten, heute()); if(!liste.length){ alert('Keine Termine zum Exportieren.'); return; } terminIcsDownload(liste,'NeKoFix-Termine'); }
+function exportTerminIcs(id){ const liste=nkTermineGesamt(state.objekt, state.einheiten, heute()).filter(t=>t.quelle==='wartung'&&t.id===id); if(liste.length) terminIcsDownload(liste,'NeKoFix-Termin'); }
 function setAbrStatus(v){ store.setAbrechnungStatus(v); }
 /* US-82: Undo/Redo – Bedienung. Datenlogik liegt in core.js (histUndo/histRedo/histReset). */
 function undo(){ if(histUndo()) renderAll(); updateHistButtons(); }
