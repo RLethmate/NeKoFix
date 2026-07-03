@@ -12,23 +12,26 @@ function terminTageBadge(t){
   if(t.tage==null) return '<span class="termin-tage"></span>';
   return '<span class="termin-tage '+(t.tageFarbe||'')+'" title="Zeit bis zum Termin">'+nkTageLabel(t.tage)+'</span>';
 }
+/* US-119 AC-1: EINE gemeinsame Mieterhöhungs-Zeile (Index und Staffel identisch), genutzt vom
+   Termine-Reiter und – künftig – vom Vertragsteil. Quelle bleibt nkMieterhoehungTermine (AC-5).
+   Zeile 1: Bezeichnung (editierbar) + Typ; Zeile 2 read-only: Datum, Rubrik, Fälligkeit;
+   „angekündigt"-Haken (mit dem Vertragsteil verbunden) + Vertrag öffnen. */
+function mhZeile(t){
+  const faellig=terminIntervallText(t.intervallMonate);
+  return '<div class="termin-row mh">'+
+    '<div class="termin-l1">'+terminTageBadge(t)+
+      '<input type="text" class="termin-bez-in mh-bez" value="'+esc(t.bez)+'" title="Bezeichnung der Mieterhöhung anpassen" onchange="setMhTerminBez('+t.einheitId+','+t.mvId+',this.value)">'+
+      '<span class="pill">'+esc(t.typ)+'</span></div>'+
+    '<div class="termin-l2">'+
+      '<input type="date" class="termin-datum-in" value="'+(t.datum||'')+'" disabled title="Stichtag – im Vertrag ändern">'+
+      '<input type="text" class="termin-sel" value="Mieterhöhung" disabled title="Rubrik">'+
+      '<input type="text" class="termin-sel" value="'+esc(faellig)+'" disabled title="Fälligkeit">'+
+      '<label class="termin-verschickt" title="Ankündigung verschickt – verbunden mit dem Vertragsteil"><input type="checkbox" onchange="setMhAngekuendigtUi('+t.einheitId+','+t.mvId+',\''+t.datum+'\',\''+esc(t.typ)+'\',this.checked)"> angekündigt</label>'+
+      '<span class="termin-akt"><button type="button" class="linklike" onclick="go(7)">Vertrag öffnen</button></span></div>'+
+  '</div>';
+}
 function terminZeile(t){
-  if(t.quelle==='mieterhoehung'){
-    /* Zeile 1: Bezeichnung (editierbar) + Typ; Zeile 2 wie die anderen Einträge, aber read-only:
-       Datum, Rubrik, Fälligkeit; „angekündigt"-Haken (mit dem Vertragsteil verbunden) + Vertrag öffnen. */
-    const faellig=terminIntervallText(t.intervallMonate);
-    return '<div class="termin-row mh">'+
-      '<div class="termin-l1">'+terminTageBadge(t)+
-        '<input type="text" class="termin-bez-in mh-bez" value="'+esc(t.bez)+'" title="Bezeichnung der Mieterhöhung anpassen" onchange="setMhTerminBez('+t.einheitId+','+t.mvId+',this.value)">'+
-        '<span class="pill">'+esc(t.typ)+'</span></div>'+
-      '<div class="termin-l2">'+
-        '<input type="date" class="termin-datum-in" value="'+(t.datum||'')+'" disabled title="Stichtag – im Vertrag ändern">'+
-        '<input type="text" class="termin-sel" value="Mieterhöhung" disabled title="Rubrik">'+
-        '<input type="text" class="termin-sel" value="'+esc(faellig)+'" disabled title="Fälligkeit">'+
-        '<label class="termin-verschickt" title="Ankündigung verschickt – verbunden mit dem Vertragsteil"><input type="checkbox" onchange="setMhAngekuendigtUi('+t.einheitId+','+t.mvId+',\''+t.datum+'\',\''+esc(t.typ)+'\',this.checked)"> angekündigt</label>'+
-        '<span class="termin-akt"><button type="button" class="linklike" onclick="go(7)">Vertrag öffnen</button></span></div>'+
-    '</div>';
-  }
+  if(t.quelle==='mieterhoehung') return mhZeile(t);
   /* Zeile 1: Tage + Bezeichnung (breit); Zeile 2: Datum, Uhrzeit, Rubrik, Fälligkeit, angekündigt, erledigt, .ics, ×. */
   return '<div class="termin-row'+(t.erledigt?' erledigt':'')+'">'+
     '<div class="termin-l1">'+terminTageBadge(t)+
