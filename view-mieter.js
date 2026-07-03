@@ -58,7 +58,7 @@ function mvZeilen(e, ei){
         : (nkBaldFaellig(na, heute(), 3) ? ' <span class="warn" title="Mieterhöhung bald fällig ('+fmtDatum(na)+')">'+WARN_ICON+'</span>' : '');
       const open = ui.expandedMV.has(m.id);
       let row='<tr>'+
-        '<td><span class="bez-cell"><input value="'+esc(m.mieter)+'" oninput="updMV('+ei+','+mi+',\'mieter\',this.value)">'+badge+'</span></td>'+
+        '<td><span class="bez-cell"><input class="mv-mieter-in" value="'+esc(m.mieter)+'" oninput="updMV('+ei+','+mi+',\'mieter\',this.value)">'+badge+'</span></td>'+
         '<td><input type="date" value="'+m.von+'" onchange="updMV('+ei+','+mi+',\'von\',this.value)" onblur="renderEinheiten()"></td>'+
         '<td>'+(m.laeuft
             ? '<span class="hint" title="laufendes Mietverhältnis – Ende = Abrechnungszeitraum">läuft</span>'

@@ -304,7 +304,7 @@
      behalten ihre natürliche Breite. */
   .mv-table{width:100%;}
   .mv-table input[type=date]{max-width:160px;}
-  .mv-table td:first-child input{width:100%;min-width:130px;box-sizing:border-box;} /* Mieter-Feld nicht kollabieren lassen */
+  .mv-table td:first-child input.mv-mieter-in{width:100%;min-width:130px;box-sizing:border-box;} /* Mieter-Feld nicht kollabieren lassen - auf eigene Klasse begrenzt (US-119-Fix), sonst leakt die Regel (via td:first-child, das auch die aufgeklappte Detail-Zeile trifft) in eingebettete Termine-Zeilen im Vertrag */
   .mv-table .bez-cell{display:flex;align-items:center;gap:4px;}
   .gewerbl{font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;}
   .gewerbl input{width:auto;}
