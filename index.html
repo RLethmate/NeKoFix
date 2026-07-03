@@ -532,7 +532,7 @@
   .termin-ansicht button{font-size:12px;border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;color:var(--ink);}
   .termin-ansicht button.aktiv{background:var(--primary);color:#fff;border-color:var(--primary);}
   .termin-ics{margin-left:auto;}
-  .termin-liste{border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .termin-liste{border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:16px;} /* US-119-Fix: expliziter Reset - `th,td{font-size:14px}` (Zeile 223) vererbt sich sonst in die eingebettete Zeile im Vertrag (dort innerhalb einer <table><td>), während der Termine-Reiter außerhalb jeder Tabelle beim Browser-Standard (16px) bleibt */
   .termin-rubrik{font-weight:700;font-size:12.5px;color:#1d2733;background:var(--soft);padding:6px 10px;border-top:1px solid var(--line);}
   .termin-liste .termin-rubrik:first-child{border-top:none;}
   .termin-row{display:flex;flex-direction:column;gap:5px;padding:8px 10px;border-top:1px solid var(--line);}
