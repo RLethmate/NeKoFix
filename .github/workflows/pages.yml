@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 # US-56: Bei jedem Push auf main die Build-Version automatisch setzen (Commit-Hash + Datum)
 # und die Seite über GitHub Actions deployen. Der Versions-Stempel landet zugleich in der
-# Cache-Busting-Kennung der Skripte (index.html: var v="...") und in der Anzeige (view.js).
+# Cache-Busting-Kennung der Skripte (index.html: var v="...") und in der Anzeige (view-shell.js).
 #
 # Einmalige Einrichtung: Settings -> Pages -> Build and deployment -> Source = "GitHub Actions".
 
@@ -37,12 +37,12 @@ jobs:
         run: |
           SHA="$(git rev-parse --short HEAD)"
           DATE="$(date +%Y-%m-%d)"
-          MAJOR="$(sed -n 's/.*const APP_MAJOR=\"\([^\"]*\)\".*/\1/p' view.js)"
+          MAJOR="$(sed -n 's/.*const APP_MAJOR=\"\([^\"]*\)\".*/\1/p' view-shell.js)"
           Y="$(git rev-list --count HEAD)"   # y = Gesamtzahl der Commits (kein Reset)
           VERSION="v-${MAJOR}.${Y}.0"
-          sed -i "s/const APP_VERSION=\"[^\"]*\"/const APP_VERSION=\"$VERSION\"/" view.js
+          sed -i "s/const APP_VERSION=\"[^\"]*\"/const APP_VERSION=\"$VERSION\"/" view-shell.js
           sed -i "s/var v=\"[^\"]*\"/var v=\"$SHA\"/" index.html
-          sed -i "s/const BUILD_DATE=\"[^\"]*\"/const BUILD_DATE=\"$DATE\"/" view.js
+          sed -i "s/const BUILD_DATE=\"[^\"]*\"/const BUILD_DATE=\"$DATE\"/" view-shell.js
           echo "Gestempelt: $VERSION · $DATE (Cache $SHA)"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
