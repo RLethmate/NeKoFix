@@ -1314,26 +1314,54 @@ function nkTerminAmpel(datum, heuteDatum) {
 }
 /* Anstehende Mieterhöhungen aus allen Einheiten (Index: nächster Stichtag; Staffel: nächste Stufe)
    – read-only als Erinnerung im Termine-Reiter (Quelle bleibt "Mieter & Vertrag"). */
+/* ---------- US-118 AC-2b: einheitlicher Ankündigungs-Speicher ----------
+   Ein per-Mietverhältnis-Objekt `ankuendigungen{ <Stichtag>: {verschicktAm, snapshot?} }`
+   ersetzt die drei bisherigen, parallelen Modelle:
+   - mhAngekuendigt{ st:true }                  -> {verschicktAm:""}             (kommende Index-Vorab-Ankündigung, ohne Snapshot)
+   - stafAngekuendigt{ d:{datum,snapshot} }     -> {verschicktAm:datum, snapshot} (Staffel-Stufe, eingefroren)
+   - idxAnpassungen[].angekuendigt/ankSnapshot  -> {verschicktAm, snapshot}       (übernommene Index-Anpassung, Key = a.datum)
+   Reine Migration: mutiert `m` NICHT, liefert die vereinte Map. Wird beim Laden angewandt und ist
+   idempotent (mehrfaches Anwenden ändert nichts). Bestehende `ankuendigungen`-Einträge haben Vorrang. */
+function nkMigrateAnkuendigungen(m) {
+  const out = {};
+  const put = (k, v) => { if (k != null && k !== "" && !(k in out)) out[k] = v; };
+  const cur = (m && m.ankuendigungen) || {};
+  Object.keys(cur).forEach(k => put(k, cur[k]));
+  const mh = (m && m.mhAngekuendigt) || {};
+  Object.keys(mh).forEach(k => { if (mh[k]) put(k, { verschicktAm: "", typ: "Index" }); });
+  const staf = (m && m.stafAngekuendigt) || {};
+  Object.keys(staf).forEach(k => { const v = staf[k]; if (!v) return;
+    if (typeof v === "object") put(k, v.snapshot !== undefined ? { verschicktAm: v.datum || "", snapshot: v.snapshot, typ: "Staffel" } : { verschicktAm: v.datum || "", typ: "Staffel" });
+    else put(k, { verschicktAm: "", typ: "Staffel" }); });
+  ((m && m.idxAnpassungen) || []).forEach(a => { if (a && a.angekuendigt && a.datum)
+    put(a.datum, a.ankSnapshot !== undefined ? { verschicktAm: a.angekuendigt, snapshot: a.ankSnapshot, typ: "Index" } : { verschicktAm: a.angekuendigt, typ: "Index" }); });
+  return out;
+}
+/* Lese-Helfer auf dem einheitlichen Speicher (Stichtag-keyed). */
+function nkIstAngekuendigt(ank, stichtag) { return !!(ank && ank[stichtag]); }
+function nkAnkVerschicktAm(ank, stichtag) { const e = ank && ank[stichtag]; return e ? (e.verschicktAm || "") : ""; }
+function nkAnkSnapshot(ank, stichtag) { const e = ank && ank[stichtag]; return e ? e.snapshot : undefined; }
 function nkMieterhoehungTermine(einheiten, heuteDatum) {
   const out = [];
   (einheiten || []).forEach(e => { (e.mv || []).forEach(m => {
     if (!m || !m.mhTyp) return;
+    /* US-118 AC-2b: eine vereinte Ankündigungs-Sicht (deckt Alt-Felder und neue Map ab). */
+    const ank = nkMigrateAnkuendigungen(m);
     let datum = "", typ = "", freq = 1;
     if (m.mhTyp === "index") {
       typ = "Index"; freq = Math.max(1, Math.floor(+m.idxFrequenz) || 1);
       /* Nächster Index-Stichtag; bereits (vorab) angekündigte werden übersprungen -> Folgejahr rückt nach. */
-      const anz = (m.idxAnpassungen || []).length; const ang = m.mhAngekuendigt || {};
+      const anz = (m.idxAnpassungen || []).length;
       datum = nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
-      let k = 0; while (datum && ang[datum] && k < 60) { k++; datum = nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz + k); }
+      let k = 0; while (datum && nkIstAngekuendigt(ank, datum) && k < 60) { k++; datum = nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz + k); }
     } else if (m.mhTyp === "staffel" && m.stafBeginn) {
       /* Nächste noch nicht angekündigte Staffel-Stufe – unabhängig vom (optionalen) Enddatum
          rechnerisch bestimmt (nkStaffelPlan liefert ohne Ende keine Stichtage). */
       typ = "Staffel"; freq = Math.max(1, Math.floor(+m.stafFrequenz) || 1);
-      const ang = m.stafAngekuendigt || {};
       for (let k = 1; k <= 400; k++) {
         const d = nkPlusJahre(m.stafBeginn, freq * k);
         if (m.stafEnde && d > m.stafEnde) break;
-        if (!ang[d]) { datum = d; break; }
+        if (!nkIstAngekuendigt(ank, d)) { datum = d; break; }
       }
     }
     if (!datum) return;
@@ -1560,6 +1588,10 @@ if (typeof module !== "undefined" && module.exports) {
     nkTageBis,
     nkTageFarbe,
     nkTageLabel,
+    nkMigrateAnkuendigungen,
+    nkIstAngekuendigt,
+    nkAnkVerschicktAm,
+    nkAnkSnapshot,
     nkMieterhoehungTermine,
     nkTermineGesamt,
     nkTerminIcs,
