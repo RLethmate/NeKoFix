@@ -88,10 +88,11 @@ function mvZeilen(e, ei){
           let out='<div class="chronik-row'+(c.erledigt?' erledigt':'')+'">'+cBadge+'<input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea>'+
             '<label class="chronik-erledigt" title="Als erledigt markieren – Badge wird neutral"><input type="checkbox" '+(c.erledigt?'checked':'')+' onchange="setChronikErledigt('+ei+','+mi+','+ci+',this.checked)"> erledigt</label>'+
             '<button class="row-del" onclick="'+delCall+'">×</button></div>';
-          if(idxI!=null){ const a=m.idxAnpassungen[idxI], ang=!!a.angekuendigt;
+          if(idxI!=null){ const a=m.idxAnpassungen[idxI]; const ankM=m.ankuendigungen||{};
+            const ang=nkIstAngekuendigt(ankM,a.datum); const va=nkAnkVerschicktAm(ankM,a.datum);
             out+='<div class="chronik-actions">'+
               '<button class="addrow" onclick="indexAnschreibenPdfRow('+ei+','+mi+','+idxI+')">Ankündigung als PDF</button>'+
-              '<label class="staffel-ank"'+(ang&&typeof a.angekuendigt==='string'?' title="verschickt am '+fmtDatum(a.angekuendigt)+'"':'')+'><input type="checkbox" '+(ang?'checked':'')+' onchange="indexAnkuendigung('+ei+','+mi+','+idxI+',this.checked)"> angekündigt</label>'+
+              '<label class="staffel-ank"'+(ang&&va?' title="verschickt am '+fmtDatum(va)+'"':'')+'><input type="checkbox" '+(ang?'checked':'')+' onchange="indexAnkuendigung('+ei+','+mi+','+idxI+',this.checked)"> angekündigt</label>'+
             '</div>'; }
           /* US-109: Dateien an diesen Chronik-Eintrag anhängen (in den Mieter-Ordner) + Chips zum Öffnen. */
           if(typeof dokVerfuegbar==='function' && dokVerfuegbar()){
@@ -245,15 +246,14 @@ function indexAnpassungLoeschen(ei,mi,idx){
    – steuert das Warn-Dreieck hinter dem Mieternamen, auch bei zugeklapptem Vertrag. */
 function mhWarnung(m){
   if(!m || !m.mhTyp) return false;
-  const h=heute();
+  const h=heute(); const ank=m.ankuendigungen||{};
   if(m.mhTyp==='index'){
     const st=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, (m.idxAnpassungen||[]).length);
-    return (nkIndexFaellig(st,h) || nkBaldFaellig(st,h,3)) && !((m.mhAngekuendigt||{})[st]); /* AC-2a: angekündigte Anpassung warnt nicht mehr */
+    return (nkIndexFaellig(st,h) || nkBaldFaellig(st,h,3)) && !nkIstAngekuendigt(ank,st); /* AC-2a: angekündigte Anpassung warnt nicht mehr */
   }
   if(m.mhTyp==='staffel'){
     const plan=nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag);
-    const ang=m.stafAngekuendigt||{};
-    return plan.some(s=> (nkIndexFaellig(s.datum,h)||nkBaldFaellig(s.datum,h,3)) && !ang[s.datum]);
+    return plan.some(s=> (nkIndexFaellig(s.datum,h)||nkBaldFaellig(s.datum,h,3)) && !nkIstAngekuendigt(ank,s.datum));
   }
   return false;
 }
@@ -314,17 +314,15 @@ function mhEntfernenBestaetigt(datumVerschickt, snap, live){
   return confirm(txt);
 }
 function indexAnkuendigung(ei,mi,idx,checked){
-  const m=store.mv(ei,mi);
-  const liste=(m.idxAnpassungen||[]).slice();
-  const a=Object.assign({}, liste[idx]);
+  const m=store.mv(ei,mi); const a=(m.idxAnpassungen||[])[idx]; if(!a) return;
+  const datum=a.datum; const ankM=m.ankuendigungen||{};
   if(checked){
-    a.angekuendigt=heute(); a.ankSnapshot=mhDatenIndex(ei,mi,idx);
+    store.setAnk(ei,mi,datum,{verschicktAm:heute(), snapshot:mhDatenIndex(ei,mi,idx), typ:'Index'});
   } else {
-    if(a.ankSnapshot && !mhEntfernenBestaetigt(a.angekuendigt, a.ankSnapshot, mhDatenIndex(ei,mi,idx))){ renderEinheiten(); return; }
-    a.angekuendigt=''; delete a.ankSnapshot;
+    const snap=nkAnkSnapshot(ankM,datum);
+    if(snap && !mhEntfernenBestaetigt(nkAnkVerschicktAm(ankM,datum), snap, mhDatenIndex(ei,mi,idx))){ renderEinheiten(); return; }
+    store.setAnk(ei,mi,datum,null);
   }
-  liste[idx]=a;
-  store.setMvFeld(ei,mi,'idxAnpassungen', liste);
   renderEinheiten();
 }
 /* AC-2a (US-118): Ankündigung der kommenden (noch nicht übernommenen) Index-Anpassung.
@@ -344,14 +342,14 @@ function staffelParamAendern(ei,mi,field,val,isNum,render){
   const altSet = new Set(nkStaffelPlan(m.stafBeginn,m.stafEnde,m.stafFrequenz,m.stafAusgangsmiete,m.stafBetrag).map(s=>s.datum));
   const probe = Object.assign({}, m, {[field]: isNum?+neuVal:neuVal});
   const neuSet = new Set(nkStaffelPlan(probe.stafBeginn,probe.stafEnde,probe.stafFrequenz,probe.stafAusgangsmiete,probe.stafBetrag).map(s=>s.datum));
-  const ang = m.stafAngekuendigt||{};
-  const verwaist = Object.keys(ang).filter(d=> ang[d]&&typeof ang[d]==='object'&&ang[d].snapshot && altSet.has(d) && !neuSet.has(d));
+  const ank = m.ankuendigungen||{};
+  const verwaist = Object.keys(ank).filter(d=> ank[d]&&ank[d].snapshot && altSet.has(d) && !neuSet.has(d));
   if(verwaist.length){
     if(!confirm(verwaist.length+' versendete (eingefrorene) Ankündigung(en) liegen nach dieser Änderung nicht mehr im Staffelplan.\n\nOK = Änderung durchführen\nAbbrechen = Änderung verwerfen')){
       renderEinheiten(); return; /* Verwerfen – Feld zurücksetzen */
     }
     if(!confirm('Versendete Ankündigungen behalten?\n\nOK = behalten (werden separat als Beleg gelistet)\nAbbrechen = löschen')){
-      const map=Object.assign({},ang); verwaist.forEach(d=>delete map[d]); store.setMvFeld(ei,mi,'stafAngekuendigt',map); /* Löschen */
+      const map=Object.assign({},ank); verwaist.forEach(d=>delete map[d]); store.setMvFeld(ei,mi,'ankuendigungen',map); /* Löschen */
     } /* sonst: behalten */
   }
   if(isNum) store.setMvNum(ei,mi,field,+neuVal); else store.setMvFeld(ei,mi,field,neuVal);
@@ -362,31 +360,28 @@ function updStaf(ei,mi,field,val){ staffelParamAendern(ei,mi,field,val,true,true
 function updStafDatum(ei,mi,field,val){ staffelParamAendern(ei,mi,field,val,false,false); }
 function staffelOrphanPdf(ei,mi,datum){
   if(typeof ensurePdfLib==='function' && !ensurePdfLib()) return;
-  const m=store.mv(ei,mi); const ang=(m.stafAngekuendigt||{})[datum];
-  if(ang && ang.snapshot) buildMieterhoehungPdf(ang.snapshot).save('Mieterhoehung-'+pdfSafeName(m.mieter)+'.pdf');
+  const m=store.mv(ei,mi); const snap=nkAnkSnapshot(m.ankuendigungen||{}, datum);
+  if(snap) buildMieterhoehungPdf(snap).save('Mieterhoehung-'+pdfSafeName(m.mieter)+'.pdf');
 }
 function staffelOrphanLoeschen(ei,mi,datum){
   if(!confirm('Diesen versendeten Ankündigungs-Beleg wirklich löschen?')) return;
-  const m=store.mv(ei,mi); const map=Object.assign({}, m.stafAngekuendigt||{}); delete map[datum];
-  store.setMvFeld(ei,mi,'stafAngekuendigt',map); renderEinheiten();
+  store.setAnk(ei,mi,datum,null); renderEinheiten();
 }
 function staffelPlanRow(m,datum){
   const plan=nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag);
   return plan.find(s=>s.datum===datum)||{datum, alteMiete:0, neueMiete:0};
 }
 function staffelAnkuendigung(ei,mi,datum,checked){
-  const m=store.mv(ei,mi);
-  const map=Object.assign({}, m.stafAngekuendigt||{});
+  const m=store.mv(ei,mi); const ankM=m.ankuendigungen||{};
   const r=staffelPlanRow(m,datum);
   const live=mhDatenStaffel(ei,mi,datum,r.alteMiete,r.neueMiete,(r.neueMiete-r.alteMiete));
   if(checked){
-    map[datum]={datum:heute(), snapshot:live};
+    store.setAnk(ei,mi,datum,{verschicktAm:heute(), snapshot:live, typ:'Staffel'});
   } else {
-    const cur=map[datum];
-    if(cur && typeof cur==='object' && cur.snapshot && !mhEntfernenBestaetigt(cur.datum, cur.snapshot, live)){ renderEinheiten(); return; }
-    delete map[datum];
+    const snap=nkAnkSnapshot(ankM,datum);
+    if(snap && !mhEntfernenBestaetigt(nkAnkVerschicktAm(ankM,datum), snap, live)){ renderEinheiten(); return; }
+    store.setAnk(ei,mi,datum,null);
   }
-  store.setMvFeld(ei,mi,'stafAngekuendigt',map);
   renderEinheiten();
 }
 /* US-69: Mieterhöhungs-Anschreiben als PDF (eingefrorener Schnappschuss, sonst Live-Daten). */
@@ -399,12 +394,13 @@ function indexAnschreibenPdf(ei,mi){
 function indexAnschreibenPdfRow(ei,mi,idx){
   if(typeof ensurePdfLib==='function' && !ensurePdfLib()) return;
   const m=store.mv(ei,mi); const a=(m.idxAnpassungen||[])[idx]; if(!a) return;
-  buildMieterhoehungPdf(a.ankSnapshot || mhDatenIndex(ei,mi,idx)).save('Mieterhoehung-'+pdfSafeName(m.mieter)+'.pdf');
+  const snap=nkAnkSnapshot(m.ankuendigungen||{}, a.datum);
+  buildMieterhoehungPdf(snap || mhDatenIndex(ei,mi,idx)).save('Mieterhoehung-'+pdfSafeName(m.mieter)+'.pdf');
 }
 function staffelAnschreibenPdf(ei,mi,datum,alteMiete,neueMiete,betrag){
   if(typeof ensurePdfLib==='function' && !ensurePdfLib()) return;
-  const m=store.mv(ei,mi); const ang=(m.stafAngekuendigt||{})[datum];
-  const daten=(ang && typeof ang==='object' && ang.snapshot) ? ang.snapshot : mhDatenStaffel(ei,mi,datum,alteMiete,neueMiete,betrag);
+  const m=store.mv(ei,mi); const snap=nkAnkSnapshot(m.ankuendigungen||{}, datum);
+  const daten=snap || mhDatenStaffel(ei,mi,datum,alteMiete,neueMiete,betrag);
   buildMieterhoehungPdf(daten).save('Mieterhoehung-'+pdfSafeName(m.mieter)+'.pdf');
 }
 /* US-102-Schliff: Index-Anpassung samt zugehörigem Chronik-Eintrag löschen (gleiches Datum) und die
@@ -475,13 +471,13 @@ function indexBlock(m,ei,mi){
         ' <button class="addrow" onclick="indexAnschreibenPdf('+ei+','+mi+')">Ankündigung als PDF</button>'+
         /* AC-2a (US-118): Ankündigung der KOMMENDEN Index-Anpassung – verbunden mit dem Termine-Reiter
            (mhAngekuendigt, Stichtag-keyed). Setzen rückt dort den nächsten Termin nach. */
-        ' <label class="staffel-ank"><input type="checkbox" '+(((m.mhAngekuendigt||{})[stichtag2])?'checked':'')+' onchange="idxVorabAnkuendigung('+ei+','+mi+',\''+stichtag2+'\',this.checked)"> angekündigt</label></div>'+
+        ' <label class="staffel-ank"><input type="checkbox" '+(nkIstAngekuendigt(m.ankuendigungen||{}, stichtag2)?'checked':'')+' onchange="idxVorabAnkuendigung('+ei+','+mi+',\''+stichtag2+'\',this.checked)"> angekündigt</label></div>'+
     '</div>';
   }
   if(typ==='staffel'){
     const plan=nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag);
     const aktuell=nkStaffelMieteAm(plan, m.stafAusgangsmiete, heute());
-    const ang=m.stafAngekuendigt||{};
+    const ank=m.ankuendigungen||{};
     /* Beginn/Enddatum koppeln: Zeitraum max. 15 Jahre, sonst kein (riesiger) Plan + Hinweis. */
     const spanZuGross = (function(){ const e=nkDatum(m.stafEnde); return !!(e && nkDatum(m.stafBeginn) && e > nkDatum(nkPlusJahre(m.stafBeginn,15))); })();
     h+='<div class="heiz-felder">'+
@@ -500,8 +496,7 @@ function indexBlock(m,ei,mi){
       h+='<div class="chronik-titel">Staffelplan</div>';
       h+=plan.map(s=>{
         const erreicht=nkIndexFaellig(s.datum, heute());
-        const av=ang[s.datum]; const istAng=!!av;
-        const angDatum=(av&&typeof av==='object')?av.datum:av; /* alt: String, neu: {datum,snapshot} */
+        const istAng=nkIstAngekuendigt(ank,s.datum); const angDatum=nkAnkVerschicktAm(ank,s.datum);
         const warn=erreicht && !istAng;
         return '<div class="index-hist'+(warn?' staffel-warn':'')+'">'+
           '<div class="ih-text">'+fmtDatum(s.datum)+': '+eur(s.alteMiete)+' + '+eur(s.neueMiete-s.alteMiete)+' = <b>'+eur(s.neueMiete)+'</b>'+
@@ -515,11 +510,11 @@ function indexBlock(m,ei,mi){
     }
     /* Behaltene versendete Ankündigungen, deren Stichtag nicht (mehr) im Plan liegt. */
     const planSet=new Set(plan.map(s=>s.datum));
-    const orphans=Object.keys(ang).filter(d=> ang[d]&&typeof ang[d]==='object'&&ang[d].snapshot && !planSet.has(d)).sort();
+    const orphans=Object.keys(ank).filter(d=> ank[d]&&ank[d].snapshot&&ank[d].typ==='Staffel' && !planSet.has(d)).sort();
     if(orphans.length){
       h+='<div class="chronik-titel">Versendete Ankündigungen außerhalb des aktuellen Plans</div>';
-      h+=orphans.map(d=>{ const snap=ang[d].snapshot; return '<div class="index-hist">'+
-        '<div class="ih-text">'+fmtDatum(d)+': → <b>'+eur(snap.neueMiete)+'</b> <span class="hint">(verschickt am '+fmtDatum(ang[d].datum)+')</span></div>'+
+      h+=orphans.map(d=>{ const snap=ank[d].snapshot; return '<div class="index-hist">'+
+        '<div class="ih-text">'+fmtDatum(d)+': → <b>'+eur(snap.neueMiete)+'</b> <span class="hint">(verschickt am '+fmtDatum(ank[d].verschicktAm)+')</span></div>'+
         '<div class="ih-actions"><button class="addrow" onclick="staffelOrphanPdf('+ei+','+mi+',\''+d+'\')">Ankündigung als PDF</button>'+
         ' <button class="row-del" title="Beleg löschen" onclick="staffelOrphanLoeschen('+ei+','+mi+',\''+d+'\')">×</button></div>'+
       '</div>'; }).join('');

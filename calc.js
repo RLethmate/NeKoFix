@@ -1328,13 +1328,13 @@ function nkMigrateAnkuendigungen(m) {
   const cur = (m && m.ankuendigungen) || {};
   Object.keys(cur).forEach(k => put(k, cur[k]));
   const mh = (m && m.mhAngekuendigt) || {};
-  Object.keys(mh).forEach(k => { if (mh[k]) put(k, { verschicktAm: "" }); });
+  Object.keys(mh).forEach(k => { if (mh[k]) put(k, { verschicktAm: "", typ: "Index" }); });
   const staf = (m && m.stafAngekuendigt) || {};
   Object.keys(staf).forEach(k => { const v = staf[k]; if (!v) return;
-    if (typeof v === "object") put(k, v.snapshot !== undefined ? { verschicktAm: v.datum || "", snapshot: v.snapshot } : { verschicktAm: v.datum || "" });
-    else put(k, { verschicktAm: "" }); });
+    if (typeof v === "object") put(k, v.snapshot !== undefined ? { verschicktAm: v.datum || "", snapshot: v.snapshot, typ: "Staffel" } : { verschicktAm: v.datum || "", typ: "Staffel" });
+    else put(k, { verschicktAm: "", typ: "Staffel" }); });
   ((m && m.idxAnpassungen) || []).forEach(a => { if (a && a.angekuendigt && a.datum)
-    put(a.datum, a.ankSnapshot !== undefined ? { verschicktAm: a.angekuendigt, snapshot: a.ankSnapshot } : { verschicktAm: a.angekuendigt }); });
+    put(a.datum, a.ankSnapshot !== undefined ? { verschicktAm: a.angekuendigt, snapshot: a.ankSnapshot, typ: "Index" } : { verschicktAm: a.angekuendigt, typ: "Index" }); });
   return out;
 }
 /* Lese-Helfer auf dem einheitlichen Speicher (Stichtag-keyed). */

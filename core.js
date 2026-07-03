@@ -53,10 +53,12 @@ const store = {
   setTerminFeld(id,field,val){ const t=(state.objekt.termine||[]).find(x=>x.id===id); if(t){ t[field]=val; commit(); } },
   /* „Erledigt": togglet nur den Status geplant/erledigt (kein Löschen; Löschen nur via ×). */
   toggleTerminErledigt(id){ const t=(state.objekt.termine||[]).find(x=>x.id===id); if(t){ t.erledigt=!t.erledigt; commit(); } },
-  /* US-111: Ankündigung einer (Index-)Mieterhöhung aus dem Termine-Reiter merken (Datum-keyed);
-     der nächste Stichtag rückt dadurch nach. Staffel läuft über stafAngekuendigt (Vertragsteil). */
-  setMhAngekuendigt(ei,mi,datum,checked){ const m=state.einheiten[ei].mv[mi]; if(!m.mhAngekuendigt)m.mhAngekuendigt={};
-    if(checked) m.mhAngekuendigt[datum]=true; else delete m.mhAngekuendigt[datum]; commit(); },
+  /* US-118 AC-2b: einheitlicher Ankündigungs-Speicher (Stichtag-keyed). entry=null -> löschen. */
+  setAnk(ei,mi,stichtag,entry){ const m=state.einheiten[ei].mv[mi]; if(!m.ankuendigungen)m.ankuendigungen={};
+    if(entry) m.ankuendigungen[stichtag]=entry; else delete m.ankuendigungen[stichtag]; commit(); },
+  /* US-111: Ankündigung einer KOMMENDEN Index-Mieterhöhung (Vorab, ohne Snapshot) aus Termine-Reiter
+     bzw. Vertragsteil merken; der nächste Stichtag rückt dadurch nach. Schreibt in die vereinte Map. */
+  setMhAngekuendigt(ei,mi,datum,checked){ this.setAnk(ei,mi,datum, checked?{verschicktAm:"", typ:"Index"}:null); },
   setZahlungFeld(field,val){ if(!state.zahlung) state.zahlung={}; state.zahlung[field]=val; commit(); }, /* US-51 */
   setAbrechnungStatus(val){ state.abrechnungStatus=val; commit(); },
   // Einheiten
@@ -119,7 +121,15 @@ function ensureIds(){
 }
 /* aktives Objekt als reine Daten herausziehen / in `state` laden */
 function snapshot(){ return { objekt:state.objekt, einheiten:state.einheiten, kosten:state.kosten, zahlung:state.zahlung, abrechnungStatus:state.abrechnungStatus, vorjahr:!!state.vorjahr }; }
-function ladeDaten(d){ state.objekt=d.objekt; state.einheiten=d.einheiten||[]; state.kosten=d.kosten||[]; state.zahlung=d.zahlung||{}; state.abrechnungStatus=d.abrechnungStatus||"inArbeit"; state.vorjahr=!!d.vorjahr; if(state.objekt && !state.objekt.name) state.objekt.name=state.objekt.addr||""; /* US-65: Objektname aus Adresse vorbelegen, danach stabil */ }
+function ladeDaten(d){ state.objekt=d.objekt; state.einheiten=d.einheiten||[]; state.kosten=d.kosten||[]; state.zahlung=d.zahlung||{}; state.abrechnungStatus=d.abrechnungStatus||"inArbeit"; state.vorjahr=!!d.vorjahr; if(state.objekt && !state.objekt.name) state.objekt.name=state.objekt.addr||""; /* US-65: Objektname aus Adresse vorbelegen, danach stabil */ migriereAnkuendigungen(); }
+/* US-118 AC-2b: beim Laden die drei Alt-Speicher (mhAngekuendigt, stafAngekuendigt,
+   idxAnpassungen[].angekuendigt/ankSnapshot) in die vereinte per-MV-Map `ankuendigungen` falten
+   und die Alt-Felder entfernen. Idempotent (nkMigrateAnkuendigungen), verlustfrei. */
+function migriereAnkuendigungen(){ state.einheiten.forEach(e=>(e.mv||[]).forEach(m=>{
+  const map=nkMigrateAnkuendigungen(m); if(Object.keys(map).length) m.ankuendigungen=map; else delete m.ankuendigungen;
+  delete m.mhAngekuendigt; delete m.stafAngekuendigt;
+  (m.idxAnpassungen||[]).forEach(a=>{ if(a){ delete a.angekuendigt; delete a.ankSnapshot; } });
+})); }
 function makeFreshDaten(){ const von="2025-01-01", bis="2025-12-31"; return {
   objekt:{ addr:"Neues Objekt", name:"Neues Objekt", von, bis },
   einheiten:[{ id:1, name:"EG", flaeche:0, personen:1, mv:[{ mieter:"Mieter 1", von, bis, vmonat:0, vmonate:12, vjahr:0, einmal:0, voraus:0, grundmiete:0, stellAnzahl:0, stellPreis:0, bezahlt:{} }] }],

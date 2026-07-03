@@ -1513,7 +1513,7 @@ test("nkMieterhoehungTermine: Index rückt nach, wenn Stichtag vorab angekündig
 test("nkMigrateAnkuendigungen: kommende Index-Vorab-Ankündigung (mhAngekuendigt) -> {verschicktAm:''}", () => {
   const m = { mhAngekuendigt: { "2026-01-01": true, "2027-01-01": false } };
   const ank = calc.nkMigrateAnkuendigungen(m);
-  assert.deepEqual(ank, { "2026-01-01": { verschicktAm: "" } }); // false-Eintrag wird nicht übernommen
+  assert.deepEqual(ank, { "2026-01-01": { verschicktAm: "", typ: "Index" } }); // false-Eintrag wird nicht übernommen
   assert.equal(calc.nkIstAngekuendigt(ank, "2026-01-01"), true);
   assert.equal(calc.nkIstAngekuendigt(ank, "2027-01-01"), false);
 });
