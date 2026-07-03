@@ -499,7 +499,7 @@ function indexBlock(m,ei,mi){
        damit sie sich nicht zwischen die oberen Eingabefelder quetschen. */
     /* US-119 AC-1/AC-2: die frühere eigene „Nächste Erhöhung zum …"-Titelzeile ist ersetzt durch die
        gemeinsame Zeile (mhZeile), identisch zur Staffel und zum Termine-Reiter. */
-    if(eigenerTermin) h+=mhZeile(eigenerTermin, {imVertrag:true});
+    if(eigenerTermin) h+=mhTabelleImVertrag(eigenerTermin);
     /* Box „Neue Anpassung": vorheriger Index → Folge-Index → % → Formel */
     const vorMonat=m.idxVorMonat||basisMonat; const vp=vorMonat.split('-'); const vmy=vp[0]||'', vmm=vp[1]||'';
     const rohNeu=basis+erh;
@@ -547,7 +547,7 @@ function indexBlock(m,ei,mi){
          Kalendertermin behandeln, der mit dem Vertragsende aufhört (jetzt in `eigenerTermin.ende`
          sichtbar). Der PDF-Button bleibt daneben (typ-spezifisch, braucht alte/neue Miete der Stufe). */
       if(eigenerTermin){
-        h+=mhZeile(eigenerTermin, {imVertrag:true});
+        h+=mhTabelleImVertrag(eigenerTermin);
         const naechsteStufe=plan.find(s=>s.datum===eigenerTermin.datum);
         if(naechsteStufe) h+='<div class="ih-actions"><button class="addrow" onclick="staffelAnschreibenPdf('+ei+','+mi+',\''+naechsteStufe.datum+'\','+naechsteStufe.alteMiete+','+naechsteStufe.neueMiete+','+(naechsteStufe.neueMiete-naechsteStufe.alteMiete)+')">Ankündigung als PDF</button></div>';
       } else {

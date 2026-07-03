@@ -36,6 +36,14 @@ function mhZeile(t, opts){
       (opts.imVertrag?'':'<span class="termin-akt"><button type="button" class="linklike" onclick="go(7)">Vertrag öffnen</button></span>')+'</div>'+
   '</div>';
 }
+/* US-119 (Feedback 2026-07-03): im Vertrag muss dieselbe „Tabelle" wie im Termine-Reiter erscheinen,
+   nicht nur dieselbe Zeile ohne ihren Rahmen. Der Termine-Reiter zeigt jede Zeile innerhalb von
+   `.termin-liste` (Box mit Rand/abgerundeten Ecken, CSS) und – in der Rubrik-Ansicht – mit der
+   `.termin-rubrik`-Kopfzeile darüber (renderTermine, view-termine.js). Dieser Helfer bildet exakt
+   dieselbe Struktur nach, nur vorgefiltert auf die eine Mieterhöhungs-Zeile dieses Mietverhältnisses. */
+function mhTabelleImVertrag(t){
+  return '<div class="termin-liste"><div class="termin-rubrik">'+esc(NK_TERMIN_ARTEN_ALLE.mieterhoehung)+' (1)</div>'+mhZeile(t,{imVertrag:true})+'</div>';
+}
 function terminZeile(t){
   if(t.quelle==='mieterhoehung') return mhZeile(t);
   /* Zeile 1: Tage + Bezeichnung (breit); Zeile 2: Datum, Uhrzeit, Rubrik, Fälligkeit, angekündigt, erledigt, .ics, ×. */
