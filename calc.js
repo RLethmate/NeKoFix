@@ -1345,22 +1345,23 @@ function nkMieterhoehungTermine(einheiten, heuteDatum) {
   const out = [];
   (einheiten || []).forEach(e => { (e.mv || []).forEach(m => {
     if (!m || !m.mhTyp) return;
+    /* US-118 AC-2b: eine vereinte Ankündigungs-Sicht (deckt Alt-Felder und neue Map ab). */
+    const ank = nkMigrateAnkuendigungen(m);
     let datum = "", typ = "", freq = 1;
     if (m.mhTyp === "index") {
       typ = "Index"; freq = Math.max(1, Math.floor(+m.idxFrequenz) || 1);
       /* Nächster Index-Stichtag; bereits (vorab) angekündigte werden übersprungen -> Folgejahr rückt nach. */
-      const anz = (m.idxAnpassungen || []).length; const ang = m.mhAngekuendigt || {};
+      const anz = (m.idxAnpassungen || []).length;
       datum = nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
-      let k = 0; while (datum && ang[datum] && k < 60) { k++; datum = nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz + k); }
+      let k = 0; while (datum && nkIstAngekuendigt(ank, datum) && k < 60) { k++; datum = nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz + k); }
     } else if (m.mhTyp === "staffel" && m.stafBeginn) {
       /* Nächste noch nicht angekündigte Staffel-Stufe – unabhängig vom (optionalen) Enddatum
          rechnerisch bestimmt (nkStaffelPlan liefert ohne Ende keine Stichtage). */
       typ = "Staffel"; freq = Math.max(1, Math.floor(+m.stafFrequenz) || 1);
-      const ang = m.stafAngekuendigt || {};
       for (let k = 1; k <= 400; k++) {
         const d = nkPlusJahre(m.stafBeginn, freq * k);
         if (m.stafEnde && d > m.stafEnde) break;
-        if (!ang[d]) { datum = d; break; }
+        if (!nkIstAngekuendigt(ank, d)) { datum = d; break; }
       }
     }
     if (!datum) return;
