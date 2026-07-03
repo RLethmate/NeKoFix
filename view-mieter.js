@@ -203,12 +203,15 @@ function updIdxMonatTeil(ei,mi,which,teil,val){
   const m=store.mv(ei,mi);
   const anz=(m.idxAnpassungen||[]).length;
   const field = which==='vor' ? 'idxVorMonat' : 'idxIndexMonat';
+  const stichtag=nkIndexNaechsteAnpassung(m.idxEinzug,m.idxFrequenz,anz);
   const def = which==='vor'
     ? nkIndexBasisMonat(m.idxEinzug, m.idxAnpassungen)
-    : nkIndexVerwendeterMonat(nkIndexNaechsteAnpassung(m.idxEinzug,m.idxFrequenz,anz));
+    : nkIndexMonatKappen(m.idxIndexMonat, stichtag);
   const cur=(m[field]||def||'').split('-'); let yy=cur[0]||'', mm=cur[1]||'';
   if(teil==='m') mm=String(val).padStart(2,'0'); else yy=String(val);
-  store.setMvFeld(ei,mi,field, yy+'-'+mm);
+  let neu=yy+'-'+mm;
+  if(which==='folge') neu=nkIndexMonatKappen(neu, stichtag); /* US-110: Deckel – kein neuerer Index als zum Stichtag verfügbar */
+  store.setMvFeld(ei,mi,field, neu);
   renderEinheiten();
 }
 /* US-68: nächste Index-Anpassung übernehmen – die Liste rückt eins weiter. */
@@ -220,9 +223,13 @@ function indexUebernehmen(ei,mi){
   const datum=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
   const basis=nkIndexAktuelleMiete(m.idxAusgangsmiete, m.idxAnpassungen);
   const neue=nkIndexNeueMiete(basis, proz);
-  const monat=m.idxIndexMonat||nkIndexVerwendeterMonat(datum);
+  const monat=nkIndexMonatKappen(m.idxIndexMonat, datum);
   const basisMonat=m.idxVorMonat||nkIndexBasisMonat(m.idxEinzug, m.idxAnpassungen);
-  const liste=(m.idxAnpassungen||[]).concat([{datum, prozent:proz, alteMiete:basis, neueMiete:neue, monat, basisMonat}]);
+  /* US-110: Wirkungsdatum – falls bereits vorab angekündigt (AC-2a), berücksichtigt das
+     ggf. eine verspätete Vorab-Ankündigung; sonst Regelfall = Stichtag. */
+  const verschicktVorab=nkAnkVerschicktAm(m.ankuendigungen||{}, datum);
+  const wirkung=nkIndexWirkungsdatum(datum, verschicktVorab);
+  const liste=(m.idxAnpassungen||[]).concat([{datum, prozent:proz, alteMiete:basis, neueMiete:neue, monat, basisMonat, wirkung}]);
   store.setMvFeld(ei,mi,'idxAnpassungen', liste);
   store.setMvNum(ei,mi,'grundmiete', neue);
   store.setMvFeld(ei,mi,'idxProzent','');
@@ -231,7 +238,8 @@ function indexUebernehmen(ei,mi){
   store.addChronik(ei,mi);
   const ci=store.mv(ei,mi).chronik.length-1;
   store.setChronikFeld(ei,mi,ci,'datum',datum);
-  store.setChronikFeld(ei,mi,ci,'text','Indexmiete +'+nkFmtBetrag(proz)+' % ('+nkFmtBetrag(basis)+' € → '+neue+' €, Index '+(basisMonat?basisMonat+'→':'')+(monat||'')+')');
+  store.setChronikFeld(ei,mi,ci,'text','Indexmiete +'+nkFmtBetrag(proz)+' % ('+nkFmtBetrag(basis)+' € → '+neue+' €, Index '+(basisMonat?basisMonat+'→':'')+(monat||'')+')'
+    +(wirkung!==datum?' – wirkt ab '+fmtDatum(wirkung)+' (nachgeholte Ankündigung)':''));
   renderEinheiten();
 }
 function indexAnpassungLoeschen(ei,mi,idx){
@@ -271,7 +279,7 @@ function mhDatenBasis(ei,mi){
 }
 function mhDatenIndex(ei,mi,idx){ /* idx==null => offene (pending) Anpassung */
   const m=store.mv(ei,mi);
-  let datum,stichtag1,alteMiete,prozent,monatVon,monatBis,neueMiete;
+  let datum,stichtag1,alteMiete,prozent,monatVon,monatBis,neueMiete,wirkung;
   if(idx==null){
     const anz=(m.idxAnpassungen||[]).length;
     datum=nkIndexNaechsteAnpassung(m.idxEinzug,m.idxFrequenz,anz);
@@ -279,16 +287,18 @@ function mhDatenIndex(ei,mi,idx){ /* idx==null => offene (pending) Anpassung */
     alteMiete=nkIndexAktuelleMiete(m.idxAusgangsmiete,m.idxAnpassungen);
     prozent=+m.idxProzent||0;
     monatVon=m.idxVorMonat||nkIndexBasisMonat(m.idxEinzug,m.idxAnpassungen);
-    monatBis=m.idxIndexMonat||nkIndexVerwendeterMonat(datum);
+    monatBis=nkIndexMonatKappen(m.idxIndexMonat,datum);
     neueMiete=nkIndexNeueMiete(alteMiete,prozent);
+    wirkung=nkIndexWirkungsdatum(datum, nkAnkVerschicktAm(m.ankuendigungen||{}, datum));
   } else {
     const a=m.idxAnpassungen[idx];
     datum=a.datum; stichtag1=idx>0?m.idxAnpassungen[idx-1].datum:(m.idxEinzug||'');
     alteMiete=a.alteMiete; prozent=a.prozent; monatVon=a.basisMonat; monatBis=a.monat; neueMiete=a.neueMiete;
+    wirkung=a.wirkung||a.datum;
   }
   return Object.assign(mhDatenBasis(ei,mi), {typ:'index', stichtag:datum, stichtag1,
     alteMiete, prozent, monatVon, monatBis, rohNeu:alteMiete+nkIndexErhoehungsbetrag(alteMiete,prozent),
-    neueMiete, frist:nkMitteilungsfrist(datum)});
+    neueMiete, frist:nkMitteilungsfrist(datum), wirkung});
 }
 function mhDatenStaffel(ei,mi,datum,alteMiete,neueMiete,betrag){
   return Object.assign(mhDatenBasis(ei,mi), {typ:'staffel', stichtag:datum,
@@ -317,10 +327,27 @@ function indexAnkuendigung(ei,mi,idx,checked){
   const m=store.mv(ei,mi); const a=(m.idxAnpassungen||[])[idx]; if(!a) return;
   const datum=a.datum; const ankM=m.ankuendigungen||{};
   if(checked){
-    store.setAnk(ei,mi,datum,{verschicktAm:heute(), snapshot:mhDatenIndex(ei,mi,idx), typ:'Index'});
+    const verschicktAm=heute();
+    /* US-110: Wirkungsdatum aus dem tatsächlichen Versanddatum neu berechnen – DAS ist der Moment,
+       in dem ein reales Datum feststeht (ggf. abweichend vom Stichtag bei nachgeholter Ankündigung). */
+    const wirkung=nkIndexWirkungsdatum(datum, verschicktAm);
+    store.setIdxAnpassungFeld(ei,mi,idx,'wirkung',wirkung);
+    store.setAnk(ei,mi,datum,{verschicktAm, snapshot:mhDatenIndex(ei,mi,idx), typ:'Index'});
+    /* Versanddatum nachhaltig UND editierbar in der Chronik-Notiz festhalten (Ralfs Wunsch: nicht
+       nur "dass", sondern "wann" verschickt wurde – schickt er tatsächlich einen Tag später ab,
+       kann er den Text einfach selbst anpassen, statt ein eigenes Datumsfeld pflegen zu müssen). */
+    const ci=(m.chronik||[]).findIndex(c=>c.datum===datum);
+    if(ci>=0){
+      const cur=m.chronik[ci].text||'';
+      if(cur.indexOf('verschickt am')===-1){
+        const zusatz=' – verschickt am '+fmtDatum(verschicktAm)+(wirkung!==datum?' (wirkt ab '+fmtDatum(wirkung)+', nachgeholte Ankündigung)':'');
+        store.setChronikFeld(ei,mi,ci,'text', cur+zusatz);
+      }
+    }
   } else {
     const snap=nkAnkSnapshot(ankM,datum);
     if(snap && !mhEntfernenBestaetigt(nkAnkVerschicktAm(ankM,datum), snap, mhDatenIndex(ei,mi,idx))){ renderEinheiten(); return; }
+    store.setIdxAnpassungFeld(ei,mi,idx,'wirkung',datum); /* kein bekanntes Versanddatum mehr */
     store.setAnk(ei,mi,datum,null);
   }
   renderEinheiten();
@@ -431,10 +458,14 @@ function indexBlock(m,ei,mi){
     const bald=nkBaldFaellig(stichtag2, heute(), 3);
     const frist=nkMitteilungsfrist(stichtag2);
     const basis=nkIndexAktuelleMiete(m.idxAusgangsmiete, m.idxAnpassungen);
+    /* US-110: für die Anzeige "Aktuell gültige Miete" wirkungsdatum-bewusst (heute()) statt der
+       reinen Verkettungs-Basis – sonst würde eine noch nicht wirksame (nachgeholte) Erhöhung
+       fälschlich schon als aktuell gültig ausgewiesen. `basis` bleibt für die Formel unten unverändert. */
+    const aktuellHeute=nkIndexMieteAm(m.idxAusgangsmiete, m.idxAnpassungen, heute());
     const proz=+m.idxProzent||0;
     const erh=nkIndexErhoehungsbetrag(basis, proz);
     const neue=nkIndexNeueMiete(basis, proz);
-    const monatGewaehlt=m.idxIndexMonat||nkIndexVerwendeterMonat(stichtag2);
+    const monatGewaehlt=nkIndexMonatKappen(m.idxIndexMonat, stichtag2);
     const basisMonat=nkIndexBasisMonat(m.idxEinzug, m.idxAnpassungen);
     const mg=monatGewaehlt.split('-'); const my=mg[0]||'', mm=mg[1]||'';
     h+='<div class="heiz-felder">'+
@@ -443,7 +474,7 @@ function indexBlock(m,ei,mi){
       hfFeld('Anpassung alle … Jahre','<input type="number" min="1" step="1" value="'+(m.idxFrequenz||1)+'" onchange="updIdxNum('+ei+','+mi+',\'idxFrequenz\',this.value)">')+
     '</div>';
     if(!nkIndexFrequenzGueltig(m.idxFrequenz||1)) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Frequenz muss eine ganze Zahl ab 1 Jahr sein (§ 557b).</div>';
-    h+='<div class="mh-aktuell">Aktuell gültige Miete: <b>'+eur(basis)+'</b></div>';
+    h+='<div class="mh-aktuell">Aktuell gültige Miete: <b>'+eur(aktuellHeute)+'</b></div>';
     /* US-102-Schliff: „Bisherige Anpassungen" wandern nach unten in die Anpassungs-Chronik (indexHistRows),
        damit sie sich nicht zwischen die oberen Eingabefelder quetschen. */
     /* Fälligkeits-Warnung – außerhalb der Box */

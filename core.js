@@ -58,7 +58,9 @@ const store = {
     if(entry) m.ankuendigungen[stichtag]=entry; else delete m.ankuendigungen[stichtag]; commit(); },
   /* US-111: Ankündigung einer KOMMENDEN Index-Mieterhöhung (Vorab, ohne Snapshot) aus Termine-Reiter
      bzw. Vertragsteil merken; der nächste Stichtag rückt dadurch nach. Schreibt in die vereinte Map. */
-  setMhAngekuendigt(ei,mi,datum,checked){ this.setAnk(ei,mi,datum, checked?{verschicktAm:"", typ:"Index"}:null); },
+  setMhAngekuendigt(ei,mi,datum,checked){ this.setAnk(ei,mi,datum, checked?{verschicktAm:heute(), typ:"Index"}:null); },
+  /* US-110: einzelnes Feld einer festgesetzten Index-Anpassung setzen (z. B. wirkung). */
+  setIdxAnpassungFeld(ei,mi,idx,field,val){ const m=state.einheiten[ei].mv[mi]; if(m.idxAnpassungen&&m.idxAnpassungen[idx]) m.idxAnpassungen[idx][field]=val; commit(); },
   setZahlungFeld(field,val){ if(!state.zahlung) state.zahlung={}; state.zahlung[field]=val; commit(); }, /* US-51 */
   setAbrechnungStatus(val){ state.abrechnungStatus=val; commit(); },
   // Einheiten

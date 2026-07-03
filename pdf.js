@@ -251,7 +251,11 @@ function buildMieterhoehungPdf(a){
     par('Gemäß Angabe des Statistischen Bundesamts beträgt die prozentuale Veränderung vom Indexstand des Monats '+pdfMonatLang(a.monatVon)+' bis zum gewählten Indexstand des Monats '+pdfMonatLang(a.monatBis)+': '+nkFmtBetrag(a.prozent)+' %.'); y+=2;
     doc.setTextColor(80); doc.setFontSize(8); nl('https://www.destatis.de/DE/Themen/Wirtschaft/Preise/Verbraucherpreisindex/Methoden/Internetprogramm.html'); doc.setFontSize(10); doc.setTextColor(0); y+=6;
     nl(nkFmtBetrag(a.alteMiete)+' EUR * '+nkFmtBetrag(a.prozent)+' % = '+nkFmtBetrag(erh)+' EUR'); y+=6;
-    par('Somit setzt sich die Monatsmiete wie folgt zusammen (neue Nettokaltmiete auf volle Euro abgerundet):');
+    par('Somit setzt sich die Monatsmiete wie folgt zusammen (neue Nettokaltmiete auf volle Euro abgerundet):'); y+=2;
+    /* US-110: nachgeholte Ankündigung – Wirkungsdatum weicht vom Stichtag ab (§ 557b Abs. 3 BGB). */
+    if(a.wirkung && a.wirkung>a.stichtag){
+      par('Da die Ankündigung nicht rechtzeitig zum Stichtag erfolgen konnte, ist die erhöhte Miete gemäß § 557b Abs. 3 BGB erst ab dem '+fmtDatum(a.wirkung)+' zu entrichten.'); y+=4;
+    }
   } else {
     par('wie angekündigt, informiere ich Sie hiermit über die vertraglich vereinbarte Anpassung der Nettokaltmiete nach § 557a BGB (Staffelmiete).'); y+=6;
     par('Die bisherige Nettokaltmiete beträgt: '+nkFmtBetrag(a.alteMiete)+' EUR.');
@@ -272,10 +276,10 @@ function buildMieterhoehungPdf(a){
   y+=2; doc.line(L,y,R,y); y+=14;
   const gesamtNeu=a.neueMiete+stell+nk;
   doc.setFont(undefined,'bold'); doc.text('Gesamtmiete monatlich',L,y); doc.text(eur(a.alteMiete+stell+nk),cBis,y,{align:'right'}); doc.text(eur(gesamtNeu),cNeu,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=20;
-  par('Bitte passen Sie Ihren Dauerauftrag zum '+fmtDatum(a.stichtag)+' entsprechend an.'); y+=4;
+  par('Bitte passen Sie Ihren Dauerauftrag zum '+fmtDatum(a.wirkung||a.stichtag)+' entsprechend an.'); y+=4;
   // US-55: GiroCode (EPC-QR) – Einrichtung in der Banking-App ohne Abtippen.
   if(nkIbanGueltig(a.iban) && gesamtNeu>0){
-    const giro=nkGiroCode({ empfaenger:a.vermieter, iban:a.iban, bic:a.bic, betrag:gesamtNeu, zweck:'Miete '+(a.objektAddr||'')+'-'+(a.einheitName||'')+'-'+(a.mieter||'')+' ab '+fmtDatum(a.stichtag) });
+    const giro=nkGiroCode({ empfaenger:a.vermieter, iban:a.iban, bic:a.bic, betrag:gesamtNeu, zweck:'Miete '+(a.objektAddr||'')+'-'+(a.einheitName||'')+'-'+(a.mieter||'')+' ab '+fmtDatum(a.wirkung||a.stichtag) });
     let url=null;
     if(giro && typeof qrcode!=='undefined'){
       try{ if(qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8']) qrcode.stringToBytes=qrcode.stringToBytesFuncs['UTF-8'];

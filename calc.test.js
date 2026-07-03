@@ -881,6 +881,17 @@ test("nkMieteAm: Staffel/Index/keine", () => {
   assert.equal(calc.nkMieteAm(idx,"2025-06-01"),1020);
   assert.equal(calc.nkMieteAm({grundmiete:800},"2025-06-01"),800);
 });
+test("nkMietrueckstand: US-110 nachgeholte Ankündigung – Wirkungsdatum verschiebt den Soll-Anstieg", () => {
+  // Stichtag 2025-01-01 (Regelfall), aber wegen nachgeholter Ankündigung erst ab 2025-04-01 wirksam.
+  const m={ von:"2025-01-01", mhTyp:"index", idxAusgangsmiete:1000,
+    idxAnpassungen:[{datum:"2025-01-01", wirkung:"2025-04-01", neueMiete:1100}], erhalten:{}, bezahlt:{} };
+  // Jan-März weiterhin 1000 (Wirkung noch nicht erreicht), April-Juni bereits 1100.
+  assert.equal(calc.nkMietrueckstand(m, "2025-12-31", "2025-01-01", "2025-06-30"), 3*1000+3*1100);
+  // Ohne `wirkung` (Fallback auf datum) wäre der Anstieg schon ab Januar fällig – zur Abgrenzung:
+  const mOhneWirkung={ von:"2025-01-01", mhTyp:"index", idxAusgangsmiete:1000,
+    idxAnpassungen:[{datum:"2025-01-01", neueMiete:1100}], erhalten:{}, bezahlt:{} };
+  assert.equal(calc.nkMietrueckstand(mOhneWirkung, "2025-12-31", "2025-01-01", "2025-06-30"), 6*1100);
+});
 test("nkZahlStatus: offen/teilweise/bezahlt/ueberzahlt", () => {
   assert.equal(calc.nkZahlStatus(0,1190),"offen");
   assert.equal(calc.nkZahlStatus(-5,1190),"offen");        // leer/negativ => offen (rot)
