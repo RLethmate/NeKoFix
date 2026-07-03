@@ -1393,9 +1393,11 @@ function nkMieterhoehungTermine(einheiten, heuteDatum) {
     if (!datum) return;
     const bez = (m.terminBez && String(m.terminBez).trim()) ? m.terminBez : ("Mieterhöhung: " + (m.mieter || "Mieter") + " · " + (e.name || ""));
     /* intervallMonate = Frequenz*12 -> im .ics eine jährliche Serie (RRULE), damit der Kalender jedes
-       Jahr erinnert; im Reiter rückt der nächste Termin beim „angekündigt" nach. */
+       Jahr erinnert; im Reiter rückt der nächste Termin beim „angekündigt" nach.
+       US-119: `ende` = Ende der Wiederkehr (nur Staffel kennt ein Vertragsende; Index läuft
+       unbegrenzt weiter) – wird in die .ics-RRULE (UNTIL) und die Zeilen-Anzeige übernommen. */
     out.push({ quelle: "mieterhoehung", art: "mieterhoehung", intervallMonate: freq * 12, frequenzJahre: freq,
-      bez: bez, datum: datum, typ: typ, einheitId: e.id, mvId: m.id });
+      bez: bez, datum: datum, typ: typ, einheitId: e.id, mvId: m.id, ende: typ === "Staffel" ? (m.stafEnde || "") : "" });
   }); });
   return out;
 }
@@ -1470,7 +1472,10 @@ function nkTerminIcs(items) {
     L.push("CLASS:PRIVATE"); /* privat – in geteilten Kalendern für andere nicht als Detail sichtbar */
     if (t.notiz) L.push("DESCRIPTION:" + esc(t.notiz));
     const iv = +t.intervallMonate || 0;
-    if (iv > 0) L.push(iv % 12 === 0 ? ("RRULE:FREQ=YEARLY;INTERVAL=" + (iv / 12)) : ("RRULE:FREQ=MONTHLY;INTERVAL=" + iv));
+    /* US-119: `ende` (nur Staffel) begrenzt die Wiederkehr im Kalender – ganztägiger Termin, daher
+       UNTIL als reines Datum (kein Uhrzeitsuffix), passend zu DTSTART;VALUE=DATE. */
+    const until = t.ende ? dv(t.ende) : "";
+    if (iv > 0) L.push((iv % 12 === 0 ? ("RRULE:FREQ=YEARLY;INTERVAL=" + (iv / 12)) : ("RRULE:FREQ=MONTHLY;INTERVAL=" + iv)) + (until ? (";UNTIL=" + until) : ""));
     L.push("BEGIN:VALARM", "TRIGGER:-P14D", "ACTION:DISPLAY", "DESCRIPTION:" + esc(t.bez), "END:VALARM", "END:VEVENT");
   });
   L.push("END:VCALENDAR");

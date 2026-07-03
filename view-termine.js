@@ -7,27 +7,33 @@ function terminArtSelect(id, art){ return '<select class="termin-sel" onchange="
 function terminIntervallSelect(id, iv){ const opts=[[0,'einmalig'],[3,'vierteljährlich'],[6,'halbjährlich'],[12,'jährlich'],[24,'alle 2 Jahre']];
   return '<select class="termin-sel" onchange="setTerminIntervall('+id+',this.value)">'+opts.map(o=>'<option value="'+o[0]+'"'+((+iv||0)===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'; }
 /* Tage-Badge mit Farbcode (rot <=1 Tag, orange < 2 Monate, grün > 2 Monate); verschwindet bei erledigt. */
-function terminTageBadge(t){
+function terminTageBadge(t, titleOverride){
   if(t.erledigt) return '<span class="termin-tage done">erledigt</span>';
   if(t.tage==null) return '<span class="termin-tage"></span>';
-  return '<span class="termin-tage '+(t.tageFarbe||'')+'" title="Zeit bis zum Termin">'+nkTageLabel(t.tage)+'</span>';
+  return '<span class="termin-tage '+(t.tageFarbe||'')+'" title="'+esc(titleOverride||'Zeit bis zum Termin')+'">'+nkTageLabel(t.tage)+'</span>';
 }
 /* US-119 AC-1: EINE gemeinsame Mieterhöhungs-Zeile (Index und Staffel identisch), genutzt vom
-   Termine-Reiter und – künftig – vom Vertragsteil. Quelle bleibt nkMieterhoehungTermine (AC-5).
-   Zeile 1: Bezeichnung (editierbar) + Typ; Zeile 2 read-only: Datum, Rubrik, Fälligkeit;
-   „angekündigt"-Haken (mit dem Vertragsteil verbunden) + Vertrag öffnen. */
-function mhZeile(t){
-  const faellig=terminIntervallText(t.intervallMonate);
+   Termine-Reiter UND eingebettet im Vertragsteil (view-mieter.js indexBlock). Quelle bleibt
+   nkMieterhoehungTermine (AC-5). Zeile 1: Bezeichnung (editierbar) + Typ; Zeile 2 read-only: Datum,
+   Rubrik, Fälligkeit (inkl. Vertragsende bei Staffel, US-119); „angekündigt"-Haken (mit dem
+   Vertragsteil verbunden) + Vertrag öffnen.
+   opts.imVertrag: unterdrückt „Vertrag öffnen" (ergibt dort keinen Sinn) und passt den
+   Stichtag-Tooltip an, da man sich bereits im Vertrag befindet. */
+function mhZeile(t, opts){
+  opts=opts||{};
+  const faellig=terminIntervallText(t.intervallMonate, t.ende);
+  const stichtagTitle=opts.imVertrag?'Stichtag':'Stichtag – im Vertrag ändern';
+  const badgeTitle=(t.typ==='Index')?'Zeit bis zum Termin – Mitteilungsfrist (Textform, § 557b): '+(t.datum?fmtDatum(nkMitteilungsfrist(t.datum)):'—'):'Zeit bis zum Termin';
   return '<div class="termin-row mh">'+
-    '<div class="termin-l1">'+terminTageBadge(t)+
+    '<div class="termin-l1">'+terminTageBadge(t, badgeTitle)+
       '<input type="text" class="termin-bez-in mh-bez" value="'+esc(t.bez)+'" title="Bezeichnung der Mieterhöhung anpassen" onchange="setMhTerminBez('+t.einheitId+','+t.mvId+',this.value)">'+
       '<span class="pill">'+esc(t.typ)+'</span></div>'+
     '<div class="termin-l2">'+
-      '<input type="date" class="termin-datum-in" value="'+(t.datum||'')+'" disabled title="Stichtag – im Vertrag ändern">'+
+      '<input type="date" class="termin-datum-in" value="'+(t.datum||'')+'" disabled title="'+stichtagTitle+'">'+
       '<input type="text" class="termin-sel" value="Mieterhöhung" disabled title="Rubrik">'+
       '<input type="text" class="termin-sel" value="'+esc(faellig)+'" disabled title="Fälligkeit">'+
       '<label class="termin-verschickt" title="Ankündigung verschickt – verbunden mit dem Vertragsteil"><input type="checkbox" onchange="setMhAngekuendigtUi('+t.einheitId+','+t.mvId+',\''+t.datum+'\',\''+esc(t.typ)+'\',this.checked)"> angekündigt</label>'+
-      '<span class="termin-akt"><button type="button" class="linklike" onclick="go(7)">Vertrag öffnen</button></span></div>'+
+      (opts.imVertrag?'':'<span class="termin-akt"><button type="button" class="linklike" onclick="go(7)">Vertrag öffnen</button></span>')+'</div>'+
   '</div>';
 }
 function terminZeile(t){
@@ -54,8 +60,13 @@ function setMhTerminBez(einheitId, mvId, val){
   const mi=state.einheiten[ei].mv.findIndex(m=>m.id===mvId); if(mi<0) return;
   store.setMvFeld(ei,mi,'terminBez',val); renderTermine();
 }
-/* Fälligkeits-Text aus Intervall in Monaten (für die read-only Mieterhöhungs-Zeile). */
-function terminIntervallText(iv){ iv=+iv||0; if(iv<=0) return 'einmalig'; if(iv%12===0) return (iv/12===1?'jährlich':'alle '+(iv/12)+' Jahre'); return 'alle '+iv+' Monate'; }
+/* Fälligkeits-Text aus Intervall in Monaten (für die read-only Mieterhöhungs-Zeile). US-119: optionales
+   `ende` (nur Staffel – Index kennt kein Vertragsende) hängt „, bis <Datum>" an. */
+function terminIntervallText(iv, ende){
+  iv=+iv||0;
+  const basis = iv<=0 ? 'einmalig' : (iv%12===0 ? (iv/12===1?'jährlich':'alle '+(iv/12)+' Jahre') : 'alle '+iv+' Monate');
+  return basis + (ende ? (', bis '+fmtDatum(ende)) : '');
+}
 /* „angekündigt" im Reiter setzen – Staffel über stafAngekuendigt (identisch zum Vertragsteil),
    Index über die Vorab-Ankündigung; der nächste Stichtag rückt danach nach. */
 function setMhAngekuendigtUi(einheitId, mvId, datum, typ, checked){

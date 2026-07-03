@@ -1483,6 +1483,17 @@ test("nkTerminIcs: VEVENT mit stabiler UID, RRULE bei Intervall, VALARM", () => 
   assert.ok(/DTSTART;VALUE=DATE:20260301/.test(ics));
   assert.ok(/BEGIN:VALARM[\s\S]*TRIGGER:-P14D/.test(ics));
 });
+test("nkTerminIcs: US-119 RRULE bekommt UNTIL, wenn `ende` gesetzt ist (Staffel-Vertragsende)", () => {
+  const ics = calc.nkTerminIcs([
+    { quelle: "mieterhoehung", einheitId: 9, mvId: 3, bez: "Mieterhöhung: Staf", datum: "2026-01-01", intervallMonate: 12, ende: "2030-01-01" },
+  ]);
+  assert.ok(/RRULE:FREQ=YEARLY;INTERVAL=1;UNTIL=20300101/.test(ics));
+  // ohne `ende` (z. B. Index) bleibt die RRULE wie bisher ohne UNTIL:
+  const icsOhneEnde = calc.nkTerminIcs([
+    { quelle: "mieterhoehung", einheitId: 9, mvId: 3, bez: "Mieterhöhung: Idx", datum: "2026-01-01", intervallMonate: 12 },
+  ]);
+  assert.ok(/RRULE:FREQ=YEARLY;INTERVAL=1\r/.test(icsOhneEnde)); // Zeilenende direkt danach -> kein UNTIL angehängt
+});
 
 /* ---- US-111 Schliff: Staffel ohne Ende, Tage-Spalte, Uhrzeit ---- */
 test("nkMieterhoehungTermine: Staffel ohne Enddatum liefert nächste Stufe", () => {
@@ -1495,6 +1506,14 @@ test("nkMieterhoehungTermine: Staffel ohne Enddatum liefert nächste Stufe", () 
   const einh2 = [{ id: 9, name: "EG", mv: [
     Object.assign({}, einh[0].mv[0], { stafAngekuendigt: { "2025-01-01": true, "2026-01-01": true } }) ] }];
   assert.equal(calc.nkMieterhoehungTermine(einh2, "2026-06-01")[0].datum, "2027-01-01"); // nächste offene
+});
+test("nkMieterhoehungTermine: US-119 `ende` – Staffel trägt das Vertragsende, Index nicht", () => {
+  const staf = [{ id: 9, name: "EG", mv: [
+    { id: 3, mieter: "Staf", mhTyp: "staffel", stafBeginn: "2024-01-01", stafEnde: "2030-01-01", stafFrequenz: 1, stafAusgangsmiete: 800, stafBetrag: 20 },
+  ] }];
+  assert.equal(calc.nkMieterhoehungTermine(staf, "2026-06-01")[0].ende, "2030-01-01");
+  const idx = [{ id: 1, name: "E", mv: [{ id: 1, mieter: "M", mhTyp: "index", idxEinzug: "2024-01-01", idxFrequenz: 1, idxAnpassungen: [] }] }];
+  assert.equal(calc.nkMieterhoehungTermine(idx, "2026-01-01")[0].ende, ""); // Index kennt kein Vertragsende
 });
 test("nkTageBis / nkTageFarbe: Tage bis Termin + Farbcode", () => {
   assert.equal(calc.nkTageBis("2026-01-11", "2026-01-01"), 10);

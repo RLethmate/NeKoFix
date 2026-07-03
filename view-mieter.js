@@ -94,6 +94,15 @@ function mvZeilen(e, ei){
               '<button class="addrow" onclick="indexAnschreibenPdfRow('+ei+','+mi+','+idxI+')">Ankündigung als PDF</button>'+
               '<label class="staffel-ank"'+(ang&&va?' title="verschickt am '+fmtDatum(va)+'"':'')+'><input type="checkbox" '+(ang?'checked':'')+' onchange="indexAnkuendigung('+ei+','+mi+','+idxI+',this.checked)"> angekündigt</label>'+
             '</div>'; }
+          /* US-119 AC-3: Chronik-Parität für Staffel – dieselben Aktionen (PDF neu erzeugen,
+             angekündigt) unter dem passenden Chronik-Eintrag, sobald dafür ein Ankündigungs-
+             Schnappschuss existiert (analog zu Index oben, aber ohne idxAnpassungen-Index). */
+          if(m.mhTyp==='staffel' && c.datum!=null && m.ankuendigungen && m.ankuendigungen[c.datum] && m.ankuendigungen[c.datum].typ==='Staffel'){
+            const ankM=m.ankuendigungen; const va=nkAnkVerschicktAm(ankM,c.datum);
+            out+='<div class="chronik-actions">'+
+              '<button class="addrow" onclick="staffelOrphanPdf('+ei+','+mi+',\''+c.datum+'\')">Ankündigung als PDF</button>'+
+              '<label class="staffel-ank"'+(va?' title="verschickt am '+fmtDatum(va)+'"':'')+'><input type="checkbox" checked onchange="staffelAnkuendigung('+ei+','+mi+',\''+c.datum+'\',this.checked)"> angekündigt</label>'+
+            '</div>'; }
           /* US-109: Dateien an diesen Chronik-Eintrag anhängen (in den Mieter-Ordner) + Chips zum Öffnen. */
           if(typeof dokVerfuegbar==='function' && dokVerfuegbar()){
             const chips=(c.dateien||[]).map(nm=>'<span class="dok-chip">'+esc(nm)+' <button type="button" class="linklike" onclick="dokOeffnen('+ei+','+mi+',\''+encodeURIComponent(nm)+'\')">öffnen</button></span>').join('');
@@ -352,9 +361,6 @@ function indexAnkuendigung(ei,mi,idx,checked){
   }
   renderEinheiten();
 }
-/* AC-2a (US-118): Ankündigung der kommenden (noch nicht übernommenen) Index-Anpassung.
-   Nutzt dieselbe mhAngekuendigt-Map wie der Termine-Reiter (Stichtag-keyed) -> beidseitig verknüpft. */
-function idxVorabAnkuendigung(ei,mi,stichtag,checked){ store.setMhAngekuendigt(ei,mi,stichtag,checked); renderEinheiten(); }
 /* US-70: Staffel – gültige Miete automatisch aus dem Plan ableiten und als Soll setzen. */
 function staffelSync(ei,mi){
   const m=store.mv(ei,mi);
@@ -403,7 +409,19 @@ function staffelAnkuendigung(ei,mi,datum,checked){
   const r=staffelPlanRow(m,datum);
   const live=mhDatenStaffel(ei,mi,datum,r.alteMiete,r.neueMiete,(r.neueMiete-r.alteMiete));
   if(checked){
-    store.setAnk(ei,mi,datum,{verschicktAm:heute(), snapshot:live, typ:'Staffel'});
+    const verschicktAm=heute();
+    store.setAnk(ei,mi,datum,{verschicktAm, snapshot:live, typ:'Staffel'});
+    /* US-119 AC-3: Chronik-Parität mit Index (indexAnkuendigung) – Versanddatum nachhaltig und
+       editierbar in der Chronik festhalten, nicht nur im (unsichtbaren) Ankündigungs-Speicher. */
+    let ci=(m.chronik||[]).findIndex(c=>c.datum===datum);
+    if(ci<0){
+      store.addChronik(ei,mi);
+      ci=store.mv(ei,mi).chronik.length-1;
+      store.setChronikFeld(ei,mi,ci,'datum',datum);
+      store.setChronikFeld(ei,mi,ci,'text','Staffelmiete '+eur(r.alteMiete)+' → '+eur(r.neueMiete));
+    }
+    const cur=store.mv(ei,mi).chronik[ci].text||'';
+    if(cur.indexOf('verschickt am')===-1) store.setChronikFeld(ei,mi,ci,'text', cur+' – verschickt am '+fmtDatum(verschicktAm));
   } else {
     const snap=nkAnkSnapshot(ankM,datum);
     if(snap && !mhEntfernenBestaetigt(nkAnkVerschicktAm(ankM,datum), snap, live)){ renderEinheiten(); return; }
@@ -443,6 +461,11 @@ function indexEintragLoeschen(ei,mi,ci,idxAnp){
 }
 function indexBlock(m,ei,mi){
   const typ=m.mhTyp||'';
+  /* US-119 AC-1: die nächste offene Mieterhöhung (Index oder Staffel) als EINE gemeinsame Zeile,
+     identisch zum Termine-Reiter (terminZeile/mhZeile in view-termine.js) – dieselbe Quelle
+     (nkTermineGesamt/nkMieterhoehungTermine, AC-5), nur auf dieses Mietverhältnis gefiltert. */
+  const eigenerTermin = typ ? nkTermineGesamt(state.objekt, state.einheiten, heute())
+    .find(t => t.quelle==='mieterhoehung' && t.einheitId===state.einheiten[ei].id && t.mvId===m.id) : null;
   let h='<div class="index-block">'+
     '<div class="heiz-felder">'+hfFeld('Mieterhöhung',
       '<select onchange="updMhTyp('+ei+','+mi+',this.value)">'+
@@ -454,9 +477,6 @@ function indexBlock(m,ei,mi){
     const anz=(m.idxAnpassungen||[]).length;
     const stichtag2=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
     const stichtag1=anz ? m.idxAnpassungen[anz-1].datum : (m.idxEinzug||'');
-    const faellig=nkIndexFaellig(stichtag2, heute());
-    const bald=nkBaldFaellig(stichtag2, heute(), 3);
-    const frist=nkMitteilungsfrist(stichtag2);
     const basis=nkIndexAktuelleMiete(m.idxAusgangsmiete, m.idxAnpassungen);
     /* US-110: für die Anzeige "Aktuell gültige Miete" wirkungsdatum-bewusst (heute()) statt der
        reinen Verkettungs-Basis – sonst würde eine noch nicht wirksame (nachgeholte) Erhöhung
@@ -477,10 +497,9 @@ function indexBlock(m,ei,mi){
     h+='<div class="mh-aktuell">Aktuell gültige Miete: <b>'+eur(aktuellHeute)+'</b></div>';
     /* US-102-Schliff: „Bisherige Anpassungen" wandern nach unten in die Anpassungs-Chronik (indexHistRows),
        damit sie sich nicht zwischen die oberen Eingabefelder quetschen. */
-    /* Fälligkeits-Warnung – außerhalb der Box */
-    h+='<div class="mh-titel" style="color:'+(faellig?'var(--nachzahlung)':'inherit')+';">Nächste Erhöhung zum <b>'+fmtDatum(stichtag2)+'</b>'+
-      (faellig?' <span style="color:var(--nachzahlung);">'+WARN_ICON+' fällig</span>':(bald?' <span>'+WARN_ICON+' bald fällig</span>':''))+
-      ' <span class="info" title="Mitteilungsfrist in Textform (§ 557b): '+(frist?fmtDatum(frist):'—')+'">ⓘ</span></div>';
+    /* US-119 AC-1/AC-2: die frühere eigene „Nächste Erhöhung zum …"-Titelzeile ist ersetzt durch die
+       gemeinsame Zeile (mhZeile), identisch zur Staffel und zum Termine-Reiter. */
+    if(eigenerTermin) h+=mhZeile(eigenerTermin, {imVertrag:true});
     /* Box „Neue Anpassung": vorheriger Index → Folge-Index → % → Formel */
     const vorMonat=m.idxVorMonat||basisMonat; const vp=vorMonat.split('-'); const vmy=vp[0]||'', vmm=vp[1]||'';
     const rohNeu=basis+erh;
@@ -499,10 +518,9 @@ function indexBlock(m,ei,mi){
       '</div>'+
       '<div class="mh-formel">'+eur(basis)+' × (1 + '+nkFmtBetrag(proz)+' %) = '+eur(rohNeu)+' → <b title="abgerundet auf volle Euro">'+eur(neue)+'</b> <span class="hint">(abgerundet)</span>'+
         ' <button class="addrow" onclick="indexUebernehmen('+ei+','+mi+')">Anpassung übernehmen</button>'+
-        ' <button class="addrow" onclick="indexAnschreibenPdf('+ei+','+mi+')">Ankündigung als PDF</button>'+
-        /* AC-2a (US-118): Ankündigung der KOMMENDEN Index-Anpassung – verbunden mit dem Termine-Reiter
-           (mhAngekuendigt, Stichtag-keyed). Setzen rückt dort den nächsten Termin nach. */
-        ' <label class="staffel-ank"><input type="checkbox" '+(nkIstAngekuendigt(m.ankuendigungen||{}, stichtag2)?'checked':'')+' onchange="idxVorabAnkuendigung('+ei+','+mi+',\''+stichtag2+'\',this.checked)"> angekündigt</label></div>'+
+        /* AC-2a (US-118): der „angekündigt"-Haken für die KOMMENDE Anpassung lebt jetzt in der
+           gemeinsamen Zeile oben (mhZeile, US-119) statt hier verdoppelt zu werden. */
+        ' <button class="addrow" onclick="indexAnschreibenPdf('+ei+','+mi+')">Ankündigung als PDF</button></div>'+
     '</div>';
   }
   if(typ==='staffel'){
@@ -524,18 +542,17 @@ function indexBlock(m,ei,mi){
     if(spanZuGross){
       h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Der Zeitraum zwischen Beginn und Enddatum darf höchstens 15 Jahre betragen. Bitte Beginn und Enddatum prüfen.</div>';
     } else if(plan.length){
-      h+='<div class="chronik-titel">Staffelplan</div>';
-      h+=plan.map(s=>{
-        const erreicht=nkIndexFaellig(s.datum, heute());
-        const istAng=nkIstAngekuendigt(ank,s.datum); const angDatum=nkAnkVerschicktAm(ank,s.datum);
-        const warn=erreicht && !istAng;
-        return '<div class="index-hist'+(warn?' staffel-warn':'')+'">'+
-          '<div class="ih-text">'+fmtDatum(s.datum)+': '+eur(s.alteMiete)+' + '+eur(s.neueMiete-s.alteMiete)+' = <b>'+eur(s.neueMiete)+'</b>'+
-          (warn?' <span style="color:var(--nachzahlung);">'+WARN_ICON+' fällig</span>':'')+'</div>'+
-          '<div class="ih-actions"><label class="staffel-ank"'+(istAng&&angDatum?' title="verschickt am '+fmtDatum(angDatum)+'"':'')+'><input type="checkbox" '+(istAng?'checked':'')+' onchange="staffelAnkuendigung('+ei+','+mi+',\''+s.datum+'\',this.checked)"> angekündigt</label>'+
-          ' <button class="addrow" onclick="staffelAnschreibenPdf('+ei+','+mi+',\''+s.datum+'\','+s.alteMiete+','+s.neueMiete+','+(s.neueMiete-s.alteMiete)+')">Ankündigung als PDF</button></div>'+
-        '</div>';
-      }).join('');
+      /* US-119 AC-1/AC-2: dieselbe gemeinsame Zeile wie bei Index/im Termine-Reiter (mhZeile),
+         statt einer eigenen mehrjährigen Liste – Ralfs Vorgabe: Staffel wie ein wiederkehrender
+         Kalendertermin behandeln, der mit dem Vertragsende aufhört (jetzt in `eigenerTermin.ende`
+         sichtbar). Der PDF-Button bleibt daneben (typ-spezifisch, braucht alte/neue Miete der Stufe). */
+      if(eigenerTermin){
+        h+=mhZeile(eigenerTermin, {imVertrag:true});
+        const naechsteStufe=plan.find(s=>s.datum===eigenerTermin.datum);
+        if(naechsteStufe) h+='<div class="ih-actions"><button class="addrow" onclick="staffelAnschreibenPdf('+ei+','+mi+',\''+naechsteStufe.datum+'\','+naechsteStufe.alteMiete+','+naechsteStufe.neueMiete+','+(naechsteStufe.neueMiete-naechsteStufe.alteMiete)+')">Ankündigung als PDF</button></div>';
+      } else {
+        h+='<div class="hint">Alle Stufen im Zeitraum sind bereits angekündigt.</div>';
+      }
     } else if(m.stafEnde){
       h+='<div class="hint">Keine Stichtage im Zeitraum.</div>';
     }
