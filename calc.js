@@ -1314,6 +1314,33 @@ function nkTerminAmpel(datum, heuteDatum) {
 }
 /* Anstehende Mieterhöhungen aus allen Einheiten (Index: nächster Stichtag; Staffel: nächste Stufe)
    – read-only als Erinnerung im Termine-Reiter (Quelle bleibt "Mieter & Vertrag"). */
+/* ---------- US-118 AC-2b: einheitlicher Ankündigungs-Speicher ----------
+   Ein per-Mietverhältnis-Objekt `ankuendigungen{ <Stichtag>: {verschicktAm, snapshot?} }`
+   ersetzt die drei bisherigen, parallelen Modelle:
+   - mhAngekuendigt{ st:true }                  -> {verschicktAm:""}             (kommende Index-Vorab-Ankündigung, ohne Snapshot)
+   - stafAngekuendigt{ d:{datum,snapshot} }     -> {verschicktAm:datum, snapshot} (Staffel-Stufe, eingefroren)
+   - idxAnpassungen[].angekuendigt/ankSnapshot  -> {verschicktAm, snapshot}       (übernommene Index-Anpassung, Key = a.datum)
+   Reine Migration: mutiert `m` NICHT, liefert die vereinte Map. Wird beim Laden angewandt und ist
+   idempotent (mehrfaches Anwenden ändert nichts). Bestehende `ankuendigungen`-Einträge haben Vorrang. */
+function nkMigrateAnkuendigungen(m) {
+  const out = {};
+  const put = (k, v) => { if (k != null && k !== "" && !(k in out)) out[k] = v; };
+  const cur = (m && m.ankuendigungen) || {};
+  Object.keys(cur).forEach(k => put(k, cur[k]));
+  const mh = (m && m.mhAngekuendigt) || {};
+  Object.keys(mh).forEach(k => { if (mh[k]) put(k, { verschicktAm: "" }); });
+  const staf = (m && m.stafAngekuendigt) || {};
+  Object.keys(staf).forEach(k => { const v = staf[k]; if (!v) return;
+    if (typeof v === "object") put(k, v.snapshot !== undefined ? { verschicktAm: v.datum || "", snapshot: v.snapshot } : { verschicktAm: v.datum || "" });
+    else put(k, { verschicktAm: "" }); });
+  ((m && m.idxAnpassungen) || []).forEach(a => { if (a && a.angekuendigt && a.datum)
+    put(a.datum, a.ankSnapshot !== undefined ? { verschicktAm: a.angekuendigt, snapshot: a.ankSnapshot } : { verschicktAm: a.angekuendigt }); });
+  return out;
+}
+/* Lese-Helfer auf dem einheitlichen Speicher (Stichtag-keyed). */
+function nkIstAngekuendigt(ank, stichtag) { return !!(ank && ank[stichtag]); }
+function nkAnkVerschicktAm(ank, stichtag) { const e = ank && ank[stichtag]; return e ? (e.verschicktAm || "") : ""; }
+function nkAnkSnapshot(ank, stichtag) { const e = ank && ank[stichtag]; return e ? e.snapshot : undefined; }
 function nkMieterhoehungTermine(einheiten, heuteDatum) {
   const out = [];
   (einheiten || []).forEach(e => { (e.mv || []).forEach(m => {
@@ -1560,6 +1587,10 @@ if (typeof module !== "undefined" && module.exports) {
     nkTageBis,
     nkTageFarbe,
     nkTageLabel,
+    nkMigrateAnkuendigungen,
+    nkIstAngekuendigt,
+    nkAnkVerschicktAm,
+    nkAnkSnapshot,
     nkMieterhoehungTermine,
     nkTermineGesamt,
     nkTerminIcs,

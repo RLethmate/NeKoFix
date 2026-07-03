@@ -1508,3 +1508,47 @@ test("nkMieterhoehungTermine: Index rückt nach, wenn Stichtag vorab angekündig
   base.mv[0].mhAngekuendigt = { "2025-01-01": true };
   assert.equal(calc.nkMieterhoehungTermine([base], "2026-01-01")[0].datum, "2026-01-01"); // Folgejahr rückt nach
 });
+
+/* ---- US-118 AC-2b: einheitlicher Ankündigungs-Speicher (Migration + Helfer) ---- */
+test("nkMigrateAnkuendigungen: kommende Index-Vorab-Ankündigung (mhAngekuendigt) -> {verschicktAm:''}", () => {
+  const m = { mhAngekuendigt: { "2026-01-01": true, "2027-01-01": false } };
+  const ank = calc.nkMigrateAnkuendigungen(m);
+  assert.deepEqual(ank, { "2026-01-01": { verschicktAm: "" } }); // false-Eintrag wird nicht übernommen
+  assert.equal(calc.nkIstAngekuendigt(ank, "2026-01-01"), true);
+  assert.equal(calc.nkIstAngekuendigt(ank, "2027-01-01"), false);
+});
+test("nkMigrateAnkuendigungen: Staffel (stafAngekuendigt) -> verschicktAm + Snapshot bleiben erhalten", () => {
+  const snap = { neueMiete: 850 };
+  const m = { stafAngekuendigt: { "2026-06-01": { datum: "2026-04-01", snapshot: snap } } };
+  const ank = calc.nkMigrateAnkuendigungen(m);
+  assert.equal(calc.nkAnkVerschicktAm(ank, "2026-06-01"), "2026-04-01");
+  assert.deepEqual(calc.nkAnkSnapshot(ank, "2026-06-01"), snap);
+});
+test("nkMigrateAnkuendigungen: übernommene Index-Anpassung -> Key=datum, verschicktAm/Snapshot erhalten", () => {
+  const snap = { neueMiete: 800 };
+  const m = { idxAnpassungen: [{ datum: "2025-09-01", angekuendigt: "2025-07-01", ankSnapshot: snap }, { datum: "2024-09-01" }] };
+  const ank = calc.nkMigrateAnkuendigungen(m);
+  assert.equal(calc.nkIstAngekuendigt(ank, "2025-09-01"), true);
+  assert.equal(calc.nkAnkVerschicktAm(ank, "2025-09-01"), "2025-07-01");
+  assert.deepEqual(calc.nkAnkSnapshot(ank, "2025-09-01"), snap);
+  assert.equal(calc.nkIstAngekuendigt(ank, "2024-09-01"), false); // ohne angekuendigt kein Eintrag
+});
+test("nkMigrateAnkuendigungen: idempotent und bestehende ankuendigungen haben Vorrang", () => {
+  const m = { ankuendigungen: { "2026-01-01": { verschicktAm: "2025-11-01" } }, mhAngekuendigt: { "2026-01-01": true } };
+  const ank1 = calc.nkMigrateAnkuendigungen(m);
+  assert.equal(calc.nkAnkVerschicktAm(ank1, "2026-01-01"), "2025-11-01"); // bestehender Eintrag gewinnt, nicht überschrieben
+  const ank2 = calc.nkMigrateAnkuendigungen({ ankuendigungen: ank1 });
+  assert.deepEqual(ank2, ank1); // idempotent
+});
+test("nkMigrateAnkuendigungen: alle drei Quellen zusammen, ohne Verlust", () => {
+  const m = {
+    mhAngekuendigt: { "2027-01-01": true },
+    stafAngekuendigt: { "2026-06-01": { datum: "2026-04-01", snapshot: { neueMiete: 850 } } },
+    idxAnpassungen: [{ datum: "2025-09-01", angekuendigt: "2025-07-01", ankSnapshot: { neueMiete: 800 } }],
+  };
+  const ank = calc.nkMigrateAnkuendigungen(m);
+  assert.equal(Object.keys(ank).length, 3);
+  assert.equal(calc.nkIstAngekuendigt(ank, "2027-01-01"), true);
+  assert.equal(calc.nkIstAngekuendigt(ank, "2026-06-01"), true);
+  assert.equal(calc.nkIstAngekuendigt(ank, "2025-09-01"), true);
+});
