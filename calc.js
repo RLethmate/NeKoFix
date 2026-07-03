@@ -667,6 +667,16 @@ function nkIndexBasisMonat(einzug, anpassungen) {
   const m = String(einzug || "").match(/^(\d{4})-(\d{2})/);
   return m ? (m[1] + "-" + m[2]) : "";
 }
+/* US-110: Deckel für den verwendbaren Indexmonat einer Anpassung zu einem Stichtag. Der Deckel
+   bezieht sich bewusst auf den URSPRÜNGLICHEN Stichtag (nicht auf eine spätere/nachgeholte
+   Ankündigung) - sonst könnte ein späterer, höherer Indexstand durch Verzögern "erschlichen"
+   werden. Ohne gewählten Monat liefert die Funktion den Deckel selbst als Vorschlag (bisheriges
+   Default-Verhalten). Rückgabe/Vergleich als "YYYY-MM" (String-Vergleich reicht im Format). */
+function nkIndexMonatKappen(monat, stichtag) {
+  const deckel = nkIndexVerwendeterMonat(stichtag);
+  if (!monat) return deckel;
+  return monat > deckel ? deckel : monat;
+}
 
 /* ---------- Staffelmiete (US-70, § 557a BGB). Reine Funktion. ----------
    Feste Erhöhung um einen Eurobetrag: neue Miete = bisherige Miete + Betrag (Cent-genau).
@@ -720,6 +730,22 @@ function nkMitteilungsfrist(stichtag) {
   const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 0));
   return last.toISOString().slice(0, 10);
 }
+/* US-110: Wirkungsdatum einer Index-Anpassung, wenn die Ankündigung verspätet nachgeholt wird.
+   Rechtzeitig (verschicktAm <= nkMitteilungsfrist(stichtag)) oder unbekannt (kein verschicktAm)
+   -> Wirkung = Stichtag (Regelfall). Sonst verschiebt sich die Wirkung auf den 1. des Monats
+   (Zugangsmonat + 2), nie jedoch vor den Stichtag zurück. Aus der bestehenden, etablierten
+   Mitteilungsfrist-Regel abgeleitet (konsistenter Grenzfall: Zugang am letzten Tag der Frist
+   ergibt exakt wieder den Stichtag) - rechtlich konsequenzenreich, bitte gegenprüfen. */
+function nkIndexWirkungsdatum(stichtag, verschicktAm) {
+  const st = nkDatum(stichtag);
+  if (!st) return stichtag;
+  if (!verschicktAm) return stichtag;
+  const v = nkDatum(verschicktAm);
+  if (!v || v <= nkDatum(nkMitteilungsfrist(stichtag))) return stichtag;
+  const eff = new Date(Date.UTC(v.getUTCFullYear(), v.getUTCMonth() + 2, 1));
+  const effStr = eff.toISOString().slice(0, 10);
+  return effStr > stichtag ? effStr : stichtag;
+}
 /* Indexmonat "YYYY-MM" in deutscher Reihenfolge "MM-YYYY". Leer bleibt leer. */
 function nkMonatDE(ym) {
   const m = String(ym || "").match(/^(\d{4})-(\d{2})$/);
@@ -733,7 +759,7 @@ function nkIndexMieteAm(ausgangsmiete, anpassungen, datum) {
   const d = nkDatum(datum);
   let miete = +ausgangsmiete || 0;
   if (!d) return miete;
-  arr.forEach(a => { const ad = nkDatum(a.datum); if (ad && ad <= d) miete = +a.neueMiete || miete; });
+  arr.forEach(a => { const ad = nkDatum(a.wirkung || a.datum); if (ad && ad <= d) miete = +a.neueMiete || miete; });
   return miete;
 }
 function nkMieteAm(m, datum) {
@@ -1557,11 +1583,13 @@ if (typeof module !== "undefined" && module.exports) {
     nkIndexVerwendeterMonat,
     nkIndexAnpassungLoeschen,
     nkIndexBasisMonat,
+    nkIndexMonatKappen,
     nkStaffelNeueMiete,
     nkStichtage,
     nkStaffelPlan,
     nkStaffelMieteAm,
     nkMitteilungsfrist,
+    nkIndexWirkungsdatum,
     nkMonatDE,
     nkIndexMieteAm,
     nkMieteAm,

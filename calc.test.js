@@ -749,6 +749,13 @@ test("nkIndexVerwendeterMonat: aktuellster verfügbarer (Fälligkeit minus 2 Mon
   assert.equal(calc.nkIndexVerwendeterMonat("2026-01-15"), "2025-11");
   assert.equal(calc.nkIndexVerwendeterMonat(""), "");
 });
+test("nkIndexMonatKappen: US-110 Deckel bezogen auf den ursprünglichen Stichtag", () => {
+  // Deckel für Stichtag 2026-05-01 = 2026-03 (nkIndexVerwendeterMonat)
+  assert.equal(calc.nkIndexMonatKappen("2026-06", "2026-05-01"), "2026-03"); // über Deckel -> gekappt
+  assert.equal(calc.nkIndexMonatKappen("2026-03", "2026-05-01"), "2026-03"); // exakt Deckel -> unverändert
+  assert.equal(calc.nkIndexMonatKappen("2025-01", "2026-05-01"), "2025-01"); // unter Deckel -> unverändert
+  assert.equal(calc.nkIndexMonatKappen("", "2026-05-01"), "2026-03"); // kein Monat -> Deckel als Default
+});
 test("nkIndexFrequenzGueltig: ganze Jahre >= 1", () => {
   assert.equal(calc.nkIndexFrequenzGueltig(1), true);
   assert.equal(calc.nkIndexFrequenzGueltig(2), true);
@@ -830,6 +837,15 @@ test("nkMitteilungsfrist: letzter Tag zwei Monate vor Stichtag", () => {
   assert.equal(calc.nkMitteilungsfrist("2027-01-01"), "2026-11-30");
   assert.equal(calc.nkMitteilungsfrist(""), "");
 });
+test("nkIndexWirkungsdatum: US-110 nachgeholte Ankündigung verschiebt die Wirkung", () => {
+  // Stichtag 2027-05-01, Mitteilungsfrist bis 2027-03-31 (letzter rechtzeitiger Tag)
+  assert.equal(calc.nkIndexWirkungsdatum("2027-05-01", "2027-03-31"), "2027-05-01"); // rechtzeitig -> Stichtag
+  assert.equal(calc.nkIndexWirkungsdatum("2027-05-01", "2027-02-01"), "2027-05-01"); // früh -> Stichtag (nie vorziehen)
+  assert.equal(calc.nkIndexWirkungsdatum("2027-05-01", "2027-04-15"), "2027-06-01"); // 1 Monat zu spät -> +1 Monat
+  assert.equal(calc.nkIndexWirkungsdatum("2027-05-01", "2027-05-20"), "2027-07-01"); // 2 Monate zu spät -> +2 Monate
+  assert.equal(calc.nkIndexWirkungsdatum("2027-05-01", ""), "2027-05-01"); // unbekannt -> Regelfall = Stichtag
+  assert.equal(calc.nkIndexWirkungsdatum("2027-05-01", null), "2027-05-01");
+});
 
 test("nkMonatDE: YYYY-MM in deutsche Reihenfolge MM-YYYY", () => {
   assert.equal(calc.nkMonatDE("2022-03"), "03-2022");
@@ -844,6 +860,13 @@ test("nkIndexMieteAm: gültige Miete je Datum (letzte Anpassung <= Datum)", () =
   assert.equal(calc.nkIndexMieteAm(1000, anp, "2025-01-15"), 1000);
   assert.equal(calc.nkIndexMieteAm(1000, anp, "2025-05-01"), 1020);
   assert.equal(calc.nkIndexMieteAm(1000, anp, "2026-06-01"), 1040);
+});
+test("nkIndexMieteAm: US-110 wirkung (falls gesetzt) sticht datum – nachgeholte Ankündigung", () => {
+  // Stichtag 2025-05-01, aber wegen nachgeholter Ankündigung erst ab 2025-07-01 wirksam
+  const anp=[{datum:"2025-05-01",wirkung:"2025-07-01",neueMiete:1020}];
+  assert.equal(calc.nkIndexMieteAm(1000, anp, "2025-05-15"), 1000); // Stichtag erreicht, Wirkung noch nicht
+  assert.equal(calc.nkIndexMieteAm(1000, anp, "2025-06-30"), 1000); // weiterhin alte Miete
+  assert.equal(calc.nkIndexMieteAm(1000, anp, "2025-07-01"), 1020); // ab Wirkungsdatum neue Miete
 });
 test("nkMieteAm: Staffel/Index/keine", () => {
   const staf={mhTyp:"staffel",stafBeginn:"2020-01-01",stafEnde:"2026-01-01",stafFrequenz:1,stafAusgangsmiete:1000,stafBetrag:10};
