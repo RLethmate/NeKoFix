@@ -846,6 +846,11 @@ test("nkIndexWirkungsdatum: US-110 nachgeholte Ankündigung verschiebt die Wirku
   assert.equal(calc.nkIndexWirkungsdatum("2027-05-01", ""), "2027-05-01"); // unbekannt -> Regelfall = Stichtag
   assert.equal(calc.nkIndexWirkungsdatum("2027-05-01", null), "2027-05-01");
 });
+test("nkIndexWirkungsdatum: § 557b Abs. 3 S. 3 BGB – Zugang im Mai wirkt ab 1. Juli", () => {
+  assert.equal(calc.nkIndexWirkungsdatum("2025-01-01", "2025-05-02"), "2025-07-01"); // Zugang irgendwann im Mai
+  assert.equal(calc.nkIndexWirkungsdatum("2025-01-01", "2025-05-31"), "2025-07-01"); // auch am letzten Maitag
+  assert.equal(calc.nkIndexWirkungsdatum("2025-01-01", "2025-06-01"), "2025-08-01"); // einen Tag später (Juni) -> August
+});
 
 test("nkMonatDE: YYYY-MM in deutsche Reihenfolge MM-YYYY", () => {
   assert.equal(calc.nkMonatDE("2022-03"), "03-2022");

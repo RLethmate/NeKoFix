@@ -730,18 +730,18 @@ function nkMitteilungsfrist(stichtag) {
   const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 0));
   return last.toISOString().slice(0, 10);
 }
-/* US-110: Wirkungsdatum einer Index-Anpassung, wenn die Ankündigung verspätet nachgeholt wird.
-   Rechtzeitig (verschicktAm <= nkMitteilungsfrist(stichtag)) oder unbekannt (kein verschicktAm)
-   -> Wirkung = Stichtag (Regelfall). Sonst verschiebt sich die Wirkung auf den 1. des Monats
-   (Zugangsmonat + 2), nie jedoch vor den Stichtag zurück. Aus der bestehenden, etablierten
-   Mitteilungsfrist-Regel abgeleitet (konsistenter Grenzfall: Zugang am letzten Tag der Frist
-   ergibt exakt wieder den Stichtag) - rechtlich konsequenzenreich, bitte gegenprüfen. */
+/* US-110: Wirkungsdatum einer Index-Anpassung (§ 557b Abs. 3 Satz 3 BGB: die geänderte Miete ist
+   mit Beginn des ÜBERNÄCHSTEN Monats nach Zugang der Erklärung zu zahlen - maßgeblich ist der
+   Kalendermonat des Zugangs, nicht eine Tagesfrist. Beispiel: Zugang im Mai -> wirksam ab 1. Juli).
+   Ohne bekanntes Zugangsdatum (verschicktAm leer) gilt der Regelfall = Stichtag. Das Ergebnis wird
+   nie vor den (regelbasierten) Stichtag zurückdatiert - eine sehr frühe Ankündigung zieht die
+   Erhöhung nicht vor (Ein-Jahres-Frist bleibt unberührt), eine späte (nachgeholte) Ankündigung
+   verschiebt sie nach hinten. Keine rückwirkende Erhöhung möglich. */
 function nkIndexWirkungsdatum(stichtag, verschicktAm) {
   const st = nkDatum(stichtag);
   if (!st) return stichtag;
-  if (!verschicktAm) return stichtag;
   const v = nkDatum(verschicktAm);
-  if (!v || v <= nkDatum(nkMitteilungsfrist(stichtag))) return stichtag;
+  if (!v) return stichtag;
   const eff = new Date(Date.UTC(v.getUTCFullYear(), v.getUTCMonth() + 2, 1));
   const effStr = eff.toISOString().slice(0, 10);
   return effStr > stichtag ? effStr : stichtag;
