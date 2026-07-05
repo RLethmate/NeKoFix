@@ -103,18 +103,32 @@ function mvZeilen(e, ei){
         }).join('');
         const bald=nkBaldFaellig(na, heute(), 3);
         const hf=hfFeld;
+        /* US-121 Phase 4: .hf-raster/.hf-Nu statt .heiz-felder (letztes verbliebenes Vorkommen für
+           dieses Detail; Index-/Staffel-Block darunter folgt in einer eigenen Iteration). Eigene
+           Zeile je Themengruppe statt einem gemeinsamen Flex-Container (gleiche Lehre wie bei den
+           Heizungs-Gleichungen: sonst hängt der Umbruch vom verfügbaren Platz statt vom Inhalt ab).
+           Stellplätze × Preis als sichtbare Gleichung; Anrede schmal, E-Mail breit statt "hf-wide"
+           (galt nur im CSS-Grid-Kontext, hier .hf-raster ist Flexbox). */
+        const op='<span class="hf-op">×</span>';
         row+='<tr class="detail-row"><td colspan="7" class="detail-cell">'+
-          '<div class="heiz-felder">'+
-            /* US-72: Miete-Felder nur ohne aktiven Mieterhöhungstyp; bei Index/Staffel kommt die Miete aus dem Block. */
-            (m.mhTyp?'':hf('Miete bei Einzug','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+'" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">'))+
-            (m.mhTyp?'':hf('Urspr. NK/Monat','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+'" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">'))+
-            (m.mhTyp?'':hf('Aktuelle Grundmiete','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+'" oninput="updVertrag('+ei+','+mi+',\'grundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">'))+
-            hf('Stellplätze (Anzahl)','<input type="number" min="0" value="'+(m.stellAnzahl||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellAnzahl\',this.value,1)">')+
-            hf('Preis je Stellplatz','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stellPreis||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellPreis\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">')+
-            (m.mhTyp?'':hf('Letzte Anpassung','<input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()">'))+
-            (m.mhTyp?'':hf('Nächste Anpassung','<input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)" onblur="renderEinheiten()">'))+
-            hf('Anrede','<select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value="">neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select>')+
-            hf('E-Mail','<input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de">','hf-wide')+
+          /* US-72: Miete-Felder nur ohne aktiven Mieterhöhungstyp; bei Index/Staffel kommt die Miete aus dem Block. */
+          (m.mhTyp?'':'<div class="hf-raster">'+
+            hf('Miete bei Einzug','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+'" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">','hf-2u')+
+            hf('Urspr. NK/Monat','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+'" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">','hf-2u')+
+            hf('Aktuelle Grundmiete','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+'" oninput="updVertrag('+ei+','+mi+',\'grundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">','hf-2u')+
+          '</div>')+
+          '<div class="hf-raster">'+
+            hf('Stellplätze','<input type="number" min="0" value="'+(m.stellAnzahl||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellAnzahl\',this.value,1)">','hf-1u')+
+            op+
+            hf('Preis je Stellplatz','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stellPreis||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellPreis\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">','hf-2u')+
+          '</div>'+
+          (m.mhTyp?'':'<div class="hf-raster">'+
+            hf('Letzte Anpassung','<input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()">','hf-2u')+
+            hf('Nächste Anpassung','<input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)" onblur="renderEinheiten()">','hf-2u')+
+          '</div>')+
+          '<div class="hf-raster">'+
+            hf('Anrede','<select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value="">neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select>','hf-1u')+
+            hf('E-Mail','<input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de">','hf-3u')+
           '</div>'+
           indexBlock(m,ei,mi)+ /* US-68: Indexmiete-Bereich */
           /* US-109-Schliff: kleiner „+ Chronik-Eintrag" oben neben der Überschrift; Einträge neueste zuerst. */
@@ -417,12 +431,12 @@ function indexEintragLoeschen(ei,mi,ci,idxAnp){
 function indexBlock(m,ei,mi){
   const typ=m.mhTyp||'';
   let h='<div class="index-block">'+
-    '<div class="heiz-felder">'+hfFeld('Mieterhöhung',
+    '<div class="hf-raster">'+hfFeld('Mieterhöhung',
       '<select onchange="updMhTyp('+ei+','+mi+',this.value)">'+
       '<option value=""'+(typ===''?' selected':'')+'>— keine —</option>'+
       '<option value="index"'+(typ==='index'?' selected':'')+'>Index (§ 557b)</option>'+
       '<option value="staffel"'+(typ==='staffel'?' selected':'')+'>Staffel (§ 557a)</option>'+
-      '</select>')+'</div>';
+      '</select>','hf-2u')+'</div>';
   if(typ==='index'){
     const anz=(m.idxAnpassungen||[]).length;
     const stichtag2=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
