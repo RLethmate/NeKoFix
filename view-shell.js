@@ -6,7 +6,13 @@
    `aktivIdx`, `store`, `commit`, `saveState/loadState` u. a. sind dort global definiert. */
 /* US-81: „Mieter & Vertrag" als Index 7 angehängt (keine Umnummerierung der bestehenden
    data-step/go()-Indizes); die Anzeige-Reihenfolge steuert STEP_GROUPS. */
-const STEPS = ["Objekt","Vorauszahlung (Soll)","Heizung","Kosten","Berechnung","Abrechnung","Zahlungen (Ist)","Mieter & Vertrag","Termine & Wartung"];
+/* US-122: Index 0 hieß "Objekt", was in der neuen Gruppierung mit der Gruppenüberschrift "Objekt"
+   kollidiert hätte (Sidebar: "OBJEKT" direkt gefolgt vom Eintrag "Objekt"); umbenannt, weil der
+   Reiter ohnehin sowohl Gebäude & Einheiten als auch Vermieter & Zahlungsangaben zeigt. */
+/* Index 5 ("Abrechnung") ebenfalls umbenannt: kollidiert sonst mit der neuen Gruppenüberschrift
+   "Abrechnung" (Sidebar: "ABRECHNUNG" → Eintrag "Abrechnung"); entspricht jetzt der echten
+   Panel-Überschrift "Fertige Abrechnung". */
+const STEPS = ["Gebäude & Vermieter","Vorauszahlung (Soll)","Heizung","Kosten","Berechnung","Fertige Abrechnung","Zahlungen (Ist)","Mieter & Vertrag","Termine & Wartung"];
 const ui = { current:0, activeMieter:0, vorausModus:"monatlich", zeigeVorjahr:false, nurUngeprueft:false, expandedKosten:new Set(), expandedHeizZeit:new Set(), expandedMV:new Set(), navPlausiOpen:false, drag:null, zahlBisAktuell:false, csvImport:{ buchungen:[], dateiname:"", fehler:null }, csvAutoProtokoll:false, termineAnsicht:"faellig" }; /* AC-3 (US-118): gebündelter UI-/Sitzungs-State */
 
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
@@ -67,15 +73,22 @@ function alleMV(){ const out=[]; state.einheiten.forEach((e,ei)=>{ (e.mv||[]).fo
 function leerstandZa(e){ const s=(e.mv||[]).reduce((a,m)=>a+nkZeitanteil(m.von,nkMvEnde(m,state.objekt.bis),state.objekt.von,state.objekt.bis),0); return Math.max(0,1-s); }
 
 /* ---------- Stepper (US-54: seitliche Lasche, Gruppen, Kürzel, Versand-Ampel) ---------- */
-const STEP_ABBR = ["OB","VZ","HE","KO","BE","AB","ZA","MV","TW"];
-/* Anzeige-Reihenfolge: Objekt → Mieter & Vertrag (7) → Vorauszahlung → Kosten → … */
+const STEP_ABBR = ["GV","VZ","HE","KO","BE","AB","ZA","MV","TW"];
+/* US-122: drei themenbasierte Bereiche statt "Abrechnung erstellen"/"Nachverfolgung" (erzwungene
+   Assistenten-Reihenfolge) - Objekt (selten geändert), Laufende Verwaltung (ganzjährig, ohne
+   Reihenfolge), Abrechnung (das abgeleitete Ergebnis). Siehe UX-Review-Navigation-und-Workflow.md.
+   "Vorauszahlung (Soll)" bleibt bewusst inhaltlich unverändert (weiterhin editierbar) - der Umbau
+   zur reinen Übersicht hängt am noch nicht gebauten Mieterhöhungs-Konzept. */
 const STEP_GROUPS = [
-  { titel:"Abrechnung erstellen", steps:[0,7,1,2,3,4,5] },
-  { titel:"Nachverfolgung",        steps:[6,8] }
+  { titel:"Objekt",              steps:[0,7] },
+  { titel:"Laufende Verwaltung", steps:[3,6,8] },
+  { titel:"Abrechnung",          steps:[2,1,4,5] }
 ];
 function renderStepper(){
   const el = document.getElementById('stepper'); if(!el) return; el.innerHTML='';
-  /* Nummer und „done"-Status nach Anzeige-Position (nicht nach numerischem Index). */
+  /* US-122: kein Nummern-Kreis mehr (freie Navigation, keine erzwungene Reihenfolge) - .n ist
+     jetzt ein reiner Punkt wie im Dummy-Vorschlag. „done" (Position vor dem aktiven Schritt in der
+     Anzeige-Reihenfolge) bleibt als leiser "schon besucht"-Hinweis erhalten. */
   const order=[]; STEP_GROUPS.forEach(g=>g.steps.forEach(i=>order.push(i)));
   const curPos=order.indexOf(ui.current);
   STEP_GROUPS.forEach(g=>{
@@ -85,7 +98,7 @@ function renderStepper(){
       const d=document.createElement('div');
       d.className='step'+(i===ui.current?' active':'')+((curPos>=0 && pos<curPos)?' done':'');
       d.title=STEPS[i];
-      d.innerHTML='<span class="n">'+(pos+1)+'</span><span class="lbl">'+STEPS[i]+'</span><span class="abbr">'+STEP_ABBR[i]+'</span>';
+      d.innerHTML='<span class="n"></span><span class="lbl">'+STEPS[i]+'</span><span class="abbr">'+STEP_ABBR[i]+'</span>';
       d.onclick=()=>go(i);
       el.appendChild(d);
     });
