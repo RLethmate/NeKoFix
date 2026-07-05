@@ -668,29 +668,25 @@
     <div id="einheiten_box" style="margin-top:16px"></div>
     <button class="addrow" onclick="addEinheit()">+ Einheit hinzufügen</button>
     <p class="hint">Hier nur die physischen Einheiten (Fläche, Personen). Mieter, Vertrag und Mieterhöhung folgen im nächsten Schritt „Mieter &amp; Vertrag".</p>
+  </section>
 
-    <div class="zahlungs-box">
-      <h2 class="zahlungs-titel">Vermieter &amp; Zahlungsangaben</h2>
-      <p class="hint">Einmal pro Objekt – erscheinen auf der Abrechnung und im PDF.</p>
-      <!-- US-121 Phase 2: .hf-raster/.hf-Nu statt .grid2 (bewusst eine eigene Klasse, .grid2 bleibt
-           für den Gebäude-Block oben unverändert). Zwei Zeilen: Empfänger/Anschrift (Identität,
-           hf-3u), IBAN/BIC/Zahlungsfrist (Zahlung). IBAN hat dieselbe Klasse (hf-3u) wie Empfänger
-           darüber, dadurch enden beide an derselben Kante. align-items:flex-start statt der
-           .hf-raster-Vorgabe (align-items:end): IBAN ist durch den optionalen #z_iban_hint-Text
-           höher als BIC/Zahlungsfrist; end-Ausrichtung würde die beiden nach unten verschieben, um
-           mit IBAN unten bündig zu sein. Bei den Heizungs-Gleichungen bleibt end nötig
-           (Rechenzeichen sitzen an der Input-Unterkante), hier gibt es keine. -->
-      <div class="hf-raster">
-        <div class="field hf-3u"><label>Empfänger (Vermieter)</label><input id="z_empfaenger" placeholder="z. B. M. Vermieter"></div>
-        <div class="field hf-3u"><label>Anschrift (Absender)</label><input id="z_anschrift" placeholder="Straße, PLZ Ort"></div>
-      </div>
-      <div class="hf-raster" style="align-items:flex-start;">
-        <div class="field hf-3u"><label>IBAN</label><input id="z_iban" placeholder="DE.. .... .... .... .... .."><span id="z_iban_hint" class="iban-hint"></span></div>
-        <div class="field hf-1u"><label>BIC</label><input id="z_bic" placeholder="optional"></div>
-        <div class="field hf-2u"><label>Zahlungsfrist</label><input id="z_frist" placeholder="z. B. 14 Tage nach Zugang"></div>
-      </div>
+  <!-- US-123: Vermieter & Zahlungsangaben in einen eigenen Reiter gezogen (Dummy-Vorbild, Objekt-
+       Gruppe: Gebäude → Vermieter → Mieter & Vertrag). Vorher an "Gebäude & Vermieter" drangehängt
+       (zwei gedanklich getrennte Kategorien auf einer Seite, siehe UX-Review-Navigation-und-
+       Workflow.md). Neuer Index 9 – bestehende data-step/go()-Indizes bleiben stabil, nur die
+       Anzeige-Reihenfolge/Gruppierung wird über STEP_GROUPS gesteuert (wie bei Index 7 seinerzeit). -->
+  <section class="panel" data-step="9">
+    <h1>Vermieter &amp; Zahlungsangaben</h1>
+    <p class="sub">Einmal pro Objekt – erscheinen auf der Abrechnung und im PDF.</p>
+    <div class="hf-raster">
+      <div class="field hf-3u"><label>Empfänger (Vermieter)</label><input id="z_empfaenger" placeholder="z. B. M. Vermieter"></div>
+      <div class="field hf-3u"><label>Anschrift (Absender)</label><input id="z_anschrift" placeholder="Straße, PLZ Ort"></div>
     </div>
-
+    <div class="hf-raster" style="align-items:flex-start;">
+      <div class="field hf-3u"><label>IBAN</label><input id="z_iban" placeholder="DE.. .... .... .... .... .."><span id="z_iban_hint" class="iban-hint"></span></div>
+      <div class="field hf-1u"><label>BIC</label><input id="z_bic" placeholder="optional"></div>
+      <div class="field hf-2u"><label>Zahlungsfrist</label><input id="z_frist" placeholder="z. B. 14 Tage nach Zugang"></div>
+    </div>
   </section>
 
   <!-- Step: Mieter & Vertrag (US-81; wird in der Schrittleiste direkt nach Objekt angezeigt) -->
