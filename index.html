@@ -651,9 +651,13 @@
     <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Mietvertrag (Wohnungsgrößen) bzw. Grundriss</b></span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Grunddaten des Hauses und der Wohneinheiten – Basis für jede Verteilung.</p>
     <div class="legal">Recht (V11): Für die Betriebskostenverteilung zählt die <b>tatsächliche</b> Wohnfläche, nicht die im Mietvertrag vereinbarte.</div>
-    <div class="grid2">
-      <div class="field"><label>Objekt / Adresse</label><input id="obj_addr"></div>
-      <div class="field"><label>Abrechnungszeitraum</label>
+    <!-- US-121 Phase 3: .hf-raster/.hf-Nu statt .grid2 (letztes verbliebenes Vorkommen, analog zu
+         Phase 2/Vermieter) – Objekt/Adresse (lang, hf-3u) sollte nicht auf 50% erzwungen werden,
+         nur weil Abrechnungszeitraum danebensteht. Innere Struktur von „Abrechnungszeitraum"
+         (Von–Bis mit Konnektor) unverändert, nur die Außenbreite fest statt 50%. -->
+    <div class="hf-raster">
+      <div class="field hf-3u"><label>Objekt / Adresse</label><input id="obj_addr"></div>
+      <div class="field hf-3u"><label>Abrechnungszeitraum</label>
         <div style="display:flex;gap:8px;align-items:center;"><input id="obj_von" type="date"><span>–</span><input id="obj_bis" type="date"></div>
       </div>
     </div>
