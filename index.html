@@ -141,6 +141,7 @@
   .hf-raster{display:flex;flex-wrap:wrap;gap:10px 14px;margin:8px 0;align-items:end;}
   .hf-1u{width:var(--funit);flex:none;}
   .hf-2u{width:calc(var(--funit)*2 + var(--fgap));flex:none;}
+  .hf-3u{width:calc(var(--funit)*3 + var(--fgap)*2);flex:none;} /* US-121 Phase 2: lange Freitextfelder (Name, Adresse, IBAN) – bewusst eine feste Obergrenze statt flex-grow, damit z. B. IBAN nicht in freien Zeilenraum wächst und mit Empfänger (dieselbe Klasse) an derselben Kante endet */
   .hf-op{display:flex;align-items:center;padding-bottom:9px;color:var(--muted);font-size:14px;flex:none;} /* US-121: Verbindungszeichen für Gleichungs-Zeilen (Heizkosten/Verbrauch=Mittelwert, EG+1.OG=Summe) */
   .heiz-vb{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);}
   .heiz-vb-lbl{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;}
@@ -657,12 +658,19 @@
     <div class="zahlungs-box">
       <h2 class="zahlungs-titel">Vermieter &amp; Zahlungsangaben</h2>
       <p class="hint">Einmal pro Objekt – erscheinen auf der Abrechnung und im PDF.</p>
-      <div class="grid2">
-        <div class="field"><label>Empfänger (Vermieter)</label><input id="z_empfaenger" placeholder="z. B. M. Vermieter"></div>
-        <div class="field"><label>Anschrift (Absender)</label><input id="z_anschrift" placeholder="Straße, PLZ Ort"></div>
-        <div class="field"><label>IBAN</label><input id="z_iban" placeholder="DE.. .... .... .... .... .."><span id="z_iban_hint" class="iban-hint"></span></div>
-        <div class="field"><label>BIC</label><input id="z_bic" placeholder="optional"></div>
-        <div class="field"><label>Zahlungsfrist</label><input id="z_frist" placeholder="z. B. 14 Tage nach Zugang"></div>
+      <!-- US-121 Phase 2: .hf-raster/.hf-Nu statt .grid2 (bewusst eine eigene Klasse, .grid2 bleibt
+           für den Gebäude-Block oben unverändert). Zwei Zeilen statt einer gemeinsamen, damit der
+           Umbruch nicht vom verfügbaren Platz abhängt: Empfänger/Anschrift (Identität, hf-3u),
+           IBAN/BIC/Zahlungsfrist (Zahlung). IBAN hat dieselbe Klasse (hf-3u) wie Empfänger darüber,
+           dadurch enden beide an derselben Kante, statt dass IBAN in den freien Zeilenraum wächst. -->
+      <div class="hf-raster">
+        <div class="field hf-3u"><label>Empfänger (Vermieter)</label><input id="z_empfaenger" placeholder="z. B. M. Vermieter"></div>
+        <div class="field hf-3u"><label>Anschrift (Absender)</label><input id="z_anschrift" placeholder="Straße, PLZ Ort"></div>
+      </div>
+      <div class="hf-raster">
+        <div class="field hf-3u"><label>IBAN</label><input id="z_iban" placeholder="DE.. .... .... .... .... .."><span id="z_iban_hint" class="iban-hint"></span></div>
+        <div class="field hf-1u"><label>BIC</label><input id="z_bic" placeholder="optional"></div>
+        <div class="field hf-2u"><label>Zahlungsfrist</label><input id="z_frist" placeholder="z. B. 14 Tage nach Zugang"></div>
       </div>
     </div>
 
