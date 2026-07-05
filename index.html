@@ -659,17 +659,25 @@
       <h2 class="zahlungs-titel">Vermieter &amp; Zahlungsangaben</h2>
       <p class="hint">Einmal pro Objekt – erscheinen auf der Abrechnung und im PDF.</p>
       <!-- US-121 Phase 2: .hf-raster/.hf-Nu statt .grid2 (bewusst eine eigene Klasse, .grid2 bleibt
-           für den Gebäude-Block oben unverändert). Zwei Zeilen statt einer gemeinsamen, damit der
+           für den Gebäude-Block oben unverändert). Drei Zeilen statt einer gemeinsamen, damit der
            Umbruch nicht vom verfügbaren Platz abhängt: Empfänger/Anschrift (Identität, hf-3u),
-           IBAN/BIC/Zahlungsfrist (Zahlung). IBAN hat dieselbe Klasse (hf-3u) wie Empfänger darüber,
-           dadurch enden beide an derselben Kante, statt dass IBAN in den freien Zeilenraum wächst. -->
+           IBAN/BIC (Bankverbindung), Zahlungsfrist. IBAN hat dieselbe Klasse (hf-3u) wie Empfänger
+           darüber, dadurch enden beide an derselben Kante. IBAN+BIC bewusst allein in ihrer Zeile
+           (448px) statt zusammen mit Zahlungsfrist (676px) – Letzteres passt bei der Sidebar-Breite
+           (.wrap max. 1160px, Sidenav 212px) nicht immer nebeneinander und würde umbrechen. -->
       <div class="hf-raster">
         <div class="field hf-3u"><label>Empfänger (Vermieter)</label><input id="z_empfaenger" placeholder="z. B. M. Vermieter"></div>
         <div class="field hf-3u"><label>Anschrift (Absender)</label><input id="z_anschrift" placeholder="Straße, PLZ Ort"></div>
       </div>
-      <div class="hf-raster">
+      <!-- align-items:flex-start statt der .hf-raster-Vorgabe (align-items:end): IBAN ist durch
+           den optionalen #z_iban_hint-Text höher als BIC; end-Ausrichtung würde BIC nach unten
+           verschieben, um mit IBAN unten bündig zu sein. Bei den Heizungs-Gleichungen bleibt
+           end nötig (Rechenzeichen sitzen an der Input-Unterkante), hier gibt es keine. -->
+      <div class="hf-raster" style="align-items:flex-start;">
         <div class="field hf-3u"><label>IBAN</label><input id="z_iban" placeholder="DE.. .... .... .... .... .."><span id="z_iban_hint" class="iban-hint"></span></div>
         <div class="field hf-1u"><label>BIC</label><input id="z_bic" placeholder="optional"></div>
+      </div>
+      <div class="hf-raster">
         <div class="field hf-2u"><label>Zahlungsfrist</label><input id="z_frist" placeholder="z. B. 14 Tage nach Zugang"></div>
       </div>
     </div>
