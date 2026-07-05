@@ -122,6 +122,9 @@
   .status-toggle{background:#fff;border:1px solid var(--line);border-radius:7px;padding:3px 8px;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;gap:3px;}
   .status-toggle:hover{border-color:var(--primary);}
   .detail-row td{background:var(--soft);}
+  /* Mieter & Vertrag (seit Grid-Umbau 2026-07-05): kein <tr class="detail-row"> mehr, daher der
+     Tint direkt auf dem neuen .detail-cell-Wrapper (nur hier verwendet). */
+  .detail-cell{background:var(--soft);padding:10px 10px 4px;border-radius:8px;margin-top:6px;}
   .detail-grid{display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:4px 0;}
   .detail-grid label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;}
   .detail-grid .notiz-field{flex:1;min-width:200px;}
@@ -143,6 +146,41 @@
   .hf-2u{width:calc(var(--funit)*2 + var(--fgap));flex:none;}
   .hf-3u{width:calc(var(--funit)*3 + var(--fgap)*2);flex:none;} /* US-121 Phase 2: lange Freitextfelder (Name, Adresse, IBAN) – bewusst eine feste Obergrenze statt flex-grow, damit z. B. IBAN nicht in freien Zeilenraum wächst und mit Empfänger (dieselbe Klasse) an derselben Kante endet */
   .hf-op{display:flex;align-items:center;padding-bottom:9px;color:var(--muted);font-size:14px;flex:none;} /* US-121: Verbindungszeichen für Gleichungs-Zeilen (Heizkosten/Verbrauch=Mittelwert, EG+1.OG=Summe) */
+
+  /* --- Pilot "Mieter & Vertrag": ein CSS-Grid statt Tabelle+Flexbox-Nebeneinander (Konzept
+     2026-07-05, per Prototyp Dummy2-Mieter-Vertrag-Raster.html am Projekt-Root verifiziert).
+     Kopfzeile UND alle Formular-/Chronik-Zeilen dieses Reiters teilen sich EIN
+     grid-template-columns, garantiert gleiche Spaltengrenzen. 4 feste Box-Groessen (L/M/S/XS) + 1
+     Gutter-Groesse (AUX, fuer Warndreieck/Gleichungs-Operatoren – immer reserviert, auch leer)
+     + 1 feste Feldhoehe (FH; entspricht der echten Input-Hoehe, per Headless-Messung 32px).
+     Werte kleiner als im Dummy (der ohne Sidebar/Panel-Padding getestet wurde): der echte
+     verfuegbare Platz in .unit-card ist nur ~800px (headless gemessen bei 1200-1400px
+     Fensterbreite), nicht die ~1400px der freistehenden Prototyp-Seite – Tracks proportional
+     verkleinert, Konzept (Gutter/Ausrichtung) unveraendert. Bewusst EIGENE Klassen (mv-*), NICHT
+     .hf-raster/.hf-op/.heiz-felder wiederverwendet – diese bleiben fuer Heizung/Vermieter/Gebäude
+     unveraendert (separate US-121-Phasen). */
+  :root{ --mv-L:125px; --mv-M:130px; --mv-S:75px; --mv-XS:50px; --mv-AUX:14px; --mv-GAP:5px; --mv-FH:32px; }
+  .mv-grid{display:grid;grid-template-columns:
+      [c1] var(--mv-L) [aux1] var(--mv-AUX) [c2] var(--mv-M) [aux2] var(--mv-AUX)
+      [c3] var(--mv-M) [aux3] var(--mv-AUX) [c4] var(--mv-S) [c5] var(--mv-S)
+      [c6] var(--mv-M) [c7] var(--mv-XS);
+    column-gap:var(--mv-GAP);align-items:end;margin:8px 0;}
+  .mv-grid+.mv-grid{margin-top:8px;}
+  .mv-headrow,.mv-summary{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px;}
+  .mv-headrow .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;}
+  .mv-grid input:not([type=checkbox]),.mv-grid textarea{height:var(--mv-FH);box-sizing:border-box;}
+  .mv-grid select{height:var(--mv-FH);padding-top:0;padding-bottom:0;box-sizing:border-box;}
+  /* Boxlose Inhalte (Text, Checkbox-Zelle) bekommen dieselbe feste Hoehe wie eine Inputbox und
+     zentrieren ihren Inhalt darin selbst – sonst landen sie beim zeilenweiten align-items:end
+     sichtbar zu tief (eine 13px-Checkbox "klebt" sonst an der Boxunterkante statt auf Boxmitte). */
+  .mv-vcenter{display:flex;align-items:center;height:var(--mv-FH);}
+  .mv-aux{display:flex;align-items:center;justify-content:center;height:var(--mv-FH);color:var(--muted);font-size:14px;}
+  .mv-aux.op{font-weight:600;}
+  .mv-aux.warn{color:var(--nachzahlung);font-size:15px;cursor:help;}
+  /* Zusatzklasse (kein Ersatz) fuer geteilte Buttons/Badges (.status-toggle/.row-del/.termin-tage),
+     damit sie in dieser Zeile exakt --mv-FH hoch UND vertikal zentriert sind, ohne die Basisklasse
+     fuer die anderen Reiter (Kosten/Heizung/Termine/Docs) anzufassen. */
+  .mv-fh{height:var(--mv-FH);display:inline-flex;align-items:center;justify-content:center;}
   .heiz-vb{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);}
   .heiz-vb-lbl{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;}
   .teilnahme{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;}
@@ -315,19 +353,14 @@
   .act-green{width:300px;max-width:100%;min-height:42px;margin-left:auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;white-space:normal;text-align:center;}
   .heiz-zeit-toggle{background:none;border:none;color:var(--primary);font-size:12.5px;cursor:pointer;padding:4px 0;text-align:left;}
   .heiz-zeit-toggle:hover{text-decoration:underline;}
-  .unit-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;}
+  .unit-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;overflow-x:auto;} /* Sicherheitsnetz auf sehr schmalen Fenstern: .mv-grid hat feste Breite (kein Umbruch möglich), scrollt dann statt zu brechen – gleiches Prinzip wie table{overflow-x:auto} */
   .unit-head{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:8px;}
   .unit-name{font-weight:600;max-width:200px;}
   .unit-f{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;}
   .unit-f .short{max-width:130px;}  /* US-48: Beträge in den Einheits-/Zahlungsfeldern vollständig sichtbar */
-  /* US-102: Tabelle füllt immer den Container (width:100%, KEIN table-layout:fixed) – die Detailzeile
-     (colspan) kann die Tabelle so nicht mehr verbreitern, die Spalten bleiben stabil; Datumsfelder
-     behalten ihre natürliche Breite. */
-  .mv-table{width:100%;}
-  .mv-table input[type=date]{max-width:160px;}
-  .mv-table td:first-child input{width:100%;min-width:130px;box-sizing:border-box;} /* Mieter-Feld nicht kollabieren lassen */
-  .mv-table .bez-cell{display:flex;align-items:center;gap:4px;}
-  .gewerbl{font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;}
+  /* .mv-table (echte <table>) entfaellt seit dem Grid-Umbau (2026-07-05) – ersetzt durch .mv-grid,
+     siehe Block bei .hf-op weiter oben. */
+  .gewerbl{font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;height:var(--mv-FH);}
   .gewerbl input{width:auto;}
   .zahl-soll{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:8px 0;}
   .zahl-summe{font-size:13px;margin-left:auto;}
@@ -409,12 +442,11 @@
   .eurqm-tab .eurqm-total td{font-weight:700;border-top:1px solid var(--line);}
   .chronik-actions{display:flex;align-items:center;gap:16px;margin:2px 0 12px;flex-wrap:wrap;}
   .chronik-actions .staffel-ank{margin-left:auto;}
-  .chronik-row{display:flex;gap:8px;align-items:center;margin:4px 0;}
-  .chronik-row input[type=date]{max-width:150px;flex:none;}
-  .chronik-row textarea{flex:1;}
+  /* .chronik-row (Flexbox) entfaellt seit dem Grid-Umbau (2026-07-05) – die Chronik-Zeile ist jetzt
+     selbst ein .mv-grid (Badge+Datum in c1, Notiz in c2/c6, erledigt+Löschen in c6). */
   .chronik-erledigt{font-size:12px;color:#41505f;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;flex:none;cursor:pointer;}
-  .chronik-row.erledigt{opacity:.65;}
-  .chronik-row.erledigt .chronik-notiz{text-decoration:line-through;}
+  .mv-grid.erledigt{opacity:.65;}
+  .mv-grid.erledigt .chronik-notiz{text-decoration:line-through;}
   .termin-l2 input:disabled{background:#f3f5f7;color:#54606c;-webkit-text-fill-color:#54606c;opacity:1;cursor:default;}
   /* US-66: Chronik-Notiz als auto-wachsendes Textfeld mit Aufziehlasche */
   .chronik-notiz{flex:1;min-height:34px;resize:vertical;overflow:hidden;font-family:var(--font);font-size:14px;line-height:1.4;padding:7px 9px;border:1px solid var(--line);border-radius:7px;color:var(--ink);}
