@@ -13,7 +13,7 @@
    Index 0 heißt wieder "Gebäude & Einheiten" (entspricht seinem verbliebenen Inhalt), keine
    Umnummerierung bestehender data-step/go()-Indizes (wie bei Index 7 seinerzeit). */
 const STEPS = ["Gebäude & Einheiten","Vorauszahlung (Soll)","Heizung","Kosten","Berechnung","Fertige Abrechnung","Zahlungen (Ist)","Mieter & Vertrag","Termine & Wartung","Vermieter & Zahlungsangaben"];
-const ui = { current:0, activeMieter:0, vorausModus:"monatlich", zeigeVorjahr:false, nurUngeprueft:false, expandedKosten:new Set(), expandedHeizZeit:new Set(), expandedMV:new Set(), navPlausiOpen:false, drag:null, zahlBisAktuell:false, csvImport:{ buchungen:[], dateiname:"", fehler:null }, csvAutoProtokoll:false, termineAnsicht:"faellig" }; /* AC-3 (US-118): gebündelter UI-/Sitzungs-State */
+const ui = { current:0, activeMieter:0, vorausModus:"monatlich", zeigeVorjahr:false, nurUngeprueft:false, expandedKosten:new Set(), expandedHeizZeit:new Set(), expandedMV:new Set(), expandedAutomatik:new Set(), navPlausiOpen:false, drag:null, zahlBisAktuell:false, csvImport:{ buchungen:[], dateiname:"", fehler:null }, csvAutoProtokoll:false, termineAnsicht:"faellig" }; /* AC-3 (US-118): gebündelter UI-/Sitzungs-State */
 
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit", verbrauch:"nach Verbrauch", direkt:"Direkt (eine Einheit)" };

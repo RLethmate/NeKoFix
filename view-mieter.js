@@ -103,24 +103,32 @@ function mvZeilen(e, ei){
         }).join('');
         const bald=nkBaldFaellig(na, heute(), 3);
         const hf=hfFeld;
-        /* US-121 Phase 4: .hf-raster/.hf-Nu statt .heiz-felder (letztes verbliebenes Vorkommen für
-           dieses Detail; Index-/Staffel-Block darunter folgt in einer eigenen Iteration). Eigene
-           Zeile je Themengruppe statt einem gemeinsamen Flex-Container (gleiche Lehre wie bei den
-           Heizungs-Gleichungen: sonst hängt der Umbruch vom verfügbaren Platz statt vom Inhalt ab).
-           Stellplätze × Preis als sichtbare Gleichung; Anrede schmal, E-Mail breit statt "hf-wide"
-           (galt nur im CSS-Grid-Kontext, hier .hf-raster ist Flexbox). */
-        const op='<span class="hf-op">×</span>';
+        /* US-121 Phase 4: .hf-raster/.hf-Nu statt .heiz-felder. Eigene Zeile je Themengruppe statt
+           einem gemeinsamen Flex-Container (gleiche Lehre wie bei den Heizungs-Gleichungen: sonst
+           hängt der Umbruch vom verfügbaren Platz statt vom Inhalt ab). Anrede schmal, E-Mail breit
+           statt "hf-wide" (galt nur im CSS-Grid-Kontext, hier .hf-raster ist Flexbox). Der Index-/
+           Staffel-Block selbst (indexBlock) ist inhaltlich unverändert, nur hinter einer Lasche
+           versteckt (mhAutomatikSection) – Konzept dafür folgt in einer eigenen Iteration. */
+        const opPlus='<span class="hf-op">+</span>', opTimes='<span class="hf-op">×</span>', opEq='<span class="hf-op">=</span>';
+        /* Dummy-Feinschliff 2026-07-05: Kaltmiete + Stellplätze × Preis = Gesamt als eine sichtbare
+           Gleichungs-Zeile (vorher: "Aktuelle Grundmiete" separat, kein Gesamt-Ergebnis sichtbar). */
+        const gesamtMiete=(+m.grundmiete||0)+(+m.stellAnzahl||0)*(+m.stellPreis||0);
         row+='<tr class="detail-row"><td colspan="7" class="detail-cell">'+
           /* US-72: Miete-Felder nur ohne aktiven Mieterhöhungstyp; bei Index/Staffel kommt die Miete aus dem Block. */
           (m.mhTyp?'':'<div class="hf-raster">'+
             hf('Miete bei Einzug','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+'" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">','hf-2u')+
             hf('Urspr. NK/Monat','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+'" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">','hf-2u')+
-            hf('Aktuelle Grundmiete','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+'" oninput="updVertrag('+ei+','+mi+',\'grundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">','hf-2u')+
           '</div>')+
           '<div class="hf-raster">'+
+            (m.mhTyp
+              ? hf('Kaltmiete','<input type="text" class="ro" readonly tabindex="-1" value="'+nkFmtBetrag(m.grundmiete||0)+'">','hf-2u')
+              : hf('Aktuelle Grundmiete','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+'" oninput="updVertrag('+ei+','+mi+',\'grundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">','hf-2u'))+
+            opPlus+
             hf('Stellplätze','<input type="number" min="0" value="'+(m.stellAnzahl||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellAnzahl\',this.value,1)">','hf-1u')+
-            op+
-            hf('Preis je Stellplatz','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stellPreis||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellPreis\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">','hf-2u')+
+            opTimes+
+            hf('Preis je Stellplatz','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stellPreis||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellPreis\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">','hf-1u')+
+            opEq+
+            hf('Gesamt','<input type="text" class="ro" readonly tabindex="-1" value="'+nkFmtBetrag(gesamtMiete)+' €">','hf-1u')+
           '</div>'+
           (m.mhTyp?'':'<div class="hf-raster">'+
             hf('Letzte Anpassung','<input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()">','hf-2u')+
@@ -130,7 +138,7 @@ function mvZeilen(e, ei){
             hf('Anrede','<select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value="">neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select>','hf-1u')+
             hf('E-Mail','<input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de">','hf-3u')+
           '</div>'+
-          indexBlock(m,ei,mi)+ /* US-68: Indexmiete-Bereich */
+          mhAutomatikSection(m,ei,mi)+ /* US-68/US-121: Index-/Staffelmiete hinter Lasche (Dummy 2026-07-05) */
           /* US-109-Schliff: kleiner „+ Chronik-Eintrag" oben neben der Überschrift; Einträge neueste zuerst. */
           '<div class="chronik-titel">Anpassungs-Chronik <button type="button" class="chronik-add" onclick="addChronik('+ei+','+mi+')">+ Chronik-Eintrag</button></div>'+
           chronikRows+
@@ -270,6 +278,43 @@ function mhWarnung(m){
     return plan.some(s=> (nkIndexFaellig(s.datum,h)||nkBaldFaellig(s.datum,h,3)) && !nkIstAngekuendigt(ank,s.datum));
   }
   return false;
+}
+/* US-121 Phase 4 Teil 2 (Dummy-Feinschliff): kompakte "Nächste Erhöhung"-Zeile, sichtbar auch bei
+   eingeklappten Automatik-Details – liefert Stichtag/Frequenz-Text/Ankündigen-Checkbox unabhängig
+   vom Typ (Index/Staffel), ohne die bestehende indexBlock()-Logik anzufassen. */
+function mhNaechsteInfo(m,ei,mi){
+  if(!m || !m.mhTyp) return null;
+  const h=heute(); const ank=m.ankuendigungen||{};
+  const freqLabel=(f)=> (+f===1?'jährlich':'alle '+(+f||1)+' Jahre');
+  if(m.mhTyp==='index'){
+    const anz=(m.idxAnpassungen||[]).length;
+    const datum=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
+    if(!datum) return null;
+    return { datum, freqLabel: freqLabel(m.idxFrequenz||1), checked: nkIstAngekuendigt(ank,datum),
+      onToggle:'idxVorabAnkuendigung('+ei+','+mi+',\''+datum+'\',this.checked)' };
+  }
+  if(m.mhTyp==='staffel'){
+    const plan=nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag);
+    if(!plan.length) return null;
+    const next = plan.find(s=> (nkIndexFaellig(s.datum,h)||nkBaldFaellig(s.datum,h,3)) && !nkIstAngekuendigt(ank,s.datum))
+              || plan.find(s=> nkDatum(s.datum) > nkDatum(h))
+              || plan[plan.length-1];
+    return { datum: next.datum, freqLabel: freqLabel(m.stafFrequenz||1), checked: nkIstAngekuendigt(ank,next.datum),
+      onToggle:'staffelAnkuendigung('+ei+','+mi+',\''+next.datum+'\',this.checked)' };
+  }
+  return null;
+}
+/* Automatik-Details hinter einer Lasche verstecken (Dummy 2026-07-05): die bestehende indexBlock()-
+   Ausgabe bleibt inhaltlich unverändert (Konzept dafür folgt in einer eigenen Iteration), sie wird nur
+   ein-/ausklappbar gemacht; die Zusammenfassungszeile bleibt auch eingeklappt sichtbar. */
+function toggleAutomatik(id){ if(ui.expandedAutomatik.has(id)) ui.expandedAutomatik.delete(id); else ui.expandedAutomatik.add(id); renderEinheiten(); }
+function mhAutomatikSection(m,ei,mi){
+  const info=mhNaechsteInfo(m,ei,mi);
+  const open=ui.expandedAutomatik.has(m.id);
+  return '<button type="button" class="heiz-zeit-toggle" onclick="toggleAutomatik('+m.id+')">'+(open?'▾':'▸')+' Automatik-Details (Beginn, Häufigkeit)</button>'+
+    (open
+      ? indexBlock(m,ei,mi) /* Details bereits vollständig sichtbar (inkl. eigener "Nächste Erhöhung"-Zeile) – keine doppelte Zusammenfassung. */
+      : (info ? '<div class="mh-titel">Nächste Erhöhung: <b>'+fmtDatum(info.datum)+'</b>, '+info.freqLabel+' · <label class="staffel-ank"><input type="checkbox" '+(info.checked?'checked':'')+' onchange="'+info.onToggle+'"> angekündigt</label></div>' : ''));
 }
 /* US-69: vollständiges, self-contained Anschreiben-Datenobjekt (für PDF + Einfrieren). */
 function mhDatenBasis(ei,mi){
