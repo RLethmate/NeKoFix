@@ -141,6 +141,7 @@
   .hf-raster{display:flex;flex-wrap:wrap;gap:10px 14px;margin:8px 0;align-items:end;}
   .hf-1u{width:var(--funit);flex:none;}
   .hf-2u{width:calc(var(--funit)*2 + var(--fgap));flex:none;}
+  .hf-3u{width:calc(var(--funit)*3 + var(--fgap)*2);flex:none;} /* US-121 Phase 2: lange Freitextfelder (Name, Adresse, IBAN) – bewusst eine feste Obergrenze statt flex-grow, damit z. B. IBAN nicht in freien Zeilenraum wächst und mit Empfänger (dieselbe Klasse) an derselben Kante endet */
   .hf-op{display:flex;align-items:center;padding-bottom:9px;color:var(--muted);font-size:14px;flex:none;} /* US-121: Verbindungszeichen für Gleichungs-Zeilen (Heizkosten/Verbrauch=Mittelwert, EG+1.OG=Summe) */
   .heiz-vb{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);}
   .heiz-vb-lbl{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;}
@@ -239,6 +240,12 @@
   td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;}
   input,select{font-family:var(--font);font-size:14px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);width:100%;}
   input:focus,select:focus{outline:2px solid var(--primary);outline-offset:0;border-color:var(--primary);}
+  /* Zahlen-Stepper (↑↓ in type="number") nur bei Hover/Fokus zeigen, nicht dauerhaft – Safari zeigt
+     sie sonst immer an, Chrome nur bei Hover. -webkit-Pseudoelemente funktionieren in beiden
+     (Chrome/Blink und Safari/WebKit), Firefox hat ohnehin ein eigenes, dezenteres Standardverhalten. */
+  input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{opacity:0;}
+  input[type=number]:hover::-webkit-inner-spin-button,input[type=number]:hover::-webkit-outer-spin-button,
+  input[type=number]:focus::-webkit-inner-spin-button,input[type=number]:focus::-webkit-outer-spin-button{opacity:1;}
   input.short{max-width:160px;text-align:right;}  /* US-48: breit genug für z. B. 12.345,67 */
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
   .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600;}
@@ -648,9 +655,13 @@
     <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Mietvertrag (Wohnungsgrößen) bzw. Grundriss</b></span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Grunddaten des Hauses und der Wohneinheiten – Basis für jede Verteilung.</p>
     <div class="legal">Recht (V11): Für die Betriebskostenverteilung zählt die <b>tatsächliche</b> Wohnfläche, nicht die im Mietvertrag vereinbarte.</div>
-    <div class="grid2">
-      <div class="field"><label>Objekt / Adresse</label><input id="obj_addr"></div>
-      <div class="field"><label>Abrechnungszeitraum</label>
+    <!-- US-121 Phase 3: .hf-raster/.hf-Nu statt .grid2 (letztes verbliebenes Vorkommen, analog zu
+         Phase 2/Vermieter) – Objekt/Adresse (lang, hf-3u) sollte nicht auf 50% erzwungen werden,
+         nur weil Abrechnungszeitraum danebensteht. Innere Struktur von „Abrechnungszeitraum"
+         (Von–Bis mit Konnektor) unverändert, nur die Außenbreite fest statt 50%. -->
+    <div class="hf-raster">
+      <div class="field hf-3u"><label>Objekt / Adresse</label><input id="obj_addr"></div>
+      <div class="field hf-3u"><label>Abrechnungszeitraum</label>
         <div style="display:flex;gap:8px;align-items:center;"><input id="obj_von" type="date"><span>–</span><input id="obj_bis" type="date"></div>
       </div>
     </div>
@@ -661,12 +672,22 @@
     <div class="zahlungs-box">
       <h2 class="zahlungs-titel">Vermieter &amp; Zahlungsangaben</h2>
       <p class="hint">Einmal pro Objekt – erscheinen auf der Abrechnung und im PDF.</p>
-      <div class="grid2">
-        <div class="field"><label>Empfänger (Vermieter)</label><input id="z_empfaenger" placeholder="z. B. M. Vermieter"></div>
-        <div class="field"><label>Anschrift (Absender)</label><input id="z_anschrift" placeholder="Straße, PLZ Ort"></div>
-        <div class="field"><label>IBAN</label><input id="z_iban" placeholder="DE.. .... .... .... .... .."><span id="z_iban_hint" class="iban-hint"></span></div>
-        <div class="field"><label>BIC</label><input id="z_bic" placeholder="optional"></div>
-        <div class="field"><label>Zahlungsfrist</label><input id="z_frist" placeholder="z. B. 14 Tage nach Zugang"></div>
+      <!-- US-121 Phase 2: .hf-raster/.hf-Nu statt .grid2 (bewusst eine eigene Klasse, .grid2 bleibt
+           für den Gebäude-Block oben unverändert). Zwei Zeilen: Empfänger/Anschrift (Identität,
+           hf-3u), IBAN/BIC/Zahlungsfrist (Zahlung). IBAN hat dieselbe Klasse (hf-3u) wie Empfänger
+           darüber, dadurch enden beide an derselben Kante. align-items:flex-start statt der
+           .hf-raster-Vorgabe (align-items:end): IBAN ist durch den optionalen #z_iban_hint-Text
+           höher als BIC/Zahlungsfrist; end-Ausrichtung würde die beiden nach unten verschieben, um
+           mit IBAN unten bündig zu sein. Bei den Heizungs-Gleichungen bleibt end nötig
+           (Rechenzeichen sitzen an der Input-Unterkante), hier gibt es keine. -->
+      <div class="hf-raster">
+        <div class="field hf-3u"><label>Empfänger (Vermieter)</label><input id="z_empfaenger" placeholder="z. B. M. Vermieter"></div>
+        <div class="field hf-3u"><label>Anschrift (Absender)</label><input id="z_anschrift" placeholder="Straße, PLZ Ort"></div>
+      </div>
+      <div class="hf-raster" style="align-items:flex-start;">
+        <div class="field hf-3u"><label>IBAN</label><input id="z_iban" placeholder="DE.. .... .... .... .... .."><span id="z_iban_hint" class="iban-hint"></span></div>
+        <div class="field hf-1u"><label>BIC</label><input id="z_bic" placeholder="optional"></div>
+        <div class="field hf-2u"><label>Zahlungsfrist</label><input id="z_frist" placeholder="z. B. 14 Tage nach Zugang"></div>
       </div>
     </div>
 
