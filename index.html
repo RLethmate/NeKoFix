@@ -236,6 +236,12 @@
   td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;}
   input,select{font-family:var(--font);font-size:14px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);width:100%;}
   input:focus,select:focus{outline:2px solid var(--primary);outline-offset:0;border-color:var(--primary);}
+  /* Zahlen-Stepper (↑↓ in type="number") nur bei Hover/Fokus zeigen, nicht dauerhaft – Safari zeigt
+     sie sonst immer an, Chrome nur bei Hover. -webkit-Pseudoelemente funktionieren in beiden
+     (Chrome/Blink und Safari/WebKit), Firefox hat ohnehin ein eigenes, dezenteres Standardverhalten. */
+  input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{opacity:0;}
+  input[type=number]:hover::-webkit-inner-spin-button,input[type=number]:hover::-webkit-outer-spin-button,
+  input[type=number]:focus::-webkit-inner-spin-button,input[type=number]:focus::-webkit-outer-spin-button{opacity:1;}
   input.short{max-width:160px;text-align:right;}  /* US-48: breit genug für z. B. 12.345,67 */
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
   .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600;}
