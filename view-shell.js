@@ -86,7 +86,9 @@ const STEP_GROUPS = [
 ];
 function renderStepper(){
   const el = document.getElementById('stepper'); if(!el) return; el.innerHTML='';
-  /* Nummer und „done"-Status nach Anzeige-Position (nicht nach numerischem Index). */
+  /* US-122: kein Nummern-Kreis mehr (freie Navigation, keine erzwungene Reihenfolge) - .n ist
+     jetzt ein reiner Punkt wie im Dummy-Vorschlag. „done" (Position vor dem aktiven Schritt in der
+     Anzeige-Reihenfolge) bleibt als leiser "schon besucht"-Hinweis erhalten. */
   const order=[]; STEP_GROUPS.forEach(g=>g.steps.forEach(i=>order.push(i)));
   const curPos=order.indexOf(ui.current);
   STEP_GROUPS.forEach(g=>{
@@ -96,7 +98,7 @@ function renderStepper(){
       const d=document.createElement('div');
       d.className='step'+(i===ui.current?' active':'')+((curPos>=0 && pos<curPos)?' done':'');
       d.title=STEPS[i];
-      d.innerHTML='<span class="n">'+(pos+1)+'</span><span class="lbl">'+STEPS[i]+'</span><span class="abbr">'+STEP_ABBR[i]+'</span>';
+      d.innerHTML='<span class="n"></span><span class="lbl">'+STEPS[i]+'</span><span class="abbr">'+STEP_ABBR[i]+'</span>';
       d.onclick=()=>go(i);
       el.appendChild(d);
     });
