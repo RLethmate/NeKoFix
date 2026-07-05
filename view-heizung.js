@@ -64,20 +64,29 @@ function heizKarte(k,idx){
      Mittelwert, EG+1.OG=Summe) – macht den Rechenzusammenhang sichtbar, wie in den eq-Tabellen
      (Vorauszahlungen/Kontrolle) an anderer Stelle der App bereits üblich. */
   const op = (sym)=>'<span class="hf-op">'+sym+'</span>';
-  /* Nenner der Mittelwert-Gleichung: bei Faktor-Energiearten (Heizöl/Wärmepumpe) ist das die
-     umgerechnete Wärmemenge (kWh), nicht der roh eingetragene Verbrauch (Liter/kWh Strom) – so
-     wird tatsächlich gerechnet (nkEurProKwh(betrag, kwh)). Bei direkten kWh-Energiearten ist der
-     Verbrauch bereits die kWh-Menge, beides ist identisch. */
-  const nennerFeld = fi.show
-    ? hf('Wärmemenge', ro(nkFmtBetrag(kwh)+' '+fi.kwhLabel), null, 'hf-2u')
-    : hf(fi.verbrauch, '<input type="number" step="any" value="'+(k.menge||0)+'" onchange="updHeiz('+idx+',\'menge\',this.value)">', 'Optional – nur für die Kennzahl Ø €/kWh (Energieträger-/Heizungsvergleich), keine Rechengrundlage.', 'hf-2u');
-  let felder =
-    (fi.show ? hf(fi.verbrauch, '<input type="number" step="any" value="'+(k.menge||0)+'" onchange="updHeiz('+idx+',\'menge\',this.value)">', 'Optional – nur für die Kennzahl Ø €/kWh (Energieträger-/Heizungsvergleich), keine Rechengrundlage.', 'hf-2u')+hf(fi.label, '<input type="number" step="any" value="'+(k.heizwert||0)+'" onchange="updHeiz('+idx+',\'heizwert\',this.value)">', fi.tip, 'hf-2u') : '')+
+  const verbrauchFeld = hf(fi.verbrauch, '<input type="number" step="any" value="'+(k.menge||0)+'" onchange="updHeiz('+idx+',\'menge\',this.value)">', 'Optional – nur für die Kennzahl Ø €/kWh (Energieträger-/Heizungsvergleich), keine Rechengrundlage.', 'hf-2u');
+  const heizwertFeld = fi.show ? hf(fi.label, '<input type="number" step="any" value="'+(k.heizwert||0)+'" onchange="updHeiz('+idx+',\'heizwert\',this.value)">', fi.tip, 'hf-2u') : '';
+  const waermemengeFeld = hf('Wärmemenge', ro(nkFmtBetrag(kwh)+' '+fi.kwhLabel), null, 'hf-2u');
+  /* Nenner der Mittelwert-Gleichung: bei Faktor-Energiearten (Heizöl/Flüssiggas/Pellets/Erdgas m³/
+     Wärmepumpe) ist das die umgerechnete Wärmemenge (kWh), nicht der roh eingetragene Verbrauch
+     (Liter/m³/kWh Strom) – so wird tatsächlich gerechnet (nkEurProKwh(betrag, kwh)). Bei direkten
+     kWh-Energiearten (Erdgas kWh, Fernwärme, Wärme kWh) ist der Verbrauch bereits die kWh-Menge,
+     beides ist identisch, eine eigene Umrechnungs-Zeile entfällt dort. */
+  const nennerFeld = fi.show ? waermemengeFeld : verbrauchFeld;
+  /* US-121 (Nachbesserung nach Feedback): jede Gleichung bekommt ihre eigene .hf-raster-Zeile statt
+     alle Felder in einem gemeinsamen Flex-Container fließen zu lassen – sonst hängt der Zeilenumbruch
+     vom verfügbaren Platz ab und Grundkosten %/Verbrauch % landen je nach Energieart (unterschiedliche
+     Feldanzahl davor) mal in derselben, mal in einer neuen Zeile. Geprüft für alle 8 Energiearten
+     (NK_ENERGIEARTEN): 3× direkt (kein Umrechnungs-Schritt), 4× hi (Verbrauch×Heizwert=Wärmemenge),
+     1× jaz/Wärmepumpe (Verbrauch×Arbeitszahl=Wärmemenge) – dieselbe Struktur in allen drei Fällen. */
+  const umrechnungZeile = fi.show ? (verbrauchFeld+op('×')+heizwertFeld+op('=')+waermemengeFeld) : '';
+  const mittelwertZeile =
     hf('Heizkosten gesamt (€)', '<input type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag||0)+'" onchange="updHeizBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">', null, 'hf-2u')+
     op('/')+
     nennerFeld+
     op('=')+
-    hf('Mittelwert (Ø €/kWh)', ro(eurKwh!=null ? nkFmtBetrag(eurKwh)+' €/kWh' : '– €/kWh'), 'Mittlerer Energiepreis – nur Kennzahl zum Vergleich (z. B. vor/nach Heizungswechsel).', 'hf-2u')+
+    hf('Mittelwert (Ø €/kWh)', ro(eurKwh!=null ? nkFmtBetrag(eurKwh)+' €/kWh' : '– €/kWh'), 'Mittlerer Energiepreis – nur Kennzahl zum Vergleich (z. B. vor/nach Heizungswechsel).', 'hf-2u');
+  const grundVerbrauchZeile =
     hf('Grundkosten %', '<input type="number" min="30" max="50" step="5" value="'+grund+'" onchange="updHeizGrund('+idx+',this.value)">', 'Grundkosten nach (beheizter) Fläche, Rest nach erfasstem Verbrauch (§ 7/§ 8 HeizkostenV). Zulässig: 30–50 % Grund (= 50–70 % Verbrauch).', 'hf-1u')+
     hf('Verbrauch %', ro(verbr+' %'), null, 'hf-1u');
   const co2Felder = ea.fossil ? hf('CO₂-Emissionen (kg)', '<input type="number" step="any" value="'+(k.co2Kg||0)+'" onchange="updHeizNum('+idx+',\'co2Kg\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-2u')+hf('CO₂-Kosten (€)', '<input type="number" step="any" value="'+(k.co2Kosten||0)+'" onchange="updHeizNum('+idx+',\'co2Kosten\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u') : '';
@@ -92,8 +101,11 @@ function heizKarte(k,idx){
     '</div>'+
     /* US-121 Phase 1: .hf-raster statt .heiz-felder – Feldbreite richtet sich nach Inhalt (hf-1u/
        hf-2u) statt gleichverteiltem auto-fill-Grid; dadurch decken sich z. B. die Boxen unter
-       „Verbrauch je Einheit" exakt mit den 1-Einheit-Feldern oben (Grundkosten %, Verbrauch %). */
-    '<div class="hf-raster">'+felder+'</div>'+
+       „Verbrauch je Einheit" exakt mit den 1-Einheit-Feldern oben (Grundkosten %, Verbrauch %).
+       Jede Gleichung/Gruppe eine eigene Zeile (siehe Kommentar bei umrechnungZeile oben). */
+    (umrechnungZeile ? '<div class="hf-raster">'+umrechnungZeile+'</div>' : '')+
+    '<div class="hf-raster">'+mittelwertZeile+'</div>'+
+    '<div class="hf-raster">'+grundVerbrauchZeile+'</div>'+
     '<div class="hint" style="margin:2px 0 8px;">30 % Grund / 70 % Verbrauch ist Standard; bei älteren Öl-/Gas-Gebäuden sind 70 % Verbrauch ggf. verpflichtend (§ 7 Abs. 1 HeizkostenV). Wartungs-/Betriebskosten der Anlage gehören in diesen Block.'+(ea.fossil?' CO₂-Werte von der Brennstoffrechnung – Vermieteranteil wird automatisch ermittelt.':'')+'</div>'+
     (co2Felder ? '<div class="hf-raster">'+co2Felder+'</div>' : '')+
     '<div class="heiz-vb"><div class="heiz-vb-lbl">Verbrauch je Einheit ('+esc(k.einheit||'kWh')+'):</div>'+
