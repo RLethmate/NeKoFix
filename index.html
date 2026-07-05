@@ -173,11 +173,15 @@
   .nav-group{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin:10px 4px 2px;}
   .sidenav.collapsed .nav-group{display:none;}
   .stepper{display:flex;flex-direction:column;gap:6px;margin:0;}
-  .step{font-size:13px;color:var(--muted);padding:9px 11px;border-radius:8px;background:var(--card);border:1px solid var(--line);display:flex;gap:9px;align-items:center;cursor:pointer;}
-  .step .n{width:8px;height:8px;border-radius:50%;background:var(--line);flex:0 0 auto;} /* US-122: Punkt statt Nummern-Kreis – keine erzwungene Reihenfolge mehr */
+  /* US-122 (dezenter Stil nach Dummy-Vorbild): inaktive Einträge ohne Karten-Optik (transparent,
+     kein Rand) – nur der aktive Eintrag bekommt Karte/Schatten/Randfarbe. Vorher hatte jeder
+     Eintrag dauerhaft Card-Hintergrund+Rand, wirkte dadurch überall gleich "laut". */
+  .step{font-size:13px;color:var(--muted);padding:9px 11px;border-radius:8px;background:transparent;border:1px solid transparent;display:flex;gap:9px;align-items:center;cursor:pointer;}
+  .step:hover{background:var(--soft);}
+  .step .n{width:7px;height:7px;border-radius:50%;background:var(--line);flex:0 0 auto;} /* US-122: Punkt statt Nummern-Kreis – keine erzwungene Reihenfolge mehr */
   .step .lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .step .abbr{display:none;font-weight:700;}
-  .step.active{border-color:var(--primary);color:var(--primary);font-weight:600;box-shadow:0 1px 0 var(--primary) inset;}
+  .step.active{background:var(--card);border-color:var(--line);box-shadow:0 1px 2px rgba(0,0,0,.05);font-weight:600;color:var(--primary);}
   .step.active .n{background:var(--primary);}
   .step.done .n{background:var(--accent);}
   .sidenav.collapsed .step{justify-content:center;padding:9px 6px;}
