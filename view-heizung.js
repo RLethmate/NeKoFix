@@ -89,7 +89,11 @@ function heizKarte(k,idx){
   const grundVerbrauchZeile =
     hf('Grundkosten %', '<input type="number" min="30" max="50" step="5" value="'+grund+'" onchange="updHeizGrund('+idx+',this.value)">', 'Grundkosten nach (beheizter) Fläche, Rest nach erfasstem Verbrauch (§ 7/§ 8 HeizkostenV). Zulässig: 30–50 % Grund (= 50–70 % Verbrauch).', 'hf-1u')+
     hf('Verbrauch %', ro(verbr+' %'), null, 'hf-1u');
-  const co2Felder = ea.fossil ? hf('CO₂-Emissionen (kg)', '<input type="number" step="any" value="'+(k.co2Kg||0)+'" onchange="updHeizNum('+idx+',\'co2Kg\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-2u')+hf('CO₂-Kosten (€)', '<input type="number" step="any" value="'+(k.co2Kosten||0)+'" onchange="updHeizNum('+idx+',\'co2Kosten\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u') : '';
+  /* US-121 (Nachbesserung): Grundkosten %/Verbrauch % sind das Breitenmaß für alles, was
+     inhaltlich darunter/danach kommt (CO2-Felder, Verbrauch je Einheit, Zeitraum) – hf-1u statt
+     hf-2u, damit die Spalten senkrecht exakt übereinanderstehen. Die ersten Gleichungs-Zeilen
+     (Verbrauch/Heizwert/Wärmemenge/Heizkosten/Mittelwert) dürfen breiter bleiben (hf-2u). */
+  const co2Felder = ea.fossil ? hf('CO₂-Emissionen (kg)', '<input type="number" step="any" value="'+(k.co2Kg||0)+'" onchange="updHeizNum('+idx+',\'co2Kg\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u')+hf('CO₂-Kosten (€)', '<input type="number" step="any" value="'+(k.co2Kosten||0)+'" onchange="updHeizNum('+idx+',\'co2Kosten\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u') : '';
   const vbEinheitenFelder = state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>hf(esc(x.name), '<input type="number" step="any" value="'+((k.verbrauch&&k.verbrauch[x.id])||0)+'" onchange="updHeizVerbrauch('+idx+','+x.id+',this.value)">', null, 'hf-1u'));
   const vbFelder = vbEinheitenFelder.join(op('+'))+op('=')+hf('Summe', ro(nkFmtBetrag(vsum)+' '+esc(k.einheit||'kWh')), null, 'hf-1u');
   return '<div class="unit-card einheit-card'+(k.vorjahr?' vorjahr':'')+'">'+
@@ -115,9 +119,9 @@ function heizKarte(k,idx){
     // Aufräumen: Zeitraum (aktiv von/bis) standardmäßig eingeklappt; offen, wenn gesetzt, neu hinzugefügt oder aufgeklappt.
     ((mehrereHeiz || ui.expandedHeizZeit.has(k.id) || k.von || k.bis)
       ? '<div class="hf-raster" title="US-06: Zeitraum, in dem dieser Heiztyp aktiv war. Leer = ganzer Abrechnungszeitraum. Bei Mieterwechsel wird der Block über diese Periode auf die anwesenden Mieter verteilt.">'+
-          hf('aktiv von', '<input type="date" value="'+(k.von||'')+'" onchange="store.setKostenFeld('+idx+',\'von\',this.value)">', null, 'hf-2u')+
-          hf('aktiv bis', '<input type="date" value="'+(k.bis||'')+'" onchange="store.setKostenFeld('+idx+',\'bis\',this.value)">', null, 'hf-2u')+
-          ((k.von||k.bis||mehrereHeiz) ? '' : '<label class="hf hf-2u"><span>&nbsp;</span><button type="button" class="heiz-zeit-toggle" onclick="toggleHeizZeit('+k.id+')">ausblenden</button></label>')+
+          hf('aktiv von', '<input type="date" value="'+(k.von||'')+'" onchange="store.setKostenFeld('+idx+',\'von\',this.value)">', null, 'hf-1u')+
+          hf('aktiv bis', '<input type="date" value="'+(k.bis||'')+'" onchange="store.setKostenFeld('+idx+',\'bis\',this.value)">', null, 'hf-1u')+
+          ((k.von||k.bis||mehrereHeiz) ? '' : '<label class="hf hf-1u"><span>&nbsp;</span><button type="button" class="heiz-zeit-toggle" onclick="toggleHeizZeit('+k.id+')">ausblenden</button></label>')+
         '</div>'
       : '<button type="button" class="heiz-zeit-toggle" onclick="toggleHeizZeit('+k.id+')">+ Zeitraum eingrenzen (Standard: ganzer Abrechnungszeitraum)</button>')+
   '</div>';
