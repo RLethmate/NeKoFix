@@ -148,7 +148,7 @@ function mvZeilen(e, ei){
             mvf('Nächste Anpassung','<input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)" onblur="renderEinheiten()">','c2')+
           '</div>')+
           '<div class="mv-grid">'+
-            '<label class="hf" style="grid-column:c1;width:var(--mv-S);"><span>Anrede</span><select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value="">neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select></label>'+
+            '<label class="hf" style="grid-column:c1"><span>Anrede</span><select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value="">neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select></label>'+
             mvf('E-Mail','<input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de">','c2 / c4')+
           '</div>'+
           mhAutomatikSection(m,ei,mi)+ /* US-68/US-121: Index-/Staffelmiete hinter Lasche (Dummy 2026-07-05) */
@@ -358,7 +358,7 @@ function mhAutomatikSection(m,ei,mi){
   } else if(info){
     out+='<div class="mv-grid" style="align-items:center;">'+
       '<div class="mh-titel" style="grid-column:c1 / c6">Nächste Erhöhung: <b>'+fmtDatum(info.datum)+'</b>, '+info.freqLabel+'</div>'+
-      '<div style="grid-column:c6"><label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);"><input type="checkbox" '+(info.checked?'checked':'')+' onchange="'+info.onToggle+'"> angekündigt</label></div>'+
+      '<div class="mv-vcenter" style="grid-column:c6"><label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);"><input type="checkbox" '+(info.checked?'checked':'')+' onchange="'+info.onToggle+'"> angekündigt</label></div>'+
     '</div>';
   }
   return out;

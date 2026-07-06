@@ -175,6 +175,12 @@
   .mv-headrow,.mv-summary{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px;}
   .mv-headrow .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;}
   .mv-grid input:not([type=checkbox]),.mv-grid textarea{height:var(--mv-FH);box-sizing:border-box;}
+  /* Checkbox+String als ein Objekt (Ralf-Feedback 2026-07-06): die globale Regel input,select{
+     width:100%} greift auch bei type=checkbox (nur .picker-list hatte bisher width:auto) – ohne
+     Override zieht sich die Checkbox unsichtbar über die volle Breite ihres Flex-Labels und reisst
+     den Text davon weg. In Chrome kaum sichtbar, in Safari als riesige Lücke vor "erledigt"/
+     "angekündigt" sichtbar. Scoped auf .mv-grid, nicht global geändert (Pilot-Scope). */
+  .mv-grid input[type=checkbox]{width:auto;flex:none;}
   .mv-grid select{height:var(--mv-FH);padding-top:0;padding-bottom:0;box-sizing:border-box;}
   /* Boxlose Inhalte (Text, Checkbox-Zelle) bekommen dieselbe feste Hoehe wie eine Inputbox und
      zentrieren ihren Inhalt darin selbst – sonst landen sie beim zeilenweiten align-items:end
@@ -187,6 +193,9 @@
      damit sie in dieser Zeile exakt --mv-FH hoch UND vertikal zentriert sind, ohne die Basisklasse
      fuer die anderen Reiter (Kosten/Heizung/Termine/Docs) anzufassen. */
   .mv-fh{height:var(--mv-FH);display:inline-flex;align-items:center;justify-content:center;}
+  /* Chronik-Badge (Ralf-Feedback 2026-07-06): soll wie Kaltmiete/Mieter die volle c1-Spalte füllen,
+     nicht die feste 72px-Breite von .termin-tage aus Termine & Wartung – dort bleibt sie unveraendert. */
+  .mv-grid .termin-tage{width:100%;}
   /* Raster-Debug (?debug=1, siehe nkMvDebugOverlay in view-mieter.js): grid-template-columns:inherit
      übernimmt das *berechnete* Template der jeweiligen .mv-grid-Zeile 1:1 (kein Nachrechnen der
      --mv-*-Werte nötig) – funktioniert dadurch identisch in jedem Browser inkl. Safari. */
