@@ -96,10 +96,10 @@ function mvZeilen(e, ei){
             '<div class="mv-vcenter" style="grid-column:c1">'+cBadge+'</div>'+
             '<div style="grid-column:c2"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"></div>'+
             '<div class="mv-vcenter" style="grid-column:c3 / c6"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea></div>'+
-            '<div class="mv-vcenter" style="grid-column:c6;gap:10px;">'+
-              '<label class="chronik-erledigt" title="Als erledigt markieren – Badge wird neutral"><input type="checkbox" '+(c.erledigt?'checked':'')+' onchange="setChronikErledigt('+ei+','+mi+','+ci+',this.checked)"> erledigt</label>'+
-              '<button class="row-del mv-fh" onclick="'+delCall+'">×</button>'+
-            '</div>'+
+            /* erledigt (c6) und Löschen (c7) in eigenen Spalten statt geteilter c6 – zu eng, führte
+               in Safari zu überlappendem/verschobenem Text (gefunden 2026-07-06). */
+            '<div class="mv-vcenter" style="grid-column:c6"><label class="chronik-erledigt" title="Als erledigt markieren – Badge wird neutral"><input type="checkbox" '+(c.erledigt?'checked':'')+' onchange="setChronikErledigt('+ei+','+mi+','+ci+',this.checked)"> erledigt</label></div>'+
+            '<div class="mv-vcenter" style="grid-column:c7"><button class="row-del mv-fh" onclick="'+delCall+'">×</button></div>'+
           '</div>';
           if(idxI!=null){ const a=m.idxAnpassungen[idxI]; const ankM=m.ankuendigungen||{};
             const ang=nkIstAngekuendigt(ankM,a.datum); const va=nkAnkVerschicktAm(ankM,a.datum);
@@ -188,6 +188,22 @@ function renderMieterVertrag(){
   /* US-66: Chronik-Textfelder initial an ihren Inhalt anpassen. */
   document.querySelectorAll('#mieter_vertrag_box .chronik-notiz').forEach(autoGrow);
   setVjTitel('vjt_mieter'); /* US-59 */
+  nkMvDebugOverlay(); /* ?debug=1: Spalten-Raster sichtbar machen (auch in Safari live prüfbar) */
+}
+/* Raster-Debug (2026-07-06): mit ?debug=1 (oder &debug=1) in der URL zeichnet jede .mv-grid-Zeile
+   ihre eigenen Spalten-Tracks sichtbar ein – nutzt grid-template-columns:inherit, damit der Browser
+   selbst rechnet (kein Nachrechnen/Copy der --mv-*-Werte nötig, funktioniert daher gleich in jedem
+   Browser inkl. Safari). Nur in Mieter & Vertrag relevant (einziger .mv-grid-Nutzer). */
+function nkMvDebugAktiv(){ return /[?&]debug=1(&|$)/i.test(location.search); }
+function nkMvDebugOverlay(){
+  if(!nkMvDebugAktiv()) return;
+  document.querySelectorAll('#mieter_vertrag_box .mv-grid').forEach(function(row){
+    if(row.querySelector(':scope > .mv-debug-ov')) return;
+    var ov=document.createElement('div');
+    ov.className='mv-debug-ov';
+    ov.innerHTML='<i></i><i class="a"></i><i></i><i class="a"></i><i></i><i class="a"></i><i></i><i></i><i></i><i></i>';
+    row.appendChild(ov);
+  });
 }
 /* US-66: Textarea-Höhe an den Inhalt anpassen (auto-grow). */
 function autoGrow(el){ if(!el) return; el.style.height='auto'; el.style.height=(el.scrollHeight)+'px'; }

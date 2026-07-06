@@ -124,7 +124,13 @@
   .detail-row td{background:var(--soft);}
   /* Mieter & Vertrag (seit Grid-Umbau 2026-07-05): kein <tr class="detail-row"> mehr, daher der
      Tint direkt auf dem neuen .detail-cell-Wrapper (nur hier verwendet). */
-  .detail-cell{background:var(--soft);padding:10px 10px 4px;border-radius:8px;margin-top:6px;}
+  /* margin:-10px links/rechts kompensiert das eigene padding: der Tint-Hintergrund bleibt optisch
+     eingerückt, aber der Grid-Inhalt beginnt exakt an derselben Kante wie Kopf-/Summary-Zeile
+     (sonst Versatz von genau padding-left – gefunden 2026-07-06 per Headless-Messung: 421.3 vs
+     431.3px). font-size:14px ersetzt das durch den Tabellen-Wegfall verlorene th,td{font-size:14px}
+     – ohne den Reset erben unbenannte Textknoten (z. B. .mh-titel) den Browser-Default (16px+),
+     sichtbar als überproportional große Schrift, in Safari staerker als in Chrome. */
+  .detail-cell{background:var(--soft);padding:10px 10px 4px;border-radius:8px;margin:6px -10px 0;font-size:14px;}
   .detail-grid{display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:4px 0;}
   .detail-grid label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;}
   .detail-grid .notiz-field{flex:1;min-width:200px;}
@@ -181,6 +187,13 @@
      damit sie in dieser Zeile exakt --mv-FH hoch UND vertikal zentriert sind, ohne die Basisklasse
      fuer die anderen Reiter (Kosten/Heizung/Termine/Docs) anzufassen. */
   .mv-fh{height:var(--mv-FH);display:inline-flex;align-items:center;justify-content:center;}
+  /* Raster-Debug (?debug=1, siehe nkMvDebugOverlay in view-mieter.js): grid-template-columns:inherit
+     übernimmt das *berechnete* Template der jeweiligen .mv-grid-Zeile 1:1 (kein Nachrechnen der
+     --mv-*-Werte nötig) – funktioniert dadurch identisch in jedem Browser inkl. Safari. */
+  .mv-grid{position:relative;}
+  .mv-debug-ov{position:absolute;inset:0;display:grid;grid-template-columns:inherit;column-gap:inherit;pointer-events:none;z-index:5;}
+  .mv-debug-ov i{background:rgba(180,84,30,.10);border-left:1px dashed rgba(180,84,30,.6);border-right:1px dashed rgba(180,84,30,.6);}
+  .mv-debug-ov i.a{background:rgba(21,97,109,.16);border-color:rgba(21,97,109,.65);}
   .heiz-vb{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);}
   .heiz-vb-lbl{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;}
   .teilnahme{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;}
