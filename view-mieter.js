@@ -128,18 +128,22 @@ function mvZeilen(e, ei){
         const gesamtMiete=(+m.grundmiete||0)+(+m.stellAnzahl||0)*(+m.stellPreis||0);
         row+='<div class="detail-cell">'+
           /* US-72: Miete-Felder nur ohne aktiven Mieterhöhungstyp; bei Index/Staffel kommt die Miete aus dem Block. */
+          /* Preisfelder zeigen jetzt durchgängig "€" im Wert (Ralf-Feedback 2026-07-06: "Preis je
+             Stellplatz" hatte keins) – onblur haengt es nach dem Reformat wieder an, da nkFmtBetrag
+             selbst kein Waehrungszeichen liefert (nkParseBetrag parst trotz "€"-Suffix korrekt,
+             parseFloat bricht einfach an der ersten Nicht-Zahl ab). */
           (m.mhTyp?'':'<div class="mv-grid">'+
-            mvf('Miete bei Einzug','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+'" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">','c1')+
-            mvf('Urspr. NK/Monat','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+'" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">','c2')+
+            mvf('Miete bei Einzug','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+' €" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c1')+
+            mvf('Urspr. NK/Monat','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+' €" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c2')+
           '</div>')+
           '<div class="mv-grid">'+
             (m.mhTyp
-              ? mvf('Kaltmiete','<input type="text" class="ro" readonly tabindex="-1" value="'+nkFmtBetrag(m.grundmiete||0)+'">','c1')
-              : mvf('Aktuelle Grundmiete','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+'" oninput="updVertrag('+ei+','+mi+',\'grundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">','c1'))+
+              ? mvf('Kaltmiete','<input type="text" class="ro" readonly tabindex="-1" value="'+nkFmtBetrag(m.grundmiete||0)+' €">','c1')
+              : mvf('Aktuelle Grundmiete','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+' €" oninput="updVertrag('+ei+','+mi+',\'grundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c1'))+
             opPlus+
             mvf('Stellplätze','<input type="number" min="0" value="'+(m.stellAnzahl||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellAnzahl\',this.value,1)">','c2')+
             opTimes+
-            mvf('Preis je Stellplatz','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stellPreis||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellPreis\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">','c3')+
+            mvf('Preis je Stellplatz','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stellPreis||0)+' €" oninput="updVertrag('+ei+','+mi+',\'stellPreis\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c3')+
             opEq+
             mvf('Gesamt','<input type="text" class="ro" readonly tabindex="-1" value="'+nkFmtBetrag(gesamtMiete)+' €">','c4')+
           '</div>'+
@@ -545,7 +549,7 @@ function indexBlock(m,ei,mi){
     const mg=monatGewaehlt.split('-'); const my=mg[0]||'', mm=mg[1]||'';
     h+='<div class="heiz-felder">'+
       hfFeld('Beginn / Einzug','<input type="date" value="'+(m.idxEinzug||'')+'" onchange="store.setMvFeld('+ei+','+mi+',\'idxEinzug\',this.value)" onblur="renderEinheiten()">')+
-      hfFeld('Miete bei Einzug','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.idxAusgangsmiete||0)+'" onchange="updIdxNum('+ei+','+mi+',\'idxAusgangsmiete\',this.value)">')+
+      hfFeld('Miete bei Einzug','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.idxAusgangsmiete||0)+' €" onchange="updIdxNum('+ei+','+mi+',\'idxAusgangsmiete\',this.value)">')+
       hfFeld('Anpassung alle … Jahre','<input type="number" min="1" step="1" value="'+(m.idxFrequenz||1)+'" onchange="updIdxNum('+ei+','+mi+',\'idxFrequenz\',this.value)">')+
     '</div>';
     if(!nkIndexFrequenzGueltig(m.idxFrequenz||1)) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Frequenz muss eine ganze Zahl ab 1 Jahr sein (§ 557b).</div>';
@@ -589,8 +593,8 @@ function indexBlock(m,ei,mi){
     h+='<div class="heiz-felder">'+
       hfFeld('Beginn','<input type="date" value="'+(m.stafBeginn||'')+'" onchange="updStafDatum('+ei+','+mi+',\'stafBeginn\',this.value)" onblur="renderEinheiten()">')+
       hfFeld('Enddatum','<input type="date" value="'+(m.stafEnde||'')+'" onchange="updStafDatum('+ei+','+mi+',\'stafEnde\',this.value)" onblur="renderEinheiten()">')+
-      hfFeld('Miete bei Beginn','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stafAusgangsmiete||0)+'" onchange="updStaf('+ei+','+mi+',\'stafAusgangsmiete\',this.value)">')+
-      hfFeld('Erhöhung je Staffel €','<input type="text" inputmode="decimal" value="'+((+m.stafBetrag||0)?nkFmtBetrag(m.stafBetrag):'')+'" placeholder="z. B. 25,00" onchange="updStaf('+ei+','+mi+',\'stafBetrag\',this.value)">')+
+      hfFeld('Miete bei Beginn','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stafAusgangsmiete||0)+' €" onchange="updStaf('+ei+','+mi+',\'stafAusgangsmiete\',this.value)">')+
+      hfFeld('Erhöhung je Staffel','<input type="text" inputmode="decimal" value="'+((+m.stafBetrag||0)?nkFmtBetrag(m.stafBetrag)+' €':'')+'" placeholder="z. B. 25,00 €" onchange="updStaf('+ei+','+mi+',\'stafBetrag\',this.value)">')+
       hfFeld('Anpassung alle … Jahre','<input type="number" min="1" step="1" value="'+(m.stafFrequenz||1)+'" onchange="updStaf('+ei+','+mi+',\'stafFrequenz\',this.value)">')+
     '</div>';
     if(!m.stafEnde) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Bitte ein Enddatum der Staffelvereinbarung angeben.</div>';
