@@ -35,6 +35,24 @@ function nkFmtIban(s) {
   const clean = String(s || "").replace(/\s+/g, "").toUpperCase();
   return clean.replace(/(.{4})(?=.)/g, "$1 ");
 }
+/* Ralf-Feedback 2026-07-06: Straße/PLZ/Ort als getrennte Eingabefelder statt einem Freitextfeld
+   ("Straße, PLZ Ort") – ändert NICHT das Speicherformat (weiterhin eine kombinierte Adresszeile in
+   state.objekt.addr / state.zahlung.anschrift, da diese an vielen Stellen – PDF, Verwendungszweck,
+   Objekt-Erkennung über Jahre, Excel-Export – als EINE Zeichenkette gebraucht wird). nkSplitAdresse
+   zerlegt nur für die Anzeige in den drei Feldern, nkJoinAdresse setzt beim Tippen wieder zusammen. */
+function nkSplitAdresse(addr) {
+  const s = String(addr || "").trim();
+  if (!s) return { strasse: "", plz: "", ort: "" };
+  const komma = s.indexOf(",");
+  const strasse = (komma >= 0 ? s.slice(0, komma) : s).trim();
+  const rest = (komma >= 0 ? s.slice(komma + 1) : "").trim();
+  const m = rest.match(/^(\d{4,5})\s*(.*)$/);
+  return m ? { strasse, plz: m[1], ort: m[2].trim() } : { strasse, plz: "", ort: rest };
+}
+function nkJoinAdresse(strasse, plz, ort) {
+  const stadt = [String(plz || "").trim(), String(ort || "").trim()].filter(Boolean).join(" ");
+  return [String(strasse || "").trim(), stadt].filter(Boolean).join(", ");
+}
 
 /* US-05: Energiearten mit typischem Heizwert Hi (kWh je Einheit) und Brennstoff-Einheit.
    fossil = relevant für die spätere CO2-Aufteilung (US-07). Werte sind Vorbelegungen, überschreibbar. */
@@ -1535,6 +1553,8 @@ if (typeof module !== "undefined" && module.exports) {
     nkParseBetrag,
     nkFmtZahl,
     nkFmtIban,
+    nkSplitAdresse,
+    nkJoinAdresse,
     nkTeilnahme,
     nkFaktorFuer,
     nkVerbrauchSumme,

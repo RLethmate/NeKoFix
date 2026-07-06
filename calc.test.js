@@ -379,6 +379,19 @@ test("nkFmtIban: 4er-Gruppierung unabhängig von Groß-/Kleinschreibung und Leer
   assert.equal(calc.nkFmtIban(""), "");
 });
 
+test("nkSplitAdresse/nkJoinAdresse: Straße/PLZ/Ort getrennt eingeben, kombinierte Zeile bleibt gleich (Ralf-Feedback 2026-07-06)", () => {
+  assert.deepEqual(calc.nkSplitAdresse("Musterstraße 12, 12345 Musterstadt"), { strasse: "Musterstraße 12", plz: "12345", ort: "Musterstadt" });
+  assert.deepEqual(calc.nkSplitAdresse(""), { strasse: "", plz: "", ort: "" });
+  assert.deepEqual(calc.nkSplitAdresse("Nur eine Straße ohne Rest"), { strasse: "Nur eine Straße ohne Rest", plz: "", ort: "" });
+  assert.equal(calc.nkJoinAdresse("Musterstraße 12", "12345", "Musterstadt"), "Musterstraße 12, 12345 Musterstadt");
+  assert.equal(calc.nkJoinAdresse("Musterstraße 12", "", ""), "Musterstraße 12");
+  assert.equal(calc.nkJoinAdresse("", "", ""), "");
+  // Rundtrip: bestehende kombinierte Adressen (z. B. Altdaten) zerlegen und wieder zusammensetzen ergibt dieselbe Zeile
+  const addr = "Musterstraße 12, 12345 Musterstadt";
+  const s = calc.nkSplitAdresse(addr);
+  assert.equal(calc.nkJoinAdresse(s.strasse, s.plz, s.ort), addr);
+});
+
 test("HTML-Escaping von Freitext (US-36)", () => {
   assert.equal(calc.nkEsc("A & B"), "A &amp; B");
   assert.equal(calc.nkEsc("<script>"), "&lt;script&gt;");

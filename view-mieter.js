@@ -20,13 +20,16 @@ function renderEinheiten(){
     const unbeheiztInp = vjOn
       ? vjFeld(vjE && vjE.unbeheizt!=null ? nkFmtZahl(vjE.unbeheizt)+' m²' : null)
       : '<input class="short" type="text" inputmode="decimal" value="'+nkFmtZahl(e.unbeheizt||0)+' m²" oninput="updEinheit('+ei+',\'unbeheizt\',this.value)" onblur="this.value=nkFmtZahl(nkParseBetrag(this.value))+\' m²\'">';
+    /* Ralf-Feedback 2026-07-06: Beschriftung über statt neben dem Feld (wie überall sonst, .hf statt
+       .unit-f) – die inline-Labels ließen die Zeile zu breit werden, das "×" brach dadurch schlecht
+       um und machte die Karte höher als nötig. */
     box.insertAdjacentHTML('beforeend',
       '<div class="unit-card einheit-card">'+
         '<div class="unit-head">'+
           '<input class="unit-name" value="'+esc(e.name)+'" oninput="updEinheit('+ei+',\'name\',this.value)"'+(vjOn?' readonly':'')+'>'+
-          '<label class="unit-f">Fläche '+flaecheInp+'</label>'+
-          '<label class="unit-f" title="Unbeheizte Fläche (z. B. Terrasse, Balkon). Wird nur bei den Heiz-Grundkosten von der Fläche abgezogen (US-96), sonst bleibt die volle Fläche maßgeblich.">unbeheizt '+unbeheiztInp+'</label>'+
-          '<label class="unit-f">Personen '+personenInp+'</label>'+
+          '<label class="hf hf-1u"><span>Fläche</span>'+flaecheInp+'</label>'+
+          '<label class="hf hf-1u" title="Unbeheizte Fläche (z. B. Terrasse, Balkon). Wird nur bei den Heiz-Grundkosten von der Fläche abgezogen (US-96), sonst bleibt die volle Fläche maßgeblich."><span>unbeheizt</span>'+unbeheiztInp+'</label>'+
+          '<label class="hf hf-1u"><span>Personen</span>'+personenInp+'</label>'+
           (vjOn?'':'<button class="row-del" title="Einheit entfernen" onclick="delEinheit('+ei+')" style="margin-left:auto;">×</button>')+
         '</div>'+
       '</div>');
@@ -213,7 +216,16 @@ function nkMvDebugOverlay(){
 }
 /* US-66: Textarea-Höhe an den Inhalt anpassen (auto-grow). */
 function autoGrow(el){ if(!el) return; el.style.height='auto'; el.style.height=(el.scrollHeight)+'px'; }
-document.getElementById('obj_addr').addEventListener('input',e=>{store.setObjektFeld('addr',e.target.value);}); /* US-65: Adresse ändert NICHT den Objektnamen im Header (ComboBox) – nur "Speichern unter" benennt um */
+/* Ralf-Feedback 2026-07-06: Adresse (Objekt UND Vermieter) jetzt in Straße/PLZ/Ort getrennt statt
+   einem Freitextfeld – state.objekt.addr/state.zahlung.anschrift bleiben je EINE kombinierte Zeile
+   (siehe nkJoinAdresse in calc.js), zusammengesetzt aus den drei Feldern bei jeder Eingabe. */
+function recomputeObjAdresse(){
+  const s=document.getElementById('obj_strasse').value, p=document.getElementById('obj_plz').value, o=document.getElementById('obj_ort').value;
+  store.setObjektFeld('addr', nkJoinAdresse(s,p,o));
+}
+document.getElementById('obj_strasse').addEventListener('input',recomputeObjAdresse); /* US-65: Adresse ändert NICHT den Objektnamen im Header (ComboBox) – nur "Speichern unter" benennt um */
+document.getElementById('obj_plz').addEventListener('input',recomputeObjAdresse);
+document.getElementById('obj_ort').addEventListener('input',recomputeObjAdresse);
 /* Datum nur in den Zustand schreiben; Neu-Zeichnen erst beim Verlassen (sonst wirft type=date beim Tippen der Jahreszahl raus). */
 document.getElementById('obj_von').addEventListener('change',e=>{store.setObjektFeld('von',e.target.value); renderObjTitle();});
 document.getElementById('obj_bis').addEventListener('change',e=>{store.setObjektFeld('bis',e.target.value); renderObjTitle();});
@@ -221,13 +233,19 @@ document.getElementById('obj_von').addEventListener('blur',renderEinheiten);
 document.getElementById('obj_bis').addEventListener('blur',renderEinheiten);
 /* US-51: Vermieter & Zahlungsangaben */
 document.getElementById('z_empfaenger').addEventListener('input',e=>store.setZahlungFeld('empfaenger',e.target.value));
-document.getElementById('z_anschrift').addEventListener('input',e=>store.setZahlungFeld('anschrift',e.target.value));
+function recomputeZAdresse(){
+  const s=document.getElementById('z_strasse').value, p=document.getElementById('z_plz').value, o=document.getElementById('z_ort').value;
+  store.setZahlungFeld('anschrift', nkJoinAdresse(s,p,o));
+}
+document.getElementById('z_strasse').addEventListener('input',recomputeZAdresse);
+document.getElementById('z_plz').addEventListener('input',recomputeZAdresse);
+document.getElementById('z_ort').addEventListener('input',recomputeZAdresse);
 document.getElementById('z_iban').addEventListener('input',e=>{store.setZahlungFeld('iban',e.target.value); updateIbanHint();});
 /* Ralf-Feedback 2026-07-06: IBAN in 4er-Gruppen sichtbar machen, sobald das Feld verlassen wird
    (nicht bei jedem Tastendruck, sonst springt der Cursor mitten im Tippen). */
 document.getElementById('z_iban').addEventListener('blur',e=>{ const f=nkFmtIban(e.target.value); e.target.value=f; store.setZahlungFeld('iban',f); updateIbanHint(); });
 document.getElementById('z_bic').addEventListener('input',e=>store.setZahlungFeld('bic',e.target.value));
-document.getElementById('z_frist').addEventListener('input',e=>store.setZahlungFeld('frist',e.target.value));
+document.getElementById('z_frist').addEventListener('input',e=>{store.setZahlungFeld('frist',e.target.value); autoGrow(e.target);});
 /* US-07: CO2-Einstellungen (Denkmal-Halbierung, manueller Vermieteranteil Wohnen) */
 (function(){
   const dk=document.getElementById('co2_denkmal');
