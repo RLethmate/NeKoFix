@@ -13,7 +13,7 @@
    Index 0 heißt wieder "Gebäude & Einheiten" (entspricht seinem verbliebenen Inhalt), keine
    Umnummerierung bestehender data-step/go()-Indizes (wie bei Index 7 seinerzeit). */
 const STEPS = ["Gebäude & Einheiten","Vorauszahlung (Soll)","Heizung","Kosten","Berechnung","Fertige Abrechnung","Zahlungen (Ist)","Mieter & Vertrag","Termine & Wartung","Vermieter & Zahlungsangaben"];
-const ui = { current:0, activeMieter:0, vorausModus:"monatlich", zeigeVorjahr:false, nurUngeprueft:false, expandedKosten:new Set(), expandedHeizZeit:new Set(), expandedMV:new Set(), navPlausiOpen:false, drag:null, zahlBisAktuell:false, csvImport:{ buchungen:[], dateiname:"", fehler:null }, csvAutoProtokoll:false, termineAnsicht:"faellig" }; /* AC-3 (US-118): gebündelter UI-/Sitzungs-State */
+const ui = { current:0, activeMieter:0, vorausModus:"monatlich", zeigeVorjahr:false, nurUngeprueft:false, expandedKosten:new Set(), expandedHeizZeit:new Set(), expandedMV:new Set(), expandedAutomatik:new Set(), navPlausiOpen:false, drag:null, zahlBisAktuell:false, csvImport:{ buchungen:[], dateiname:"", fehler:null }, csvAutoProtokoll:false, termineAnsicht:"faellig" }; /* AC-3 (US-118): gebündelter UI-/Sitzungs-State */
 
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit", verbrauch:"nach Verbrauch", direkt:"Direkt (eine Einheit)" };
@@ -208,8 +208,12 @@ function setVjTitel(id){ const el=document.getElementById(id); if(el) el.textCon
    auf "1" setzen. y = Gesamtzahl der Commits (vom Deploy automatisch gesetzt), z = 0.
    APP_VERSION und BUILD_DATE werden beim Deploy automatisch gestempelt (siehe pages.yml). */
 const APP_MAJOR="0";
-const APP_VERSION="v-0.0.0 (lokal)";
-const BUILD_DATE="2026-06-15";
+/* Lokaler Test-Stempel: pages.yml überschreibt beides beim Deploy (sed-Ersetzung), lokal (file://)
+   läuft dieser Schritt nie. Damit sich beim lokalen Testen sofort erkennen lässt, welcher Branch/
+   Stand gerade offen ist (statt eines immer gleichen Platzhalters), hier den Branch-/Story-Namen
+   + heutiges Datum eintragen, sobald ein Stand zum lokalen Testen ansteht. */
+const APP_VERSION="v-0.0.0 (lokal: us-121-mieter-vertrag-raster)";
+const BUILD_DATE="2026-07-05";
 function toggleDateiMenu(forceClose){ const m=document.getElementById('datei_menu'); if(!m) return; m.hidden = forceClose ? true : !m.hidden; const s=document.getElementById('mru_sub'); if(s) s.hidden=true; /* US-91: Submenü „Zuletzt verwendet" beim Öffnen/Schließen zurücksetzen */ }
 document.addEventListener('click', e=>{ const m=document.getElementById('datei_menu'); if(m && !m.hidden && !e.target.closest('.menu')){ m.hidden=true; const s=document.getElementById('mru_sub'); if(s) s.hidden=true; } });
 
