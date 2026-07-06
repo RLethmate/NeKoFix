@@ -64,7 +64,9 @@ const store = {
   // Einheiten
   addEinheit(){ const name=nkNaechsteEinheitName(state.einheiten.map(e=>e.name)); const id=state.einheiten.reduce((m,e)=>Math.max(m,e.id||0),0)+1; state.einheiten.push({ id, name, flaeche:0, personen:1, mv:[neuesMv()] }); commit(); },
   removeEinheit(ei){ if(state.einheiten.length>1){ state.einheiten.splice(ei,1); commit(); } },
-  setEinheitFeld(ei,field,val){ state.einheiten[ei][field] = field==='name'?val:(+val); commit(); },
+  /* nkParseBetrag statt (+val): flaeche/unbeheizt zeigen seit US-121-Nachschliff die Einheit (z.B.
+     "70 m²") im Feld selbst – (+val) würde daran (NaN) scheitern, nkParseBetrag ist tolerant. */
+  setEinheitFeld(ei,field,val){ state.einheiten[ei][field] = field==='name'?val:nkParseBetrag(val); commit(); },
   // Mietverhältnisse
   addMv(ei){ state.einheiten[ei].mv.push(neuesMv()); commit(); },
   removeMv(ei,mi){ const mv=state.einheiten[ei].mv; if(mv.length>1){ mv.splice(mi,1); commit(); } },

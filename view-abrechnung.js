@@ -357,7 +357,7 @@ function renderZahlungen(){
       return '<div class="zahl-monat '+st+'">'+
         '<span class="zm-label">'+monatLabel(k)+'</span>'+
         '<span class="zm-soll"'+(sollTitle?' title="'+sollTitle+'"':'')+'>Soll '+eur(soll)+'</span>'+
-        '<label class="zm-erh">erhalten <input class="short" type="text" inputmode="decimal" value="'+(erhalten?nkFmtBetrag(erhalten):'')+'" placeholder="'+nkFmtBetrag(soll)+'" onchange="updErhalten('+ei+','+mi+',\''+k+'\',this.value)"></label>'+
+        '<label class="zm-erh">erhalten <input class="short" type="text" inputmode="decimal" value="'+(erhalten?nkFmtBetrag(erhalten)+' €':'')+'" placeholder="'+nkFmtBetrag(soll)+' €" onchange="updErhalten('+ei+','+mi+',\''+k+'\',this.value)"></label>'+
         diffHtml+
         '<button class="zm-pruef'+(geprueft?' aktiv':'')+'" title="'+(geprueft?'Geprüft – erneut klicken hebt es auf':'Zahlungseingang als korrekt bestätigen (setzt erhalten = Soll)')+'" onclick="toggleGeprueft('+ei+','+mi+',\''+k+'\')">'+(geprueft?'geprüft':'zu prüfen')+'</button>'+
       '</div>';

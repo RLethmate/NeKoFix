@@ -33,15 +33,17 @@ function heizKarteVj(k, vb){
     '</div>' : '')+
   '</div>';
 }
-/* US-05: Faktor-Beschriftung je Energieart (Heizwert vs. Arbeitszahl vs. keiner). */
+/* US-05: Faktor-Beschriftung je Energieart (Heizwert vs. Arbeitszahl vs. keiner).
+   verbrauchEinheit/heizwertEinheit (Ralf-Feedback 2026-07-06): reiner Einheiten-String fürs Feld
+   selbst (statt nur im Label „Verbrauch (…)"), damit nicht aus dem Label-Text herausgeparst werden muss. */
 function heizFaktorInfo(ea){
-  if(ea.faktorTyp==='jaz') return { show:true, verbrauch:'Verbrauch (kWh Strom)', preis:'Preis (€/kWh Strom)',
-    label:'Arbeitszahl (kWh<sub>Wärme</sub>/kWh<sub>Strom</sub>)',
+  if(ea.faktorTyp==='jaz') return { show:true, verbrauch:'Verbrauch (kWh Strom)', verbrauchEinheit:'kWh Strom', preis:'Preis (€/kWh Strom)',
+    label:'Arbeitszahl (kWh<sub>Wärme</sub>/kWh<sub>Strom</sub>)', heizwertEinheit:'kWh Wärme/kWh Strom',
     tip:'Jahresarbeitszahl (JAZ/COP) der Wärmepumpe: erzeugte kWh Wärme je 1 kWh Strom (typisch 3–4). Wirkt nur auf die angezeigte Wärmemenge, nicht auf die Kosten.',
     kwhLabel:'kWh Wärme' };
-  if(ea.faktorTyp==='direkt') return { show:false, verbrauch:'Verbrauch (kWh)', preis:'Preis (€/kWh)', kwhLabel:'kWh' };
-  return { show:true, verbrauch:'Verbrauch ('+ea.einheit+')', preis:'Preis (€/'+ea.einheit+')',
-    label:'Heizwert (kWh/'+ea.einheit+')',
+  if(ea.faktorTyp==='direkt') return { show:false, verbrauch:'Verbrauch (kWh)', verbrauchEinheit:'kWh', preis:'Preis (€/kWh)', kwhLabel:'kWh' };
+  return { show:true, verbrauch:'Verbrauch ('+ea.einheit+')', verbrauchEinheit:ea.einheit, preis:'Preis (€/'+ea.einheit+')',
+    label:'Heizwert (kWh/'+ea.einheit+')', heizwertEinheit:'kWh/'+ea.einheit,
     tip:'Heizwert Hi: Energiegehalt je '+ea.einheit+' Brennstoff in kWh. Aus der Energieart vorbelegt, bei Bedarf laut Lieferantenrechnung überschreiben.',
     kwhLabel:'kWh' };
 }
@@ -64,8 +66,9 @@ function heizKarte(k,idx){
      Mittelwert, EG+1.OG=Summe) – macht den Rechenzusammenhang sichtbar, wie in den eq-Tabellen
      (Vorauszahlungen/Kontrolle) an anderer Stelle der App bereits üblich. */
   const op = (sym)=>'<span class="hf-op">'+sym+'</span>';
-  const verbrauchFeld = hf(fi.verbrauch, '<input type="number" step="any" value="'+(k.menge||0)+'" onchange="updHeiz('+idx+',\'menge\',this.value)">', 'Optional – nur für die Kennzahl Ø €/kWh (Energieträger-/Heizungsvergleich), keine Rechengrundlage.', 'hf-2u');
-  const heizwertFeld = fi.show ? hf(fi.label, '<input type="number" step="any" value="'+(k.heizwert||0)+'" onchange="updHeiz('+idx+',\'heizwert\',this.value)">', fi.tip, 'hf-2u') : '';
+  /* Ralf-Feedback 2026-07-06 ("durch die Lappen gegangen"): Einheit auch hier im Wert statt nur im Label. */
+  const verbrauchFeld = hf(fi.verbrauch, '<input type="text" inputmode="decimal" value="'+nkFmtZahl(k.menge||0)+' '+fi.verbrauchEinheit+'" onchange="updHeiz('+idx+',\'menge\',this.value)">', 'Optional – nur für die Kennzahl Ø €/kWh (Energieträger-/Heizungsvergleich), keine Rechengrundlage.', 'hf-2u');
+  const heizwertFeld = fi.show ? hf(fi.label, '<input type="text" inputmode="decimal" value="'+nkFmtZahl(k.heizwert||0)+' '+fi.heizwertEinheit+'" onchange="updHeiz('+idx+',\'heizwert\',this.value)">', fi.tip, 'hf-2u') : '';
   const waermemengeFeld = hf('Wärmemenge', ro(nkFmtBetrag(kwh)+' '+fi.kwhLabel), null, 'hf-2u');
   /* Nenner der Mittelwert-Gleichung: bei Faktor-Energiearten (Heizöl/Flüssiggas/Pellets/Erdgas m³/
      Wärmepumpe) ist das die umgerechnete Wärmemenge (kWh), nicht der roh eingetragene Verbrauch
@@ -81,20 +84,23 @@ function heizKarte(k,idx){
      1× jaz/Wärmepumpe (Verbrauch×Arbeitszahl=Wärmemenge) – dieselbe Struktur in allen drei Fällen. */
   const umrechnungZeile = fi.show ? (verbrauchFeld+op('×')+heizwertFeld+op('=')+waermemengeFeld) : '';
   const mittelwertZeile =
-    hf('Heizkosten gesamt (€)', '<input type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag||0)+'" onchange="updHeizBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">', null, 'hf-2u')+
+    /* Ralf-Feedback 2026-07-06: Einheit gehört in den Wert, nicht nur ins Label (Label deshalb ohne
+       "(€)", updHeizBetrag rendert bei jeder Aenderung neu – kein separates onblur-Reformat noetig). */
+    hf('Heizkosten gesamt', '<input type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag||0)+' €" onchange="updHeizBetrag('+idx+',this.value)">', null, 'hf-2u')+
     op('/')+
     nennerFeld+
     op('=')+
     hf('Mittelwert (Ø €/kWh)', ro(eurKwh!=null ? nkFmtBetrag(eurKwh)+' €/kWh' : '– €/kWh'), 'Mittlerer Energiepreis – nur Kennzahl zum Vergleich (z. B. vor/nach Heizungswechsel).', 'hf-2u');
   const grundVerbrauchZeile =
-    hf('Grundkosten %', '<input type="number" min="30" max="50" step="5" value="'+grund+'" onchange="updHeizGrund('+idx+',this.value)">', 'Grundkosten nach (beheizter) Fläche, Rest nach erfasstem Verbrauch (§ 7/§ 8 HeizkostenV). Zulässig: 30–50 % Grund (= 50–70 % Verbrauch).', 'hf-1u')+
-    hf('Verbrauch %', ro(verbr+' %'), null, 'hf-1u');
+    hf('Grundkosten', '<input type="text" inputmode="decimal" value="'+nkFmtZahl(grund)+' %" onchange="updHeizGrund('+idx+',this.value)">', 'Grundkosten nach (beheizter) Fläche, Rest nach erfasstem Verbrauch (§ 7/§ 8 HeizkostenV). Zulässig: 30–50 % Grund (= 50–70 % Verbrauch).', 'hf-1u')+
+    hf('Verbrauch', ro(nkFmtZahl(verbr)+' %'), null, 'hf-1u');
   /* US-121 (Nachbesserung): Grundkosten %/Verbrauch % sind das Breitenmaß für alles, was
      inhaltlich darunter/danach kommt (CO2-Felder, Verbrauch je Einheit, Zeitraum) – hf-1u statt
      hf-2u, damit die Spalten senkrecht exakt übereinanderstehen. Die ersten Gleichungs-Zeilen
      (Verbrauch/Heizwert/Wärmemenge/Heizkosten/Mittelwert) dürfen breiter bleiben (hf-2u). */
-  const co2Felder = ea.fossil ? hf('CO₂-Emissionen (kg)', '<input type="number" step="any" value="'+(k.co2Kg||0)+'" onchange="updHeizNum('+idx+',\'co2Kg\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u')+hf('CO₂-Kosten (€)', '<input type="number" step="any" value="'+(k.co2Kosten||0)+'" onchange="updHeizNum('+idx+',\'co2Kosten\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u') : '';
-  const vbEinheitenFelder = state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>hf(esc(x.name), '<input type="number" step="any" value="'+((k.verbrauch&&k.verbrauch[x.id])||0)+'" onchange="updHeizVerbrauch('+idx+','+x.id+',this.value)">', null, 'hf-1u'));
+  const co2Felder = ea.fossil ? hf('CO₂-Emissionen', '<input type="text" inputmode="decimal" value="'+nkFmtZahl(k.co2Kg||0)+' kg" onchange="updHeizNum('+idx+',\'co2Kg\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u')+hf('CO₂-Kosten', '<input type="text" inputmode="decimal" value="'+nkFmtBetrag(k.co2Kosten||0)+' €" onchange="updHeizNum('+idx+',\'co2Kosten\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u') : '';
+  /* Ralf-Feedback 2026-07-06: dieselbe Einheit wie die Summe (Zeile darunter) auch je Einheit im Feld. */
+  const vbEinheitenFelder = state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>hf(esc(x.name), '<input type="text" inputmode="decimal" value="'+nkFmtZahl((k.verbrauch&&k.verbrauch[x.id])||0)+' '+esc(k.einheit||'kWh')+'" onchange="updHeizVerbrauch('+idx+','+x.id+',this.value)">', null, 'hf-1u'));
   const vbFelder = vbEinheitenFelder.join(op('+'))+op('=')+hf('Summe', ro(nkFmtBetrag(vsum)+' '+esc(k.einheit||'kWh')), null, 'hf-1u');
   return '<div class="unit-card einheit-card'+(k.vorjahr?' vorjahr':'')+'">'+
     (k.vorjahr ? '<div class="heiz-vorjahr"><span><b>Aus dem Vorjahr vorbelegt.</b> Bitte Verbrauch und Preis prüfen.</span><button type="button" onclick="uebernehmeHeizVorjahr('+idx+')">Übernehmen</button></div>' : '')+

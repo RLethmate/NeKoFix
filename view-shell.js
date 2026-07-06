@@ -88,17 +88,15 @@ const STEP_GROUPS = [
 ];
 function renderStepper(){
   const el = document.getElementById('stepper'); if(!el) return; el.innerHTML='';
-  /* US-122: kein Nummern-Kreis mehr (freie Navigation, keine erzwungene Reihenfolge) - .n ist
-     jetzt ein reiner Punkt wie im Dummy-Vorschlag. „done" (Position vor dem aktiven Schritt in der
-     Anzeige-Reihenfolge) bleibt als leiser "schon besucht"-Hinweis erhalten. */
-  const order=[]; STEP_GROUPS.forEach(g=>g.steps.forEach(i=>order.push(i)));
-  const curPos=order.indexOf(ui.current);
+  /* US-122/Ralf-Feedback 2026-07-06: kein Nummern-Kreis mehr (freie Navigation, keine erzwungene
+     Reihenfolge) - .n ist ein reiner Punkt wie im Dummy-Vorschlag. Die „done"-Markierung (Position
+     vor dem aktiven Schritt) implizierte trotzdem noch eine Reihenfolge/einen Fortschrittsbalken -
+     entfernt; nur der jeweils aktive Punkt wird hervorgehoben, wie bei den anderen Menüpunkten. */
   STEP_GROUPS.forEach(g=>{
     const gt=document.createElement('div'); gt.className='nav-group'; gt.textContent=g.titel; el.appendChild(gt);
     g.steps.forEach(i=>{
-      const pos=order.indexOf(i);
       const d=document.createElement('div');
-      d.className='step'+(i===ui.current?' active':'')+((curPos>=0 && pos<curPos)?' done':'');
+      d.className='step'+(i===ui.current?' active':'');
       d.title=STEPS[i];
       d.innerHTML='<span class="n"></span><span class="lbl">'+STEPS[i]+'</span><span class="abbr">'+STEP_ABBR[i]+'</span>';
       d.onclick=()=>go(i);
@@ -125,7 +123,7 @@ function renderNavPlausi(){
   const warn=r.punkte.filter(p=>p.level==='warn').length;
   const kurz=r.bereit ? '✓ Versandfertig' : (fehler+' offene'+(fehler===1?'r Punkt':' Punkte'));
   const symMap={ok:'✓',warn:'!',fehler:'✗'};
-  let html='<button class="nav-plausi-head '+(r.bereit?'ok':'bad')+'" onclick="toggleNavPlausi()" title="Plausibilitätsprüfung – klicken für Details">'+
+  let html='<button class="nav-plausi-head'+(ui.navPlausiOpen?' open':'')+' '+(r.bereit?'ok':'bad')+'" onclick="toggleNavPlausi()" title="Plausibilitätsprüfung – klicken für Details">'+
     '<span class="dot"></span><span class="np-label">'+kurz+'</span><span class="np-caret">'+(ui.navPlausiOpen?'▴':'▾')+'</span></button>';
   if(ui.navPlausiOpen){
     html+='<div class="nav-plausi-list">'+r.punkte.map(p=>'<div class="plausi-item '+p.level+'">'+symMap[p.level]+' '+p.text+'</div>').join('')+'</div>';
@@ -155,25 +153,38 @@ const RENDERERS = {
   5: () => renderDoc(),           /* Abrechnung */
   6: () => renderZahlungen(),     /* Zahlungen */
   8: () => renderTermine(),       /* Termine & Wartung */
+  /* Vermieter & Zahlungsangaben (Index 9) hat kein eigenes Render, ist statisches Markup –
+     autoGrow(z_frist) muss aber erneut laufen, sobald das Panel sichtbar wird: beim initialen
+     fillObjektKopf() (Panel noch display:none) liefert scrollHeight einen falschen (zu kleinen)
+     Wert, das Feld wirkte dadurch wie leer/kollabiert (Ralf-Fund 2026-07-06). */
+  9: () => { const el=document.getElementById('z_frist'); if(el) autoGrow(el); },
 };
 function go(i){
-  const r=RENDERERS[i]; if(r) r();
+  /* Sichtbarkeit ZUERST umschalten, dann rendern: RENDERERS[9] misst scrollHeight (autoGrow für
+     z_frist) – auf einem noch display:none-Panel liefert das einen falschen (zu kleinen) Wert
+     (Ralf-Fund 2026-07-06, sichtbares Symptom: Zahlungsfrist-Feld wirkte leer/kollabiert). */
   ui.current=i;
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', +p.dataset.step===i));
+  const r=RENDERERS[i]; if(r) r();
   renderStepper();
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
 /* ---------- Step 1 ---------- */
 function fillObjektKopf(){
-  document.getElementById('obj_addr').value = state.objekt.addr;
-  document.getElementById('obj_von').value = state.objekt.von;
-  document.getElementById('obj_bis').value = state.objekt.bis;
+  const set = (id,v)=>{ const el=document.getElementById(id); if(el) el.value = v||''; };
+  /* Ralf-Feedback 2026-07-06: Straße/PLZ/Ort getrennte Felder statt einem Freitextfeld – Anzeige
+     wird aus der weiterhin kombinierten Adresszeile abgeleitet (nkSplitAdresse), s. calc.js. */
+  const objSpl = nkSplitAdresse(state.objekt.addr);
+  set('obj_strasse', objSpl.strasse); set('obj_plz', objSpl.plz); set('obj_ort', objSpl.ort);
+  set('obj_von', state.objekt.von); set('obj_bis', state.objekt.bis);
   /* US-51: Vermieter & Zahlungsangaben */
   const z = state.zahlung || {};
-  const set = (id,v)=>{ const el=document.getElementById(id); if(el) el.value = v||''; };
-  set('z_empfaenger', z.empfaenger); set('z_anschrift', z.anschrift);
+  const zSpl = nkSplitAdresse(z.anschrift);
+  set('z_empfaenger', z.empfaenger);
+  set('z_strasse', zSpl.strasse); set('z_plz', zSpl.plz); set('z_ort', zSpl.ort);
   set('z_iban', z.iban); set('z_bic', z.bic); set('z_frist', z.frist);
+  const frist=document.getElementById('z_frist'); if(frist) autoGrow(frist);
   updateIbanHint();
 }
 function updateIbanHint(){

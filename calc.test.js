@@ -364,6 +364,34 @@ test("Betrag formatieren und parsen, deutsche Schreibweise (US-48)", () => {
   assert.equal(calc.nkParseBetrag(calc.nkFmtBetrag(1234.5)), 1234.5);
 });
 
+test("nkFmtZahl: Tausenderpunkt ohne erzwungene Nachkommastellen (US-121-Nachschliff)", () => {
+  assert.equal(calc.nkFmtZahl(1234), "1.234");
+  assert.equal(calc.nkFmtZahl(70), "70");
+  assert.equal(calc.nkFmtZahl(0), "0");
+  assert.equal(calc.nkFmtZahl(1234.5), "1.234,5");
+  // Rundtrip mit dem generischen Parser (kein eigener Zahl-Parser nötig)
+  assert.equal(calc.nkParseBetrag(calc.nkFmtZahl(12345)), 12345);
+});
+
+test("nkFmtIban: 4er-Gruppierung unabhängig von Groß-/Kleinschreibung und Leerzeichen (US-121-Nachschliff)", () => {
+  assert.equal(calc.nkFmtIban("DE36000000000000000000"), "DE36 0000 0000 0000 0000 00");
+  assert.equal(calc.nkFmtIban("de36 0000 0000 0000 0000 00"), "DE36 0000 0000 0000 0000 00");
+  assert.equal(calc.nkFmtIban(""), "");
+});
+
+test("nkSplitAdresse/nkJoinAdresse: Straße/PLZ/Ort getrennt eingeben, kombinierte Zeile bleibt gleich (Ralf-Feedback 2026-07-06)", () => {
+  assert.deepEqual(calc.nkSplitAdresse("Musterstraße 12, 12345 Musterstadt"), { strasse: "Musterstraße 12", plz: "12345", ort: "Musterstadt" });
+  assert.deepEqual(calc.nkSplitAdresse(""), { strasse: "", plz: "", ort: "" });
+  assert.deepEqual(calc.nkSplitAdresse("Nur eine Straße ohne Rest"), { strasse: "Nur eine Straße ohne Rest", plz: "", ort: "" });
+  assert.equal(calc.nkJoinAdresse("Musterstraße 12", "12345", "Musterstadt"), "Musterstraße 12, 12345 Musterstadt");
+  assert.equal(calc.nkJoinAdresse("Musterstraße 12", "", ""), "Musterstraße 12");
+  assert.equal(calc.nkJoinAdresse("", "", ""), "");
+  // Rundtrip: bestehende kombinierte Adressen (z. B. Altdaten) zerlegen und wieder zusammensetzen ergibt dieselbe Zeile
+  const addr = "Musterstraße 12, 12345 Musterstadt";
+  const s = calc.nkSplitAdresse(addr);
+  assert.equal(calc.nkJoinAdresse(s.strasse, s.plz, s.ort), addr);
+});
+
 test("HTML-Escaping von Freitext (US-36)", () => {
   assert.equal(calc.nkEsc("A & B"), "A &amp; B");
   assert.equal(calc.nkEsc("<script>"), "&lt;script&gt;");

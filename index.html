@@ -142,6 +142,7 @@
   .hf input,.hf button{width:100%;box-sizing:border-box;}
   .hf input.ro,.hf input[readonly]{background:#eef1f4;color:#41505f;border:1px solid var(--line);cursor:default;font-weight:600;text-align:left;}
   .hf select{width:100%;box-sizing:border-box;}
+  .hf textarea{width:100%;box-sizing:border-box;font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:7px;color:var(--ink);resize:vertical;min-height:38px;}
   .hf-wide{grid-column:1 / -1;} /* US-102: über die volle Rasterbreite (z. B. E-Mail) */
   /* US-121 Phase 1: festes Feld-Rastermaß statt gleichverteiltem auto-fill-Grid – Breite richtet
      sich nach Inhalt (kurze Werte 1 Einheit, längere 2 Einheiten), nicht nach Spaltenanzahl. Bewusst
@@ -244,13 +245,16 @@
   .step .abbr{display:none;font-weight:700;}
   .step.active{background:var(--card);border-color:var(--line);box-shadow:0 1px 2px rgba(0,0,0,.05);font-weight:600;color:var(--primary);}
   .step.active .n{background:var(--primary);}
-  .step.done .n{background:var(--accent);}
   .sidenav.collapsed .step{justify-content:center;padding:9px 6px;}
   .sidenav.collapsed .step .n,.sidenav.collapsed .step .lbl{display:none;}
   .sidenav.collapsed .step .abbr{display:inline;}
   /* US-54: dauerhafte Versand-/Plausi-Ampel */
   .nav-plausi{margin-top:14px;border-top:1px solid var(--line);padding-top:10px;}
-  .nav-plausi-head{width:100%;display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 10px;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--ink);}
+  /* Ralf-Feedback 2026-07-06: wirkte durch Rand+weißen Hintergrund+Fettschrift immer wie
+     "aktiv/ausgewählt", unabhängig vom tatsächlichen Auf-/Zugeklappt-Zustand – wie die anderen
+     Nav-Punkte jetzt standardmäßig unauffällig, die betonte Optik nur noch bei .open (aufgeklappt). */
+  .nav-plausi-head{width:100%;display:flex;align-items:center;gap:8px;border:1px solid transparent;background:transparent;border-radius:8px;padding:8px 10px;font-size:12.5px;font-weight:400;cursor:pointer;color:var(--ink);}
+  .nav-plausi-head.open{border-color:var(--line);background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05);font-weight:700;}
   .nav-plausi-head .dot{width:11px;height:11px;border-radius:50%;flex:0 0 auto;}
   .nav-plausi-head.ok{color:var(--accent);} .nav-plausi-head.ok .dot{background:var(--accent);}
   .nav-plausi-head.bad{color:var(--nachzahlung);} .nav-plausi-head.bad .dot{background:var(--nachzahlung);}
@@ -376,7 +380,7 @@
   .heiz-zeit-toggle{background:none;border:none;color:var(--primary);font-size:12.5px;cursor:pointer;padding:4px 0;text-align:left;}
   .heiz-zeit-toggle:hover{text-decoration:underline;}
   .unit-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;overflow-x:auto;} /* Sicherheitsnetz auf sehr schmalen Fenstern: .mv-grid hat feste Breite (kein Umbruch möglich), scrollt dann statt zu brechen – gleiches Prinzip wie table{overflow-x:auto} */
-  .unit-head{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:8px;}
+  .unit-head{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:8px;}
   .unit-name{font-weight:600;max-width:200px;}
   .unit-f{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;}
   .unit-f .short{max-width:130px;}  /* US-48: Beträge in den Einheits-/Zahlungsfeldern vollständig sichtbar */
@@ -705,16 +709,20 @@
 
   <!-- Step 1: Objekt & Einheiten -->
   <section class="panel" data-step="0">
-    <h1>Gebäude &amp; Vermieter<span id="vjt_einh" class="vj-titel"></span><button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
+    <h1>Gebäude &amp; Einheiten<span id="vjt_einh" class="vj-titel"></span><button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
     <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Mietvertrag (Wohnungsgrößen) bzw. Grundriss</b></span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Grunddaten des Hauses und der Wohneinheiten – Basis für jede Verteilung.</p>
     <div class="legal">Recht (V11): Für die Betriebskostenverteilung zählt die <b>tatsächliche</b> Wohnfläche, nicht die im Mietvertrag vereinbarte.</div>
-    <!-- US-121 Phase 3: .hf-raster/.hf-Nu statt .grid2 (letztes verbliebenes Vorkommen, analog zu
-         Phase 2/Vermieter) – Objekt/Adresse (lang, hf-3u) sollte nicht auf 50% erzwungen werden,
-         nur weil Abrechnungszeitraum danebensteht. Innere Struktur von „Abrechnungszeitraum"
-         (Von–Bis mit Konnektor) unverändert, nur die Außenbreite fest statt 50%. -->
+    <!-- US-121 Phase 3: .hf-raster/.hf-Nu statt .grid2. Adresse (Ralf-Feedback 2026-07-06) jetzt in
+         Straße/PLZ/Ort getrennt statt einem Freitextfeld – Speicherformat bleibt eine kombinierte
+         Zeile (obj_addr existiert nicht mehr als sichtbares Feld, state.objekt.addr wird aus den
+         drei Feldern zusammengesetzt, siehe recomputeObjAdresse in view-mieter.js). -->
     <div class="hf-raster">
-      <div class="field hf-3u"><label>Objekt / Adresse</label><input id="obj_addr"></div>
+      <div class="field hf-3u"><label>Straße &amp; Hausnummer</label><input id="obj_strasse"></div>
+      <div class="field hf-1u"><label>PLZ</label><input id="obj_plz" inputmode="numeric"></div>
+      <div class="field hf-2u"><label>Ort</label><input id="obj_ort"></div>
+    </div>
+    <div class="hf-raster">
       <div class="field hf-3u"><label>Abrechnungszeitraum</label>
         <div style="display:flex;gap:8px;align-items:center;"><input id="obj_von" type="date"><span>–</span><input id="obj_bis" type="date"></div>
       </div>
@@ -734,12 +742,20 @@
     <p class="sub">Einmal pro Objekt – erscheinen auf der Abrechnung und im PDF.</p>
     <div class="hf-raster">
       <div class="field hf-3u"><label>Empfänger (Vermieter)</label><input id="z_empfaenger" placeholder="z. B. M. Vermieter"></div>
-      <div class="field hf-3u"><label>Anschrift (Absender)</label><input id="z_anschrift" placeholder="Straße, PLZ Ort"></div>
     </div>
+    <!-- Ralf-Feedback 2026-07-06: Straße/PLZ/Ort getrennt statt einem Freitextfeld (Speicherformat
+         bleibt eine kombinierte Zeile in state.zahlung.anschrift, siehe recomputeZAdresse). -->
+    <div class="hf-raster">
+      <div class="field hf-3u"><label>Straße &amp; Hausnummer</label><input id="z_strasse"></div>
+      <div class="field hf-1u"><label>PLZ</label><input id="z_plz" inputmode="numeric"></div>
+      <div class="field hf-2u"><label>Ort</label><input id="z_ort"></div>
+    </div>
+    <!-- BIC war zu kurz für gängige 11-stellige BICs (hf-1u); jetzt hf-2u, dafür Zahlungsfrist
+         schmaler (hf-1u) und als wachsende Notiz (Textarea + autoGrow) statt einzeiligem Input. -->
     <div class="hf-raster" style="align-items:flex-start;">
       <div class="field hf-3u"><label>IBAN</label><input id="z_iban" placeholder="DE.. .... .... .... .... .."><span id="z_iban_hint" class="iban-hint"></span></div>
-      <div class="field hf-1u"><label>BIC</label><input id="z_bic" placeholder="optional"></div>
-      <div class="field hf-2u"><label>Zahlungsfrist</label><input id="z_frist" placeholder="z. B. 14 Tage nach Zugang"></div>
+      <div class="field hf-2u"><label>BIC</label><input id="z_bic" placeholder="optional"></div>
+      <div class="field hf-1u"><label>Zahlungsfrist</label><textarea id="z_frist" rows="1" placeholder="z. B. 14 Tage nach Zugang" oninput="autoGrow(this)"></textarea></div>
     </div>
   </section>
 
@@ -796,7 +812,7 @@
     <div id="kleinrep_warn"></div>
     <label class="filter-toggle"><input type="checkbox" onchange="setNurUngeprueft(this.checked)"> Nur ungeprüfte Belege anzeigen<span id="ungeprueft_count" class="muted"></span></label>
     <table id="tbl_kosten">
-      <thead><tr><th>Kostenart</th><th class="num">Betrag (€)</th><th>Verteilerschlüssel</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Kostenart</th><th class="num">Betrag</th><th>Verteilerschlüssel</th><th>Status</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
     <p class="hint">Der Verteilerschlüssel wird je Kostenart vorgeschlagen und ist überschreibbar (↺). Ein <b>!</b> markiert <b>typische</b> nicht umlagefähige Positionen (Verwaltung, Instandhaltung/Reparatur, Rücklagen, Kabel-TV) – als Hinweis, nicht abschließend; im Zweifel selbst prüfen. Markierte Positionen werden weiterhin verteilt.</p>
