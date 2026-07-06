@@ -19,9 +19,9 @@ function renderKosten(){
       const delta = (pct!=null)
         ? '<span class="vj-delta '+(pct>0?'up':pct<0?'down':'flat')+'" title="Veränderung gegenüber Vorjahr (aktuell '+nkFmtBetrag(k.betrag||0)+' €)">'+(pct>0?'+':'')+String(pct).replace('.',',')+' %</span>'
         : '';
-      return '<td class="num"><span class="betrag-wrap"><input class="short vj-field'+(hit?'':' vj-none')+'" type="text" readonly tabindex="-1" title="Vorjahreswert (zum Vergleich)" value="'+(hit?nkFmtBetrag(vjMap[key]):'–')+'">'+delta+'</span></td>';
+      return '<td class="num"><span class="betrag-wrap"><input class="short vj-field'+(hit?'':' vj-none')+'" type="text" readonly tabindex="-1" title="Vorjahreswert (zum Vergleich)" value="'+(hit?nkFmtBetrag(vjMap[key])+' €':'–')+'">'+delta+'</span></td>';
     }
-    return '<td class="num"><span class="betrag-wrap'+(k.vorjahr?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+'" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">'+(k.vorjahr?'<button type="button" class="vorjahr-tri" title="Vorjahreswert übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="uebernehmeKostenVorjahr('+idx+')"></button>':'')+'</span></td>';
+    return '<td class="num"><span class="betrag-wrap'+(k.vorjahr?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+' €" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">'+(k.vorjahr?'<button type="button" class="vorjahr-tri" title="Vorjahreswert übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="uebernehmeKostenVorjahr('+idx+')"></button>':'')+'</span></td>';
   }
   /* US-58: eine Kostenzeile (+ Detail) anhängen. */
   function appendKostenRow(k, idx){
@@ -68,7 +68,7 @@ function renderKosten(){
           '<option value="dienstleistung"'+(nkP35aKategorie(k)==='dienstleistung'?' selected':'')+'>haushaltsnahe DL</option>'+
           '<option value="handwerker"'+(nkP35aKategorie(k)==='handwerker'?' selected':'')+'>Handwerker</option>'+
         '</select></label>'+
-        '<label title="Begünstigter Arbeits-/Lohnanteil inkl. USt (ohne Material)">davon Arbeitskosten € <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.arbeitskosten||0)+'" onchange="updKostenArbeit('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))"></label>'+
+        '<label title="Begünstigter Arbeits-/Lohnanteil inkl. USt (ohne Material)">davon Arbeitskosten <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.arbeitskosten||0)+' €" onchange="updKostenArbeit('+idx+',this.value)"></label>'+
         '<label class="notiz-field">Notiz <input value="'+esc(k.notiz)+'" oninput="store.setKostenFeld('+idx+',\'notiz\',this.value)" placeholder="z. B. Zähler defekt, Belegquelle, …"></label>'+
       '</div>'+
       (k.schluessel==='direkt' ? '' :
@@ -78,7 +78,7 @@ function renderKosten(){
       (k.schluessel==='verbrauch' ?  /* US-57/US-59: Verbrauch je Einheit + Einheit-Label (kWh/m³) */
        '<div class="teilnahme"><span class="teilnahme-lbl">Verbrauch je Einheit:</span> '+
         '<label class="teilnahme-item">Einheit <input class="short" type="text" value="'+esc(k.einheit||'')+'" placeholder="z. B. m³" onchange="updKosten('+idx+',\'einheit\',this.value)" style="max-width:64px"></label> '+
-        state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>'<label class="teilnahme-item">'+esc(x.name)+' <input class="short" type="number" step="any" value="'+((k.verbrauch&&k.verbrauch[x.id])||0)+'" onchange="updKostenVerbrauch('+idx+','+x.id+',this.value)"></label>').join('')+
+        state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>'<label class="teilnahme-item">'+esc(x.name)+' <input class="short" type="text" inputmode="decimal" value="'+nkFmtZahl((k.verbrauch&&k.verbrauch[x.id])||0)+' '+esc(k.einheit||'')+'" onchange="updKostenVerbrauch('+idx+','+x.id+',this.value)"></label>').join('')+
         ' <span class="unit-f">Summe: '+nkFmtBetrag(verbrauchSumme(k))+' '+esc(k.einheit||'')+'</span></div>'
        : '')+
       '</td>';
@@ -97,7 +97,7 @@ function renderKosten(){
   function appendVjOnlyRow(vk){
     const tr=document.createElement('tr'); tr.className='vj-only-row';
     tr.innerHTML='<td class="bez-col">'+esc(vk.bez)+' <span class="vj-only-badge">nur Vorjahr</span></td>'+
-      '<td class="num"><span class="betrag-wrap"><input class="short vj-field" type="text" readonly tabindex="-1" title="Vorjahreswert (nur im Vorjahr vorhanden)" value="'+nkFmtBetrag(vk.betrag)+'"></span></td>'+
+      '<td class="num"><span class="betrag-wrap"><input class="short vj-field" type="text" readonly tabindex="-1" title="Vorjahreswert (nur im Vorjahr vorhanden)" value="'+nkFmtBetrag(vk.betrag)+' €"></span></td>'+
       '<td>'+schluesselAnzeige(vk)+'</td><td></td><td></td>';
     tb.appendChild(tr);
   }

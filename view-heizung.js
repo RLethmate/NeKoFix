@@ -81,7 +81,9 @@ function heizKarte(k,idx){
      1× jaz/Wärmepumpe (Verbrauch×Arbeitszahl=Wärmemenge) – dieselbe Struktur in allen drei Fällen. */
   const umrechnungZeile = fi.show ? (verbrauchFeld+op('×')+heizwertFeld+op('=')+waermemengeFeld) : '';
   const mittelwertZeile =
-    hf('Heizkosten gesamt (€)', '<input type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag||0)+'" onchange="updHeizBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">', null, 'hf-2u')+
+    /* Ralf-Feedback 2026-07-06: Einheit gehört in den Wert, nicht nur ins Label (Label deshalb ohne
+       "(€)", updHeizBetrag rendert bei jeder Aenderung neu – kein separates onblur-Reformat noetig). */
+    hf('Heizkosten gesamt', '<input type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag||0)+' €" onchange="updHeizBetrag('+idx+',this.value)">', null, 'hf-2u')+
     op('/')+
     nennerFeld+
     op('=')+
@@ -93,8 +95,9 @@ function heizKarte(k,idx){
      inhaltlich darunter/danach kommt (CO2-Felder, Verbrauch je Einheit, Zeitraum) – hf-1u statt
      hf-2u, damit die Spalten senkrecht exakt übereinanderstehen. Die ersten Gleichungs-Zeilen
      (Verbrauch/Heizwert/Wärmemenge/Heizkosten/Mittelwert) dürfen breiter bleiben (hf-2u). */
-  const co2Felder = ea.fossil ? hf('CO₂-Emissionen (kg)', '<input type="number" step="any" value="'+(k.co2Kg||0)+'" onchange="updHeizNum('+idx+',\'co2Kg\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u')+hf('CO₂-Kosten (€)', '<input type="number" step="any" value="'+(k.co2Kosten||0)+'" onchange="updHeizNum('+idx+',\'co2Kosten\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u') : '';
-  const vbEinheitenFelder = state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>hf(esc(x.name), '<input type="number" step="any" value="'+((k.verbrauch&&k.verbrauch[x.id])||0)+'" onchange="updHeizVerbrauch('+idx+','+x.id+',this.value)">', null, 'hf-1u'));
+  const co2Felder = ea.fossil ? hf('CO₂-Emissionen', '<input type="text" inputmode="decimal" value="'+nkFmtZahl(k.co2Kg||0)+' kg" onchange="updHeizNum('+idx+',\'co2Kg\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u')+hf('CO₂-Kosten', '<input type="text" inputmode="decimal" value="'+nkFmtBetrag(k.co2Kosten||0)+' €" onchange="updHeizNum('+idx+',\'co2Kosten\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u') : '';
+  /* Ralf-Feedback 2026-07-06: dieselbe Einheit wie die Summe (Zeile darunter) auch je Einheit im Feld. */
+  const vbEinheitenFelder = state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>hf(esc(x.name), '<input type="text" inputmode="decimal" value="'+nkFmtZahl((k.verbrauch&&k.verbrauch[x.id])||0)+' '+esc(k.einheit||'kWh')+'" onchange="updHeizVerbrauch('+idx+','+x.id+',this.value)">', null, 'hf-1u'));
   const vbFelder = vbEinheitenFelder.join(op('+'))+op('=')+hf('Summe', ro(nkFmtBetrag(vsum)+' '+esc(k.einheit||'kWh')), null, 'hf-1u');
   return '<div class="unit-card einheit-card'+(k.vorjahr?' vorjahr':'')+'">'+
     (k.vorjahr ? '<div class="heiz-vorjahr"><span><b>Aus dem Vorjahr vorbelegt.</b> Bitte Verbrauch und Preis prüfen.</span><button type="button" onclick="uebernehmeHeizVorjahr('+idx+')">Übernehmen</button></div>' : '')+

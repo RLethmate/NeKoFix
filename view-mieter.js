@@ -8,22 +8,24 @@ function renderEinheiten(){
   const vjOn = ui.zeigeVorjahr && !!vjSnap;
   state.einheiten.forEach((e,ei)=>{
     const vjE = vjSnap ? nkVorjahrEinheit(vjSnap, e.name) : null; /* US-59: Einheit über Namen matchen */
+    /* Ralf-Feedback 2026-07-06: Einheit (m²) im Feld statt nur im Label; oninput-Felder rendern nicht
+       bei jeder Eingabe neu, daher eigenes onblur-Reformat (wie bei den Betragsfeldern). */
     const flaecheInp = vjOn
-      ? vjFeld(vjE && vjE.flaeche!=null ? vjE.flaeche : null)
-      : '<input class="short" type="number" value="'+e.flaeche+'" oninput="updEinheit('+ei+',\'flaeche\',this.value)">';
+      ? vjFeld(vjE && vjE.flaeche!=null ? nkFmtZahl(vjE.flaeche)+' m²' : null)
+      : '<input class="short" type="text" inputmode="decimal" value="'+nkFmtZahl(e.flaeche)+' m²" oninput="updEinheit('+ei+',\'flaeche\',this.value)" onblur="this.value=nkFmtZahl(nkParseBetrag(this.value))+\' m²\'">';
     const personenInp = vjOn
       ? vjFeld(vjE && vjE.personen!=null ? vjE.personen : null)
       : '<input class="short" type="number" value="'+e.personen+'" oninput="updEinheit('+ei+',\'personen\',this.value)">';
     /* US-96: unbeheizte Fläche (z. B. Terrasse) – wird bei den Heiz-Grundkosten von der Fläche abgezogen. */
     const unbeheiztInp = vjOn
-      ? vjFeld(vjE && vjE.unbeheizt!=null ? vjE.unbeheizt : null)
-      : '<input class="short" type="number" value="'+(e.unbeheizt||0)+'" oninput="updEinheit('+ei+',\'unbeheizt\',this.value)">';
+      ? vjFeld(vjE && vjE.unbeheizt!=null ? nkFmtZahl(vjE.unbeheizt)+' m²' : null)
+      : '<input class="short" type="text" inputmode="decimal" value="'+nkFmtZahl(e.unbeheizt||0)+' m²" oninput="updEinheit('+ei+',\'unbeheizt\',this.value)" onblur="this.value=nkFmtZahl(nkParseBetrag(this.value))+\' m²\'">';
     box.insertAdjacentHTML('beforeend',
       '<div class="unit-card einheit-card">'+
         '<div class="unit-head">'+
           '<input class="unit-name" value="'+esc(e.name)+'" oninput="updEinheit('+ei+',\'name\',this.value)"'+(vjOn?' readonly':'')+'>'+
-          '<label class="unit-f">Fläche m² '+flaecheInp+'</label>'+
-          '<label class="unit-f" title="Unbeheizte Fläche (z. B. Terrasse, Balkon). Wird nur bei den Heiz-Grundkosten von der Fläche abgezogen (US-96), sonst bleibt die volle Fläche maßgeblich.">unbeheizt m² '+unbeheiztInp+'</label>'+
+          '<label class="unit-f">Fläche '+flaecheInp+'</label>'+
+          '<label class="unit-f" title="Unbeheizte Fläche (z. B. Terrasse, Balkon). Wird nur bei den Heiz-Grundkosten von der Fläche abgezogen (US-96), sonst bleibt die volle Fläche maßgeblich.">unbeheizt '+unbeheiztInp+'</label>'+
           '<label class="unit-f">Personen '+personenInp+'</label>'+
           (vjOn?'':'<button class="row-del" title="Einheit entfernen" onclick="delEinheit('+ei+')" style="margin-left:auto;">×</button>')+
         '</div>'+
@@ -221,6 +223,9 @@ document.getElementById('obj_bis').addEventListener('blur',renderEinheiten);
 document.getElementById('z_empfaenger').addEventListener('input',e=>store.setZahlungFeld('empfaenger',e.target.value));
 document.getElementById('z_anschrift').addEventListener('input',e=>store.setZahlungFeld('anschrift',e.target.value));
 document.getElementById('z_iban').addEventListener('input',e=>{store.setZahlungFeld('iban',e.target.value); updateIbanHint();});
+/* Ralf-Feedback 2026-07-06: IBAN in 4er-Gruppen sichtbar machen, sobald das Feld verlassen wird
+   (nicht bei jedem Tastendruck, sonst springt der Cursor mitten im Tippen). */
+document.getElementById('z_iban').addEventListener('blur',e=>{ const f=nkFmtIban(e.target.value); e.target.value=f; store.setZahlungFeld('iban',f); updateIbanHint(); });
 document.getElementById('z_bic').addEventListener('input',e=>store.setZahlungFeld('bic',e.target.value));
 document.getElementById('z_frist').addEventListener('input',e=>store.setZahlungFeld('frist',e.target.value));
 /* US-07: CO2-Einstellungen (Denkmal-Halbierung, manueller Vermieteranteil Wohnen) */
@@ -661,11 +666,11 @@ function renderVoraus(){
   head.innerHTML =
     '<tr>'+
       '<th>Mieter</th><th>Einheit</th>'+
-      '<th class="num">Grundmiete (€)</th><th class="op-col">+</th>'+
+      '<th class="num">Grundmiete</th><th class="op-col">+</th>'+
       '<th class="num">Anzahl Stellplätze</th><th class="op-col">×</th>'+
-      '<th class="num">Stellplatz (€)</th><th class="op-col">+</th>'+
-      '<th class="num">Nebenkosten (€)</th><th class="op-col">=</th>'+
-      '<th class="num">Gesamt (€)</th><th>Notiz</th>'+
+      '<th class="num">Stellplatz</th><th class="op-col">+</th>'+
+      '<th class="num">Nebenkosten</th><th class="op-col">=</th>'+
+      '<th class="num">Gesamt</th><th>Notiz</th>'+
     '</tr>';
   const vjSnap = ui.zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null; /* US-59 */
   const vjOn = ui.zeigeVorjahr && !!vjSnap;
@@ -675,8 +680,8 @@ function renderVoraus(){
     /* US-59: im Vorjahr-Modus die NK-Vorauszahlung (vmonat) read-only aus dem Vorjahr zeigen. */
     const vjV = vjSnap ? nkVorjahrVmonat(vjSnap, e.name, m.mieter) : null;
     const vmonatInp = vjOn
-      ? vjFeld(vjV!=null ? nkFmtBetrag(vjV) : null)
-      : '<input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.vmonat)+'" oninput="updVorausMV('+ei+','+mi+',\'vmonat\',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))">';
+      ? vjFeld(vjV!=null ? nkFmtBetrag(vjV)+' €' : null)
+      : '<input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(m.vmonat)+' €" oninput="updVorausMV('+ei+','+mi+',\'vmonat\',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">';
     const tr=document.createElement('tr');
     tr.innerHTML=
       '<td>'+esc(m.mieter)+'</td>'+

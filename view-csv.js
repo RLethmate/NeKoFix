@@ -100,7 +100,7 @@ function renderUmsatzReview(){
   bs.forEach((b,i)=>{ if(nurOffen && nkMatchRegel(b, regeln)) return;
     const k=umsatzKategorie(b); const cls=b.betrag>0?'pos':(b.betrag<0?'neg':'');
     rowsArr.push('<tr><td>'+esc(b.buchungstag||'')+'</td><td>'+esc(b.name||'')+'</td><td class="zweck">'+esc(b.zweck||'')+'</td>'+
-      '<td class="betrag '+cls+'">'+nkFmtBetrag(b.betrag)+'</td><td><span class="csv-badge '+k.key+'">'+esc(k.label)+'</span></td>'+
+      '<td class="betrag '+cls+'">'+nkFmtBetrag(b.betrag)+' €</td><td><span class="csv-badge '+k.key+'">'+esc(k.label)+'</span></td>'+
       '<td>'+umsatzZielSelect(b,i)+'</td></tr>'); });
   const rows=rowsArr.join('');
   const filterZeile='<div class="csv-filterzeile"><label class="csv-filter"><input type="checkbox"'+(nurOffen?' checked':'')+' onchange="toggleNurOffen(this.checked)"> nur nicht zugeordnete</label></div>';
@@ -111,7 +111,7 @@ function renderUmsatzReview(){
   box.innerHTML='<h2>Kontoumsätze importieren – Zuordnung</h2>'+
     '<div class="csv-meta">'+esc(ui.csvImport.dateiname)+' · '+bs.length+' Buchungen · '+pos.length+' Eingänge ('+nkFmtBetrag(sumPos)+' €) · '+neg.length+' Kosten ('+nkFmtBetrag(sumNeg)+' €) · Zeitraum '+esc(zeitraum)+'</div>'+
     (bs.length? '<div class="csv-summe">Zugeordnet: '+nMieter+' Mieter-Eingänge ('+nkFmtBetrag(sMieter)+' €) · '+nKosten+' Kosten ('+nkFmtBetrag(sKosten)+' €) · '+nIgnor+' ignoriert · <b'+(nOffen?' class="csv-offen"':'')+'>'+nOffen+' nicht zugeordnet</b></div>'+csvKontrolle+filterZeile+
-      '<div class="csv-tablewrap"><table class="csv-table"><thead><tr><th>Datum</th><th>Name</th><th>Verwendungszweck</th><th>Betrag €</th><th>Vorschlag</th><th>Ziel</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+      '<div class="csv-tablewrap"><table class="csv-table"><thead><tr><th>Datum</th><th>Name</th><th>Verwendungszweck</th><th>Betrag</th><th>Vorschlag</th><th>Ziel</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
               : '<div class="csv-err">Keine Buchungen gefunden (Kopfzeile erkannt, aber keine Datenzeilen).</div>')+
     '<div class="csv-foot"><span class="csv-note">Zuordnungen werden als Regel am Objekt gemerkt (IBAN bzw. Name) und beim nächsten Import automatisch vorgeschlagen. „Importieren" übernimmt: Kosten je Kostenart summiert (neue werden angelegt – Name/Rubrik später im Reiter „Kosten"), Zahlungseingänge als „erhalten" je Mieter/Monat. Bereits übernommene Buchungen werden beim erneuten Import übersprungen; eine gelöschte Kostenart wird durch erneuten Import wiederhergestellt.</span>'+
     (bs.length? '<label class="csv-autoprot"><input type="checkbox"'+(ui.csvAutoProtokoll?' checked':'')+' onchange="setCsvAutoProtokoll(this.checked)"> Prüfprotokoll nach Import öffnen</label>':'')+

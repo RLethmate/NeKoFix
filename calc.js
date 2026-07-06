@@ -14,9 +14,26 @@ function nkFmtBetrag(n) {
 function nkParseBetrag(s) {
   let t = String(s == null ? "" : s).trim();
   if (t === "") return 0;
-  if (t.indexOf(",") >= 0) t = t.replace(/\./g, "").replace(",", "."); // dt. Format: Punkt = Tausender, Komma = Dezimal
+  // dt. Schreibweise: Punkt ist IMMER Tausendertrennzeichen (nie Dezimal), Komma IMMER Dezimal –
+  // wichtig für nkFmtZahl-Werte ohne Komma (z. B. "12.345"), die sonst als 12,345 fehlinterpretiert
+  // würden (gefunden 2026-07-06 beim Rundtrip-Test von nkFmtZahl).
+  t = t.replace(/\./g, "");
+  if (t.indexOf(",") >= 0) t = t.replace(",", ".");
   const n = parseFloat(t);
   return isNaN(n) ? 0 : n;
+}
+/* US-121-Nachschliff: Mengen-/Zähler-Felder (m², m³, kWh, kg, Personen …) – Tausenderpunkt wie bei
+   Geld, aber OHNE erzwungene Nachkommastellen (kein ",00" bei ganzen Zahlen). nkParseBetrag parst
+   auch diese Werte korrekt (generischer de-DE-Zahlenparser, kein Geld-spezifisches Verhalten). */
+function nkFmtZahl(n) {
+  return (Number(n) || 0).toLocaleString("de-DE", { maximumFractionDigits: 2 });
+}
+/* IBAN in 4er-Gruppen (Standard-Lesart), unabhängig von Groß-/Kleinschreibung oder vorhandenen
+   Leerzeichen der Eingabe. nkIbanGueltig/nkGiroCode entfernen Leerzeichen ohnehin vor der Prüfung
+   bzw. dem Zahlungscode, das Speichern mit Leerzeichen ändert an deren Verhalten nichts. */
+function nkFmtIban(s) {
+  const clean = String(s || "").replace(/\s+/g, "").toUpperCase();
+  return clean.replace(/(.{4})(?=.)/g, "$1 ");
 }
 
 /* US-05: Energiearten mit typischem Heizwert Hi (kWh je Einheit) und Brennstoff-Einheit.
@@ -1516,6 +1533,8 @@ if (typeof module !== "undefined" && module.exports) {
     NK_LEERSTAND_EPS,
     nkFmtBetrag,
     nkParseBetrag,
+    nkFmtZahl,
+    nkFmtIban,
     nkTeilnahme,
     nkFaktorFuer,
     nkVerbrauchSumme,
