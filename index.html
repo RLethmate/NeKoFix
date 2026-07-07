@@ -177,24 +177,12 @@
   .mv-grid+.mv-grid{margin-top:8px;}
   .mv-headrow,.mv-summary{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px;}
   .mv-headrow .lbl,.mv-cap-upper{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;}
-  /* Aufklappbare Leisten "┃ Mieterhöhungen"/"┃ Chronik" (ersetzt die alte Vertrag-/Automatik-Details-
-     Lasche) – eigene Klassen, bewusst NICHT .status-toggle/.heiz-zeit-toggle (von view-kosten.js bzw.
-     view-heizung.js mitgenutzt) angefasst. */
-  .section-bar{background:none;border:none;border-top:1px solid var(--line);width:100%;text-align:left;
-    padding:10px 0 6px;margin-top:6px;font:inherit;font-size:13px;font-weight:600;color:var(--ink);
-    cursor:pointer;display:flex;align-items:center;gap:8px;}
-  .section-bar:hover{color:var(--primary);}
-  .section-bar .bar-ico{color:var(--primary);font-weight:700;}
-  .section-bar .chev{margin-left:auto;color:var(--muted);font-size:11px;}
+  /* Ralf-Feedback 2026-07-07: kein eigens erfundenes Muster ("…", Hintergrund-Tint) – stattdessen
+     dieselbe Formsprache wie der bestehende Aufklapper im Kosten-Reiter (.status-toggle, dort per
+     Chevron-Drehung + erscheinendem Inhalt erkennbar "auf"/"zu"), unveraendert wiederverwendet. */
+  .section-bar-wrap{margin-top:8px;}
+  .section-bar .chev{margin-left:6px;}
   .section-bar .summary{margin-left:8px;font-weight:400;color:var(--muted);font-size:12px;}
-  /* Apple-UX-Review 2026-07-07: "…"/Pfeilrichtung allein waren als einziges Zustandssignal zu
-     schwach (kaum wahrnehmbar, ob eine Leiste gerade auf- oder zugeklappt ist). Aufgeklappter
-     Zustand bekommt jetzt dieselbe Sprache wie die "offene Punkte"-Lasche in der Seitenleiste
-     (.nav-plausi-head.open) – Hintergrund-Tint + Primärfarbe statt eines neuen, abweichenden
-     Musters. Keine horizontale Verschiebung (kein zusätzliches Padding), damit "┃" weiterhin
-     bündig mit Kaltmiete/E-Mail startet. */
-  .section-bar.open{background:var(--soft);color:var(--primary);}
-  .section-bar.open .chev{color:var(--primary);font-weight:700;}
   /* "+ Mietverhältnis" zieht aus der Zeile unter der Liste (addrow) oben rechts neben den
      Einheitsnamen (Ralf-Vorgabe 2026-07-07) – dezenter Textlink statt Button. */
   .link-sm{background:none;border:none;color:var(--primary);font-weight:600;font-size:12.5px;padding:0;cursor:pointer;text-decoration:underline;margin-left:auto;}
@@ -518,6 +506,7 @@
   .einheit-card{background:var(--soft);border-left:4px solid var(--primary);}
   #einheiten_box .einheit-card:nth-child(even){background:#eef3f8;}
   #heizung_box .einheit-card:nth-child(even){background:#eef3f8;}
+  #mieter_vertrag_box .einheit-card:nth-child(even){background:#eef3f8;} /* Ralf-Feedback 2026-07-07: dieselbe Einheiten-Alternierung wie Gebäude & Einheiten/Heizung fehlte hier noch */
   /* US-58: Kostenart-Spalte maximieren, übrige Spalten schmal halten */
   #tbl_kosten td.bez-col input{width:100%;}
   #tbl_kosten td:nth-child(2),#tbl_kosten th:nth-child(2){width:120px;}

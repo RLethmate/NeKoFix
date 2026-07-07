@@ -179,7 +179,7 @@ function mvZeilen(e, ei){
           mhAutomatikSection(m,ei,mi)+ /* US-68/US-121: Index-/Staffelmiete hinter der "┃ Mieterhöhungen"-Leiste (Dummy5, 2026-07-07) */
           /* US-109-Schliff (angepasst 2026-07-07): "+ Chronik-Eintrag" nur sichtbar, wenn die neue
              "┃ Chronik"-Leiste aufgeklappt ist; Einträge neueste zuerst. */
-          '<button type="button" class="section-bar'+(chronikOpen?' open':'')+'" onclick="toggleChronik('+m.id+')"><span class="bar-ico">┃</span> Chronik'+(chronikOpen?'':' …')+' <span class="summary">'+(chronik.length?chronik.length+(chronik.length===1?' Eintrag':' Einträge'):'')+'</span><span class="chev">'+(chronikOpen?'▴':'▾')+'</span></button>'+
+          '<div class="mv-grid section-bar-wrap"><div style="grid-column:c0 / c5"><button type="button" class="status-toggle section-bar" onclick="toggleChronik('+m.id+')">┃ Chronik <span class="summary">'+(chronik.length?chronik.length+(chronik.length===1?' Eintrag':' Einträge'):'')+'</span><span class="chev">'+(chronikOpen?'▴':'▾')+'</span></button></div></div>'+
           (chronikOpen
             ? '<div class="chronik-titel">Anpassungs-Chronik <button type="button" class="chronik-add" onclick="addChronik('+ei+','+mi+')">+ Chronik-Eintrag</button></div>'+chronikRows
             : '');
@@ -429,10 +429,10 @@ function toggleAutomatik(id){ if(ui.expandedAutomatik.has(id)) ui.expandedAutoma
 function mhAutomatikSection(m,ei,mi){
   const info=mhNaechsteInfo(m,ei,mi);
   const open=ui.expandedAutomatik.has(m.id);
-  /* Ralf-Vorgabe (Konzept Mieter & Vertrag.txt/2.txt): zugeklappt endet die Leiste auf "…" –
-     signalisiert verborgenen Inhalt; im aufgeklappten Zustand entfällt es (redundant, Inhalt ist ja
-     schon sichtbar). */
-  let out='<button type="button" class="section-bar'+(open?' open':'')+'" onclick="toggleAutomatik('+m.id+')"><span class="bar-ico">┃</span> Mieterhöhungen'+(open?'':' …')+'<span class="chev">'+(open?'▴':'▾')+'</span></button>';
+  /* Ralf-Feedback 2026-07-07: "…"/Hintergrund-Tint als Zustandssignal wieder entfernt – stattdessen
+     dieselbe Formsprache wie der bestehende Kosten-Aufklapper (.status-toggle), dort ebenfalls nur
+     per Chevron-Drehung + erscheinendem Inhalt erkennbar. */
+  let out='<div class="mv-grid section-bar-wrap"><div style="grid-column:c0 / c5"><button type="button" class="status-toggle section-bar" onclick="toggleAutomatik('+m.id+')">┃ Mieterhöhungen <span class="chev">'+(open?'▴':'▾')+'</span></button></div></div>';
   if(open){
     out+=indexBlock(m,ei,mi); /* Details bereits vollständig sichtbar (inkl. eigener "Nächste Erhöhung"-Zeile) – keine doppelte Zusammenfassung. */
   } else if(info){
