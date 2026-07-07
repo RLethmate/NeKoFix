@@ -122,15 +122,6 @@
   .status-toggle{background:#fff;border:1px solid var(--line);border-radius:7px;padding:3px 8px;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;gap:3px;}
   .status-toggle:hover{border-color:var(--primary);}
   .detail-row td{background:var(--soft);}
-  /* Mieter & Vertrag (seit Grid-Umbau 2026-07-05): kein <tr class="detail-row"> mehr, daher der
-     Tint direkt auf dem neuen .detail-cell-Wrapper (nur hier verwendet). */
-  /* margin:-10px links/rechts kompensiert das eigene padding: der Tint-Hintergrund bleibt optisch
-     eingerückt, aber der Grid-Inhalt beginnt exakt an derselben Kante wie Kopf-/Summary-Zeile
-     (sonst Versatz von genau padding-left – gefunden 2026-07-06 per Headless-Messung: 421.3 vs
-     431.3px). font-size:14px ersetzt das durch den Tabellen-Wegfall verlorene th,td{font-size:14px}
-     – ohne den Reset erben unbenannte Textknoten (z. B. .mh-titel) den Browser-Default (16px+),
-     sichtbar als überproportional große Schrift, in Safari staerker als in Chrome. */
-  .detail-cell{background:var(--soft);padding:10px 10px 4px;border-radius:8px;margin:6px -10px 0;font-size:14px;}
   .detail-grid{display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:4px 0;}
   .detail-grid label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;}
   .detail-grid .notiz-field{flex:1;min-width:200px;}
@@ -166,15 +157,39 @@
      verkleinert, Konzept (Gutter/Ausrichtung) unveraendert. Bewusst EIGENE Klassen (mv-*), NICHT
      .hf-raster/.hf-op/.heiz-felder wiederverwendet – diese bleiben fuer Heizung/Vermieter/Gebäude
      unveraendert (separate US-121-Phasen). */
-  :root{ --mv-L:125px; --mv-M:130px; --mv-S:75px; --mv-XS:50px; --mv-AUX:14px; --mv-GAP:5px; --mv-FH:32px; }
+  /* Ralf-Konzept "Mieter & Vertrag aufklappbar" (2026-07-07, Dummy5-Mieter-Vertrag-Aufklappbar.html
+     am Projekt-Root mit Ralf abgestimmt): Anrede zieht vor den Mieternamen (neue Spalte c0 + eigene
+     Gutter-Spalte c1w fürs Warndreieck, das sonst vom jetzt breiteren Mieterfeld verschluckt würde),
+     Mieterfeld wird 2 Hauptspalten breit (spannt c1/c3, wie Kaltmiete+Stellplätze darunter). Kaltmiete/
+     E-Mail beginnen bei c0 (kein Leerraum mehr unter der Anrede-Spalte). c6 (vormals der "Vertrag"-
+     Aufklapper-Spalte) dient jetzt nur noch dem Lösch-"×" (Mietverhältnis/Chronik-Eintrag). */
+  /* --mv-M2 (c1/c2, Mieter-Hälften bzw. Kaltmiete/Stellplätze) darf schmaler sein als --mv-M
+     (c3/c4, Von/Bis/Preis/Gesamt) – nur c3/c4 tragen ein natives type=date-Feld, das laut US-121-
+     Erfahrungswert (Chrome schneidet es unter 130px ab) nicht schrumpfen darf. Ohne die Unter-
+     scheidung überschritt die Karte bei normaler Fensterbreite (1400px) die verfügbare Breite
+     (850px vs. 825px verfügbar, headless gemessen) und löste das Scroll-Sicherheitsnetz unnötig aus. */
+  :root{ --mv-ANR:85px; --mv-M2:115px; --mv-M:130px; --mv-S:75px; --mv-XS:50px; --mv-AUX:14px; --mv-GAP:5px; --mv-FH:32px; }
   .mv-grid{display:grid;grid-template-columns:
-      [c1] var(--mv-L) [aux1] var(--mv-AUX) [c2] var(--mv-M) [aux2] var(--mv-AUX)
-      [c3] var(--mv-M) [aux3] var(--mv-AUX) [c4] var(--mv-S) [c5] var(--mv-S)
-      [c6] var(--mv-M) [c7] var(--mv-XS);
+      [c0] var(--mv-ANR) [c1w] var(--mv-AUX)
+      [c1] var(--mv-M2) [aux1] var(--mv-AUX) [c2] var(--mv-M2) [aux2] var(--mv-AUX)
+      [c3] var(--mv-M) [aux3] var(--mv-AUX) [c4] var(--mv-M) [c5] var(--mv-S) [c6] var(--mv-XS);
     column-gap:var(--mv-GAP);align-items:end;margin:8px 0;}
   .mv-grid+.mv-grid{margin-top:8px;}
   .mv-headrow,.mv-summary{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px;}
-  .mv-headrow .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;}
+  .mv-headrow .lbl,.mv-cap-upper{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;}
+  /* Aufklappbare Leisten "┃ Mieterhöhungen"/"┃ Chronik" (ersetzt die alte Vertrag-/Automatik-Details-
+     Lasche) – eigene Klassen, bewusst NICHT .status-toggle/.heiz-zeit-toggle (von view-kosten.js bzw.
+     view-heizung.js mitgenutzt) angefasst. */
+  .section-bar{background:none;border:none;border-top:1px solid var(--line);width:100%;text-align:left;
+    padding:10px 0 6px;margin-top:6px;font:inherit;font-size:13px;font-weight:600;color:var(--ink);
+    cursor:pointer;display:flex;align-items:center;gap:8px;}
+  .section-bar:hover{color:var(--primary);}
+  .section-bar .bar-ico{color:var(--primary);font-weight:700;}
+  .section-bar .chev{margin-left:auto;color:var(--muted);font-size:11px;}
+  .section-bar .summary{margin-left:8px;font-weight:400;color:var(--muted);font-size:12px;}
+  /* "+ Mietverhältnis" zieht aus der Zeile unter der Liste (addrow) oben rechts neben den
+     Einheitsnamen (Ralf-Vorgabe 2026-07-07) – dezenter Textlink statt Button. */
+  .link-sm{background:none;border:none;color:var(--primary);font-weight:600;font-size:12.5px;padding:0;cursor:pointer;text-decoration:underline;margin-left:auto;}
   .mv-grid input:not([type=checkbox]),.mv-grid textarea{height:var(--mv-FH);box-sizing:border-box;}
   /* Checkbox+String als ein Objekt (Ralf-Feedback 2026-07-06): die globale Regel input,select{
      width:100%} greift auch bei type=checkbox (nur .picker-list hatte bisher width:auto) – ohne
@@ -379,7 +394,7 @@
   .act-green{width:300px;max-width:100%;min-height:42px;margin-left:auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;white-space:normal;text-align:center;}
   .heiz-zeit-toggle{background:none;border:none;color:var(--primary);font-size:12.5px;cursor:pointer;padding:4px 0;text-align:left;}
   .heiz-zeit-toggle:hover{text-decoration:underline;}
-  .unit-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;overflow-x:auto;} /* Sicherheitsnetz auf sehr schmalen Fenstern: .mv-grid hat feste Breite (kein Umbruch möglich), scrollt dann statt zu brechen – gleiches Prinzip wie table{overflow-x:auto} */
+  .unit-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;overflow-x:auto;font-size:14px;} /* Sicherheitsnetz auf sehr schmalen Fenstern: .mv-grid hat feste Breite (kein Umbruch möglich), scrollt dann statt zu brechen – gleiches Prinzip wie table{overflow-x:auto}. font-size:14px seit Wegfall von .detail-cell (Mieterhöhungen/Chronik jetzt direkt im Card-Grid statt in eigenem Tint-Wrapper) – ersetzt den dort verlorenen Reset fuer unbenannte Textknoten (z. B. .mh-titel), sonst Browser-Default 16px+ (Safari sichtbarer als Chrome). */
   .unit-head{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:8px;}
   .unit-name{font-weight:600;max-width:200px;}
   .unit-f{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;}

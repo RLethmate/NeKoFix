@@ -54,9 +54,9 @@ function mvZeilen(e, ei){
         const bisTxt = vm ? (vm.laeuft?'läuft':fmtDatum(vm.bis||'')) : '';
         return '<div class="mv-grid mv-summary vj-mv-row">'+
           '<div style="grid-column:c1">'+inp(vm?(vm.mieter||''):'')+'</div>'+
-          '<div style="grid-column:c2">'+inp(vm?fmtDatum(vm.von||''):'')+'</div>'+
-          '<div style="grid-column:c3">'+inp(bisTxt)+'</div>'+
-          '<div class="hint mv-vcenter" style="grid-column:c4 / c7">'+(vm?'aus Vorjahr':'kein Vorjahres-Mietverhältnis')+'</div>'+
+          '<div style="grid-column:c3">'+inp(vm?fmtDatum(vm.von||''):'')+'</div>'+
+          '<div style="grid-column:c4">'+inp(bisTxt)+'</div>'+
+          '<div class="hint mv-vcenter" style="grid-column:c5 / -1">'+(vm?'aus Vorjahr':'kein Vorjahres-Mietverhältnis')+'</div>'+
         '</div>';
       }
       const na=m.naechsteAnpassung||'';
@@ -65,20 +65,24 @@ function mvZeilen(e, ei){
       const warnHtml = m.mhTyp
         ? (mhWarnung(m) ? '<span title="Mieterhöhung fällig – Ankündigung noch nicht verschickt">'+WARN_ICON+'</span>' : '')
         : (nkBaldFaellig(na, heute(), 3) ? '<span title="Mieterhöhung bald fällig ('+fmtDatum(na)+')">'+WARN_ICON+'</span>' : '');
-      const open = ui.expandedMV.has(m.id);
+      /* Ralf-Konzept 2026-07-07 (Dummy5): Anrede zieht vor den Mieternamen, das Mieterfeld wird
+         2 Hauptspalten breit (c1/c3, wie Kaltmiete+Stellplätze darunter) – das Warndreieck bekommt
+         dafür eine eigene Gutter-Spalte (c1w) vor c1, statt der jetzt vom Mieterfeld belegten aux1.
+         Der bisherige "Vertrag"-Aufklapper (mehr ▾/weniger ▴, expandedMV) entfällt: Kaltmiete-
+         Gleichung/Anrede/E-Mail sind jetzt immer sichtbar, nur Mieterhöhungen/Chronik bleiben
+         eigene Leisten (siehe mhAutomatikSection/Chronik-Abschnitt unten). */
       let row='<div class="mv-grid mv-summary">'+
-        '<div style="grid-column:c1"><input value="'+esc(m.mieter)+'" oninput="updMV('+ei+','+mi+',\'mieter\',this.value)"></div>'+
-        '<div class="mv-aux warn" style="grid-column:aux1">'+warnHtml+'</div>'+
-        '<div style="grid-column:c2"><input type="date" value="'+m.von+'" onchange="updMV('+ei+','+mi+',\'von\',this.value)" onblur="renderEinheiten()"></div>'+
+        '<div style="grid-column:c0"><select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value=""'+(m.anrede?'':' selected')+'>neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select></div>'+
+        '<div class="mv-aux warn" style="grid-column:c1w">'+warnHtml+'</div>'+
+        '<div style="grid-column:c1 / c3"><input value="'+esc(m.mieter)+'" oninput="updMV('+ei+','+mi+',\'mieter\',this.value)"></div>'+
+        '<div style="grid-column:c3"><input type="date" value="'+m.von+'" onchange="updMV('+ei+','+mi+',\'von\',this.value)" onblur="renderEinheiten()"></div>'+
         (m.laeuft
-            ? '<div class="hint mv-vcenter" style="grid-column:c3" title="laufendes Mietverhältnis – Ende = Abrechnungszeitraum">läuft</div>'
-            : '<div style="grid-column:c3"><input type="date" value="'+(m.bis||'')+'" onchange="updMV('+ei+','+mi+',\'bis\',this.value)" onblur="renderEinheiten()"></div>')+
-        '<div class="mv-vcenter" style="grid-column:c4" title="läuft – offenes Ende (Ende = Abrechnungszeitraum)"><input type="checkbox" '+(m.laeuft?'checked':'')+' onchange="updMVLaeuft('+ei+','+mi+',this.checked)"></div>'+
-        '<div style="grid-column:c5"><label class="gewerbl" title="gewerblich / umsatzsteuerpflichtig"><input type="checkbox" '+(m.gewerblich?'checked':'')+' onchange="updMV('+ei+','+mi+',\'gewerblich\',this.checked)"> ja</label></div>'+
-        '<div style="grid-column:c6"><button class="status-toggle mv-fh" onclick="toggleVertrag('+m.id+')">'+(open?'weniger ▴':'mehr ▾')+'</button></div>'+
-        '<div class="mv-vcenter" style="grid-column:c7">'+(e.mv.length>1?'<button class="row-del mv-fh" title="Mietverhältnis entfernen" onclick="delMV('+ei+','+mi+')">×</button>':'')+'</div>'+ /* US: × erst ab 2 Mietverhältnissen (delMV wirkt erst dann) */
+            ? '<div class="hint mv-vcenter" style="grid-column:c4" title="laufendes Mietverhältnis – Ende = Abrechnungszeitraum">läuft</div>'
+            : '<div style="grid-column:c4"><input type="date" value="'+(m.bis||'')+'" onchange="updMV('+ei+','+mi+',\'bis\',this.value)" onblur="renderEinheiten()"></div>')+
+        '<div class="mv-vcenter" style="grid-column:c5" title="läuft – offenes Ende (Ende = Abrechnungszeitraum)"><input type="checkbox" '+(m.laeuft?'checked':'')+' onchange="updMVLaeuft('+ei+','+mi+',this.checked)"></div>'+
+        '<div class="mv-vcenter" style="grid-column:c6">'+(e.mv.length>1?'<button class="row-del mv-fh" title="Mietverhältnis entfernen" onclick="delMV('+ei+','+mi+')">×</button>':'')+'</div>'+ /* US: × erst ab 2 Mietverhältnissen (delMV wirkt erst dann) */
         '</div>';
-      if(open){
+      {
         const vg=(m.vertragGrundmiete!==undefined?m.vertragGrundmiete:(m.grundmiete||0));
         const vnk=(m.vertragNK!==undefined?m.vertragNK:(m.vmonat||0));
         const chronik=m.chronik||[];
@@ -98,13 +102,13 @@ function mvZeilen(e, ei){
           /* Badge in c1 (wie „Mieter"), Datum in c2 (wie „Von") – ein Datumsfeld braucht mehr Breite
              als neben dem Badge in c1 Platz wäre. Notiz spannt c3/c6 (Rest der Zeile). */
           let out='<div class="mv-grid'+(c.erledigt?' erledigt':'')+'">'+
-            '<div class="mv-vcenter" style="grid-column:c1">'+cBadge+'</div>'+
-            '<div style="grid-column:c2"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"></div>'+
-            '<div class="mv-vcenter" style="grid-column:c3 / c6"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea></div>'+
-            /* erledigt (c6) und Löschen (c7) in eigenen Spalten statt geteilter c6 – zu eng, führte
-               in Safari zu überlappendem/verschobenem Text (gefunden 2026-07-06). */
-            '<div class="mv-vcenter" style="grid-column:c6"><label class="chronik-erledigt" title="Als erledigt markieren – Badge wird neutral"><input type="checkbox" '+(c.erledigt?'checked':'')+' onchange="setChronikErledigt('+ei+','+mi+','+ci+',this.checked)"> erledigt</label></div>'+
-            '<div class="mv-vcenter" style="grid-column:c7"><button class="row-del mv-fh" onclick="'+delCall+'">×</button></div>'+
+            '<div class="mv-vcenter" style="grid-column:c0 / c1">'+cBadge+'</div>'+
+            '<div style="grid-column:c1"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"></div>'+
+            '<div class="mv-vcenter" style="grid-column:c2 / c4"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea></div>'+
+            /* erledigt (c4, M-Breite) und Löschen (c6) in eigenen Spalten statt geteilter Spalte –
+               zu eng, führte in Safari zu überlappendem/verschobenem Text (gefunden 2026-07-06). */
+            '<div class="mv-vcenter" style="grid-column:c4"><label class="chronik-erledigt" title="Als erledigt markieren – Badge wird neutral"><input type="checkbox" '+(c.erledigt?'checked':'')+' onchange="setChronikErledigt('+ei+','+mi+','+ci+',this.checked)"> erledigt</label></div>'+
+            '<div class="mv-vcenter" style="grid-column:c6"><button class="row-del mv-fh" onclick="'+delCall+'">×</button></div>'+
           '</div>';
           if(idxI!=null){ const a=m.idxAnpassungen[idxI]; const ankM=m.ankuendigungen||{};
             const ang=nkIstAngekuendigt(ankM,a.datum); const va=nkAnkVerschicktAm(ankM,a.datum);
@@ -131,41 +135,49 @@ function mvZeilen(e, ei){
         /* Dummy-Feinschliff 2026-07-05: Kaltmiete + Stellplätze × Preis = Gesamt als eine sichtbare
            Gleichungs-Zeile (vorher: "Aktuelle Grundmiete" separat, kein Gesamt-Ergebnis sichtbar). */
         const gesamtMiete=(+m.grundmiete||0)+(+m.stellAnzahl||0)*(+m.stellPreis||0);
-        row+='<div class="detail-cell">'+
+        /* Ralf-Konzept 2026-07-07 (Dummy5): kein Vertrag-Aufklapper mehr – dieser gesamte Block ist
+           jetzt immer sichtbar, kein eigener .detail-cell-Tint-Wrapper mehr nötig. Kaltmiete/„Miete
+           bei Einzug"/„Letzte Anpassung"/E-Mail beginnen bei c0 (kein Leerraum mehr unter der jetzt
+           weiter oben sitzenden Anrede-Spalte). Gewerblich zieht aus der Summary-Zeile in diese
+           Gleichungs-Zeile (dieselbe Spalte c5 wie „läuft" oben – zwei Zeilen teilen sich die Spalte). */
+        const chronikOpen=ui.expandedChronik.has(m.id);
+        row+=
           /* US-72: Miete-Felder nur ohne aktiven Mieterhöhungstyp; bei Index/Staffel kommt die Miete aus dem Block. */
           /* Preisfelder zeigen jetzt durchgängig "€" im Wert (Ralf-Feedback 2026-07-06: "Preis je
              Stellplatz" hatte keins) – onblur haengt es nach dem Reformat wieder an, da nkFmtBetrag
              selbst kein Waehrungszeichen liefert (nkParseBetrag parst trotz "€"-Suffix korrekt,
              parseFloat bricht einfach an der ersten Nicht-Zahl ab). */
           (m.mhTyp?'':'<div class="mv-grid">'+
-            mvf('Miete bei Einzug','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+' €" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c1')+
+            mvf('Miete bei Einzug','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+' €" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c0 / aux1')+
             mvf('Urspr. NK/Monat','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+' €" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c2')+
           '</div>')+
           '<div class="mv-grid">'+
             (m.mhTyp
-              ? mvf('Kaltmiete','<input type="text" class="ro" readonly tabindex="-1" value="'+nkFmtBetrag(m.grundmiete||0)+' €">','c1')
-              : mvf('Aktuelle Grundmiete','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+' €" oninput="updVertrag('+ei+','+mi+',\'grundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c1'))+
+              ? mvf('Kaltmiete','<input type="text" class="ro" readonly tabindex="-1" value="'+nkFmtBetrag(m.grundmiete||0)+' €">','c0 / aux1')
+              : mvf('Aktuelle Grundmiete','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.grundmiete||0)+' €" oninput="updVertrag('+ei+','+mi+',\'grundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c0 / aux1'))+
             opPlus+
             mvf('Stellplätze','<input type="number" min="0" value="'+(m.stellAnzahl||0)+'" oninput="updVertrag('+ei+','+mi+',\'stellAnzahl\',this.value,1)">','c2')+
             opTimes+
             mvf('Preis je Stellplatz','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stellPreis||0)+' €" oninput="updVertrag('+ei+','+mi+',\'stellPreis\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c3')+
             opEq+
             mvf('Gesamt','<input type="text" class="ro" readonly tabindex="-1" value="'+nkFmtBetrag(gesamtMiete)+' €">','c4')+
+            '<div class="hf" style="grid-column:c5"><span class="mv-cap-upper">Gewerbl.</span><label class="gewerbl" title="gewerblich / umsatzsteuerpflichtig"><input type="checkbox" '+(m.gewerblich?'checked':'')+' onchange="updMV('+ei+','+mi+',\'gewerblich\',this.checked)"> ja</label></div>'+
           '</div>'+
           (m.mhTyp?'':'<div class="mv-grid">'+
-            mvf('Letzte Anpassung','<input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()">','c1')+
+            mvf('Letzte Anpassung','<input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()">','c0 / aux1')+
             mvf('Nächste Anpassung','<input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)" onblur="renderEinheiten()">','c2')+
           '</div>')+
           '<div class="mv-grid">'+
-            '<label class="hf" style="grid-column:c1"><span>Anrede</span><select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value="">neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select></label>'+
-            mvf('E-Mail','<input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de">','c2 / c4')+
+            mvf('E-Mail','<input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de">','c0 / c3')+
           '</div>'+
-          mhAutomatikSection(m,ei,mi)+ /* US-68/US-121: Index-/Staffelmiete hinter Lasche (Dummy 2026-07-05) */
-          /* US-109-Schliff: kleiner „+ Chronik-Eintrag" oben neben der Überschrift; Einträge neueste zuerst. */
-          '<div class="chronik-titel">Anpassungs-Chronik <button type="button" class="chronik-add" onclick="addChronik('+ei+','+mi+')">+ Chronik-Eintrag</button></div>'+
-          chronikRows+
           ((bald && !m.mhTyp)?'<div class="leer-hint" style="margin-top:6px;">'+WARN_ICON+' Nächste Anpassung am '+fmtDatum(na)+' – in Kürze fällig.</div>':'')+ /* US-72: Relikt nur ohne aktiven Mieterhöhungstyp */
-        '</div>';
+          mhAutomatikSection(m,ei,mi)+ /* US-68/US-121: Index-/Staffelmiete hinter der "┃ Mieterhöhungen"-Leiste (Dummy5, 2026-07-07) */
+          /* US-109-Schliff (angepasst 2026-07-07): "+ Chronik-Eintrag" nur sichtbar, wenn die neue
+             "┃ Chronik"-Leiste aufgeklappt ist; Einträge neueste zuerst. */
+          '<button type="button" class="section-bar" onclick="toggleChronik('+m.id+')"><span class="bar-ico">┃</span> Chronik <span class="summary">'+(chronik.length?chronik.length+(chronik.length===1?' Eintrag':' Einträge'):'')+'</span><span class="chev">'+(chronikOpen?'▴':'▾')+'</span></button>'+
+          (chronikOpen
+            ? '<div class="chronik-titel">Anpassungs-Chronik <button type="button" class="chronik-add" onclick="addChronik('+ei+','+mi+')">+ Chronik-Eintrag</button></div>'+chronikRows
+            : '');
       }
       return row;
     }).join('');
@@ -179,17 +191,17 @@ function renderMieterVertrag(){
     const leerHint = lz>NK_LEERSTAND_EPS ? '<div class="leer-hint">'+WARN_ICON+' Leerstand: '+Math.round(lz*100)+' % des Zeitraums (trägt der Vermieter).</div>' : '';
     box.insertAdjacentHTML('beforeend',
       '<div class="unit-card einheit-card">'+
-        '<div class="unit-head"><b>'+esc(e.name)+'</b> <span class="pill">'+(+e.flaeche||0)+' m² · '+(+e.personen||0)+' Pers.</span></div>'+
+        '<div class="unit-head"><b>'+esc(e.name)+'</b> <span class="pill">'+(+e.flaeche||0)+' m² · '+(+e.personen||0)+' Pers.</span>'+
+          '<button type="button" class="link-sm" onclick="addMV('+ei+')">+ Mietverhältnis</button>'+
+        '</div>'+
         '<div class="mv-grid mv-headrow">'+
+          '<span class="lbl" style="grid-column:c0">Anrede</span>'+
           '<span class="lbl" style="grid-column:c1">Mieter</span>'+
-          '<span class="lbl" style="grid-column:c2">von</span>'+
-          '<span class="lbl" style="grid-column:c3">bis</span>'+
-          '<span class="lbl" style="grid-column:c4">läuft</span>'+
-          '<span class="lbl" style="grid-column:c5">gewerbl.</span>'+
-          '<span class="lbl" style="grid-column:c6">Vertrag</span>'+
+          '<span class="lbl" style="grid-column:c3">von</span>'+
+          '<span class="lbl" style="grid-column:c4">bis</span>'+
+          '<span class="lbl" style="grid-column:c5">läuft</span>'+
         '</div>'+
         mvZeilen(e,ei)+
-        '<div class="mv-grid" style="margin-top:8px;"><div style="grid-column:c1 / c3"><button class="addrow" onclick="addMV('+ei+')">+ Mietverhältnis</button></div></div>'+
         leerHint+
         (nkUeberlappungTageEinheit(e, state.objekt.bis)>0 ? '<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Überschneidende Mietzeiträume: '+nkUeberlappungTageEinheit(e, state.objekt.bis)+' Tag(e) doppelt belegt – bitte Zeiträume prüfen.</div>' : '')+
       '</div>');
@@ -261,8 +273,9 @@ function updMV(ei,mi,field,val){ store.setMvFeld(ei,mi,field,val); /* Datum: Neu
 function updMVLaeuft(ei,mi,checked){ store.setMvFeld(ei,mi,'laeuft', !!checked); renderEinheiten(); } /* US-75: offenes Ende */
 function addMV(ei){ store.addMv(ei); renderEinheiten(); }
 function delMV(ei,mi){ store.removeMv(ei,mi); renderEinheiten(); }
-/* US-21: Vertrag & Anpassungs-Chronik je Mietverhältnis */
-function toggleVertrag(id){ if(ui.expandedMV.has(id)) ui.expandedMV.delete(id); else ui.expandedMV.add(id); renderEinheiten(); }
+/* US-21: Vertrag & Anpassungs-Chronik je Mietverhältnis. toggleVertrag() entfaellt seit 2026-07-07
+   (Mieter&Vertrag-Layout-Story) – Vertragsfelder sind jetzt immer sichtbar, kein Aufklapper mehr. */
+function toggleChronik(id){ if(ui.expandedChronik.has(id)) ui.expandedChronik.delete(id); else ui.expandedChronik.add(id); renderEinheiten(); }
 function updVertrag(ei,mi,field,val,num){ store.setVertragFeld(ei,mi,field, num? nkParseBetrag(val): val, num); /* Datum: Neu-Zeichnen via onblur */ }
 /* US-68/US-70 (Redesign): Mieterhöhung als Stichtag-Modell. */
 const NK_MONATSNAMEN=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
@@ -368,24 +381,24 @@ function mhNaechsteInfo(m,ei,mi){
   }
   return null;
 }
-/* Automatik-Details hinter einer Lasche verstecken (Dummy 2026-07-05): die bestehende indexBlock()-
-   Ausgabe bleibt inhaltlich unverändert (Konzept dafür folgt in einer eigenen Iteration), sie wird nur
-   ein-/ausklappbar gemacht; die Zusammenfassungszeile bleibt auch eingeklappt sichtbar. */
+/* Automatik-Details hinter einer Leiste verstecken (Dummy5/Ralf-Konzept 2026-07-07, ersetzt die
+   bisherige "▸ Automatik-Details"-Lasche durch die "┃ Mieterhöhungen"-Leiste): die bestehende
+   indexBlock()-Ausgabe bleibt inhaltlich unverändert (Konzept dafür folgt in einer eigenen
+   Iteration), sie wird nur ein-/ausklappbar gemacht; die Zusammenfassungszeile bleibt auch
+   eingeklappt sichtbar. */
 function toggleAutomatik(id){ if(ui.expandedAutomatik.has(id)) ui.expandedAutomatik.delete(id); else ui.expandedAutomatik.add(id); renderEinheiten(); }
 function mhAutomatikSection(m,ei,mi){
   const info=mhNaechsteInfo(m,ei,mi);
   const open=ui.expandedAutomatik.has(m.id);
-  /* Toggle-Zeile UND Zusammenfassungszeile im .mv-grid platziert (Dummy2-Transfer 2026-07-05):
-     Toggle spannt c1/c7 (volle Breite), die "angekündigt"-Checkbox sitzt an derselben Stelle (c6)
-     wie „Vertrag" in der Kopfzeile. Kein Input in dieser Zeile -> schlicht zentriert statt end-
-     ausgerichtet (wie im Prototyp erprobt). */
-  let out='<div class="mv-grid"><div style="grid-column:c1 / c7"><button type="button" class="heiz-zeit-toggle" onclick="toggleAutomatik('+m.id+')">'+(open?'▾':'▸')+' Automatik-Details (Beginn, Häufigkeit)</button></div></div>';
+  let out='<button type="button" class="section-bar" onclick="toggleAutomatik('+m.id+')"><span class="bar-ico">┃</span> Mieterhöhungen<span class="chev">'+(open?'▴':'▾')+'</span></button>';
   if(open){
     out+=indexBlock(m,ei,mi); /* Details bereits vollständig sichtbar (inkl. eigener "Nächste Erhöhung"-Zeile) – keine doppelte Zusammenfassung. */
   } else if(info){
+    /* Zusammenfassungszeile: Checkbox jetzt in c5 (dieselbe Spalte wie "läuft"/"gewerblich" oben –
+       kein eigenes c6 mehr seit Wegfall der Vertrag-Spalte). */
     out+='<div class="mv-grid" style="align-items:center;">'+
-      '<div class="mh-titel" style="grid-column:c1 / c6">Nächste Erhöhung: <b>'+fmtDatum(info.datum)+'</b>, '+info.freqLabel+'</div>'+
-      '<div class="mv-vcenter" style="grid-column:c6"><label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);"><input type="checkbox" '+(info.checked?'checked':'')+' onchange="'+info.onToggle+'"> angekündigt</label></div>'+
+      '<div class="mh-titel" style="grid-column:c1 / c5">Nächste Erhöhung: <b>'+fmtDatum(info.datum)+'</b>, '+info.freqLabel+'</div>'+
+      '<div class="mv-vcenter" style="grid-column:c5"><label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);"><input type="checkbox" '+(info.checked?'checked':'')+' onchange="'+info.onToggle+'"> angekündigt</label></div>'+
     '</div>';
   }
   return out;
