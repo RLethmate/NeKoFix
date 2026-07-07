@@ -179,7 +179,7 @@ function mvZeilen(e, ei){
           mhAutomatikSection(m,ei,mi)+ /* US-68/US-121: Index-/Staffelmiete hinter der "┃ Mieterhöhungen"-Leiste (Dummy5, 2026-07-07) */
           /* US-109-Schliff (angepasst 2026-07-07): "+ Chronik-Eintrag" nur sichtbar, wenn die neue
              "┃ Chronik"-Leiste aufgeklappt ist; Einträge neueste zuerst. */
-          '<button type="button" class="section-bar" onclick="toggleChronik('+m.id+')"><span class="bar-ico">┃</span> Chronik'+(chronikOpen?'':' …')+' <span class="summary">'+(chronik.length?chronik.length+(chronik.length===1?' Eintrag':' Einträge'):'')+'</span><span class="chev">'+(chronikOpen?'▴':'▾')+'</span></button>'+
+          '<button type="button" class="section-bar'+(chronikOpen?' open':'')+'" onclick="toggleChronik('+m.id+')"><span class="bar-ico">┃</span> Chronik'+(chronikOpen?'':' …')+' <span class="summary">'+(chronik.length?chronik.length+(chronik.length===1?' Eintrag':' Einträge'):'')+'</span><span class="chev">'+(chronikOpen?'▴':'▾')+'</span></button>'+
           (chronikOpen
             ? '<div class="chronik-titel">Anpassungs-Chronik <button type="button" class="chronik-add" onclick="addChronik('+ei+','+mi+')">+ Chronik-Eintrag</button></div>'+chronikRows
             : '');
@@ -432,7 +432,7 @@ function mhAutomatikSection(m,ei,mi){
   /* Ralf-Vorgabe (Konzept Mieter & Vertrag.txt/2.txt): zugeklappt endet die Leiste auf "…" –
      signalisiert verborgenen Inhalt; im aufgeklappten Zustand entfällt es (redundant, Inhalt ist ja
      schon sichtbar). */
-  let out='<button type="button" class="section-bar" onclick="toggleAutomatik('+m.id+')"><span class="bar-ico">┃</span> Mieterhöhungen'+(open?'':' …')+'<span class="chev">'+(open?'▴':'▾')+'</span></button>';
+  let out='<button type="button" class="section-bar'+(open?' open':'')+'" onclick="toggleAutomatik('+m.id+')"><span class="bar-ico">┃</span> Mieterhöhungen'+(open?'':' …')+'<span class="chev">'+(open?'▴':'▾')+'</span></button>';
   if(open){
     out+=indexBlock(m,ei,mi); /* Details bereits vollständig sichtbar (inkl. eigener "Nächste Erhöhung"-Zeile) – keine doppelte Zusammenfassung. */
   } else if(info){

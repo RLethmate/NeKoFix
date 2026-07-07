@@ -187,6 +187,14 @@
   .section-bar .bar-ico{color:var(--primary);font-weight:700;}
   .section-bar .chev{margin-left:auto;color:var(--muted);font-size:11px;}
   .section-bar .summary{margin-left:8px;font-weight:400;color:var(--muted);font-size:12px;}
+  /* Apple-UX-Review 2026-07-07: "…"/Pfeilrichtung allein waren als einziges Zustandssignal zu
+     schwach (kaum wahrnehmbar, ob eine Leiste gerade auf- oder zugeklappt ist). Aufgeklappter
+     Zustand bekommt jetzt dieselbe Sprache wie die "offene Punkte"-Lasche in der Seitenleiste
+     (.nav-plausi-head.open) – Hintergrund-Tint + Primärfarbe statt eines neuen, abweichenden
+     Musters. Keine horizontale Verschiebung (kein zusätzliches Padding), damit "┃" weiterhin
+     bündig mit Kaltmiete/E-Mail startet. */
+  .section-bar.open{background:var(--soft);color:var(--primary);}
+  .section-bar.open .chev{color:var(--primary);font-weight:700;}
   /* "+ Mietverhältnis" zieht aus der Zeile unter der Liste (addrow) oben rechts neben den
      Einheitsnamen (Ralf-Vorgabe 2026-07-07) – dezenter Textlink statt Button. */
   .link-sm{background:none;border:none;color:var(--primary);font-weight:600;font-size:12.5px;padding:0;cursor:pointer;text-decoration:underline;margin-left:auto;}
