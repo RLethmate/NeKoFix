@@ -142,15 +142,20 @@ function mvZeilen(e, ei){
            Gleichungs-Zeile (dieselbe Spalte c5 wie „läuft" oben – zwei Zeilen teilen sich die Spalte). */
         const chronikOpen=ui.expandedChronik.has(m.id);
         row+=
-          /* US-72: Miete-Felder nur ohne aktiven Mieterhöhungstyp; bei Index/Staffel kommt die Miete aus dem Block. */
+          /* Ralf-Feedback 2026-07-07: "Miete bei Einzug"/"Urspr. NK/Monat" (historische Vertragswerte,
+             im Gegensatz zur laufenden "Aktuelle Grundmiete" unabhängig von Index/Staffel/Adhoc gültig)
+             und "Letzte/Nächste Anpassung" unten sind jetzt IMMER sichtbar statt nur ohne mhTyp – vorher
+             verschwanden sie beim Auswählen eines Mieterhöhungstyps und liessen die "Mieterhöhungen"-
+             Leiste (und alles darunter) nach oben springen, während man gerade mit der Combobox darin
+             interagierte. */
           /* Preisfelder zeigen jetzt durchgängig "€" im Wert (Ralf-Feedback 2026-07-06: "Preis je
              Stellplatz" hatte keins) – onblur haengt es nach dem Reformat wieder an, da nkFmtBetrag
              selbst kein Waehrungszeichen liefert (nkParseBetrag parst trotz "€"-Suffix korrekt,
              parseFloat bricht einfach an der ersten Nicht-Zahl ab). */
-          (m.mhTyp?'':'<div class="mv-grid">'+
+          '<div class="mv-grid">'+
             mvf('Miete bei Einzug','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+' €" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c0 / aux1')+
             mvf('Urspr. NK/Monat','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+' €" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c2')+
-          '</div>')+
+          '</div>'+
           '<div class="mv-grid">'+
             (m.mhTyp
               ? mvf('Kaltmiete','<input type="text" class="ro" readonly tabindex="-1" value="'+nkFmtBetrag(m.grundmiete||0)+' €">','c0 / aux1')
@@ -163,18 +168,18 @@ function mvZeilen(e, ei){
             mvf('Gesamt','<input type="text" class="ro" readonly tabindex="-1" value="'+nkFmtBetrag(gesamtMiete)+' €">','c4')+
             '<div class="hf" style="grid-column:c5"><span class="mv-cap-upper">Gewerbl.</span><label class="gewerbl" title="gewerblich / umsatzsteuerpflichtig"><input type="checkbox" '+(m.gewerblich?'checked':'')+' onchange="updMV('+ei+','+mi+',\'gewerblich\',this.checked)"> ja</label></div>'+
           '</div>'+
-          (m.mhTyp?'':'<div class="mv-grid">'+
+          '<div class="mv-grid">'+
             mvf('Letzte Anpassung','<input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()">','c0 / aux1')+
             mvf('Nächste Anpassung','<input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)" onblur="renderEinheiten()">','c2')+
-          '</div>')+
+          '</div>'+
           '<div class="mv-grid">'+
             mvf('E-Mail','<input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de">','c0 / c3')+
           '</div>'+
-          ((bald && !m.mhTyp)?'<div class="leer-hint" style="margin-top:6px;">'+WARN_ICON+' Nächste Anpassung am '+fmtDatum(na)+' – in Kürze fällig.</div>':'')+ /* US-72: Relikt nur ohne aktiven Mieterhöhungstyp */
+          (bald?'<div class="leer-hint" style="margin-top:6px;">'+WARN_ICON+' Nächste Anpassung am '+fmtDatum(na)+' – in Kürze fällig.</div>':'')+
           mhAutomatikSection(m,ei,mi)+ /* US-68/US-121: Index-/Staffelmiete hinter der "┃ Mieterhöhungen"-Leiste (Dummy5, 2026-07-07) */
           /* US-109-Schliff (angepasst 2026-07-07): "+ Chronik-Eintrag" nur sichtbar, wenn die neue
              "┃ Chronik"-Leiste aufgeklappt ist; Einträge neueste zuerst. */
-          '<button type="button" class="section-bar" onclick="toggleChronik('+m.id+')"><span class="bar-ico">┃</span> Chronik <span class="summary">'+(chronik.length?chronik.length+(chronik.length===1?' Eintrag':' Einträge'):'')+'</span><span class="chev">'+(chronikOpen?'▴':'▾')+'</span></button>'+
+          '<button type="button" class="section-bar" onclick="toggleChronik('+m.id+')"><span class="bar-ico">┃</span> Chronik'+(chronikOpen?'':' …')+' <span class="summary">'+(chronik.length?chronik.length+(chronik.length===1?' Eintrag':' Einträge'):'')+'</span><span class="chev">'+(chronikOpen?'▴':'▾')+'</span></button>'+
           (chronikOpen
             ? '<div class="chronik-titel">Anpassungs-Chronik <button type="button" class="chronik-add" onclick="addChronik('+ei+','+mi+')">+ Chronik-Eintrag</button></div>'+chronikRows
             : '');
@@ -295,6 +300,40 @@ function updMhTyp(ei,mi,val){
   }
   renderEinheiten();
 }
+/* Adhoc-Anpassung: kein eigener, jederzeit zusätzlich auslösbarer Button – Index/Staffel und Adhoc
+   schließen sich nach Ralfs Rechtseinschätzung gegenseitig aus, deshalb ist "Adhoc" ein vierter,
+   gleichrangiger Wert derselben "Mieterhöhung"-Combobox (updMhTyp), nicht ein Extra-Zustand daneben.
+   Formularfelder liegen als Entwurf direkt auf dem Mietverhältnis (m.adhocDatum/-Betrag/-Notiz);
+   "Übernehmen" wendet die Änderung an UND setzt mhTyp zurück auf "keine" (Adhoc ist ein einmaliges
+   Ereignis ohne wiederkehrende Regel, anders als die persistenten idx-/staf-Felder). */
+function updAdhoc(ei,mi,field,val){ store.setMvFeld(ei,mi,field,val); renderEinheiten(); }
+function updAdhocNum(ei,mi,field,val){ store.setMvNum(ei,mi,field, nkParseBetrag(val)); renderEinheiten(); }
+function adhocFelderLeeren(ei,mi){
+  store.setMvFeld(ei,mi,'adhocDatum','');
+  store.setMvFeld(ei,mi,'adhocBetrag','');
+  store.setMvFeld(ei,mi,'adhocNotiz','');
+}
+function adhocAbbrechen(ei,mi){
+  adhocFelderLeeren(ei,mi);
+  store.setMvFeld(ei,mi,'mhTyp','');
+  renderEinheiten();
+}
+function adhocUebernehmen(ei,mi){
+  const m=store.mv(ei,mi);
+  const betrag=+m.adhocBetrag||0;
+  if(!betrag){ alert('Bitte zuerst die Veränderung in Euro eintragen.'); return; }
+  const datum=m.adhocDatum||heute();
+  const basis=+m.grundmiete||0;
+  const neue=basis+betrag;
+  store.setMvNum(ei,mi,'grundmiete', neue);
+  store.addChronik(ei,mi);
+  const ci=store.mv(ei,mi).chronik.length-1;
+  store.setChronikFeld(ei,mi,ci,'datum',datum);
+  store.setChronikFeld(ei,mi,ci,'text','Adhoc '+eur(basis)+' → '+eur(neue)+' ('+(m.adhocNotiz?esc(m.adhocNotiz):'ohne Angabe')+')');
+  adhocFelderLeeren(ei,mi);
+  store.setMvFeld(ei,mi,'mhTyp','');
+  renderEinheiten();
+}
 function updIdx(ei,mi,field,val){ store.setMvFeld(ei,mi,field,val); renderEinheiten(); }
 function updIdxNum(ei,mi,field,val){ store.setMvNum(ei,mi,field, nkParseBetrag(val)); renderEinheiten(); }
 /* Indexstand-Monat in Monat/Jahr getrennt pflegen (behebt das „Jahr fest"-Problem von type=month). */
@@ -390,14 +429,17 @@ function toggleAutomatik(id){ if(ui.expandedAutomatik.has(id)) ui.expandedAutoma
 function mhAutomatikSection(m,ei,mi){
   const info=mhNaechsteInfo(m,ei,mi);
   const open=ui.expandedAutomatik.has(m.id);
-  let out='<button type="button" class="section-bar" onclick="toggleAutomatik('+m.id+')"><span class="bar-ico">┃</span> Mieterhöhungen<span class="chev">'+(open?'▴':'▾')+'</span></button>';
+  /* Ralf-Vorgabe (Konzept Mieter & Vertrag.txt/2.txt): zugeklappt endet die Leiste auf "…" –
+     signalisiert verborgenen Inhalt; im aufgeklappten Zustand entfällt es (redundant, Inhalt ist ja
+     schon sichtbar). */
+  let out='<button type="button" class="section-bar" onclick="toggleAutomatik('+m.id+')"><span class="bar-ico">┃</span> Mieterhöhungen'+(open?'':' …')+'<span class="chev">'+(open?'▴':'▾')+'</span></button>';
   if(open){
     out+=indexBlock(m,ei,mi); /* Details bereits vollständig sichtbar (inkl. eigener "Nächste Erhöhung"-Zeile) – keine doppelte Zusammenfassung. */
   } else if(info){
     /* Zusammenfassungszeile: Checkbox jetzt in c5 (dieselbe Spalte wie "läuft"/"gewerblich" oben –
        kein eigenes c6 mehr seit Wegfall der Vertrag-Spalte). */
     out+='<div class="mv-grid" style="align-items:center;">'+
-      '<div class="mh-titel" style="grid-column:c1 / c5">Nächste Erhöhung: <b>'+fmtDatum(info.datum)+'</b>, '+info.freqLabel+'</div>'+
+      '<div class="mh-titel" style="grid-column:c0 / c5">Nächste Erhöhung: <b>'+fmtDatum(info.datum)+'</b>, '+info.freqLabel+'</div>'+
       '<div class="mv-vcenter" style="grid-column:c5"><label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);"><input type="checkbox" '+(info.checked?'checked':'')+' onchange="'+info.onToggle+'"> angekündigt</label></div>'+
     '</div>';
   }
@@ -568,7 +610,32 @@ function indexBlock(m,ei,mi){
       '<option value=""'+(typ===''?' selected':'')+'>— keine —</option>'+
       '<option value="index"'+(typ==='index'?' selected':'')+'>Index (§ 557b)</option>'+
       '<option value="staffel"'+(typ==='staffel'?' selected':'')+'>Staffel (§ 557a)</option>'+
+      /* Ralf-Vorgabe: Adhoc als vierter, gleichrangiger Wert derselben Combobox – Index/Staffel und
+         Adhoc schließen sich gegenseitig aus, kein eigener Button daneben (siehe adhocUebernehmen). */
+      '<option value="adhoc"'+(typ==='adhoc'?' selected':'')+'>Adhoc</option>'+
       '</select>','hf-2u')+'</div>';
+  if(typ==='adhoc'){
+    const basis=+m.grundmiete||0;
+    const betrag=+m.adhocBetrag||0;
+    const neue=basis+betrag;
+    h+='<div class="mv-grid">'+
+        mvf('Datum','<input type="date" value="'+(m.adhocDatum||heute())+'" onchange="updAdhoc('+ei+','+mi+',\'adhocDatum\',this.value)">','c0 / aux1')+
+      '</div>'+
+      '<div class="mv-grid" style="margin-top:6px;">'+
+        mvf('Alte Kaltmiete','<input type="text" class="ro" readonly tabindex="-1" value="'+eur(basis)+'">','c0 / aux1')+
+        '<span class="mv-aux op">+</span>'+
+        mvf('Veränderung','<input class="short" type="text" inputmode="decimal" value="'+(betrag?nkFmtBetrag(betrag)+' €':'')+'" placeholder="z. B. 14,00 €" onchange="updAdhocNum('+ei+','+mi+',\'adhocBetrag\',this.value)">','c2')+
+        '<span class="mv-aux op">=</span>'+
+        mvf('Neue Kaltmiete','<input type="text" class="ro" readonly tabindex="-1" value="'+eur(neue)+'">','c3')+
+      '</div>'+
+      '<div class="mv-grid" style="margin-top:6px;">'+
+        mvf('Grund (Notiz)','<input type="text" value="'+esc(m.adhocNotiz||'')+'" oninput="updAdhoc('+ei+','+mi+',\'adhocNotiz\',this.value)" placeholder="z. B. Modernisierung Bad">','c0 / c5')+
+      '</div>'+
+      '<div class="mv-grid" style="margin-top:10px;"><div style="grid-column:c0 / c5;display:flex;gap:10px;">'+
+        '<button class="addrow" onclick="adhocUebernehmen('+ei+','+mi+')">Übernehmen</button>'+
+        '<button class="addrow" onclick="adhocAbbrechen('+ei+','+mi+')">Abbrechen</button>'+
+      '</div></div>';
+  }
   if(typ==='index'){
     const anz=(m.idxAnpassungen||[]).length;
     const stichtag2=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
