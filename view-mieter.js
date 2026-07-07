@@ -92,36 +92,42 @@ function mvZeilen(e, ei){
         const idxByDatum={}; if(m.mhTyp==='index') (m.idxAnpassungen||[]).forEach((a,ii)=>{ if(a&&a.datum!=null) idxByDatum[a.datum]=ii; });
         /* US-109-Schliff: umgekehrte Reihenfolge – zuletzt hinzugefügter Eintrag oben (unabhängig vom
            Datum, damit ein neuer Eintrag immer ganz oben erscheint); ci bleibt der Original-Index. */
+        /* Ralf-Vorgabe 2026-07-07: nicht nur "ähnlich" der Termine-Seite, sondern die dortige Zeile
+           1:1 übernehmen – inkl. der breiten Farbfläche (terminTageBadge, aus view-termine.js) statt
+           eines Punkts, zwei Zeilen l1 (Badge+Notiz) / l2 (Datum+Aktionen) statt Datum+Notiz auf
+           Zeile 1. Einzige bewusste Abweichung: die Notiz bleibt eine mehrzeilig wachsende
+           .chronik-notiz statt der einzeiligen .termin-bez-in, weil Chronik-Text oft länger ist als
+           eine Termin-Bezeichnung (z. B. der auto-generierte Indexmiete-Text). Kein "Vertrag öffnen"-
+           Link wie in der Termine-Übersicht – wir befinden uns hier ja bereits im Vertrag. */
         const chronikRows=chronik.map((c,ci)=>({c,ci})).reverse().map(({c,ci})=>{
           const idxI=(m.mhTyp==='index' && c.datum!=null && idxByDatum[c.datum]!=null)?idxByDatum[c.datum]:null;
           const delCall=(idxI!=null)?'indexEintragLoeschen('+ei+','+mi+','+ci+','+idxI+')':'delChronik('+ei+','+mi+','+ci+')';
-          /* Fälligkeits-Badge wie im Termine-Reiter (gleiches Colorcoding); erledigte Einträge neutral. */
-          const cTage=nkTageBis(c.datum, heute());
-          const cBadge = c.erledigt ? '<span class="termin-tage done mv-fh">erledigt</span>'
-            : (c.datum ? '<span class="termin-tage mv-fh '+(nkTageFarbe(cTage)||'')+'" title="Zeit bis zum Termin">'+nkTageLabel(cTage)+'</span>' : '<span class="termin-tage mv-fh"></span>');
-          /* Badge in c1 (wie „Mieter"), Datum in c2 (wie „Von") – ein Datumsfeld braucht mehr Breite
-             als neben dem Badge in c1 Platz wäre. Notiz spannt c3/c6 (Rest der Zeile). */
-          let out='<div class="mv-grid'+(c.erledigt?' erledigt':'')+'">'+
-            '<div class="mv-vcenter" style="grid-column:c0 / c1">'+cBadge+'</div>'+
-            '<div style="grid-column:c1"><input type="date" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()"></div>'+
-            '<div class="mv-vcenter" style="grid-column:c2 / c4"><textarea class="chronik-notiz" rows="1" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea></div>'+
-            /* erledigt (c4, M-Breite) und Löschen (c6) in eigenen Spalten statt geteilter Spalte –
-               zu eng, führte in Safari zu überlappendem/verschobenem Text (gefunden 2026-07-06). */
-            '<div class="mv-vcenter" style="grid-column:c4"><label class="chronik-erledigt" title="Als erledigt markieren – Badge wird neutral"><input type="checkbox" '+(c.erledigt?'checked':'')+' onchange="setChronikErledigt('+ei+','+mi+','+ci+',this.checked)"> erledigt</label></div>'+
-            '<div class="mv-vcenter" style="grid-column:c6"><button class="row-del mv-fh" onclick="'+delCall+'">×</button></div>'+
-          '</div>';
+          const cTage=c.datum?nkTageBis(c.datum, heute()):null;
+          let l2='<input type="date" class="termin-datum-in" value="'+(c.datum||'')+'" onchange="updChronik('+ei+','+mi+','+ci+',\'datum\',this.value)" onblur="renderEinheiten()">'+
+            '<input type="time" class="termin-zeit-in" value="'+(c.zeit||'')+'" title="Uhrzeit (optional)" onchange="updChronik('+ei+','+mi+','+ci+',\'zeit\',this.value)">'+
+            chronikArtSelect(ei,mi,ci,c.art||'sonstiges')+chronikIntervallSelect(ei,mi,ci,c.intervallMonate)+
+            '<label class="termin-verschickt" title="Termin/Ankündigung bereits verschickt bzw. erledigt mitgeteilt"><input type="checkbox" '+(c.angekuendigt?'checked':'')+' onchange="setChronikAngekuendigt('+ei+','+mi+','+ci+',this.checked)"> angekündigt</label>';
           if(idxI!=null){ const a=m.idxAnpassungen[idxI]; const ankM=m.ankuendigungen||{};
             const ang=nkIstAngekuendigt(ankM,a.datum); const va=nkAnkVerschicktAm(ankM,a.datum);
-            out+='<div class="chronik-actions">'+
-              '<button class="addrow" onclick="indexAnschreibenPdfRow('+ei+','+mi+','+idxI+')">Ankündigung als PDF</button>'+
-              '<label class="staffel-ank"'+(ang&&va?' title="verschickt am '+fmtDatum(va)+'"':'')+'><input type="checkbox" '+(ang?'checked':'')+' onchange="indexAnkuendigung('+ei+','+mi+','+idxI+',this.checked)"> angekündigt</label>'+
-            '</div>'; }
-          /* US-109: Dateien an diesen Chronik-Eintrag anhängen (in den Mieter-Ordner) + Chips zum Öffnen. */
+            l2+='<button type="button" class="linklike" onclick="indexAnschreibenPdfRow('+ei+','+mi+','+idxI+')">Erklärung erzeugen</button>'+
+              '<label class="termin-verschickt"'+(ang&&va?' title="verschickt am '+fmtDatum(va)+'"':'')+'><input type="checkbox" '+(ang?'checked':'')+' onchange="indexAnkuendigung('+ei+','+mi+','+idxI+',this.checked)"> angekündigt (Index)</label>'; }
+          /* Ralf-Vorgabe: "Datei anhängen" rechts der "angekündigt"-Checkbox – liegt hier bereits
+             danach (termin-akt schiebt sich per margin-left:auto ohnehin ans Zeilenende). */
+          l2+='<span class="termin-akt">';
           if(typeof dokVerfuegbar==='function' && dokVerfuegbar()){
-            const chips=(c.dateien||[]).map(nm=>'<span class="dok-chip">'+esc(nm)+' <button type="button" class="linklike" onclick="dokOeffnen('+ei+','+mi+',\''+encodeURIComponent(nm)+'\')">öffnen</button></span>').join('');
-            out+='<div class="chronik-anh"><button type="button" class="linklike" onclick="dokChronikAnhang('+ei+','+mi+','+ci+')">📎 Datei anhängen</button> '+chips+'</div>';
+            const dateien=c.dateien||[];
+            const chips=dateien.map(nm=>'<span class="dok-chip">'+esc(nm)+' <button type="button" class="linklike" onclick="dokOeffnen('+ei+','+mi+',\''+encodeURIComponent(nm)+'\')">öffnen</button></span>').join('');
+            l2+='<button type="button" class="linklike" onclick="dokChronikAnhang('+ei+','+mi+','+ci+')">Datei anfügen'+(dateien.length?' ('+dateien.length+')':'')+'</button>'+chips;
           }
-          return out;
+          l2+='<button type="button" class="linklike" onclick="toggleChronikErledigtUi('+ei+','+mi+','+ci+')" title="Status umschalten (offen/erledigt) – löscht nicht">'+(c.erledigt?'als offen':'als erledigt')+'</button>'+
+            '<button type="button" class="row-del" title="Eintrag löschen" onclick="'+delCall+'">×</button>'+
+          '</span>';
+          return '<div class="termin-row'+(c.erledigt?' erledigt':'')+'">'+
+            '<div class="termin-l1">'+terminTageBadge({erledigt:c.erledigt, tage:cTage, tageFarbe:nkTageFarbe(cTage)})+
+              '<textarea rows="1" class="chronik-notiz" title="Was wurde angepasst?" oninput="updChronik('+ei+','+mi+','+ci+',\'text\',this.value); autoGrow(this)" placeholder="Was wurde angepasst?">'+esc(c.text)+'</textarea>'+
+            '</div>'+
+            '<div class="termin-l2">'+l2+'</div>'+
+          '</div>';
         }).join('');
         const bald=nkBaldFaellig(na, heute(), 3);
         /* US-121 Phase 4 + Dummy2-Transfer (2026-07-05): .mv-grid statt .hf-raster – Kopfzeile
@@ -165,7 +171,7 @@ function mvZeilen(e, ei){
             opTimes+
             mvf('Preis je Stellplatz','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.stellPreis||0)+' €" oninput="updVertrag('+ei+','+mi+',\'stellPreis\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c3')+
             opEq+
-            mvf('Gesamt','<input type="text" class="ro" readonly tabindex="-1" value="'+nkFmtBetrag(gesamtMiete)+' €">','c4')+
+            mvf('Gesamt','<input type="text" class="ro" readonly tabindex="-1" id="gesamtkalt-'+ei+'-'+mi+'" value="'+nkFmtBetrag(gesamtMiete)+' €">','c4')+
             '<div class="hf" style="grid-column:c5"><span class="mv-cap-upper">Gewerbl.</span><label class="gewerbl" title="gewerblich / umsatzsteuerpflichtig"><input type="checkbox" '+(m.gewerblich?'checked':'')+' onchange="updMV('+ei+','+mi+',\'gewerblich\',this.checked)"> ja</label></div>'+
           '</div>'+
           '<div class="mv-grid">'+
@@ -176,12 +182,12 @@ function mvZeilen(e, ei){
             mvf('E-Mail','<input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de">','c0 / c3')+
           '</div>'+
           (bald?'<div class="leer-hint" style="margin-top:6px;">'+WARN_ICON+' Nächste Anpassung am '+fmtDatum(na)+' – in Kürze fällig.</div>':'')+
-          mhAutomatikSection(m,ei,mi)+ /* US-68/US-121: Index-/Staffelmiete hinter der "┃ Mieterhöhungen"-Leiste (Dummy5, 2026-07-07) */
-          /* US-109-Schliff (angepasst 2026-07-07): "+ Chronik-Eintrag" nur sichtbar, wenn die neue
-             "┃ Chronik"-Leiste aufgeklappt ist; Einträge neueste zuerst. */
-          '<div class="mv-grid section-bar-wrap"><div style="grid-column:c0 / c5"><button type="button" class="status-toggle section-bar" onclick="toggleChronik('+m.id+')">┃ Chronik <span class="summary">'+(chronik.length?chronik.length+(chronik.length===1?' Eintrag':' Einträge'):'')+'</span><span class="chev">'+(chronikOpen?'▴':'▾')+'</span></button></div></div>'+
+          mhAutomatikSection(m,ei,mi)+ /* US-68/US-121: Index-/Staffelmiete hinter der "Mieterhöhungen"-Leiste (Dummy5, 2026-07-07) */
+          /* US-109-Schliff (angepasst 2026-07-07): "+ Chronik-Eintrag" nur sichtbar, wenn die
+             "Chronik"-Leiste aufgeklappt ist; Einträge neueste zuerst. */
+          '<div class="mv-grid section-bar-wrap"><div style="grid-column:c0 / c5"><button type="button" class="status-toggle section-bar" onclick="toggleChronik('+m.id+')">Chronik <span class="summary">'+(chronik.length?chronik.length+(chronik.length===1?' Eintrag':' Einträge'):'')+'</span><span class="chev">'+(chronikOpen?'▴':'▾')+'</span></button></div></div>'+
           (chronikOpen
-            ? '<div class="chronik-titel">Anpassungs-Chronik <button type="button" class="chronik-add" onclick="addChronik('+ei+','+mi+')">+ Chronik-Eintrag</button></div>'+chronikRows
+            ? '<div class="chronik-titel">Anpassungs-Chronik <button type="button" class="chronik-add" onclick="addChronik('+ei+','+mi+')">+ Chronik-Eintrag</button></div>'+'<div class="chronik-liste">'+chronikRows+'</div>'
             : '');
       }
       return row;
@@ -281,7 +287,19 @@ function delMV(ei,mi){ store.removeMv(ei,mi); renderEinheiten(); }
 /* US-21: Vertrag & Anpassungs-Chronik je Mietverhältnis. toggleVertrag() entfaellt seit 2026-07-07
    (Mieter&Vertrag-Layout-Story) – Vertragsfelder sind jetzt immer sichtbar, kein Aufklapper mehr. */
 function toggleChronik(id){ if(ui.expandedChronik.has(id)) ui.expandedChronik.delete(id); else ui.expandedChronik.add(id); renderEinheiten(); }
-function updVertrag(ei,mi,field,val,num){ store.setVertragFeld(ei,mi,field, num? nkParseBetrag(val): val, num); /* Datum: Neu-Zeichnen via onblur */ }
+function updVertrag(ei,mi,field,val,num){
+  store.setVertragFeld(ei,mi,field, num? nkParseBetrag(val): val, num);
+  /* Ralf-Feedback 2026-07-07: "Kaltmiete + Stellplätze × Preis = Gesamt" zog vorher erst nach, wenn
+     ganz woanders hingeklickt wurde (Tab/Blur reichte nicht) – ein voller Re-Render hätte den Cursor
+     mitten im Tippen aus dem Feld geworfen, deshalb hier nur das Zielfeld direkt patchen statt
+     renderEinheiten() aufzurufen. */
+  if(field==='grundmiete'||field==='stellAnzahl'||field==='stellPreis'){
+    const m=store.mv(ei,mi);
+    const g=document.getElementById('gesamtkalt-'+ei+'-'+mi);
+    if(g) g.value=nkFmtBetrag((+m.grundmiete||0)+(+m.stellAnzahl||0)*(+m.stellPreis||0))+' €';
+  }
+  /* Datum: Neu-Zeichnen via onblur */
+}
 /* US-68/US-70 (Redesign): Mieterhöhung als Stichtag-Modell. */
 const NK_MONATSNAMEN=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 function updMhTyp(ei,mi,val){
@@ -429,10 +447,10 @@ function toggleAutomatik(id){ if(ui.expandedAutomatik.has(id)) ui.expandedAutoma
 function mhAutomatikSection(m,ei,mi){
   const info=mhNaechsteInfo(m,ei,mi);
   const open=ui.expandedAutomatik.has(m.id);
-  /* Ralf-Feedback 2026-07-07: "…"/Hintergrund-Tint als Zustandssignal wieder entfernt – stattdessen
-     dieselbe Formsprache wie der bestehende Kosten-Aufklapper (.status-toggle), dort ebenfalls nur
-     per Chevron-Drehung + erscheinendem Inhalt erkennbar. */
-  let out='<div class="mv-grid section-bar-wrap"><div style="grid-column:c0 / c5"><button type="button" class="status-toggle section-bar" onclick="toggleAutomatik('+m.id+')">┃ Mieterhöhungen <span class="chev">'+(open?'▴':'▾')+'</span></button></div></div>';
+  /* Ralf-Feedback 2026-07-07: "┃"-Marker raus (half ohnehin nicht als Zustandssignal) – Formsprache
+     wie der bestehende Kosten-Aufklapper (.status-toggle, Chevron-Drehung); aufgeklappter Inhalt
+     bekommt zusätzlich ein weisses Panel (.index-block) als sichtbaren Kontrast zur getönten Karte. */
+  let out='<div class="mv-grid section-bar-wrap"><div style="grid-column:c0 / c5"><button type="button" class="status-toggle section-bar" onclick="toggleAutomatik('+m.id+')">Mieterhöhungen <span class="chev">'+(open?'▴':'▾')+'</span></button></div></div>';
   if(open){
     out+=indexBlock(m,ei,mi); /* Details bereits vollständig sichtbar (inkl. eigener "Nächste Erhöhung"-Zeile) – keine doppelte Zusammenfassung. */
   } else if(info){
@@ -739,7 +757,19 @@ function indexBlock(m,ei,mi){
 function addChronik(ei,mi){ store.addChronik(ei,mi); const m=store.mv(ei,mi); const ci=(m.chronik||[]).length-1; if(ci>=0) store.setChronikFeld(ei,mi,ci,'datum',heute()); renderEinheiten(); } /* US-109-Schliff: neuer Eintrag mit heutigem Datum -> steht bei „neueste zuerst" oben */
 function delChronik(ei,mi,ci){ if(!confirm('Diesen Chronik-Eintrag wirklich löschen?')) return; store.removeChronik(ei,mi,ci); renderEinheiten(); }
 function updChronik(ei,mi,ci,field,val){ store.setChronikFeld(ei,mi,ci,field,val); /* Datum: Neu-Zeichnen via onblur */ }
+function updChronikNum(ei,mi,ci,field,val){ store.setChronikFeld(ei,mi,ci,field,+val||0); renderEinheiten(); }
 function setChronikErledigt(ei,mi,ci,checked){ store.setChronikFeld(ei,mi,ci,'erledigt',checked); renderEinheiten(); }
+/* Ralf-Vorgabe 2026-07-07: Umschalt-Button statt Checkbox, wie "als erledigt"/"als geplant" auf
+   der Termine-Seite (toggleErledigtUi in view-termine.js). */
+function toggleChronikErledigtUi(ei,mi,ci){ const c=(store.mv(ei,mi).chronik||[])[ci]; if(c) setChronikErledigt(ei,mi,ci, !c.erledigt); }
+function setChronikAngekuendigt(ei,mi,ci,checked){ store.setChronikFeld(ei,mi,ci,'angekuendigt',checked); renderEinheiten(); }
+/* Ralf-Vorgabe 2026-07-07: Rubrik/Intervall-Auswahl 1:1 aus der Termine-Zeile (terminArtSelect/
+   terminIntervallSelect, view-termine.js) übernommen, nur das Ziel ist ein Chronik-Eintrag statt
+   eines objektweiten Termins. */
+function chronikArtSelect(ei,mi,ci,art){ return '<select class="termin-sel" onchange="updChronik('+ei+','+mi+','+ci+',\'art\',this.value)">'+
+  Object.keys(NK_TERMIN_ARTEN).map(k=>'<option value="'+k+'"'+(k===art?' selected':'')+'>'+esc(NK_TERMIN_ARTEN[k])+'</option>').join('')+'</select>'; }
+function chronikIntervallSelect(ei,mi,ci,iv){ const opts=[[0,'einmalig'],[3,'vierteljährlich'],[6,'halbjährlich'],[12,'jährlich'],[24,'alle 2 Jahre']];
+  return '<select class="termin-sel" onchange="updChronikNum('+ei+','+mi+','+ci+',\'intervallMonate\',this.value)">'+opts.map(o=>'<option value="'+o[0]+'"'+((+iv||0)===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'; }
 function addEinheit(){ store.addEinheit(); renderEinheiten(); }
 function delEinheit(ei){ store.removeEinheit(ei); renderEinheiten(); }
 

@@ -64,8 +64,9 @@
   .dlg-cur{outline:2px solid var(--primary);}
   .dlg-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid #e6ebf0;}
   .linklike-obj{background:none;border:none;color:var(--primary);font-weight:600;cursor:pointer;font-size:13px;}
-  /* US-109: Datei-Anhang je Chronik-Eintrag */
-  .chronik-anh{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 10px;font-size:12px;}
+  /* US-109: Datei-Anhang je Chronik-Eintrag – Auslöser ist ein .linklike-Text ("Datei anfügen"),
+     wie die übrigen Aktionen der Termine-Zeile (1:1 aus Termine & Wartung übernommen statt eines
+     eigenen Icon-Buttons; siehe .termin-akt in der Chronik-Zeile, view-mieter.js). */
   .dok-chip{background:var(--soft,#eef3f8);border:1px solid var(--line);border-radius:12px;padding:1px 8px;white-space:nowrap;}
   .linklike{background:none;border:none;color:var(--primary);cursor:pointer;font-size:12px;padding:0;text-decoration:underline;}
   /* US-109-Schliff: kleiner, unauffälliger „+ Chronik-Eintrag" neben der Überschrift */
@@ -444,8 +445,11 @@
   .zm-pruef.aktiv:hover{background:var(--accent);filter:brightness(.96);}
   .leer-hint{font-size:12px;color:var(--nachzahlung);display:flex;align-items:center;gap:6px;margin-top:8px;}
   .chronik-titel{font-size:12px;color:var(--muted);font-weight:600;margin:10px 0 4px;}
-  /* US-68: Indexmiete-Bereich */
-  .index-block{margin-top:10px;padding-top:8px;border-top:1px dashed var(--border,#d4d4d4);}
+  /* US-68: Indexmiete-Bereich. Ralf-Feedback 2026-07-07: aufgeklappter Inhalt braucht sichtbaren
+     Kontrast (wie .detail-row in Kosten) – da die Einheiten-Karte hier selbst schon getönt ist
+     (.einheit-card, alternierend), waere dieselbe var(--soft)-Tinte auf ungeraden Karten unsichtbar;
+     ein weisses Panel hebt sich dagegen auf JEDER Kartenfarbe ab. */
+  .index-block{margin-top:8px;padding:10px 12px;background:#fff;border:1px solid var(--line);border-radius:8px;}
   .index-block>label{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;}
   .index-vorschau{font-size:13px;margin:6px 0;}
   .index-hist{font-size:12px;color:var(--muted);margin:6px 0;}
@@ -477,13 +481,13 @@
   .eurqm-tab th,.eurqm-tab td{text-align:left;padding:4px 8px;border-bottom:1px solid #eef2f6;}
   .eurqm-tab td.num,.eurqm-tab th.num{text-align:right;font-variant-numeric:tabular-nums;}
   .eurqm-tab .eurqm-total td{font-weight:700;border-top:1px solid var(--line);}
-  .chronik-actions{display:flex;align-items:center;gap:16px;margin:2px 0 12px;flex-wrap:wrap;}
-  .chronik-actions .staffel-ank{margin-left:auto;}
-  /* .chronik-row (Flexbox) entfaellt seit dem Grid-Umbau (2026-07-05) – die Chronik-Zeile ist jetzt
-     selbst ein .mv-grid (Badge+Datum in c1, Notiz in c2/c6, erledigt+Löschen in c6). */
-  .chronik-erledigt{font-size:12px;color:#41505f;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;flex:none;cursor:pointer;}
-  .mv-grid.erledigt{opacity:.65;}
-  .mv-grid.erledigt .chronik-notiz{text-decoration:line-through;}
+  /* Ralf-Vorgabe 2026-07-07: Chronik-Zeile 1:1 aus der Termine-Seite übernommen (.termin-row/-l1/-l2/
+     Tage-Badge, siehe terminTageBadge in view-termine.js und chronikRows in view-mieter.js) statt
+     einer eigenen Variante – nur die Notiz bleibt die mehrzeilig wachsende .chronik-notiz statt der
+     einzeiligen .termin-bez-in. Weisses Panel aus demselben Grund wie .index-block oben. */
+  .chronik-liste{background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .chronik-liste .termin-row:first-child{border-top:none;}
+  .termin-row.erledigt .chronik-notiz{text-decoration:line-through;}
   .termin-l2 input:disabled{background:#f3f5f7;color:#54606c;-webkit-text-fill-color:#54606c;opacity:1;cursor:default;}
   /* US-66: Chronik-Notiz als auto-wachsendes Textfeld mit Aufziehlasche */
   .chronik-notiz{flex:1;min-height:34px;resize:vertical;overflow:hidden;font-family:var(--font);font-size:14px;line-height:1.4;padding:7px 9px;border:1px solid var(--line);border-radius:7px;color:var(--ink);}
