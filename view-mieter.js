@@ -338,7 +338,12 @@ function updMhTyp(ei,mi,val){
    Formularfelder liegen als Entwurf direkt auf dem Mietverhältnis (m.adhocDatum/-Betrag/-Notiz);
    "Übernehmen" wendet die Änderung an UND setzt mhTyp zurück auf "keine" (Adhoc ist ein einmaliges
    Ereignis ohne wiederkehrende Regel, anders als die persistenten idx-/staf-Felder). */
-function updAdhoc(ei,mi,field,val){ store.setMvFeld(ei,mi,field,val); renderEinheiten(); }
+/* Ralf-Feedback 2026-07-08: updAdhoc wird auch per oninput (Notiz-Feld) aufgerufen – ein
+   renderEinheiten() bei jedem Tastendruck ersetzt das Feld mitten im Tippen (Fokusverlust nach
+   1-2 Zeichen), genau wie beim Gesamt-Refresh-Bug zuvor. Kein sichtbares Feld hängt von
+   adhocDatum/adhocNotiz ab, daher hier – anders als bei updAdhocNum (Veränderung, speist die
+   Alte+Veränderung=Neue-Gleichung) – kein Re-Render nötig. */
+function updAdhoc(ei,mi,field,val){ store.setMvFeld(ei,mi,field,val); }
 function updAdhocNum(ei,mi,field,val){ store.setMvNum(ei,mi,field, nkParseBetrag(val)); renderEinheiten(); }
 function adhocFelderLeeren(ei,mi){
   store.setMvFeld(ei,mi,'adhocDatum','');

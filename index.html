@@ -332,6 +332,11 @@
   input.short{max-width:160px;text-align:right;}  /* US-48: breit genug für z. B. 12.345,67 */
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
   .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600;}
+  /* Ralf-Feedback 2026-07-08: #z_frist (Zahlungsfrist) hatte als einziges Textarea-Feld in diesem
+     .field-Rastersystem keine eigene Regel (nur .hf textarea, ein anderes Rastersystem) – dadurch
+     Browser-Default-Höhe/-Innenabstand statt der Optik von IBAN & Co. Höhe testweise wie <input>
+     (empirisch per Headless-Chrome verglichen, wie schon bei --mv-M). */
+  .field textarea{width:100%;box-sizing:border-box;font:inherit;font-size:14px;line-height:1.15;padding:7px 9px;border:1px solid var(--line);border-radius:7px;color:var(--ink);resize:vertical;min-height:32px;}
   .nav{display:flex;justify-content:space-between;margin-top:22px;gap:10px;flex-wrap:wrap;}
   .export-actions{display:flex;gap:8px;flex-wrap:wrap;}
   /* US-76: Warnung vor lokalem Datenverlust nach PDF-Export */
@@ -782,7 +787,7 @@
       <div class="field hf-2u"><label>BIC</label><input id="z_bic" placeholder="optional"></div>
     </div>
     <div class="hf-raster">
-      <div class="field hf-2u"><label>Zahlungsfrist</label><textarea id="z_frist" rows="1" placeholder="z. B. 14 Tage nach Zugang" oninput="autoGrow(this)"></textarea></div>
+      <div class="field hf-3u"><label>Zahlungsfrist</label><textarea id="z_frist" rows="1" placeholder="z. B. 14 Tage nach Zugang" oninput="autoGrow(this)"></textarea></div>
     </div>
   </section>
 
