@@ -251,14 +251,31 @@ function speichern(){ markGespeichert(); }
    getrennt (z. B. Folgejahr aus einem bestehenden Jahr ableiten). */
 async function speichernUnter(){
   const modSnap = nkClone(snapshot());            /* aktueller, evtl. geänderter Stand = die Kopie */
-  const res = await schreibeDatei(JSON.stringify(modSnap,null,2), nkObjektDateiname(modSnap));
-  if(!res.ok) return;                              /* vom Nutzer abgebrochen */
-  const neuerName = nkNameAusDateiname(res.dateiname);
+  modSnap.objekt = modSnap.objekt || {};
+  /* Ralf-Vorgabe 2026-07-08 (Datenablage v2): bei Objekten mit eigenem Stammordner (dokAblageVersion
+     2) landet die JSON als Kind DIESES Ordners statt an einem beliebigen, unabhängigen Ort – dafür
+     wird hier (statt im freien Speichern-Dialog) explizit nach dem Namen gefragt, der zugleich den
+     Ordnernamen bestimmt (nur beim allerersten Mal je Objekt, danach wiederverwendet). Ältere/
+     importierte Objekte ohne dieses Feld bleiben beim bisherigen freien Speicherort. */
+  const istV2 = (+modSnap.objekt.dokAblageVersion||0)>=2 && typeof dokVerfuegbar==='function' && dokVerfuegbar();
+  let res;
+  if(istV2){
+    const vorschlag = modSnap.objekt.name || modSnap.objekt.addr || '';
+    const neuerName = prompt('Name für dieses Objekt (bestimmt auch den Ordnernamen):', vorschlag);
+    if(neuerName==null) return; /* vom Nutzer abgebrochen */
+    if(neuerName.trim()) modSnap.objekt.name = neuerName.trim();
+    modSnap.objekt.id = naechsteObjektId(); /* "Speichern unter" = neue, eigenständige Identität (Fork) */
+    res = await dokJsonSpeichern(modSnap.objekt, nkObjektDateiname(modSnap), JSON.stringify(modSnap,null,2));
+    if(!res.ok) return;
+  } else {
+    res = await schreibeDatei(JSON.stringify(modSnap,null,2), nkObjektDateiname(modSnap));
+    if(!res.ok) return;                            /* vom Nutzer abgebrochen */
+    const neuerName = nkNameAusDateiname(res.dateiname);
+    if(neuerName) modSnap.objekt.name = neuerName;
+  }
   /* 1) Ausgangsobjekt auf den gespeicherten Stand zurücksetzen (Änderungen verwerfen). */
   if(savedData[aktivIdx]) verwerfeAenderungen();
   /* 2) Neues Dokument aus dem geänderten Stand anlegen, benennen und aktiv schalten. */
-  modSnap.objekt = modSnap.objekt || {};
-  if(neuerName) modSnap.objekt.name = neuerName;
   objekte.push(modSnap); aktivIdx=objekte.length-1; ladeDaten(modSnap); ensureIds();
   renderAll(); neuerVerlauf(); markGespeichert(); markDateiGesichert(); updateSaveStatus();
 }

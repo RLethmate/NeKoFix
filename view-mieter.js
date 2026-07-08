@@ -304,14 +304,17 @@ function addMV(ei){ store.addMv(ei); renderEinheiten(); }
    da auch über den allgemeinen Datei-Upload (dokUpload) Dateien dorthin gelangen können. */
 async function delMV(ei,mi){
   const e=state.einheiten[ei]; const m=e&&e.mv[mi]; if(!m) return;
-  if(typeof dokVerfuegbar==='function' && dokVerfuegbar() && _dokBasis){
+  if(typeof dokVerfuegbar==='function' && dokVerfuegbar()){
     try{
       const ctx=_dokCtx(ei,mi);
-      const dir=await _dokOrdner(ctx.segs,false);
-      const namen=[]; for await (const entry of dir.values()){ if(entry.kind==='file') namen.push(entry.name); }
-      if(namen.length){
-        alert('Dieses Mietverhältnis kann nicht gelöscht werden: im Dokumentenordner „'+ctx.segs.join(' / ')+'" liegen noch '+namen.length+' Datei(en). Bitte die Dateien vorher an anderer Stelle sichern oder aus dem Ordner entfernen, dann erneut versuchen.');
-        return;
+      const basis=await _dokBasisAktuell(false);
+      if(basis){
+        const dir=await _dokOrdner(basis,ctx.segs,false);
+        const namen=[]; for await (const entry of dir.values()){ if(entry.kind==='file') namen.push(entry.name); }
+        if(namen.length){
+          alert('Dieses Mietverhältnis kann nicht gelöscht werden: im Dokumentenordner „'+ctx.segs.join(' / ')+'" liegen noch '+namen.length+' Datei(en). Bitte die Dateien vorher an anderer Stelle sichern oder aus dem Ordner entfernen, dann erneut versuchen.');
+          return;
+        }
       }
     }catch(e){ /* Ordner existiert nicht (NotFoundError) -> keine Dateien -> Löschen erlauben */ }
   }

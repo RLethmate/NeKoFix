@@ -1431,6 +1431,10 @@ test("nkDokSegment / nkDokPfad: dateisystem-sichere Ordnernamen (US-109)", () =>
   assert.deepEqual(calc.nkDokPfad("Lindenhof","2025","EG links","Familie Brandt"), ["Lindenhof","2025","EG links","Familie Brandt"]);
   assert.deepEqual(calc.nkDokPfad("Haus/1","","E1","M1"), ["Haus_1","ohne Jahr","E1","M1"]); // leeres Jahr -> Platzhalter
 });
+test("nkDokPfadObjekt: wie nkDokPfad ohne Objekt-Segment (Datenablage v2, US-109)", () => {
+  assert.deepEqual(calc.nkDokPfadObjekt("2025","EG links","Familie Brandt"), ["2025","EG links","Familie Brandt"]);
+  assert.deepEqual(calc.nkDokPfadObjekt("","E1","M1"), ["ohne Jahr","E1","M1"]);
+});
 
 /* ---- US-111: Termine & Wartung ---- */
 test("nkPlusMonate: Monate addieren mit Tag-Klammerung", () => {

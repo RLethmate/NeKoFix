@@ -122,6 +122,24 @@ function ensureIds(){
   state.einheiten.forEach(e=>{bump(e);(e.mv||[]).forEach(bump);}); state.kosten.forEach(bump);
   const set=o=>{ if(!o.id) o.id=++max; };
   state.einheiten.forEach(e=>{set(e);(e.mv||[]).forEach(set);}); state.kosten.forEach(set);
+  ensureObjektId();
+}
+/* Ralf-Vorgabe 2026-07-08 (Datenablage v2): stabile, GLOBAL (über alle objekte[] hinweg) eindeutige
+   Objekt-ID – Basis für den eigenen Dokumenten-Stammordner je Objekt (siehe docs.js). Eigener
+   Zähler, unabhängig von den objektINTERNEN IDs oben (Einheiten/MV/Kosten sind pro Objekt
+   eindeutig, die Objekt-ID muss es über ALLE gespeicherten Objekte hinweg sein). */
+function ensureObjektId(){
+  if(!state.objekt || state.objekt.id) return;
+  state.objekt.id=naechsteObjektId();
+}
+/* Liefert eine frische, noch nirgends vergebene Objekt-ID – für "Speichern unter" (US-91/US-84),
+   das bewusst eine NEUE, eigenständige Identität erzeugt (Fork: Ausgangsobjekt bleibt unverändert
+   erhalten, siehe speichernUnter() in view-shell.js). Berücksichtigt auch state.objekt.id, falls
+   das aktive Objekt noch nicht in objekte[] committet ist (frisch angelegt, vor dem ersten saveState). */
+function naechsteObjektId(){
+  let max=0; objekte.forEach(d=>{ if(d && d.objekt && d.objekt.id>max) max=d.objekt.id; });
+  if(state.objekt && state.objekt.id>max) max=state.objekt.id;
+  return max+1;
 }
 /* aktives Objekt als reine Daten herausziehen / in `state` laden */
 function snapshot(){ return { objekt:state.objekt, einheiten:state.einheiten, kosten:state.kosten, zahlung:state.zahlung, abrechnungStatus:state.abrechnungStatus, vorjahr:!!state.vorjahr }; }
@@ -134,8 +152,13 @@ function migriereAnkuendigungen(){ state.einheiten.forEach(e=>(e.mv||[]).forEach
   delete m.mhAngekuendigt; delete m.stafAngekuendigt;
   (m.idxAnpassungen||[]).forEach(a=>{ if(a){ delete a.angekuendigt; delete a.ankSnapshot; } });
 })); }
+/* Ralf-Vorgabe 2026-07-08: dokAblageVersion markiert das neue, per-Objekt-Stammordner-Schema
+   (docs.js) – nur neu angelegte Objekte bekommen es; ältere/importierte Objekte ohne dieses Feld
+   bleiben beim bisherigen, global geteilten Dokumentenordner (Bestandsschutz, niemand hat noch
+   reale Daten in der neuen Struktur). Kann sich laut Ralf nach weiterem Feedback noch ändern,
+   daher als Versionsnummer statt eines simplen Flags. */
 function makeFreshDaten(){ const von="2025-01-01", bis="2025-12-31"; return {
-  objekt:{ addr:"Neues Objekt", name:"Neues Objekt", von, bis },
+  objekt:{ addr:"Neues Objekt", name:"Neues Objekt", von, bis, dokAblageVersion:2 },
   einheiten:[{ id:1, name:"EG", flaeche:0, personen:1, mv:[{ mieter:"Mieter 1", von, bis, vmonat:0, vmonate:12, vjahr:0, einmal:0, voraus:0, grundmiete:0, stellAnzahl:0, stellPreis:0, bezahlt:{} }] }],
   kosten:[],
   zahlung:{ frist:"14 Tage nach Zugang", iban:"", bic:"", empfaenger:"", anschrift:"" },
