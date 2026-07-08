@@ -43,6 +43,19 @@ function hfFeld(cap, inp, cls){ return '<label class="hf'+(cls?' '+cls:'')+'"><s
 /* Spalten-Raster „Mieter & Vertrag" (Dummy2, 2026-07-05): wie hfFeld, aber Platzierung über
    grid-column statt hf-Nu-Breitenklasse – col ist ein Linienname des .mv-grid-Templates (c1..c7). */
 function mvf(cap, inp, col){ return '<label class="hf" style="grid-column:'+col+'"><span>'+cap+'</span>'+inp+'</label>'; }
+/* Ralf-Feedback 2026-07-07: bei mehreren Mietverhältnissen je Einheit war der Beginn eines weiteren
+   kaum zu erkennen (ging optisch nahtlos in die Chronik/Mieterhöhungen des vorigen über) – die
+   Spaltenüberschriften wiederholen sich jetzt vor JEDEM Mietverhältnis (nicht nur einmal je Einheit),
+   ab dem zweiten zusätzlich mit Trennlinie/Abstand nach oben. */
+function mvHeadrow(mi){
+  return '<div class="mv-grid mv-headrow'+(mi>0?' mv-headrow-repeat':'')+'">'+
+    '<span class="lbl" style="grid-column:c0">Anrede</span>'+
+    '<span class="lbl" style="grid-column:c1">Mieter</span>'+
+    '<span class="lbl" style="grid-column:c3">von</span>'+
+    '<span class="lbl" style="grid-column:c4">bis</span>'+
+    '<span class="lbl" style="grid-column:c5">läuft</span>'+
+  '</div>';
+}
 function mvZeilen(e, ei){
   const vjSnap = ui.zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null; /* US-59 */
   const vjOn = ui.zeigeVorjahr && !!vjSnap;
@@ -52,7 +65,7 @@ function mvZeilen(e, ei){
         const vm = vjSnap ? nkVorjahrMv(vjSnap, e.name, mi) : null;
         const inp=(v)=> '<input class="vj-field'+(vm?'':' vj-none')+'" type="text" readonly tabindex="-1" title="Vorjahreswert (zum Vergleich)" value="'+(vm?esc(String(v)):'–')+'">';
         const bisTxt = vm ? (vm.laeuft?'läuft':fmtDatum(vm.bis||'')) : '';
-        return '<div class="mv-grid mv-summary vj-mv-row">'+
+        return mvHeadrow(mi)+'<div class="mv-grid mv-summary vj-mv-row">'+
           '<div style="grid-column:c1">'+inp(vm?(vm.mieter||''):'')+'</div>'+
           '<div style="grid-column:c3">'+inp(vm?fmtDatum(vm.von||''):'')+'</div>'+
           '<div style="grid-column:c4">'+inp(bisTxt)+'</div>'+
@@ -71,7 +84,7 @@ function mvZeilen(e, ei){
          Der bisherige "Vertrag"-Aufklapper (mehr ▾/weniger ▴, expandedMV) entfällt: Kaltmiete-
          Gleichung/Anrede/E-Mail sind jetzt immer sichtbar, nur Mieterhöhungen/Chronik bleiben
          eigene Leisten (siehe mhAutomatikSection/Chronik-Abschnitt unten). */
-      let row='<div class="mv-grid mv-summary">'+
+      let row=mvHeadrow(mi)+'<div class="mv-grid mv-summary">'+
         '<div style="grid-column:c0"><select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value=""'+(m.anrede?'':' selected')+'>neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select></div>'+
         '<div class="mv-aux warn" style="grid-column:c1w">'+warnHtml+'</div>'+
         '<div style="grid-column:c1 / c3"><input value="'+esc(m.mieter)+'" oninput="updMV('+ei+','+mi+',\'mieter\',this.value)"></div>'+
@@ -117,9 +130,9 @@ function mvZeilen(e, ei){
           if(typeof dokVerfuegbar==='function' && dokVerfuegbar()){
             const dateien=c.dateien||[];
             const chips=dateien.map(nm=>'<span class="dok-chip">'+esc(nm)+' <button type="button" class="linklike" onclick="dokOeffnen('+ei+','+mi+',\''+encodeURIComponent(nm)+'\')">öffnen</button></span>').join('');
-            l2+='<button type="button" class="linklike" onclick="dokChronikAnhang('+ei+','+mi+','+ci+')">Datei anfügen'+(dateien.length?' ('+dateien.length+')':'')+'</button>'+chips;
+            l2+='<button type="button" class="linklike" title="Datei anfügen" onclick="dokChronikAnhang('+ei+','+mi+','+ci+')">Datei'+(dateien.length?' ('+dateien.length+')':'')+'</button>'+chips;
           }
-          l2+='<button type="button" class="linklike" onclick="toggleChronikErledigtUi('+ei+','+mi+','+ci+')" title="Status umschalten (offen/erledigt) – löscht nicht">'+(c.erledigt?'als offen':'als erledigt')+'</button>'+
+          l2+='<button type="button" class="linklike" title="Status umschalten (offen/erledigt) – löscht nicht" onclick="toggleChronikErledigtUi('+ei+','+mi+','+ci+')">'+(c.erledigt?'offen':'erledigt')+'</button>'+
             '<button type="button" class="row-del" title="Eintrag löschen" onclick="'+delCall+'">×</button>'+
           '</span>';
           return '<div class="termin-row'+(c.erledigt?' erledigt':'')+'">'+
@@ -204,13 +217,6 @@ function renderMieterVertrag(){
       '<div class="unit-card einheit-card">'+
         '<div class="unit-head"><b>'+esc(e.name)+'</b> <span class="pill">'+(+e.flaeche||0)+' m² · '+(+e.personen||0)+' Pers.</span>'+
           '<button type="button" class="link-sm" onclick="addMV('+ei+')">+ Mietverhältnis</button>'+
-        '</div>'+
-        '<div class="mv-grid mv-headrow">'+
-          '<span class="lbl" style="grid-column:c0">Anrede</span>'+
-          '<span class="lbl" style="grid-column:c1">Mieter</span>'+
-          '<span class="lbl" style="grid-column:c3">von</span>'+
-          '<span class="lbl" style="grid-column:c4">bis</span>'+
-          '<span class="lbl" style="grid-column:c5">läuft</span>'+
         '</div>'+
         mvZeilen(e,ei)+
         leerHint+

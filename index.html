@@ -176,8 +176,15 @@
       [c3] var(--mv-M) [aux3] var(--mv-AUX) [c4] var(--mv-M) [c5] var(--mv-S) [c6] var(--mv-XS);
     column-gap:var(--mv-GAP);align-items:end;margin:8px 0;}
   .mv-grid+.mv-grid{margin-top:8px;}
-  .mv-headrow,.mv-summary{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px;}
+  .mv-summary{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px;}
+  /* Ralf-Feedback 2026-07-07: bei mehreren Mietverhältnissen je Einheit ging der Beginn eines
+     weiteren nahtlos in die Chronik/Mieterhöhungen des vorigen über – die Kopfzeile wiederholt sich
+     jetzt vor jedem Mietverhältnis (mvHeadrow(mi) in view-mieter.js) UND bekommt einen Farbstreifen
+     (weiss, wie die Mieterhöhungen-/Chronik-Panels – hebt sich auf beiden alternierenden Karten-
+     Farbtönen ab), damit sie auch als klarer Start-Marker erkennbar ist, nicht nur als Beschriftung. */
+  .mv-headrow{background:#fff;border-radius:5px;padding:4px 5px;margin:0 -5px 8px;}
   .mv-headrow .lbl,.mv-cap-upper{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;}
+  .mv-headrow-repeat{margin-top:18px;}
   /* Ralf-Feedback 2026-07-07: kein eigens erfundenes Muster ("…", Hintergrund-Tint) – stattdessen
      dieselbe Formsprache wie der bestehende Aufklapper im Kosten-Reiter (.status-toggle, dort per
      Chevron-Drehung + erscheinendem Inhalt erkennbar "auf"/"zu"), unveraendert wiederverwendet. */
