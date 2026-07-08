@@ -78,7 +78,9 @@ const store = {
   setSollSnap(ei,mi,key,val){ const m=state.einheiten[ei].mv[mi]; if(!m.sollSnap)m.sollSnap={}; m.sollSnap[key]=+val||0; commit(); }, /* US-74: Soll bei bezahltem Monat einfrieren */
   clearSollSnap(ei,mi,key){ const m=state.einheiten[ei].mv[mi]; if(m.sollSnap&&key in m.sollSnap){ delete m.sollSnap[key]; commit(); } }, /* US-74: Einfrieren aufheben (z. B. beim Ent-Haken von „geprüft") */
   // Chronik
-  addChronik(ei,mi){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik)m.chronik=[]; m.chronik.push({datum:state.objekt.von||'',text:''}); commit(); },
+  /* Ralf-Vorgabe 2026-07-07: Chronik-Eintrag mit denselben Feldern wie ein Wartungstermin
+     (Zeit/Rubrik/Intervall/angekündigt) – 1:1-Feldparität mit der Termine-Zeile (view-termine.js). */
+  addChronik(ei,mi){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik)m.chronik=[]; m.chronik.push({datum:state.objekt.von||'',text:'',zeit:'',art:'sonstiges',intervallMonate:0,angekuendigt:false}); commit(); },
   removeChronik(ei,mi,ci){ state.einheiten[ei].mv[mi].chronik.splice(ci,1); commit(); },
   setChronikFeld(ei,mi,ci,field,val){ const m=state.einheiten[ei].mv[mi]; if(!m.chronik)m.chronik=[]; m.chronik[ci][field]=val; commit(); },
   // Kosten

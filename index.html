@@ -64,8 +64,9 @@
   .dlg-cur{outline:2px solid var(--primary);}
   .dlg-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid #e6ebf0;}
   .linklike-obj{background:none;border:none;color:var(--primary);font-weight:600;cursor:pointer;font-size:13px;}
-  /* US-109: Datei-Anhang je Chronik-Eintrag */
-  .chronik-anh{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 10px;font-size:12px;}
+  /* US-109: Datei-Anhang je Chronik-Eintrag – Auslöser ist ein .linklike-Text ("Datei anfügen"),
+     wie die übrigen Aktionen der Termine-Zeile (1:1 aus Termine & Wartung übernommen statt eines
+     eigenen Icon-Buttons; siehe .termin-akt in der Chronik-Zeile, view-mieter.js). */
   .dok-chip{background:var(--soft,#eef3f8);border:1px solid var(--line);border-radius:12px;padding:1px 8px;white-space:nowrap;}
   .linklike{background:none;border:none;color:var(--primary);cursor:pointer;font-size:12px;padding:0;text-decoration:underline;}
   /* US-109-Schliff: kleiner, unauffälliger „+ Chronik-Eintrag" neben der Überschrift */
@@ -175,17 +176,20 @@
       [c3] var(--mv-M) [aux3] var(--mv-AUX) [c4] var(--mv-M) [c5] var(--mv-S) [c6] var(--mv-XS);
     column-gap:var(--mv-GAP);align-items:end;margin:8px 0;}
   .mv-grid+.mv-grid{margin-top:8px;}
-  .mv-headrow,.mv-summary{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px;}
+  .mv-summary{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px;}
+  /* Ralf-Feedback 2026-07-07: bei mehreren Mietverhältnissen je Einheit ging der Beginn eines
+     weiteren nahtlos in die Chronik/Mieterhöhungen des vorigen über – die Kopfzeile wiederholt sich
+     jetzt vor jedem Mietverhältnis (mvHeadrow(mi) in view-mieter.js) UND bekommt einen Farbstreifen
+     (weiss, wie die Mieterhöhungen-/Chronik-Panels – hebt sich auf beiden alternierenden Karten-
+     Farbtönen ab), damit sie auch als klarer Start-Marker erkennbar ist, nicht nur als Beschriftung. */
+  .mv-headrow{background:#fff;border-radius:5px;padding:4px 5px;margin:0 -5px 8px;}
   .mv-headrow .lbl,.mv-cap-upper{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;}
-  /* Aufklappbare Leisten "┃ Mieterhöhungen"/"┃ Chronik" (ersetzt die alte Vertrag-/Automatik-Details-
-     Lasche) – eigene Klassen, bewusst NICHT .status-toggle/.heiz-zeit-toggle (von view-kosten.js bzw.
-     view-heizung.js mitgenutzt) angefasst. */
-  .section-bar{background:none;border:none;border-top:1px solid var(--line);width:100%;text-align:left;
-    padding:10px 0 6px;margin-top:6px;font:inherit;font-size:13px;font-weight:600;color:var(--ink);
-    cursor:pointer;display:flex;align-items:center;gap:8px;}
-  .section-bar:hover{color:var(--primary);}
-  .section-bar .bar-ico{color:var(--primary);font-weight:700;}
-  .section-bar .chev{margin-left:auto;color:var(--muted);font-size:11px;}
+  .mv-headrow-repeat{margin-top:18px;}
+  /* Ralf-Feedback 2026-07-07: kein eigens erfundenes Muster ("…", Hintergrund-Tint) – stattdessen
+     dieselbe Formsprache wie der bestehende Aufklapper im Kosten-Reiter (.status-toggle, dort per
+     Chevron-Drehung + erscheinendem Inhalt erkennbar "auf"/"zu"), unveraendert wiederverwendet. */
+  .section-bar-wrap{margin-top:8px;}
+  .section-bar .chev{margin-left:6px;}
   .section-bar .summary{margin-left:8px;font-weight:400;color:var(--muted);font-size:12px;}
   /* "+ Mietverhältnis" zieht aus der Zeile unter der Liste (addrow) oben rechts neben den
      Einheitsnamen (Ralf-Vorgabe 2026-07-07) – dezenter Textlink statt Button. */
@@ -448,8 +452,11 @@
   .zm-pruef.aktiv:hover{background:var(--accent);filter:brightness(.96);}
   .leer-hint{font-size:12px;color:var(--nachzahlung);display:flex;align-items:center;gap:6px;margin-top:8px;}
   .chronik-titel{font-size:12px;color:var(--muted);font-weight:600;margin:10px 0 4px;}
-  /* US-68: Indexmiete-Bereich */
-  .index-block{margin-top:10px;padding-top:8px;border-top:1px dashed var(--border,#d4d4d4);}
+  /* US-68: Indexmiete-Bereich. Ralf-Feedback 2026-07-07: aufgeklappter Inhalt braucht sichtbaren
+     Kontrast (wie .detail-row in Kosten) – da die Einheiten-Karte hier selbst schon getönt ist
+     (.einheit-card, alternierend), waere dieselbe var(--soft)-Tinte auf ungeraden Karten unsichtbar;
+     ein weisses Panel hebt sich dagegen auf JEDER Kartenfarbe ab. */
+  .index-block{margin-top:8px;padding:10px 12px;background:#fff;border:1px solid var(--line);border-radius:8px;}
   .index-block>label{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;}
   .index-vorschau{font-size:13px;margin:6px 0;}
   .index-hist{font-size:12px;color:var(--muted);margin:6px 0;}
@@ -481,13 +488,13 @@
   .eurqm-tab th,.eurqm-tab td{text-align:left;padding:4px 8px;border-bottom:1px solid #eef2f6;}
   .eurqm-tab td.num,.eurqm-tab th.num{text-align:right;font-variant-numeric:tabular-nums;}
   .eurqm-tab .eurqm-total td{font-weight:700;border-top:1px solid var(--line);}
-  .chronik-actions{display:flex;align-items:center;gap:16px;margin:2px 0 12px;flex-wrap:wrap;}
-  .chronik-actions .staffel-ank{margin-left:auto;}
-  /* .chronik-row (Flexbox) entfaellt seit dem Grid-Umbau (2026-07-05) – die Chronik-Zeile ist jetzt
-     selbst ein .mv-grid (Badge+Datum in c1, Notiz in c2/c6, erledigt+Löschen in c6). */
-  .chronik-erledigt{font-size:12px;color:#41505f;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;flex:none;cursor:pointer;}
-  .mv-grid.erledigt{opacity:.65;}
-  .mv-grid.erledigt .chronik-notiz{text-decoration:line-through;}
+  /* Ralf-Vorgabe 2026-07-07: Chronik-Zeile 1:1 aus der Termine-Seite übernommen (.termin-row/-l1/-l2/
+     Tage-Badge, siehe terminTageBadge in view-termine.js und chronikRows in view-mieter.js) statt
+     einer eigenen Variante – nur die Notiz bleibt die mehrzeilig wachsende .chronik-notiz statt der
+     einzeiligen .termin-bez-in. Weisses Panel aus demselben Grund wie .index-block oben. */
+  .chronik-liste{background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .chronik-liste .termin-row:first-child{border-top:none;}
+  .termin-row.erledigt .chronik-notiz{text-decoration:line-through;}
   .termin-l2 input:disabled{background:#f3f5f7;color:#54606c;-webkit-text-fill-color:#54606c;opacity:1;cursor:default;}
   /* US-66: Chronik-Notiz als auto-wachsendes Textfeld mit Aufziehlasche */
   .chronik-notiz{flex:1;min-height:34px;resize:vertical;overflow:hidden;font-family:var(--font);font-size:14px;line-height:1.4;padding:7px 9px;border:1px solid var(--line);border-radius:7px;color:var(--ink);}
@@ -510,6 +517,7 @@
   .einheit-card{background:var(--soft);border-left:4px solid var(--primary);}
   #einheiten_box .einheit-card:nth-child(even){background:#eef3f8;}
   #heizung_box .einheit-card:nth-child(even){background:#eef3f8;}
+  #mieter_vertrag_box .einheit-card:nth-child(even){background:#eef3f8;} /* Ralf-Feedback 2026-07-07: dieselbe Einheiten-Alternierung wie Gebäude & Einheiten/Heizung fehlte hier noch */
   /* US-58: Kostenart-Spalte maximieren, übrige Spalten schmal halten */
   #tbl_kosten td.bez-col input{width:100%;}
   #tbl_kosten td:nth-child(2),#tbl_kosten th:nth-child(2){width:120px;}
@@ -765,12 +773,16 @@
       <div class="field hf-1u"><label>PLZ</label><input id="z_plz" inputmode="numeric"></div>
       <div class="field hf-2u"><label>Ort</label><input id="z_ort"></div>
     </div>
-    <!-- BIC war zu kurz für gängige 11-stellige BICs (hf-1u); jetzt hf-2u, dafür Zahlungsfrist
-         schmaler (hf-1u) und als wachsende Notiz (Textarea + autoGrow) statt einzeiligem Input. -->
+    <!-- BIC war zu kurz für gängige 11-stellige BICs (hf-1u); jetzt hf-2u. Ralf-Feedback
+         2026-07-08: Zahlungsfrist fiel bei knapperer Fensterbreite aus dem Raster (IBAN+BIC+
+         Zahlungsfrist gemeinsam brauchen 670px, nicht bei jeder Fensterbreite garantiert) – jetzt
+         eigene Zeile, dadurch nie mehr vom verfügbaren Platz neben IBAN/BIC abhängig. -->
     <div class="hf-raster" style="align-items:flex-start;">
       <div class="field hf-3u"><label>IBAN</label><input id="z_iban" placeholder="DE.. .... .... .... .... .."><span id="z_iban_hint" class="iban-hint"></span></div>
       <div class="field hf-2u"><label>BIC</label><input id="z_bic" placeholder="optional"></div>
-      <div class="field hf-1u"><label>Zahlungsfrist</label><textarea id="z_frist" rows="1" placeholder="z. B. 14 Tage nach Zugang" oninput="autoGrow(this)"></textarea></div>
+    </div>
+    <div class="hf-raster">
+      <div class="field hf-2u"><label>Zahlungsfrist</label><textarea id="z_frist" rows="1" placeholder="z. B. 14 Tage nach Zugang" oninput="autoGrow(this)"></textarea></div>
     </div>
   </section>
 
