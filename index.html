@@ -773,12 +773,16 @@
       <div class="field hf-1u"><label>PLZ</label><input id="z_plz" inputmode="numeric"></div>
       <div class="field hf-2u"><label>Ort</label><input id="z_ort"></div>
     </div>
-    <!-- BIC war zu kurz für gängige 11-stellige BICs (hf-1u); jetzt hf-2u, dafür Zahlungsfrist
-         schmaler (hf-1u) und als wachsende Notiz (Textarea + autoGrow) statt einzeiligem Input. -->
+    <!-- BIC war zu kurz für gängige 11-stellige BICs (hf-1u); jetzt hf-2u. Ralf-Feedback
+         2026-07-08: Zahlungsfrist fiel bei knapperer Fensterbreite aus dem Raster (IBAN+BIC+
+         Zahlungsfrist gemeinsam brauchen 670px, nicht bei jeder Fensterbreite garantiert) – jetzt
+         eigene Zeile, dadurch nie mehr vom verfügbaren Platz neben IBAN/BIC abhängig. -->
     <div class="hf-raster" style="align-items:flex-start;">
       <div class="field hf-3u"><label>IBAN</label><input id="z_iban" placeholder="DE.. .... .... .... .... .."><span id="z_iban_hint" class="iban-hint"></span></div>
       <div class="field hf-2u"><label>BIC</label><input id="z_bic" placeholder="optional"></div>
-      <div class="field hf-1u"><label>Zahlungsfrist</label><textarea id="z_frist" rows="1" placeholder="z. B. 14 Tage nach Zugang" oninput="autoGrow(this)"></textarea></div>
+    </div>
+    <div class="hf-raster">
+      <div class="field hf-2u"><label>Zahlungsfrist</label><textarea id="z_frist" rows="1" placeholder="z. B. 14 Tage nach Zugang" oninput="autoGrow(this)"></textarea></div>
     </div>
   </section>
 

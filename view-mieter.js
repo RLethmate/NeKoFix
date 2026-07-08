@@ -47,10 +47,13 @@ function mvf(cap, inp, col){ return '<label class="hf" style="grid-column:'+col+
    kaum zu erkennen (ging optisch nahtlos in die Chronik/Mieterhöhungen des vorigen über) – die
    Spaltenüberschriften wiederholen sich jetzt vor JEDEM Mietverhältnis (nicht nur einmal je Einheit),
    ab dem zweiten zusätzlich mit Trennlinie/Abstand nach oben. */
-function mvHeadrow(mi){
+function mvHeadrow(mi, anzahl){
+  /* Ralf-Feedback 2026-07-08: bei mehreren Mietverhältnissen "Mieter 1"/"Mieter 2" statt schlicht
+     "Mieter" je Wiederholung – nur nummeriert, wenn es tatsächlich mehr als eins gibt. */
+  const mieterLbl = anzahl>1 ? 'Mieter '+(mi+1) : 'Mieter';
   return '<div class="mv-grid mv-headrow'+(mi>0?' mv-headrow-repeat':'')+'">'+
     '<span class="lbl" style="grid-column:c0">Anrede</span>'+
-    '<span class="lbl" style="grid-column:c1">Mieter</span>'+
+    '<span class="lbl" style="grid-column:c1">'+mieterLbl+'</span>'+
     '<span class="lbl" style="grid-column:c3">von</span>'+
     '<span class="lbl" style="grid-column:c4">bis</span>'+
     '<span class="lbl" style="grid-column:c5">läuft</span>'+
@@ -65,7 +68,7 @@ function mvZeilen(e, ei){
         const vm = vjSnap ? nkVorjahrMv(vjSnap, e.name, mi) : null;
         const inp=(v)=> '<input class="vj-field'+(vm?'':' vj-none')+'" type="text" readonly tabindex="-1" title="Vorjahreswert (zum Vergleich)" value="'+(vm?esc(String(v)):'–')+'">';
         const bisTxt = vm ? (vm.laeuft?'läuft':fmtDatum(vm.bis||'')) : '';
-        return mvHeadrow(mi)+'<div class="mv-grid mv-summary vj-mv-row">'+
+        return mvHeadrow(mi,e.mv.length)+'<div class="mv-grid mv-summary vj-mv-row">'+
           '<div style="grid-column:c1">'+inp(vm?(vm.mieter||''):'')+'</div>'+
           '<div style="grid-column:c3">'+inp(vm?fmtDatum(vm.von||''):'')+'</div>'+
           '<div style="grid-column:c4">'+inp(bisTxt)+'</div>'+
@@ -84,7 +87,7 @@ function mvZeilen(e, ei){
          Der bisherige "Vertrag"-Aufklapper (mehr ▾/weniger ▴, expandedMV) entfällt: Kaltmiete-
          Gleichung/Anrede/E-Mail sind jetzt immer sichtbar, nur Mieterhöhungen/Chronik bleiben
          eigene Leisten (siehe mhAutomatikSection/Chronik-Abschnitt unten). */
-      let row=mvHeadrow(mi)+'<div class="mv-grid mv-summary">'+
+      let row=mvHeadrow(mi,e.mv.length)+'<div class="mv-grid mv-summary">'+
         '<div style="grid-column:c0"><select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value=""'+(m.anrede?'':' selected')+'>neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select></div>'+
         '<div class="mv-aux warn" style="grid-column:c1w">'+warnHtml+'</div>'+
         '<div style="grid-column:c1 / c3"><input value="'+esc(m.mieter)+'" oninput="updMV('+ei+','+mi+',\'mieter\',this.value)"></div>'+
@@ -212,10 +215,15 @@ function renderMieterVertrag(){
   const box = document.getElementById('mieter_vertrag_box'); if(!box) return; box.innerHTML='';
   state.einheiten.forEach((e,ei)=>{
     const lz = leerstandZa(e);
+    /* Ralf-Vorgabe 2026-07-08: zweite Pille neben der Fläche mit der Kaltmiete pro m² – als
+       Kennzahl auf Basis des laufenden (sonst: zuletzt hinzugefügten) Mietverhältnisses, da die
+       Pille je Einheit einmal sitzt, nicht je Mietverhältnis. */
+    const aktivMv = e.mv.find(m=>m.laeuft) || e.mv[e.mv.length-1];
+    const eurQmPill = (aktivMv && (+e.flaeche||0)>0) ? ' <span class="pill">'+nkFmtBetrag((+aktivMv.grundmiete||0)/(+e.flaeche||1))+' €/m²</span>' : '';
     const leerHint = lz>NK_LEERSTAND_EPS ? '<div class="leer-hint">'+WARN_ICON+' Leerstand: '+Math.round(lz*100)+' % des Zeitraums (trägt der Vermieter).</div>' : '';
     box.insertAdjacentHTML('beforeend',
       '<div class="unit-card einheit-card">'+
-        '<div class="unit-head"><b>'+esc(e.name)+'</b> <span class="pill">'+(+e.flaeche||0)+' m² · '+(+e.personen||0)+' Pers.</span>'+
+        '<div class="unit-head"><b>'+esc(e.name)+'</b> <span class="pill">'+(+e.flaeche||0)+' m² · '+(+e.personen||0)+' Pers.</span>'+eurQmPill+
           '<button type="button" class="link-sm" onclick="addMV('+ei+')">+ Mietverhältnis</button>'+
         '</div>'+
         mvZeilen(e,ei)+
