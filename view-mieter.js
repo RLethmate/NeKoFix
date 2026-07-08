@@ -297,7 +297,26 @@ function updEinheit(ei,field,val){ store.setEinheitFeld(ei,field,val); }
 function updMV(ei,mi,field,val){ store.setMvFeld(ei,mi,field,val); /* Datum: Neu-Zeichnen via onblur, nicht beim Tippen */ }
 function updMVLaeuft(ei,mi,checked){ store.setMvFeld(ei,mi,'laeuft', !!checked); renderEinheiten(); } /* US-75: offenes Ende */
 function addMV(ei){ store.addMv(ei); renderEinheiten(); }
-function delMV(ei,mi){ store.removeMv(ei,mi); renderEinheiten(); }
+/* Ralf-Vorgabe 2026-07-08: Löschen sperren, solange im Dokumentenordner dieses Mietverhältnisses
+   noch Dateien liegen (Mieter zieht aus, Unterlagen sollen nicht "verschwinden" – die Dateien
+   selbst werden nie automatisch gelöscht, aber nach dem Löschen des Mietverhältnisses fehlt jede
+   Referenz aus der App darauf). Prüft den ECHTEN Ordnerinhalt, nicht nur c.dateien in der Chronik,
+   da auch über den allgemeinen Datei-Upload (dokUpload) Dateien dorthin gelangen können. */
+async function delMV(ei,mi){
+  const e=state.einheiten[ei]; const m=e&&e.mv[mi]; if(!m) return;
+  if(typeof dokVerfuegbar==='function' && dokVerfuegbar() && _dokBasis){
+    try{
+      const ctx=_dokCtx(ei,mi);
+      const dir=await _dokOrdner(ctx.segs,false);
+      const namen=[]; for await (const entry of dir.values()){ if(entry.kind==='file') namen.push(entry.name); }
+      if(namen.length){
+        alert('Dieses Mietverhältnis kann nicht gelöscht werden: im Dokumentenordner „'+ctx.segs.join(' / ')+'" liegen noch '+namen.length+' Datei(en). Bitte die Dateien vorher an anderer Stelle sichern oder aus dem Ordner entfernen, dann erneut versuchen.');
+        return;
+      }
+    }catch(e){ /* Ordner existiert nicht (NotFoundError) -> keine Dateien -> Löschen erlauben */ }
+  }
+  store.removeMv(ei,mi); renderEinheiten();
+}
 /* US-21: Vertrag & Anpassungs-Chronik je Mietverhältnis. toggleVertrag() entfaellt seit 2026-07-07
    (Mieter&Vertrag-Layout-Story) – Vertragsfelder sind jetzt immer sichtbar, kein Aufklapper mehr. */
 function toggleChronik(id){ if(ui.expandedChronik.has(id)) ui.expandedChronik.delete(id); else ui.expandedChronik.add(id); renderEinheiten(); }

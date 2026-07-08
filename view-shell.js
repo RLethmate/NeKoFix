@@ -338,6 +338,16 @@ function switchObjekt(idx){
 function neuesObjekt(){
   if(!confirm('Neues, leeres Objekt anlegen?\n\nDas aktuelle Objekt bleibt erhalten und ist über „Datei → Öffnen" oder „Zuletzt verwendet" wieder erreichbar.')) return;
   saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); ui.current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
+  /* Ralf-Vorgabe 2026-07-08: den Dokumentenordner (US-109) beim Anlegen aktiv anbieten statt nur
+     beiläufig beim ersten "Datei anfügen" zu verlangen – sonst wissen die wenigsten, dass es diese
+     Ablage überhaupt gibt. Überspringbar ("Später" = Cancel), da nicht jeder Browser/Nutzer das
+     braucht (File System Access API ist Chromium-exklusiv, siehe dokVerfuegbar). Nur beim
+     allerersten Mal (kein _dokBasis vorhanden) – der Ordner ist global, nicht je Objekt. */
+  if(typeof dokVerfuegbar==='function' && dokVerfuegbar() && !_dokBasis){
+    if(confirm('Möchtest du jetzt einen Ordner für Belege & Fotos (Mietverträge, Rechnungen, Fotos) festlegen?\n\nKannst du auch später über Datei → Dokumentenordner wählen nachholen.')){
+      dokBasisWaehlen();
+    }
+  }
 }
 /* US-91: aktuelles Objekt löschen (mit Bestätigung) – damit versehentlich angelegte Objekte
    wieder entfernt werden können. */

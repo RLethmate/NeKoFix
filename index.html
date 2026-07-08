@@ -693,6 +693,12 @@
       <button onclick="document.getElementById('csv_import').click();toggleDateiMenu(true)">Kontoauszug (.csv) importieren</button>
       <button onclick="exportExcel();toggleDateiMenu(true)" title="Objektdaten als Excel exportieren – Verteilung als prüfbare Formeln">Nach Excel exportieren (.xlsx)</button>
       <div class="menu-sep"></div>
+      <!-- Ralf-Vorgabe 2026-07-08: expliziter Menüpunkt statt nur beiläufigem Angebot beim ersten
+           "Datei anfügen" – der Ordner ist global (nicht je Objekt), daher hier statt in Mieter &
+           Vertrag. -->
+      <button onclick="dokBasisWaehlen();toggleDateiMenu(true)" title="Ordner für Belege, Fotos und Verträge festlegen oder wechseln">Dokumentenordner wählen…</button>
+      <button onclick="dokOrdnerUmziehen();toggleDateiMenu(true)" title="Alle bisherigen Dateien in einen neuen Ordner verschieben">Dokumentenordner umziehen…</button>
+      <div class="menu-sep"></div>
       <button onclick="toggleVorjahr();toggleDateiMenu(true)">Vorjahr ein-/ausblenden<span class="menu-kbd">Alt+v</span></button>
     </div>
   </div>

@@ -76,5 +76,45 @@ async function dokChronikAnhang(ei,mi,ci){
       if(typeof scheduleSave==='function') scheduleSave(); if(typeof renderMieterVertrag==='function') renderMieterVertrag(); }
     catch(e){ alert('Konnte „'+f.name+'“ nicht speichern: '+((e&&e.message)||e)); } };
   inp.click(); }
+/* Ralf-Vorgabe 2026-07-08: kompletten Dokumentenordner in einen neuen Stammordner umziehen
+   (verschieben, nicht nur kopieren – Original wird nach vollständig erfolgreichem Kopieren
+   geleert, damit nicht zwei Stände parallel existieren). Bricht der Kopiervorgang irgendwo ab,
+   bleibt der bisherige Ordner unangetastet aktiv – es wird NIE gelöscht, bevor nicht alles
+   vollständig kopiert ist. */
+async function _dokKopiereRekursiv(quelle, ziel){
+  for await (const [name, handle] of quelle.entries()){
+    if(handle.kind==='directory'){
+      const unterZiel=await ziel.getDirectoryHandle(name,{create:true});
+      await _dokKopiereRekursiv(handle, unterZiel);
+    } else {
+      const datei=await handle.getFile();
+      const zielHandle=await ziel.getFileHandle(name,{create:true});
+      const w=await zielHandle.createWritable(); await w.write(datei); await w.close();
+    }
+  }
+}
+async function _dokLoescheInhalt(dir){
+  const namen=[]; for await (const name of dir.keys()){ namen.push(name); }
+  for(const name of namen){ await dir.removeEntry(name,{recursive:true}); }
+}
+async function dokOrdnerUmziehen(){
+  if(!dokVerfuegbar()){ alert('Die Ordner-Ablage benötigt Chrome, Edge oder Brave (File System Access API).'); return; }
+  if(!_dokBasis){ alert('Es ist noch kein Dokumentenordner gewählt – nichts zum Umziehen.'); await dokBasisWaehlen(); return; }
+  if(!confirm('Alle Dateien aus „'+_dokBasis.name+'" in einen neuen Ordner verschieben?\n\nDanach ist der neue Ordner der aktive Dokumentenordner; der bisherige wird geleert.')) return;
+  let ziel;
+  try{ ziel=await window.showDirectoryPicker({mode:'readwrite'}); }catch(e){ return; /* vom Nutzer abgebrochen */ }
+  if(!(await _dokPerm(_dokBasis))){ alert('Kein Schreibzugriff auf den bisherigen Ordner „'+_dokBasis.name+'" – Umzug abgebrochen, nichts wurde verändert.'); return; }
+  if(!(await _dokPerm(ziel))){ alert('Kein Schreibzugriff auf den neuen Ordner „'+ziel.name+'" – Umzug abgebrochen, nichts wurde verändert.'); return; }
+  try{
+    await _dokKopiereRekursiv(_dokBasis, ziel);
+    await _dokLoescheInhalt(_dokBasis);
+    const alterName=_dokBasis.name;
+    _dokBasis=ziel; await _dokIdbSet('basis', ziel);
+    alert('Umzug abgeschlossen: „'+alterName+'" → „'+ziel.name+'".');
+    if(typeof renderMieterVertrag==='function') renderMieterVertrag();
+  }catch(e){
+    alert('Umzug fehlgeschlagen: '+((e&&e.message)||e)+'\n\nDer bisherige Ordner „'+_dokBasis.name+'" bleibt unverändert aktiv, es sind keine Daten verloren gegangen.');
+  }
+}
 /* Basisordner-Handle beim Laden wiederherstellen (persistiert). */
 dokBasisLaden();
