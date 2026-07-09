@@ -74,15 +74,18 @@ function nkEnergieart(key) { return NK_ENERGIEARTEN.find(e => e.key === key) || 
 function nkDokSegment(s) {
   return String(s == null ? "" : s).replace(/[\/\\:*?"<>|]/g, "_").replace(/\s+/g, " ").trim().slice(0, 80) || "_";
 }
-/* US-109: Ordnerpfad-Segmente je Mieter: Objekt / Jahr / Einheit / Mieter (bereinigt). Reine Funktion. */
+/* US-109: Ordnerpfad-Segmente je Mieter: Objekt / Einheit / Mieter / Jahr (bereinigt).
+   Ralf-Vorgabe 2026-07-10: Jahr ans Ende – die meisten Mietverhältnisse laufen über mehrere Jahre,
+   ein Jahresordner ganz oben hätte den Mieter-Ordner bei jedem Jahreswechsel dupliziert statt seine
+   Belege fortzuführen. Reine Funktion. */
 function nkDokPfad(objekt, jahr, einheit, mieter) {
-  return [nkDokSegment(objekt), nkDokSegment(jahr || "ohne Jahr"), nkDokSegment(einheit), nkDokSegment(mieter)];
+  return [nkDokSegment(objekt), nkDokSegment(einheit), nkDokSegment(mieter), nkDokSegment(jahr || "ohne Jahr")];
 }
 /* Ralf-Vorgabe 2026-07-08 (Datenablage v2): wie nkDokPfad, aber OHNE Objekt-Segment – bei Objekten
    mit eigenem Stammordner (dokAblageVersion 2) ist das Objekt bereits der Ordner selbst, kein
-   weiteres Unterverzeichnis dafür nötig. Reine Funktion. */
+   weiteres Unterverzeichnis dafür nötig. Jahr ebenfalls ans Ende (s. o.). Reine Funktion. */
 function nkDokPfadObjekt(jahr, einheit, mieter) {
-  return [nkDokSegment(jahr || "ohne Jahr"), nkDokSegment(einheit), nkDokSegment(mieter)];
+  return [nkDokSegment(einheit), nkDokSegment(mieter), nkDokSegment(jahr || "ohne Jahr")];
 }
 /* US-117: Spaltenbuchstabe (1-basiert) für Excel-Formeln – 1→A, 26→Z, 27→AA. Reine Funktion. */
 function nkColLetter(n) {
@@ -1414,6 +1417,28 @@ function nkMieterhoehungTermine(einheiten, heuteDatum) {
   }); });
   return out;
 }
+/* Ralf-Vorgabe 2026-07-10: Rauchwarnmelder pro Einheit erfassen (Anzahl, e.rwmAnzahl) und daraus zwei
+   wiederkehrende Termine ableiten – jährliche Wartung (durch die Mieter) und Austausch alle 10 Jahre.
+   Ohne erfasste Anzahl (0/undefined) entsteht kein Termin. Fehlt das letzte Wartungs-/Austauschdatum
+   (noch nie erledigt), gilt heuteDatum als Basis -> erster Termin in 12 bzw. 120 Monaten (Bootstrap,
+   analog zu idxEinzug bei neu gewählter Indexmiete). Eigene stabile id je Einheit+Typ für den
+   .ics-Export (nkTerminIcs) – sonst könnten zwei Einheiten mit zufällig gleichem Fälligkeitsdatum
+   dieselbe UID erhalten und sich beim Kalender-Re-Import gegenseitig überschreiben. */
+function nkRwmTermine(einheiten, heuteDatum) {
+  const out = [];
+  (einheiten || []).forEach(e => {
+    const anzahl = Math.max(0, Math.floor(+e.rwmAnzahl) || 0);
+    if (!anzahl) return;
+    const stueckText = anzahl + " Stück";
+    out.push({ quelle: "rwm", art: "vorort", typ: "Wartung", intervallMonate: 12, einheitId: e.id,
+      bez: "Rauchwarnmelder-Wartung – " + (e.name || "") + " (" + stueckText + ")",
+      datum: nkPlusMonate(e.rwmWartungLetzte || heuteDatum, 12), id: "rwm-" + e.id + "-wartung" });
+    out.push({ quelle: "rwm", art: "vorort", typ: "Austausch", intervallMonate: 120, einheitId: e.id,
+      bez: "Rauchwarnmelder-Austausch – " + (e.name || "") + " (" + stueckText + ")",
+      datum: nkPlusMonate(e.rwmAustauschLetzter || heuteDatum, 120), id: "rwm-" + e.id + "-austausch" });
+  });
+  return out;
+}
 /* Tage bis zum Termin (kann negativ sein = überfällig). */
 function nkTageBis(datum, heuteDatum) {
   const d = nkDatum(datum), h = nkDatum(heuteDatum);
@@ -1443,6 +1468,16 @@ function nkTageLabel(tage) {
   if (d) parts.push(d + "T");
   return parts.join(" ");
 }
+/* Mietanpassung ohne Automatik-Typ (mhTyp==="", Ralf-Vorgabe 2026-07-10): "nächste Anpassung"
+   ergibt sich aus dem nächstgelegenen offenen (nicht erledigten, nicht angekündigten) Chronik-
+   Eintrag mit Datum statt einem eigenen Feld – Datum in der Zukunft, sonst der jüngste überfällige. */
+function nkChronikNaechsteOffene(chronik, heuteDatum) {
+  const offen = (chronik || []).filter(c => c && c.datum && !c.erledigt && !c.angekuendigt);
+  if (!offen.length) return null;
+  const sortiert = offen.slice().sort((a, b) => (a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : 0));
+  const kuenftige = sortiert.filter(c => nkDatum(c.datum) >= nkDatum(heuteDatum));
+  return (kuenftige[0] || sortiert[sortiert.length - 1]).datum;
+}
 /* Gesamtliste für den Reiter: eigene Termine (objekt.termine) + aggregierte Mieterhöhungen,
    je mit Ampel, Tagen bis Termin und Farbcode, sortiert nach Datum aufsteigend. */
 function nkTermineGesamt(objekt, einheiten, heuteDatum) {
@@ -1450,7 +1485,7 @@ function nkTermineGesamt(objekt, einheiten, heuteDatum) {
     quelle: "wartung", id: t.id, art: t.art || "sonstiges", bez: t.bez || "",
     datum: t.naechster || "", intervallMonate: +t.intervallMonate || 0, notiz: t.notiz || "",
     zeit: t.zeit || "", erledigt: !!t.erledigt, icsVerschickt: !!t.icsVerschickt }));
-  const alle = user.concat(nkMieterhoehungTermine(einheiten, heuteDatum))
+  const alle = user.concat(nkMieterhoehungTermine(einheiten, heuteDatum)).concat(nkRwmTermine(einheiten, heuteDatum))
     .map(t => { const tage = nkTageBis(t.datum, heuteDatum);
       return Object.assign({ erledigt: false, zeit: "" }, t, { ampel: nkTerminAmpel(t.datum, heuteDatum), tage: tage, tageFarbe: nkTageFarbe(tage) }); });
   alle.sort((a, b) => String(a.datum || "").localeCompare(String(b.datum || "")));
@@ -1639,6 +1674,8 @@ if (typeof module !== "undefined" && module.exports) {
     nkAnkVerschicktAm,
     nkAnkSnapshot,
     nkMieterhoehungTermine,
+    nkRwmTermine,
+    nkChronikNaechsteOffene,
     nkTermineGesamt,
     nkTerminIcs,
     NK_TERMIN_VORLAGEN,

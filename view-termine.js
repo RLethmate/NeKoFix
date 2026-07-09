@@ -29,6 +29,22 @@ function terminZeile(t){
         '<span class="termin-akt"><button type="button" class="linklike" onclick="go(7)">Vertrag öffnen</button></span></div>'+
     '</div>';
   }
+  if(t.quelle==='rwm'){
+    /* Ralf-Vorgabe 2026-07-10: aus der Rauchwarnmelder-Anzahl je Einheit abgeleitet (nkRwmTermine,
+       "Objekt & Einheiten"), analog zur Mieterhöhungs-Zeile read-only (Datum/Rubrik nicht direkt
+       editierbar – Basis ist das letzte Wartungs-/Austauschdatum, s. rwmErledigtUi). "erledigt" setzt
+       das Datum auf heute, der Termin rückt automatisch ums Intervall vor UND es entsteht ein
+       Chronik-Eintrag beim aktuell laufenden Mietverhältnis dieser Einheit. */
+    return '<div class="termin-row rwm">'+
+      '<div class="termin-l1">'+terminTageBadge(t)+
+        '<span class="termin-bez-in mh-bez" style="display:flex;align-items:center;">'+esc(t.bez)+'</span>'+
+        '<span class="pill">'+esc(t.typ)+'</span></div>'+
+      '<div class="termin-l2">'+
+        '<input type="date" class="termin-datum-in" value="'+(t.datum||'')+'" disabled title="Fälligkeit – aus letzter Wartung/letztem Austausch berechnet">'+
+        '<input type="text" class="termin-sel" value="Vor Ort" disabled title="Rubrik">'+
+        '<span class="termin-akt"><button type="button" class="linklike" onclick="rwmErledigtUi('+t.einheitId+',\''+t.typ+'\')" title="Heute durchgeführt: Termin rückt ums Intervall vor, Chronik-Eintrag wird angelegt">heute erledigt</button></span></div>'+
+    '</div>';
+  }
   /* Zeile 1: Tage + Bezeichnung (breit); Zeile 2: Datum, Uhrzeit, Rubrik, Fälligkeit, angekündigt, erledigt, .ics, ×. */
   return '<div class="termin-row'+(t.erledigt?' erledigt':'')+'">'+
     '<div class="termin-l1">'+terminTageBadge(t)+
@@ -53,6 +69,29 @@ function setMhTerminBez(einheitId, mvId, val){
 }
 /* Fälligkeits-Text aus Intervall in Monaten (für die read-only Mieterhöhungs-Zeile). */
 function terminIntervallText(iv){ iv=+iv||0; if(iv<=0) return 'einmalig'; if(iv%12===0) return (iv/12===1?'jährlich':'alle '+(iv/12)+' Jahre'); return 'alle '+iv+' Monate'; }
+/* Ralf-Vorgabe 2026-07-10: Rauchwarnmelder-Wartung/-Austausch als "heute erledigt" eintragen –
+   setzt das Basisdatum auf heute (Termin rückt beim nächsten Render automatisch ums Intervall vor,
+   siehe nkRwmTermine) UND legt einen Chronik-Eintrag beim aktuell laufenden Mietverhältnis dieser
+   Einheit an (Fallback: letztes Mietverhältnis, falls keins "läuft" – analog zur €/m²-Pille in
+   renderMieterVertrag). Ohne Mietverhältnis in der Einheit entsteht kein Chronik-Eintrag. */
+function rwmErledigtUi(einheitId, typ){
+  const ei=state.einheiten.findIndex(e=>e.id===einheitId); if(ei<0) return;
+  const e=state.einheiten[ei];
+  const feld = typ==='Austausch' ? 'rwmAustauschLetzter' : 'rwmWartungLetzte';
+  const heuteStr=heute();
+  store.setEinheitDatum(ei,feld,heuteStr);
+  const mi = e.mv.findIndex(m=>m.laeuft)>=0 ? e.mv.findIndex(m=>m.laeuft) : e.mv.length-1;
+  if(mi>=0){
+    store.addChronik(ei,mi);
+    const m=store.mv(ei,mi); const ci=(m.chronik||[]).length-1;
+    if(ci>=0){
+      store.setChronikFeld(ei,mi,ci,'datum',heuteStr);
+      store.setChronikFeld(ei,mi,ci,'text', typ==='Austausch' ? 'Rauchwarnmelder ausgetauscht ('+(+e.rwmAnzahl||0)+' Stück)' : 'Rauchwarnmelder-Wartung durchgeführt (durch Mieter)');
+      store.setChronikFeld(ei,mi,ci,'art','vorort');
+    }
+  }
+  renderTermine();
+}
 /* „angekündigt" im Reiter setzen – Staffel über stafAngekuendigt (identisch zum Vertragsteil),
    Index über die Vorab-Ankündigung; der nächste Stichtag rückt danach nach. */
 function setMhAngekuendigtUi(einheitId, mvId, datum, typ, checked){

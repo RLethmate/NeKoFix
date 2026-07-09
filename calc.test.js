@@ -1428,12 +1428,14 @@ test("nkDokSegment / nkDokPfad: dateisystem-sichere Ordnernamen (US-109)", () =>
   assert.equal(calc.nkDokSegment("  x   y  "), "x y");
   assert.equal(calc.nkDokSegment(""), "_");
   assert.equal(calc.nkDokSegment(null), "_");
-  assert.deepEqual(calc.nkDokPfad("Lindenhof","2025","EG links","Familie Brandt"), ["Lindenhof","2025","EG links","Familie Brandt"]);
-  assert.deepEqual(calc.nkDokPfad("Haus/1","","E1","M1"), ["Haus_1","ohne Jahr","E1","M1"]); // leeres Jahr -> Platzhalter
+  // Ralf-Vorgabe 2026-07-10: Jahr ans Ende (Objekt/Einheit/Mieter/Jahr) – Mieter bleiben oft mehrere
+  // Jahre, ein Jahresordner ganz oben hätte ihren Beleg-Ordner sonst jedes Jahr neu aufgespalten.
+  assert.deepEqual(calc.nkDokPfad("Lindenhof","2025","EG links","Familie Brandt"), ["Lindenhof","EG links","Familie Brandt","2025"]);
+  assert.deepEqual(calc.nkDokPfad("Haus/1","","E1","M1"), ["Haus_1","E1","M1","ohne Jahr"]); // leeres Jahr -> Platzhalter
 });
 test("nkDokPfadObjekt: wie nkDokPfad ohne Objekt-Segment (Datenablage v2, US-109)", () => {
-  assert.deepEqual(calc.nkDokPfadObjekt("2025","EG links","Familie Brandt"), ["2025","EG links","Familie Brandt"]);
-  assert.deepEqual(calc.nkDokPfadObjekt("","E1","M1"), ["ohne Jahr","E1","M1"]);
+  assert.deepEqual(calc.nkDokPfadObjekt("2025","EG links","Familie Brandt"), ["EG links","Familie Brandt","2025"]);
+  assert.deepEqual(calc.nkDokPfadObjekt("","E1","M1"), ["E1","M1","ohne Jahr"]);
 });
 
 /* ---- US-111: Termine & Wartung ---- */
@@ -1541,6 +1543,36 @@ test("nkMieterhoehungTermine: Index rückt nach, wenn Stichtag vorab angekündig
   assert.equal(calc.nkMieterhoehungTermine([base], "2026-01-01")[0].datum, "2026-01-01"); // Folgejahr rückt nach
 });
 
+test("nkRwmTermine: ohne Anzahl kein Termin", () => {
+  assert.deepEqual(calc.nkRwmTermine([{ id: 1, name: "E", rwmAnzahl: 0 }], "2026-01-01"), []);
+  assert.deepEqual(calc.nkRwmTermine([{ id: 1, name: "E" }], "2026-01-01"), []);
+});
+test("nkRwmTermine: mit Anzahl zwei Termine (Wartung jährlich, Austausch alle 10 Jahre)", () => {
+  const einh = [{ id: 1, name: "EG links", rwmAnzahl: 3 }];
+  const t = calc.nkRwmTermine(einh, "2026-01-15");
+  assert.equal(t.length, 2);
+  const wartung = t.find(x => x.typ === "Wartung"), austausch = t.find(x => x.typ === "Austausch");
+  assert.equal(wartung.datum, "2027-01-15"); // Bootstrap ohne rwmWartungLetzte: heute + 12 Monate
+  assert.equal(wartung.intervallMonate, 12);
+  assert.ok(/EG links/.test(wartung.bez) && /3 Stück/.test(wartung.bez));
+  assert.equal(austausch.datum, "2036-01-15"); // Bootstrap ohne rwmAustauschLetzter: heute + 120 Monate
+  assert.equal(austausch.intervallMonate, 120);
+  // stabile, je Einheit+Typ eindeutige id (fürs .ics – keine UID-Kollision zwischen Einheiten)
+  assert.equal(wartung.id, "rwm-1-wartung");
+  assert.equal(austausch.id, "rwm-1-austausch");
+});
+test("nkRwmTermine: vorhandenes letztes Datum wird als Basis genutzt statt heute", () => {
+  const einh = [{ id: 2, name: "OG rechts", rwmAnzahl: 2, rwmWartungLetzte: "2025-05-01", rwmAustauschLetzter: "2020-05-01" }];
+  const t = calc.nkRwmTermine(einh, "2026-01-01");
+  assert.equal(t.find(x => x.typ === "Wartung").datum, "2026-05-01");
+  assert.equal(t.find(x => x.typ === "Austausch").datum, "2030-05-01");
+});
+test("nkRwmTermine: geht in nkTermineGesamt ein", () => {
+  const objekt = {}; const einh = [{ id: 1, name: "E", rwmAnzahl: 1 }];
+  const liste = calc.nkTermineGesamt(objekt, einh, "2026-01-01");
+  assert.equal(liste.filter(t => t.quelle === "rwm").length, 2);
+});
+
 /* ---- US-118 AC-2b: einheitlicher Ankündigungs-Speicher (Migration + Helfer) ---- */
 test("nkMigrateAnkuendigungen: kommende Index-Vorab-Ankündigung (mhAngekuendigt) -> {verschicktAm:''}", () => {
   const m = { mhAngekuendigt: { "2026-01-01": true, "2027-01-01": false } };
@@ -1583,4 +1615,31 @@ test("nkMigrateAnkuendigungen: alle drei Quellen zusammen, ohne Verlust", () => 
   assert.equal(calc.nkIstAngekuendigt(ank, "2027-01-01"), true);
   assert.equal(calc.nkIstAngekuendigt(ank, "2026-06-01"), true);
   assert.equal(calc.nkIstAngekuendigt(ank, "2025-09-01"), true);
+});
+
+test("nkChronikNaechsteOffene: liefert den nächstgelegenen künftigen offenen Eintrag", () => {
+  const chronik = [
+    { datum: "2026-01-01", text: "erledigt", erledigt: true },
+    { datum: "2026-09-01", text: "künftig, spät" },
+    { datum: "2026-06-01", text: "künftig, früher" },
+  ];
+  assert.equal(calc.nkChronikNaechsteOffene(chronik, "2026-05-01"), "2026-06-01");
+});
+test("nkChronikNaechsteOffene: ohne künftigen Eintrag der jüngste überfällige", () => {
+  const chronik = [
+    { datum: "2026-01-01", text: "überfällig, älter" },
+    { datum: "2026-03-01", text: "überfällig, jünger" },
+  ];
+  assert.equal(calc.nkChronikNaechsteOffene(chronik, "2026-05-01"), "2026-03-01");
+});
+test("nkChronikNaechsteOffene: erledigte und bereits angekündigte Einträge zählen nicht", () => {
+  const chronik = [
+    { datum: "2026-01-01", erledigt: true },
+    { datum: "2026-02-01", angekuendigt: true },
+  ];
+  assert.equal(calc.nkChronikNaechsteOffene(chronik, "2026-05-01"), null);
+});
+test("nkChronikNaechsteOffene: keine Chronik-Einträge -> null", () => {
+  assert.equal(calc.nkChronikNaechsteOffene([], "2026-05-01"), null);
+  assert.equal(calc.nkChronikNaechsteOffene(undefined, "2026-05-01"), null);
 });
