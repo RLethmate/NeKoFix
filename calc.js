@@ -78,6 +78,12 @@ function nkDokSegment(s) {
 function nkDokPfad(objekt, jahr, einheit, mieter) {
   return [nkDokSegment(objekt), nkDokSegment(jahr || "ohne Jahr"), nkDokSegment(einheit), nkDokSegment(mieter)];
 }
+/* Ralf-Vorgabe 2026-07-08 (Datenablage v2): wie nkDokPfad, aber OHNE Objekt-Segment – bei Objekten
+   mit eigenem Stammordner (dokAblageVersion 2) ist das Objekt bereits der Ordner selbst, kein
+   weiteres Unterverzeichnis dafür nötig. Reine Funktion. */
+function nkDokPfadObjekt(jahr, einheit, mieter) {
+  return [nkDokSegment(jahr || "ohne Jahr"), nkDokSegment(einheit), nkDokSegment(mieter)];
+}
 /* US-117: Spaltenbuchstabe (1-basiert) für Excel-Formeln – 1→A, 26→Z, 27→AA. Reine Funktion. */
 function nkColLetter(n) {
   let s = ""; n = Math.max(1, Math.floor(n));
@@ -1566,6 +1572,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkColLetter,
     nkDokSegment,
     nkDokPfad,
+    nkDokPfadObjekt,
     nkEurProQm,
     nkVerbrauchAusreisser,
     nkEurProKwh,

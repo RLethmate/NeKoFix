@@ -251,14 +251,31 @@ function speichern(){ markGespeichert(); }
    getrennt (z. B. Folgejahr aus einem bestehenden Jahr ableiten). */
 async function speichernUnter(){
   const modSnap = nkClone(snapshot());            /* aktueller, evtl. geänderter Stand = die Kopie */
-  const res = await schreibeDatei(JSON.stringify(modSnap,null,2), nkObjektDateiname(modSnap));
-  if(!res.ok) return;                              /* vom Nutzer abgebrochen */
-  const neuerName = nkNameAusDateiname(res.dateiname);
+  modSnap.objekt = modSnap.objekt || {};
+  /* Ralf-Vorgabe 2026-07-08 (Datenablage v2): bei Objekten mit eigenem Stammordner (dokAblageVersion
+     2) landet die JSON als Kind DIESES Ordners statt an einem beliebigen, unabhängigen Ort – dafür
+     wird hier (statt im freien Speichern-Dialog) explizit nach dem Namen gefragt, der zugleich den
+     Ordnernamen bestimmt (nur beim allerersten Mal je Objekt, danach wiederverwendet). Ältere/
+     importierte Objekte ohne dieses Feld bleiben beim bisherigen freien Speicherort. */
+  const istV2 = (+modSnap.objekt.dokAblageVersion||0)>=2 && typeof dokVerfuegbar==='function' && dokVerfuegbar();
+  let res;
+  if(istV2){
+    const vorschlag = modSnap.objekt.name || modSnap.objekt.addr || '';
+    const neuerName = prompt('Name für dieses Objekt (bestimmt auch den Ordnernamen):', vorschlag);
+    if(neuerName==null) return; /* vom Nutzer abgebrochen */
+    if(neuerName.trim()) modSnap.objekt.name = neuerName.trim();
+    modSnap.objekt.id = naechsteObjektId(); /* "Speichern unter" = neue, eigenständige Identität (Fork) */
+    res = await dokJsonSpeichern(modSnap.objekt, nkObjektDateiname(modSnap), JSON.stringify(modSnap,null,2));
+    if(!res.ok) return;
+  } else {
+    res = await schreibeDatei(JSON.stringify(modSnap,null,2), nkObjektDateiname(modSnap));
+    if(!res.ok) return;                            /* vom Nutzer abgebrochen */
+    const neuerName = nkNameAusDateiname(res.dateiname);
+    if(neuerName) modSnap.objekt.name = neuerName;
+  }
   /* 1) Ausgangsobjekt auf den gespeicherten Stand zurücksetzen (Änderungen verwerfen). */
   if(savedData[aktivIdx]) verwerfeAenderungen();
   /* 2) Neues Dokument aus dem geänderten Stand anlegen, benennen und aktiv schalten. */
-  modSnap.objekt = modSnap.objekt || {};
-  if(neuerName) modSnap.objekt.name = neuerName;
   objekte.push(modSnap); aktivIdx=objekte.length-1; ladeDaten(modSnap); ensureIds();
   renderAll(); neuerVerlauf(); markGespeichert(); markDateiGesichert(); updateSaveStatus();
 }
@@ -335,9 +352,31 @@ function switchObjekt(idx){
 }
 /* US-91: Anlegen bewusst bestätigen (Objekte entstehen sonst zu beiläufig). Das aktuelle Objekt
    bleibt erhalten und ist über „Öffnen"/„Zuletzt verwendet" wieder erreichbar. */
-function neuesObjekt(){
-  if(!confirm('Neues, leeres Objekt anlegen?\n\nDas aktuelle Objekt bleibt erhalten und ist über „Datei → Öffnen" oder „Zuletzt verwendet" wieder erreichbar.')) return;
-  saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); ui.current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
+/* Ralf-Vorgabe 2026-07-09: "Neu" hieß bisher immer "Neues Objekt" (irreführend, sobald mehrere
+   Objekte existieren) und fragte erst NACH dem Anlegen beiläufig nach einem Dokumentenordner.
+   Jetzt: Name zuerst abfragen (mit Tipp zur verkürzten Anschrift), Name direkt in Straße &
+   Hausnummer übernehmen, danach EIN Dialog (der Ordner-Picker in dokObjektRootSicherstellen) statt
+   einer Kette mehrerer Dialoge – siehe Fund in docs.js zu ablaufender "User Activation". Ohne
+   Datenablage-Unterstützung (kein Chromium) bleibt es beim einfachen Rückfrage-Confirm. */
+async function neuesObjekt(){
+  const v2moeglich = typeof dokVerfuegbar==='function' && dokVerfuegbar();
+  let name = '';
+  if(v2moeglich){
+    const eingabe = prompt('Name des neuen Objekts (Tipp: eine kurze/verkürzte Anschrift eignet sich gut, z. B. „Lindenhof" oder „Musterstr. 12"):\n\nIm nächsten Schritt wählst du den Ordner, in dem das Objekt angelegt wird.', '');
+    if(eingabe==null) return;
+    name = eingabe.trim();
+    if(!name){ alert('Ohne Namen kann kein Objekt angelegt werden.'); return; }
+  } else if(!confirm('Neues, leeres Objekt anlegen?\n\nDas aktuelle Objekt bleibt erhalten und ist über „Datei → Öffnen" oder „Zuletzt verwendet" wieder erreichbar.')){
+    return;
+  }
+  saveState();
+  const frisch = makeFreshDaten();
+  if(name){ frisch.objekt.name=name; frisch.objekt.addr=name; }
+  objekte.push(frisch); aktivIdx=objekte.length-1; ladeDaten(frisch); ensureIds(); ui.current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
+  if(v2moeglich && name){
+    await dokObjektRootSicherstellen(state.objekt);
+    saveState();
+  }
 }
 /* US-91: aktuelles Objekt löschen (mit Bestätigung) – damit versehentlich angelegte Objekte
    wieder entfernt werden können. */
