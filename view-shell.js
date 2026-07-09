@@ -250,32 +250,43 @@ function speichern(){ markGespeichert(); }
    gespeicherten Stand zurückgesetzt (Änderungen dort verworfen). So bleiben Quelle und Kopie
    getrennt (z. B. Folgejahr aus einem bestehenden Jahr ableiten). */
 async function speichernUnter(){
-  const modSnap = nkClone(snapshot());            /* aktueller, evtl. geänderter Stand = die Kopie */
-  modSnap.objekt = modSnap.objekt || {};
   /* Ralf-Vorgabe 2026-07-08 (Datenablage v2): bei Objekten mit eigenem Stammordner (dokAblageVersion
      2) landet die JSON als Kind DIESES Ordners statt an einem beliebigen, unabhängigen Ort – dafür
      wird hier (statt im freien Speichern-Dialog) explizit nach dem Namen gefragt, der zugleich den
      Ordnernamen bestimmt (nur beim allerersten Mal je Objekt, danach wiederverwendet). Ältere/
-     importierte Objekte ohne dieses Feld bleiben beim bisherigen freien Speicherort. */
-  const istV2 = (+modSnap.objekt.dokAblageVersion||0)>=2 && typeof dokVerfuegbar==='function' && dokVerfuegbar();
-  let res;
+     importierte Objekte ohne dieses Feld bleiben beim bisherigen freien Speicherort.
+     Namensabfrage läuft über den seitenintegrierten Dialog (nicht mehr prompt()) - siehe
+     openNamensDialog weiter oben: dessen "Speichern"-Klick ruft dokJsonSpeichern()/
+     showDirectoryPicker() direkt auf, ohne dass ein blockierender nativer Dialog vorher die
+     Aktivierung verstreichen lässt. */
+  const istV2 = (+state.objekt.dokAblageVersion||0)>=2 && typeof dokVerfuegbar==='function' && dokVerfuegbar();
   if(istV2){
-    const vorschlag = modSnap.objekt.name || modSnap.objekt.addr || '';
-    const neuerName = prompt('Name für dieses Objekt (bestimmt auch den Ordnernamen):', vorschlag);
-    if(neuerName==null) return; /* vom Nutzer abgebrochen */
-    if(neuerName.trim()) modSnap.objekt.name = neuerName.trim();
-    modSnap.objekt.id = naechsteObjektId(); /* "Speichern unter" = neue, eigenständige Identität (Fork) */
-    res = await dokJsonSpeichern(modSnap.objekt, nkObjektDateiname(modSnap), JSON.stringify(modSnap,null,2));
-    if(!res.ok) return;
-  } else {
-    res = await schreibeDatei(JSON.stringify(modSnap,null,2), nkObjektDateiname(modSnap));
-    if(!res.ok) return;                            /* vom Nutzer abgebrochen */
-    const neuerName = nkNameAusDateiname(res.dateiname);
-    if(neuerName) modSnap.objekt.name = neuerName;
+    const vorschlag = state.objekt.name || state.objekt.addr || '';
+    openNamensDialog('Speichern unter…', 'Name für dieses Objekt (bestimmt auch den Ordnernamen). Legt aus dem aktuellen Stand ein neues, eigenständiges Objekt an.', vorschlag, 'Speichern', _speichernUnterMitName);
+    return;
   }
-  /* 1) Ausgangsobjekt auf den gespeicherten Stand zurücksetzen (Änderungen verwerfen). */
+  const modSnap = nkClone(snapshot());            /* aktueller, evtl. geänderter Stand = die Kopie */
+  modSnap.objekt = modSnap.objekt || {};
+  const res = await schreibeDatei(JSON.stringify(modSnap,null,2), nkObjektDateiname(modSnap));
+  if(!res.ok) return;                              /* vom Nutzer abgebrochen */
+  const neuerName = nkNameAusDateiname(res.dateiname);
+  if(neuerName) modSnap.objekt.name = neuerName;
+  _speichernUnterUebernehmen(modSnap);
+}
+async function _speichernUnterMitName(neuerName){
+  const modSnap = nkClone(snapshot());
+  modSnap.objekt = modSnap.objekt || {};
+  if(neuerName.trim()) modSnap.objekt.name = neuerName.trim();
+  modSnap.objekt.id = naechsteObjektId(); /* "Speichern unter" = neue, eigenständige Identität (Fork) */
+  const res = await dokJsonSpeichern(modSnap.objekt, nkObjektDateiname(modSnap), JSON.stringify(modSnap,null,2));
+  if(!res.ok) return {ok:false}; /* Dialog bleibt offen, erneuter Klick = neue Aktivierung */
+  _speichernUnterUebernehmen(modSnap);
+  return {ok:true};
+}
+/* 1) Ausgangsobjekt auf den gespeicherten Stand zurücksetzen (Änderungen verwerfen).
+   2) Neues Dokument aus dem geänderten Stand anlegen, benennen und aktiv schalten. */
+function _speichernUnterUebernehmen(modSnap){
   if(savedData[aktivIdx]) verwerfeAenderungen();
-  /* 2) Neues Dokument aus dem geänderten Stand anlegen, benennen und aktiv schalten. */
   objekte.push(modSnap); aktivIdx=objekte.length-1; ladeDaten(modSnap); ensureIds();
   renderAll(); neuerVerlauf(); markGespeichert(); markDateiGesichert(); updateSaveStatus();
 }
@@ -298,6 +309,48 @@ function openObjektDialog(){ const s=document.getElementById('objekt_suche'); if
   const ov=document.getElementById('objekt_overlay'); if(ov) ov.hidden=false; if(s) s.focus(); }
 function closeObjektDialog(){ const ov=document.getElementById('objekt_overlay'); if(ov) ov.hidden=true; }
 function waehleObjekt(idx){ closeObjektDialog(); switchObjekt(idx); }
+/* Ralf-Fund 2026-07-10: ein natives prompt()/confirm() VOR showDirectoryPicker() (docs.js) lässt
+   Chromes kurze "User Activation" nach dem ursprünglichen Menü-Klick verstreichen - der Ordner-
+   Dialog öffnet sich danach lautlos nicht mehr. Diese beiden seitenintegrierten Dialoge ersetzen
+   die nativen prompt()/confirm()-Aufrufe VOR einer Ordnerauswahl: ihr eigener "Weiter"-Klick ist
+   selbst ein frischer Klick, der showDirectoryPicker() direkt im selben Handler öffnen kann,
+   unabhängig davon, wie lange der Dialog vorher offen stand. Callback-Vertrag: async, ohne Argument
+   (Bestätigungs-Dialog) bzw. mit dem eingegebenen Namen (Namens-Dialog); liefert {ok:false} bei
+   Abbruch/Fehler (Dialog bleibt offen, erneuter "Weiter"-Klick = neue frische Aktivierung) oder
+   {ok:true, msg?} bei Erfolg (Dialog schließt, msg wird danach angezeigt). */
+let _namensdialogCallback = null;
+function openNamensDialog(titel, hint, vorschlag, weiterLabel, onWeiter){
+  const t=document.getElementById('namensdlg_titel'); if(t) t.textContent=titel;
+  const h=document.getElementById('namensdlg_hint'); if(h) h.textContent=hint||'';
+  const inp=document.getElementById('namensdlg_input'); if(inp) inp.value=vorschlag||'';
+  const b=document.getElementById('namensdlg_weiter'); if(b) b.textContent=weiterLabel||'Weiter';
+  _namensdialogCallback=onWeiter;
+  const ov=document.getElementById('namensdlg_overlay'); if(ov) ov.hidden=false;
+  if(inp){ inp.focus(); inp.select(); }
+}
+function closeNamensDialog(){ const ov=document.getElementById('namensdlg_overlay'); if(ov) ov.hidden=true; _namensdialogCallback=null; }
+async function _namensdialogWeiter(){
+  const inp=document.getElementById('namensdlg_input');
+  const name=(inp&&inp.value||'').trim();
+  if(!name){ alert('Bitte einen Namen eingeben.'); if(inp) inp.focus(); return; }
+  const cb=_namensdialogCallback; if(!cb) return;
+  const erg=await cb(name);
+  if(erg && erg.ok){ closeNamensDialog(); if(erg.msg) alert(erg.msg); }
+}
+let _bestaetigdialogCallback = null;
+function openBestaetigDialog(titel, text, weiterLabel, onWeiter){
+  const t=document.getElementById('bestaetigdlg_titel'); if(t) t.textContent=titel;
+  const x=document.getElementById('bestaetigdlg_text'); if(x) x.textContent=text;
+  const b=document.getElementById('bestaetigdlg_weiter'); if(b) b.textContent=weiterLabel||'Weiter';
+  _bestaetigdialogCallback=onWeiter;
+  const ov=document.getElementById('bestaetigdlg_overlay'); if(ov) ov.hidden=false;
+}
+function closeBestaetigDialog(){ const ov=document.getElementById('bestaetigdlg_overlay'); if(ov) ov.hidden=true; _bestaetigdialogCallback=null; }
+async function _bestaetigdialogWeiter(){
+  const cb=_bestaetigdialogCallback; if(!cb) return;
+  const erg=await cb();
+  if(erg && erg.ok){ closeBestaetigDialog(); if(erg.msg) alert(erg.msg); }
+}
 function renderObjektDialog(){
   const box=document.getElementById('objekt_liste'); if(!box) return;
   const q=(((document.getElementById('objekt_suche')||{}).value)||'').toLowerCase().trim();
@@ -354,29 +407,36 @@ function switchObjekt(idx){
    bleibt erhalten und ist über „Öffnen"/„Zuletzt verwendet" wieder erreichbar. */
 /* Ralf-Vorgabe 2026-07-09: "Neu" hieß bisher immer "Neues Objekt" (irreführend, sobald mehrere
    Objekte existieren) und fragte erst NACH dem Anlegen beiläufig nach einem Dokumentenordner.
-   Jetzt: Name zuerst abfragen (mit Tipp zur verkürzten Anschrift), Name direkt in Straße &
-   Hausnummer übernehmen, danach EIN Dialog (der Ordner-Picker in dokObjektRootSicherstellen) statt
-   einer Kette mehrerer Dialoge – siehe Fund in docs.js zu ablaufender "User Activation". Ohne
-   Datenablage-Unterstützung (kein Chromium) bleibt es beim einfachen Rückfrage-Confirm. */
+   Jetzt: Name zuerst abfragen (mit Tipp zur verkürzten Anschrift, Ralf-Vorgabe 2026-07-10: Name vor
+   Ordner - Vermieter haben den Objektnamen im Kopf, den Speicherort überlegen sie sich danach), Name
+   direkt in Straße & Hausnummer übernehmen. Die Namensabfrage läuft über den seitenintegrierten
+   Dialog (nicht mehr prompt()) - ein blockierender nativer Dialog VOR showDirectoryPicker() lässt
+   die dafür nötige "User Activation" verstreichen, siehe openNamensDialog weiter oben. Ohne
+   Datenablage-Unterstützung (kein Chromium) bleibt es beim einfachen Rückfrage-Confirm (kein Ordner
+   involviert, daher unkritisch). */
 async function neuesObjekt(){
   const v2moeglich = typeof dokVerfuegbar==='function' && dokVerfuegbar();
-  let name = '';
   if(v2moeglich){
-    const eingabe = prompt('Name des neuen Objekts (Tipp: eine kurze/verkürzte Anschrift eignet sich gut, z. B. „Lindenhof" oder „Musterstr. 12"):\n\nIm nächsten Schritt wählst du den Ordner, in dem das Objekt angelegt wird.', '');
-    if(eingabe==null) return;
-    name = eingabe.trim();
-    if(!name){ alert('Ohne Namen kann kein Objekt angelegt werden.'); return; }
-  } else if(!confirm('Neues, leeres Objekt anlegen?\n\nDas aktuelle Objekt bleibt erhalten und ist über „Datei → Öffnen" oder „Zuletzt verwendet" wieder erreichbar.')){
+    openNamensDialog('Neues Objekt anlegen', 'Tipp: eine kurze/verkürzte Anschrift eignet sich gut, z. B. „Lindenhof" oder „Musterstr. 12". Im nächsten Schritt wählst du den Ordner, in dem das Objekt angelegt wird.', '', 'Ordner wählen', _neuesObjektMitName);
     return;
   }
+  if(!confirm('Neues, leeres Objekt anlegen?\n\nDas aktuelle Objekt bleibt erhalten und ist über „Datei → Öffnen" oder „Zuletzt verwendet" wieder erreichbar.')) return;
   saveState();
   const frisch = makeFreshDaten();
-  if(name){ frisch.objekt.name=name; frisch.objekt.addr=name; }
   objekte.push(frisch); aktivIdx=objekte.length-1; ladeDaten(frisch); ensureIds(); ui.current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
-  if(v2moeglich && name){
-    await dokObjektRootSicherstellen(state.objekt);
-    saveState();
-  }
+}
+async function _neuesObjektMitName(name){
+  const erg = await _dokOrdnerFuerNamenAnlegen(name); /* Picker + Unterordner, ohne Id-Cache (die Objekt-ID entsteht erst unten) */
+  if(!erg) return {ok:false}; /* abgebrochen/fehlgeschlagen - Dialog bleibt offen, erneuter Klick = neue Aktivierung */
+  saveState();
+  const frisch = makeFreshDaten();
+  frisch.objekt.name=name; frisch.objekt.addr=name;
+  objekte.push(frisch); aktivIdx=objekte.length-1; ladeDaten(frisch); ensureIds();
+  _dokObjektRootCache[state.objekt.id]=erg.root; await _dokObjektRootSetzen(state.objekt.id, erg.root);
+  ui.current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
+  /* Der Browser liefert aus Sicherheitsgründen keinen absoluten Dateisystem-Pfad, nur Ordnernamen –
+     daher als Orientierung die Namenskette statt eines echten Pfads. */
+  return {ok:true, msg:'Ordner angelegt: „'+erg.eltern.name+'" / „'+erg.ordnername+'"\n\nDort liegen künftig die Belege und die Objektdatei dieses Objekts.'};
 }
 /* US-91: aktuelles Objekt löschen (mit Bestätigung) – damit versehentlich angelegte Objekte
    wieder entfernt werden können. */

@@ -38,31 +38,41 @@ async function _dokPerm(h){ if(!h) return false; const o={mode:'readwrite'}; try
 function _dokObjektRootKey(objektId){ return 'objroot:'+objektId; }
 async function _dokObjektRootLaden(objektId){ try{ return (await _dokIdbGet(_dokObjektRootKey(objektId)))||null; }catch(e){ return null; } }
 async function _dokObjektRootSetzen(objektId, handle){ await _dokIdbSet(_dokObjektRootKey(objektId), handle); }
-/* Liefert den Stammordner des übergebenen Objekts; fragt beim allerersten Mal EINMALIG nach dem
-   ÜBERGEORDNETEN Ordner und legt darin einen Unterordner mit dem Objektnamen an (das wird der
-   Stammordner). Null bei Abbruch/fehlender Objekt-ID/fehlendem Browser-Support.
-   Ralf-Fund 2026-07-09: hier stand vorher noch ein eigener confirm() direkt vor dem
-   showDirectoryPicker()-Aufruf ("Im nächsten Dialog bitte..."). Mehrere native Dialoge
-   (prompt/confirm) HINTEREINANDER lassen die für showDirectoryPicker() nötige "User Activation"
-   ablaufen – der Picker öffnete sich dann nach "OK" nicht mehr, ohne sichtbaren Fehler ("da
-   passiert nichts"). Die Erklärung gehört jetzt in den EINEN vorausgehenden Dialog der Aufrufer
-   (z. B. der Namens-prompt() in neuesObjekt()/speichernUnter()), hier kein weiterer Dialog mehr
-   dazwischen. */
+/* Ralf-Fund 2026-07-09/2026-07-10: ein natives prompt()/confirm() VOR showDirectoryPicker() lässt
+   die dafür nötige "User Activation" verstreichen (die Zeit, die der Nutzer zum Lesen/Tippen im
+   blockierenden Dialog braucht) - der Picker öffnet sich danach lautlos nicht mehr ("da passiert
+   nichts"). Reines Weglassen EINES Dialogs reicht nicht, da schon ein einziger blockierender Dialog
+   davor genügt. Lösung: der Picker wird direkt aus einem eigenen, frischen Klick heraus aufgerufen
+   (seitenintegrierte Dialoge mit "Weiter"-Button in view-shell.js, siehe openNamensDialog/
+   openBestaetigDialog) statt nach einem nativen prompt()/confirm(). Dieser Helfer kapselt NUR
+   Picker + Unterordner-Anlage (ohne Id-Cache) - für neuesObjekt(), wo die Objekt-ID laut Ralf-
+   Vorgabe (Name zuerst) erst NACH der Ordnerauswahl entsteht. */
+async function _dokOrdnerFuerNamenAnlegen(name){
+  const ordnername=nkDokSegment(name||'Objekt');
+  let eltern;
+  try{ eltern=await window.showDirectoryPicker({mode:'readwrite'}); }catch(e){ return null; /* abgebrochen */ }
+  if(!(await _dokPerm(eltern))){ alert('Kein Schreibzugriff auf den gewählten Ordner.'); return null; }
+  let root;
+  try{ root=await eltern.getDirectoryHandle(ordnername,{create:true}); }
+  catch(e){ alert('Ordner „'+ordnername+'" konnte nicht angelegt werden: '+((e&&e.message)||e)); return null; }
+  return { eltern:eltern, root:root, ordnername:ordnername };
+}
+/* Liefert den Stammordner des übergebenen Objekts (mit Id-Cache); fragt beim allerersten Mal
+   EINMALIG nach dem ÜBERGEORDNETEN Ordner (über den o. g. Helfer) und legt darin einen Unterordner
+   mit dem Objektnamen an. Null bei Abbruch/fehlender Objekt-ID/fehlendem Browser-Support. Wird nur
+   noch aus Kontexten aufgerufen, in denen dem Aufruf KEIN blockierender Dialog vorausgeht (Datei-
+   Anhang-Buttons; speichernUnter() über den seitenintegrierten Namens-Dialog). */
 async function dokObjektRootSicherstellen(objekt){
   if(!dokVerfuegbar() || !objekt || !objekt.id) return null;
   let root=_dokObjektRootCache[objekt.id] || await _dokObjektRootLaden(objekt.id);
   if(root){ _dokObjektRootCache[objekt.id]=root; return root; }
-  const ordnername=nkDokSegment(objekt.name||objekt.addr||'Objekt');
-  let eltern;
-  try{ eltern=await window.showDirectoryPicker({mode:'readwrite'}); }catch(e){ return null; /* abgebrochen */ }
-  if(!(await _dokPerm(eltern))){ alert('Kein Schreibzugriff auf den gewählten Ordner.'); return null; }
-  try{ root=await eltern.getDirectoryHandle(ordnername,{create:true}); }
-  catch(e){ alert('Ordner „'+ordnername+'" konnte nicht angelegt werden: '+((e&&e.message)||e)); return null; }
-  _dokObjektRootCache[objekt.id]=root; await _dokObjektRootSetzen(objekt.id, root);
+  const erg=await _dokOrdnerFuerNamenAnlegen(objekt.name||objekt.addr||'Objekt');
+  if(!erg) return null;
+  _dokObjektRootCache[objekt.id]=erg.root; await _dokObjektRootSetzen(objekt.id, erg.root);
   /* Der Browser liefert aus Sicherheitsgründen keinen absoluten Dateisystem-Pfad, nur Ordnernamen –
      daher als Orientierung die Namenskette statt eines echten Pfads. */
-  alert('Ordner angelegt: „'+eltern.name+'" / „'+ordnername+'"\n\nDort liegen künftig die Belege und die Objektdatei dieses Objekts.');
-  return root;
+  alert('Ordner angelegt: „'+erg.eltern.name+'" / „'+erg.ordnername+'"\n\nDort liegen künftig die Belege und die Objektdatei dieses Objekts.');
+  return erg.root;
 }
 /* Liefert den fürs AKTUELLE Objekt zuständigen Stammordner (v2: pro Objekt, v1: global) –
    Einstiegspunkt, den alle übrigen Funktionen unten nutzen, damit sie nicht selbst zwischen den
@@ -171,17 +181,27 @@ async function _dokLoescheInhalt(dir){
   const namen=[]; for await (const name of dir.keys()){ namen.push(name); }
   for(const name of namen){ await dir.removeEntry(name,{recursive:true}); }
 }
+/* Öffnet den seitenintegrierten Bestätigungs-Dialog statt eines nativen confirm() - dessen eigener
+   "Weiter"-Klick ruft showDirectoryPicker() direkt auf (siehe _dokOrdnerUmziehenWeiter unten), ohne
+   dass vorher ein blockierender nativer Dialog die Aktivierung verstreichen lässt. */
 async function dokOrdnerUmziehen(){
   if(!dokVerfuegbar()){ alert('Die Ordner-Ablage benötigt Chrome, Edge oder Brave (File System Access API).'); return; }
   const v2 = state.objekt && (+state.objekt.dokAblageVersion||0)>=2;
   const quelle = await _dokBasisAktuell(false);
   if(!quelle){ alert('Es ist noch kein Dokumentenordner gewählt – nichts zum Umziehen.'); await _dokBasisAktuell(true); return; }
   const bezeichnung = v2 ? ('„'+quelle.name+'" (Objekt „'+(state.objekt.name||state.objekt.addr)+'")') : ('„'+quelle.name+'"');
-  if(!confirm('Alle Dateien aus '+bezeichnung+' in einen neuen Ordner verschieben?\n\nDanach ist der neue Ordner aktiv; der bisherige wird geleert.')) return;
+  openBestaetigDialog(
+    'Dokumentenordner umziehen',
+    'Alle Dateien aus '+bezeichnung+' in einen neuen Ordner verschieben?\n\nDanach ist der neue Ordner aktiv; der bisherige wird geleert.',
+    'Ordner wählen',
+    function(){ return _dokOrdnerUmziehenWeiter(quelle, v2, bezeichnung); }
+  );
+}
+async function _dokOrdnerUmziehenWeiter(quelle, v2, bezeichnung){
   let elternOderZiel;
-  try{ elternOderZiel=await window.showDirectoryPicker({mode:'readwrite'}); }catch(e){ return; /* vom Nutzer abgebrochen */ }
-  if(!(await _dokPerm(quelle))){ alert('Kein Schreibzugriff auf den bisherigen Ordner '+bezeichnung+' – Umzug abgebrochen, nichts wurde verändert.'); return; }
-  if(!(await _dokPerm(elternOderZiel))){ alert('Kein Schreibzugriff auf den neu gewählten Ordner „'+elternOderZiel.name+'" – Umzug abgebrochen, nichts wurde verändert.'); return; }
+  try{ elternOderZiel=await window.showDirectoryPicker({mode:'readwrite'}); }catch(e){ return {ok:false}; /* vom Nutzer abgebrochen, Dialog bleibt offen */ }
+  if(!(await _dokPerm(quelle))){ alert('Kein Schreibzugriff auf den bisherigen Ordner '+bezeichnung+' – Umzug abgebrochen, nichts wurde verändert.'); return {ok:false}; }
+  if(!(await _dokPerm(elternOderZiel))){ alert('Kein Schreibzugriff auf den neu gewählten Ordner „'+elternOderZiel.name+'" – Umzug abgebrochen, nichts wurde verändert.'); return {ok:false}; }
   try{
     let ziel=elternOderZiel;
     if(v2){
@@ -196,8 +216,10 @@ async function dokOrdnerUmziehen(){
     else { _dokBasis=ziel; await _dokIdbSet('basis', ziel); }
     alert('Umzug abgeschlossen: „'+alterName+'" → „'+ziel.name+'".');
     if(typeof renderMieterVertrag==='function') renderMieterVertrag();
+    return {ok:true};
   }catch(e){
     alert('Umzug fehlgeschlagen: '+((e&&e.message)||e)+'\n\nDer bisherige Ordner '+bezeichnung+' bleibt unverändert aktiv, es sind keine Daten verloren gegangen.');
+    return {ok:false};
   }
 }
 /* Basisordner-Handle beim Laden wiederherstellen (persistiert). */

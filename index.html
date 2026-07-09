@@ -716,6 +716,34 @@
       </div>
     </div>
   </div>
+  <!-- Ralf-Fund 2026-07-10: ein natives prompt()/confirm() VOR showDirectoryPicker() blockiert die
+       Seite, während der Nutzer liest/tippt/überlegt - genau diese Zeit lässt Chromes kurze
+       "User Activation" nach dem ursprünglichen Menü-Klick verstreichen, danach öffnet sich der
+       Ordner-Dialog lautlos nicht mehr. Diese beiden seitenintegrierten Dialoge ersetzen die
+       nativen Varianten: ihr eigener "Weiter"-Klick ist selbst ein frischer Klick und öffnet
+       showDirectoryPicker() direkt im selben Handler (_namensdialogWeiter/_bestaetigdialogWeiter in
+       view-shell.js) - unabhängig davon, wie lange der Dialog vorher offen stand. -->
+  <div class="overlay-obj" id="namensdlg_overlay" hidden onclick="if(event.target===this)closeNamensDialog()">
+    <div class="dialog-obj" style="width:min(440px,94vw)">
+      <h2 id="namensdlg_titel">Titel</h2>
+      <p class="hint" id="namensdlg_hint" style="margin:0 18px 12px;"></p>
+      <input class="dlg-search" id="namensdlg_input" onkeydown="if(event.key==='Enter'){event.preventDefault();_namensdialogWeiter();}">
+      <div class="dlg-foot">
+        <button class="btn-ghost" onclick="closeNamensDialog()">Abbrechen</button>
+        <button class="btn-primary" id="namensdlg_weiter" onclick="_namensdialogWeiter()">Weiter</button>
+      </div>
+    </div>
+  </div>
+  <div class="overlay-obj" id="bestaetigdlg_overlay" hidden onclick="if(event.target===this)closeBestaetigDialog()">
+    <div class="dialog-obj" style="width:min(440px,94vw)">
+      <h2 id="bestaetigdlg_titel">Titel</h2>
+      <p class="hint" id="bestaetigdlg_text" style="margin:0 18px 16px;white-space:pre-line;"></p>
+      <div class="dlg-foot">
+        <button class="btn-ghost" onclick="closeBestaetigDialog()">Abbrechen</button>
+        <button class="btn-primary" id="bestaetigdlg_weiter" onclick="_bestaetigdialogWeiter()">Weiter</button>
+      </div>
+    </div>
+  </div>
   <div id="csv_overlay" class="csv-overlay" style="display:none" onclick="if(event.target===this)closeUmsatzReview()">
     <div class="csv-modal" id="csv_modal"></div>
   </div>
