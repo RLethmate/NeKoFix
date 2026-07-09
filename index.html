@@ -46,8 +46,15 @@
   .menu-submenu button:hover{background:#eef3f8;}
   .menu-submenu button[disabled]{color:#8a97a6;cursor:default;}
   .mru-num{color:#8a97a6;font-size:11px;width:14px;flex:0 0 auto;}
-  /* US-91: aktuelles Objekt als Titel im Header */
-  .obj-title{font-size:14px;font-weight:600;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:7px;padding:5px 12px;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* US-91: aktuelles Objekt als Titel im Header.
+     Ralf-Vorgabe 2026-07-10: aus dem einen Textfeld „Name · Jahr" wurden zwei Comboboxen (Name =
+     zuletzt verwendete Objekte, Jahr = Jahrgänge desselben Objekts) – .obj-title-select trägt daher
+     dieselbe Optik wie vorher .obj-title, .obj-jahr-select ist bewusst schmal und ohne Ellipsis. */
+  .obj-title-select,.obj-jahr-select{font-size:14px;font-weight:600;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:7px;padding:5px 8px;cursor:pointer;}
+  .obj-title-select{max-width:40vw;text-overflow:ellipsis;}
+  .obj-title-select option,.obj-jahr-select option{color:#1d2733;}
+  .obj-jahr-select{width:5.5em;flex:none;}
+  .obj-jahr-select:disabled{opacity:.55;cursor:default;}
   /* US-91: „Öffnen"-Dialog */
   .overlay-obj{position:fixed;inset:0;background:rgba(13,30,38,.45);z-index:60;display:flex;align-items:center;justify-content:center;padding:24px;}
   .overlay-obj[hidden]{display:none;}
@@ -110,7 +117,8 @@
   .reset-data:hover{background:rgba(255,255,255,.25);}
   /* US-82: Undo/Redo-Schalter im Header */
   .undo-bar{display:inline-flex;gap:4px;}
-  .undo-btn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:4px 9px;font-size:14px;line-height:1;cursor:pointer;}
+  .undo-btn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:5px 9px;font-size:14px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}
+  .undo-btn svg{display:block;}
   .undo-btn:hover:not(:disabled){background:rgba(255,255,255,.25);}
   .undo-btn:disabled{opacity:.4;cursor:default;}
   .abr-status-wrap{font-size:12px;color:#fff;opacity:.95;display:flex;align-items:center;gap:6px;}
@@ -673,16 +681,22 @@
 <body>
 <header class="app">
   <div class="logo">NeKo<span>Fix</span></div>
-  <span class="obj-title" id="obj_title" title="Aktuelles Objekt – wechseln über Datei: Öffnen oder Zuletzt verwendet"></span>
+  <select class="obj-title-select" id="obj_title_select" title="Objekt wechseln (zuletzt verwendete)" onchange="onObjTitelChange(this)"></select>
+  <select class="obj-jahr-select" id="obj_jahr_select" title="Anderen Jahrgang dieses Objekts öffnen" onchange="onObjJahrChange(this)"></select>
   <div class="undo-bar" role="group" aria-label="Rückgängig / Wiederherstellen">
-    <button id="btn_undo" class="undo-btn" onclick="undo()" title="Rückgängig (Strg/Cmd+Z)" aria-label="Rückgängig" disabled>↶</button>
-    <button id="btn_redo" class="undo-btn" onclick="redo()" title="Wiederherstellen (Strg/Cmd+Shift+Z)" aria-label="Wiederherstellen" disabled>↷</button>
+    <!-- Ralf-Vorgabe 2026-07-10: die vorherigen Halbkreis-Zeichen (↶/↷) liefen oben rum statt klar
+         seitlich zu zeigen ("wirken um 90° verdreht"). Ersetzt durch einen U-Turn-Haken im Stil des
+         macOS-Systemsymbols für Rückgängig/Wiederholen (SF Symbols "arrow.uturn.backward/forward",
+         z. B. in Vorschau/Notizen) - eigenes SVG statt Unicode, damit die Pfeilspitze wirklich
+         horizontal zeigt. Variante "B" aus dem Vergleich, von Ralf gewählt. -->
+    <button id="btn_undo" class="undo-btn" onclick="undo()" title="Rückgängig (Strg/Cmd+Z)" aria-label="Rückgängig" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M8 7 L4 11 L8 15"/><path d="M4 11 H15 a5 5 0 0 1 0 10 h-2"/></svg></button>
+    <button id="btn_redo" class="undo-btn" onclick="redo()" title="Wiederherstellen (Strg/Cmd+Shift+Z)" aria-label="Wiederherstellen" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M16 7 L20 11 L16 15"/><path d="M20 11 H9 a5 5 0 0 0 0 10 h2"/></svg></button>
   </div>
   <div class="menu">
     <button class="reset-data" onclick="toggleDateiMenu()" title="Objekte verwalten, speichern und laden">Datei ▾</button>
     <div id="datei_menu" class="menu-pop" hidden>
       <button onclick="neuesObjekt();toggleDateiMenu(true)">Neues Objekt …<span class="menu-kbd">Strg+N</span></button>
-      <button onclick="openObjektDialog();toggleDateiMenu(true)">Öffnen…<span class="menu-kbd">Strg+O</span></button>
+      <button onclick="openObjektDialog();toggleDateiMenu(true)">Objekt öffnen…<span class="menu-kbd">Strg+O</span></button>
       <div class="menu-sub"><button onclick="toggleMruSub(event)">Zuletzt verwendet<span class="menu-kbd">▸</span></button><div id="mru_sub" class="menu-submenu" hidden></div></div>
       <div class="menu-sep"></div>
       <button onclick="speichern();toggleDateiMenu(true)">Speichern<span class="menu-kbd">Strg+S</span></button>
@@ -697,7 +711,7 @@
            "Datei anfügen" – der Ordner ist global (nicht je Objekt), daher hier statt in Mieter &
            Vertrag. -->
       <button onclick="dokBasisWaehlen();toggleDateiMenu(true)" title="Ordner für Belege, Fotos und Verträge festlegen oder wechseln">Dokumentenordner wählen…</button>
-      <button onclick="dokOrdnerUmziehen();toggleDateiMenu(true)" title="Alle bisherigen Dateien in einen neuen Ordner verschieben">Dokumentenordner umziehen…</button>
+      <button onclick="dokOrdnerUmziehen();toggleDateiMenu(true)" title="Alle bisherigen Dateien in einen neuen Ordner verschieben">Objektordner umziehen…</button>
       <div class="menu-sep"></div>
       <button onclick="toggleVorjahr();toggleDateiMenu(true)">Vorjahr ein-/ausblenden<span class="menu-kbd">Alt+v</span></button>
     </div>
@@ -707,7 +721,7 @@
   <!-- US-91: „Öffnen"-Dialog (alle Objekte, Suche, progressive Gruppierung) -->
   <div class="overlay-obj" id="objekt_overlay" hidden onclick="if(event.target===this)closeObjektDialog()">
     <div class="dialog-obj">
-      <h2>Öffnen</h2>
+      <h2>Objekt öffnen</h2>
       <input class="dlg-search" id="objekt_suche" placeholder="Suchen… (Objekt oder Jahr)" oninput="renderObjektDialog()">
       <div class="dlg-list" id="objekt_liste"></div>
       <div class="dlg-foot">

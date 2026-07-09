@@ -302,8 +302,39 @@ function pdfStandOk(){
 /* US-91: Office-Stil – aktuelles Objekt als Titel im Header (kein Dauer-Dropdown mehr).
    markRecent() hält die „Zuletzt verwendet"-Liste aktuell (wird bei jedem Objektwechsel über renderAll erreicht). */
 function markRecent(){ if(objekte[aktivIdx]) mruPush(objSignatur(objekte[aktivIdx])); }
-function renderObjTitle(){ markRecent(); const el=document.getElementById('obj_title'); if(!el) return;
-  el.textContent = objekte.length ? objektLabel(objekte[aktivIdx], aktivIdx) : '—'; }
+/* Ralf-Vorgabe 2026-07-10: Header-Titel „Name · Jahr" war ein einziges, nicht editierbares Textfeld –
+   jetzt zwei eigene Felder: links NUR der selbst vergebene Name, als Combobox der zuletzt verwendeten
+   Objekte (wie „Datei → Zuletzt verwendet", aber direkt im Header wählbar, je Name nur einmal – die
+   zuletzt genutzte Jahres-Instanz); rechts ein Jahr-Feld, das zwischen den Jahrgängen DESSELBEN
+   Objekts springen kann (gruppiert wie im „Objekt öffnen"-Dialog: gleicher Name = dasselbe Objekt).
+   Nur ein Jahrgang vorhanden -> Jahr-Feld deaktiviert (nichts zum Springen). */
+function objNameMruListe(){
+  const list=[]; const seen=new Set();
+  mru.forEach(sig=>{ const i=objekte.findIndex(d=>objSignatur(d)===sig); if(i<0) return;
+    const name=objName(objekte[i],i); if(seen.has(name)) return; seen.add(name); list.push({idx:i, name}); });
+  return list;
+}
+function objJahrListe(idx){
+  const name=objekte[idx]?objName(objekte[idx],idx):'';
+  return objekte.map((d,i)=>({idx:i, name:objName(d,i), jahr:objektJahr(d)}))
+    .filter(it=>it.name===name)
+    .sort((a,b)=>String(a.jahr||'').localeCompare(String(b.jahr||'')));
+}
+function renderObjTitle(){
+  markRecent();
+  const nameSel=document.getElementById('obj_title_select'), jahrSel=document.getElementById('obj_jahr_select');
+  if(!nameSel || !jahrSel) return;
+  if(!objekte.length){ nameSel.innerHTML='<option>—</option>'; jahrSel.innerHTML=''; jahrSel.disabled=true; return; }
+  const aktName=objName(objekte[aktivIdx],aktivIdx);
+  const namen=objNameMruListe();
+  if(!namen.some(n=>n.name===aktName)) namen.unshift({idx:aktivIdx, name:aktName}); /* aktives Objekt immer enthalten */
+  nameSel.innerHTML=namen.map(n=>'<option value="'+n.idx+'"'+(n.name===aktName?' selected':'')+'>'+esc(n.name)+'</option>').join('');
+  const jahre=objJahrListe(aktivIdx);
+  jahrSel.disabled = jahre.length<=1;
+  jahrSel.innerHTML=jahre.map(j=>'<option value="'+j.idx+'"'+(j.idx===aktivIdx?' selected':'')+'>'+esc(j.jahr||'—')+'</option>').join('');
+}
+function onObjTitelChange(sel){ waehleObjekt(+sel.value); }
+function onObjJahrChange(sel){ waehleObjekt(+sel.value); }
 /* US-91: „Öffnen"-Dialog – alle Objekte, Suche, progressive Gruppierung (nkObjekteGruppieren). */
 function openObjektDialog(){ const s=document.getElementById('objekt_suche'); if(s) s.value=''; renderObjektDialog();
   const ov=document.getElementById('objekt_overlay'); if(ov) ov.hidden=false; if(s) s.focus(); }
@@ -433,10 +464,17 @@ async function _neuesObjektMitName(name){
   frisch.objekt.name=name; frisch.objekt.addr=name;
   objekte.push(frisch); aktivIdx=objekte.length-1; ladeDaten(frisch); ensureIds();
   _dokObjektRootCache[state.objekt.id]=erg.root; await _dokObjektRootSetzen(state.objekt.id, erg.root);
+  /* Ralf-Vorgabe 2026-07-09: bislang entstand beim Anlegen NUR der Ordner, keine Objektdatei –
+     "Speichern" (Strg+S) schreibt nach wie vor nur ins localStorage, "Speichern unter…" hätte eine
+     ZWEITE, eigenständige Objekt-ID angelegt. Daher hier direkt die erste JSON in den neuen Ordner
+     schreiben (dokJsonSpeichern findet den Root schon im Cache, fragt also nicht erneut). */
+  const dateiname = nkObjektDateiname(snapshot());
+  const schreibRes = await dokJsonSpeichern(state.objekt, dateiname, JSON.stringify(snapshot(),null,2));
+  if(schreibRes.ok) markDateiGesichert();
   ui.current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
   /* Der Browser liefert aus Sicherheitsgründen keinen absoluten Dateisystem-Pfad, nur Ordnernamen –
      daher als Orientierung die Namenskette statt eines echten Pfads. */
-  return {ok:true, msg:'Ordner angelegt: „'+erg.eltern.name+'" / „'+erg.ordnername+'"\n\nDort liegen künftig die Belege und die Objektdatei dieses Objekts.'};
+  return {ok:true, msg:'Ordner angelegt: „'+erg.eltern.name+'" / „'+erg.ordnername+'"\n\nDort liegen künftig die Belege und die Objektdatei ('+(schreibRes.ok?dateiname:'Fehler beim Schreiben')+') dieses Objekts.'};
 }
 /* US-91: aktuelles Objekt löschen (mit Bestätigung) – damit versehentlich angelegte Objekte
    wieder entfernt werden können. */

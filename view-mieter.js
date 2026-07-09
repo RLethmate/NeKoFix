@@ -16,6 +16,12 @@ function renderEinheiten(){
     const personenInp = vjOn
       ? vjFeld(vjE && vjE.personen!=null ? vjE.personen : null)
       : '<input class="short" type="number" value="'+e.personen+'" oninput="updEinheit('+ei+',\'personen\',this.value)">';
+    /* Ralf-Vorgabe 2026-07-10: Anzahl Rauchwarnmelder je Einheit – Basis für die daraus abgeleiteten
+       Termine (jährliche Wartung durch die Mieter, Austausch alle 10 Jahre) im Reiter "Termine &
+       Wartung" (nkRwmTermine). Ohne Anzahl entsteht dort kein Termin. */
+    const rwmInp = vjOn
+      ? vjFeld(vjE && vjE.rwmAnzahl!=null ? vjE.rwmAnzahl : null)
+      : '<input class="short" type="number" min="0" step="1" value="'+(+e.rwmAnzahl||0)+'" oninput="updEinheit('+ei+',\'rwmAnzahl\',this.value)">';
     /* US-96: unbeheizte Fläche (z. B. Terrasse) – wird bei den Heiz-Grundkosten von der Fläche abgezogen. */
     const unbeheiztInp = vjOn
       ? vjFeld(vjE && vjE.unbeheizt!=null ? nkFmtZahl(vjE.unbeheizt)+' m²' : null)
@@ -30,6 +36,7 @@ function renderEinheiten(){
           '<label class="hf hf-1u"><span>Fläche</span>'+flaecheInp+'</label>'+
           '<label class="hf hf-1u" title="Unbeheizte Fläche (z. B. Terrasse, Balkon). Wird nur bei den Heiz-Grundkosten von der Fläche abgezogen (US-96), sonst bleibt die volle Fläche maßgeblich."><span>unbeheizt</span>'+unbeheiztInp+'</label>'+
           '<label class="hf hf-1u"><span>Personen</span>'+personenInp+'</label>'+
+          '<label class="hf hf-1u" title="Anzahl Rauchwarnmelder in dieser Einheit – Basis für Wartungs-/Austausch-Termine (Reiter Termine &amp; Wartung)"><span>Rauchmelder</span>'+rwmInp+'</label>'+
           (vjOn?'':'<button class="row-del" title="Einheit entfernen" onclick="delEinheit('+ei+')" style="margin-left:auto;">×</button>')+
         '</div>'+
       '</div>');
@@ -75,12 +82,15 @@ function mvZeilen(e, ei){
           '<div class="hint mv-vcenter" style="grid-column:c5 / -1">'+(vm?'aus Vorjahr':'kein Vorjahres-Mietverhältnis')+'</div>'+
         '</div>';
       }
-      const na=m.naechsteAnpassung||'';
       /* Warndreieck: eigene, IMMER vorhandene Gutter-Spalte (aux1) statt inline im Namensfeld –
-         Erscheinen/Verschwinden verschiebt dadurch „Von" & Co. nicht mehr (Dummy2-Prinzip). */
+         Erscheinen/Verschwinden verschiebt dadurch „Von" & Co. nicht mehr (Dummy2-Prinzip).
+         Ralf-Vorgabe 2026-07-10: ohne Mieterhöhungstyp gibt es kein eigenes "Nächste Anpassung"-
+         Feld mehr – die Warnung liest sich stattdessen aus dem nächsten offenen Chronik-Eintrag
+         (nkChronikNaechsteOffene), konsistent mit "das ist ja schon ein Chronik-Eintrag". */
+      const naOhneTyp = m.mhTyp ? null : nkChronikNaechsteOffene(m.chronik, heute());
       const warnHtml = m.mhTyp
         ? (mhWarnung(m) ? '<span title="Mieterhöhung fällig – Ankündigung noch nicht verschickt">'+WARN_ICON+'</span>' : '')
-        : (nkBaldFaellig(na, heute(), 3) ? '<span title="Mieterhöhung bald fällig ('+fmtDatum(na)+')">'+WARN_ICON+'</span>' : '');
+        : ((naOhneTyp && (nkIndexFaellig(naOhneTyp,heute())||nkBaldFaellig(naOhneTyp,heute(),3))) ? '<span title="Anpassung bald fällig ('+fmtDatum(naOhneTyp)+')">'+WARN_ICON+'</span>' : '');
       /* Ralf-Konzept 2026-07-07 (Dummy5): Anrede zieht vor den Mieternamen, das Mieterfeld wird
          2 Hauptspalten breit (c1/c3, wie Kaltmiete+Stellplätze darunter) – das Warndreieck bekommt
          dafür eine eigene Gutter-Spalte (c1w) vor c1, statt der jetzt vom Mieterfeld belegten aux1.
@@ -99,8 +109,6 @@ function mvZeilen(e, ei){
         '<div class="mv-vcenter" style="grid-column:c6">'+(e.mv.length>1?'<button class="row-del mv-fh" title="Mietverhältnis entfernen" onclick="delMV('+ei+','+mi+')">×</button>':'')+'</div>'+ /* US: × erst ab 2 Mietverhältnissen (delMV wirkt erst dann) */
         '</div>';
       {
-        const vg=(m.vertragGrundmiete!==undefined?m.vertragGrundmiete:(m.grundmiete||0));
-        const vnk=(m.vertragNK!==undefined?m.vertragNK:(m.vmonat||0));
         const chronik=m.chronik||[];
         /* US-102-Schliff: Index-Anpassungen erzeugen bereits einen Chronik-Eintrag (gleiches Datum).
            Statt eines doppelten Textblocks blenden wir NUR die Aktionen (PDF + „verschickt") unter dem
@@ -145,7 +153,6 @@ function mvZeilen(e, ei){
             '<div class="termin-l2">'+l2+'</div>'+
           '</div>';
         }).join('');
-        const bald=nkBaldFaellig(na, heute(), 3);
         /* US-121 Phase 4 + Dummy2-Transfer (2026-07-05): .mv-grid statt .hf-raster – Kopfzeile
            (mv-summary oben) UND alle Formular-/Chronik-Zeilen hier teilen sich dasselbe Spalten-
            Raster (siehe .mv-grid in index.html), garantiert gleiche Spaltengrenzen. Eigene Zeile je
@@ -163,21 +170,18 @@ function mvZeilen(e, ei){
            weiter oben sitzenden Anrede-Spalte). Gewerblich zieht aus der Summary-Zeile in diese
            Gleichungs-Zeile (dieselbe Spalte c5 wie „läuft" oben – zwei Zeilen teilen sich die Spalte). */
         const chronikOpen=ui.expandedChronik.has(m.id);
+        const gesamtWarm=nkSollMonat(m.grundmiete, m.vmonat, m.stellAnzahl, m.stellPreis);
         row+=
-          /* Ralf-Feedback 2026-07-07: "Miete bei Einzug"/"Urspr. NK/Monat" (historische Vertragswerte,
-             im Gegensatz zur laufenden "Aktuelle Grundmiete" unabhängig von Index/Staffel/Adhoc gültig)
-             und "Letzte/Nächste Anpassung" unten sind jetzt IMMER sichtbar statt nur ohne mhTyp – vorher
-             verschwanden sie beim Auswählen eines Mieterhöhungstyps und liessen die "Mieterhöhungen"-
-             Leiste (und alles darunter) nach oben springen, während man gerade mit der Combobox darin
-             interagierte. */
+          /* Ralf-Vorgabe 2026-07-10: "Miete bei Einzug"/"Urspr. NK/Monat" und "Letzte/Nächste
+             Anpassung" sind hier raus – erstere sind ohne Mieterhöhungstyp praktisch der einzige Ort
+             für den Ausgangswert (siehe indexBlock()-Zweig typ===''), mit Typ deckt der jeweilige
+             Automatik-Zweig (idxAusgangsmiete/stafAusgangsmiete/"Alte Kaltmiete") das schon ab.
+             "Letzte/Nächste Anpassung" ergeben sich aus der Chronik (Historie bzw. nächster offener
+             Eintrag, siehe warnHtml oben) statt aus einem eigenen, unverknüpften Datumsfeld. */
           /* Preisfelder zeigen jetzt durchgängig "€" im Wert (Ralf-Feedback 2026-07-06: "Preis je
              Stellplatz" hatte keins) – onblur haengt es nach dem Reformat wieder an, da nkFmtBetrag
              selbst kein Waehrungszeichen liefert (nkParseBetrag parst trotz "€"-Suffix korrekt,
              parseFloat bricht einfach an der ersten Nicht-Zahl ab). */
-          '<div class="mv-grid">'+
-            mvf('Miete bei Einzug','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+' €" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c0 / aux1')+
-            mvf('Urspr. NK/Monat','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+' €" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c2')+
-          '</div>'+
           '<div class="mv-grid">'+
             (m.mhTyp
               ? mvf('Kaltmiete','<input type="text" class="ro" readonly tabindex="-1" value="'+nkFmtBetrag(m.grundmiete||0)+' €">','c0 / aux1')
@@ -190,14 +194,21 @@ function mvZeilen(e, ei){
             mvf('Gesamt','<input type="text" class="ro" readonly tabindex="-1" id="gesamtkalt-'+ei+'-'+mi+'" value="'+nkFmtBetrag(gesamtMiete)+' €">','c4')+
             '<div class="hf" style="grid-column:c5"><span class="mv-cap-upper">Gewerbl.</span><label class="gewerbl" title="gewerblich / umsatzsteuerpflichtig"><input type="checkbox" '+(m.gewerblich?'checked':'')+' onchange="updMV('+ei+','+mi+',\'gewerblich\',this.checked)"> ja</label></div>'+
           '</div>'+
+          /* Ralf-Vorgabe 2026-07-10: Warmmiete direkt hier sichtbar statt nur im Reiter
+             "Vorauszahlung (Soll)". "Nebenkosten/Monat" ist hier bewusst NUR Anzeige (readonly) –
+             bearbeitet wird sie ausschließlich im Reiter "Vorauszahlung (Soll)" (m.vmonat), damit es
+             nicht zwei Bearbeitungsorte für denselben Wert gibt; Mouseover verweist dorthin. Bleibt
+             trotzdem live synchron: updVorausMV() patcht auch dieses Feld mit (nkmonat-Anzeige-Id). */
           '<div class="mv-grid">'+
-            mvf('Letzte Anpassung','<input type="date" value="'+(m.letzteAnpassung||'')+'" onchange="updVertrag('+ei+','+mi+',\'letzteAnpassung\',this.value)" onblur="renderEinheiten()">','c0 / aux1')+
-            mvf('Nächste Anpassung','<input type="date" value="'+na+'" onchange="updVertrag('+ei+','+mi+',\'naechsteAnpassung\',this.value)" onblur="renderEinheiten()">','c2')+
+            mvf('Gesamt (kalt)','<input type="text" class="ro" readonly tabindex="-1" id="gesamtkalt2-'+ei+'-'+mi+'" value="'+nkFmtBetrag(gesamtMiete)+' €">','c0 / aux1')+
+            opPlus+
+            mvf('Nebenkosten/Monat','<input type="text" class="ro" readonly tabindex="-1" id="nkmonat-'+ei+'-'+mi+'" title="Wert aus dem Reiter Vorauszahlung (Soll) – dort bearbeiten." value="'+nkFmtBetrag(m.vmonat||0)+' €">','c2')+
+            opEq+
+            mvf('Gesamt (warm)','<input type="text" class="ro" readonly tabindex="-1" id="gesamtwarm-'+ei+'-'+mi+'" value="'+nkFmtBetrag(gesamtWarm)+' €">','c4')+
           '</div>'+
           '<div class="mv-grid">'+
             mvf('E-Mail','<input type="email" value="'+esc(m.email)+'" oninput="store.setMvFeld('+ei+','+mi+',\'email\',this.value)" placeholder="mieter@example.de">','c0 / c3')+
           '</div>'+
-          (bald?'<div class="leer-hint" style="margin-top:6px;">'+WARN_ICON+' Nächste Anpassung am '+fmtDatum(na)+' – in Kürze fällig.</div>':'')+
           mhAutomatikSection(m,ei,mi)+ /* US-68/US-121: Index-/Staffelmiete hinter der "Mieterhöhungen"-Leiste (Dummy5, 2026-07-07) */
           /* US-109-Schliff (angepasst 2026-07-07): "+ Chronik-Eintrag" nur sichtbar, wenn die
              "Chronik"-Leiste aufgeklappt ist; Einträge neueste zuerst. */
@@ -322,7 +333,16 @@ async function delMV(ei,mi){
 }
 /* US-21: Vertrag & Anpassungs-Chronik je Mietverhältnis. toggleVertrag() entfaellt seit 2026-07-07
    (Mieter&Vertrag-Layout-Story) – Vertragsfelder sind jetzt immer sichtbar, kein Aufklapper mehr. */
-function toggleChronik(id){ if(ui.expandedChronik.has(id)) ui.expandedChronik.delete(id); else ui.expandedChronik.add(id); renderEinheiten(); }
+/* Ralf-Vorgabe 2026-07-10: beim Aufklappen einer NOCH LEEREN Chronik direkt einen ersten Eintrag
+   anlegen (statt nur die leere Liste + "+ Chronik-Eintrag"-Button zu zeigen) – zeigt sofort, wie
+   ein Eintrag aussieht, ohne dass man extra klicken muss. Nur beim Öffnen, nur wenn leer. */
+function toggleChronik(id){
+  if(ui.expandedChronik.has(id)){ ui.expandedChronik.delete(id); renderEinheiten(); return; }
+  ui.expandedChronik.add(id);
+  const treffer=alleMV().find(x=>x.m.id===id);
+  if(treffer && !(treffer.m.chronik||[]).length){ addChronik(treffer.ei,treffer.mi); return; } /* addChronik rendert bereits neu */
+  renderEinheiten();
+}
 function updVertrag(ei,mi,field,val,num){
   store.setVertragFeld(ei,mi,field, num? nkParseBetrag(val): val, num);
   /* Ralf-Feedback 2026-07-07: "Kaltmiete + Stellplätze × Preis = Gesamt" zog vorher erst nach, wenn
@@ -331,8 +351,12 @@ function updVertrag(ei,mi,field,val,num){
      renderEinheiten() aufzurufen. */
   if(field==='grundmiete'||field==='stellAnzahl'||field==='stellPreis'){
     const m=store.mv(ei,mi);
-    const g=document.getElementById('gesamtkalt-'+ei+'-'+mi);
-    if(g) g.value=nkFmtBetrag((+m.grundmiete||0)+(+m.stellAnzahl||0)*(+m.stellPreis||0))+' €';
+    const kalt=(+m.grundmiete||0)+(+m.stellAnzahl||0)*(+m.stellPreis||0);
+    const g=document.getElementById('gesamtkalt-'+ei+'-'+mi); if(g) g.value=nkFmtBetrag(kalt)+' €';
+    /* Ralf-Vorgabe 2026-07-10: Warmmiete-Zeile teilt sich die Kaltmiete-Basis – bei Änderung von
+       Grundmiete/Stellplätzen zieht auch sie nach (wie gesamtkalt oben, kein voller Re-Render). */
+    const g2=document.getElementById('gesamtkalt2-'+ei+'-'+mi); if(g2) g2.value=nkFmtBetrag(kalt)+' €';
+    const gw=document.getElementById('gesamtwarm-'+ei+'-'+mi); if(gw) gw.value=nkFmtBetrag(nkSollMonat(m.grundmiete,m.vmonat,m.stellAnzahl,m.stellPreis))+' €';
   }
   /* Datum: Neu-Zeichnen via onblur */
 }
@@ -461,12 +485,20 @@ function mhNaechsteInfo(m,ei,mi){
   if(!m || !m.mhTyp) return null;
   const h=heute(); const ank=m.ankuendigungen||{};
   const freqLabel=(f)=> (+f===1?'jährlich':'alle '+(+f||1)+' Jahre');
+  /* Ralf-Vorgabe 2026-07-10: dieselbe Fällig/bald-fällig-Einfärbung wie im aufgeklappten Index-Block
+     (siehe "Nächste Erhöhung zum ..." dort) – einmal berechnet, für Index UND Staffel gleich genutzt.
+     Bereits angekündigte Stichtage werten (wie bei mhWarnung) nicht mehr als fällig/bald fällig. */
+  const mitFaelligkeit=(datum, freqLabelText, checked, onToggle)=>{
+    const faellig=nkIndexFaellig(datum,h) && !checked;
+    const bald=!faellig && nkBaldFaellig(datum,h,3) && !checked;
+    return { datum, freqLabel:freqLabelText, checked, onToggle, faellig, bald };
+  };
   if(m.mhTyp==='index'){
     const anz=(m.idxAnpassungen||[]).length;
     const datum=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
     if(!datum) return null;
-    return { datum, freqLabel: freqLabel(m.idxFrequenz||1), checked: nkIstAngekuendigt(ank,datum),
-      onToggle:'idxVorabAnkuendigung('+ei+','+mi+',\''+datum+'\',this.checked)' };
+    return mitFaelligkeit(datum, freqLabel(m.idxFrequenz||1), nkIstAngekuendigt(ank,datum),
+      'idxVorabAnkuendigung('+ei+','+mi+',\''+datum+'\',this.checked)');
   }
   if(m.mhTyp==='staffel'){
     const plan=nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag);
@@ -474,8 +506,8 @@ function mhNaechsteInfo(m,ei,mi){
     const next = plan.find(s=> (nkIndexFaellig(s.datum,h)||nkBaldFaellig(s.datum,h,3)) && !nkIstAngekuendigt(ank,s.datum))
               || plan.find(s=> nkDatum(s.datum) > nkDatum(h))
               || plan[plan.length-1];
-    return { datum: next.datum, freqLabel: freqLabel(m.stafFrequenz||1), checked: nkIstAngekuendigt(ank,next.datum),
-      onToggle:'staffelAnkuendigung('+ei+','+mi+',\''+next.datum+'\',this.checked)' };
+    return mitFaelligkeit(next.datum, freqLabel(m.stafFrequenz||1), nkIstAngekuendigt(ank,next.datum),
+      'staffelAnkuendigung('+ei+','+mi+',\''+next.datum+'\',this.checked)');
   }
   return null;
 }
@@ -498,7 +530,9 @@ function mhAutomatikSection(m,ei,mi){
     /* Zusammenfassungszeile: Checkbox jetzt in c5 (dieselbe Spalte wie "läuft"/"gewerblich" oben –
        kein eigenes c6 mehr seit Wegfall der Vertrag-Spalte). */
     out+='<div class="mv-grid" style="align-items:center;">'+
-      '<div class="mh-titel" style="grid-column:c0 / c5">Nächste Erhöhung: <b>'+fmtDatum(info.datum)+'</b>, '+info.freqLabel+'</div>'+
+      '<div class="mh-titel" style="grid-column:c0 / c5;color:'+(info.faellig?'var(--nachzahlung)':'inherit')+';">Nächste Erhöhung zum <b>'+fmtDatum(info.datum)+'</b>'+
+      (info.faellig?' <span style="color:var(--nachzahlung);">'+WARN_ICON+' fällig</span>':(info.bald?' <span>'+WARN_ICON+' bald fällig</span>':''))+
+      '</div>'+
       '<div class="mv-vcenter" style="grid-column:c5"><label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);"><input type="checkbox" '+(info.checked?'checked':'')+' onchange="'+info.onToggle+'"> angekündigt</label></div>'+
     '</div>';
   }
@@ -673,6 +707,17 @@ function indexBlock(m,ei,mi){
          Adhoc schließen sich gegenseitig aus, kein eigener Button daneben (siehe adhocUebernehmen). */
       '<option value="adhoc"'+(typ==='adhoc'?' selected':'')+'>Adhoc</option>'+
       '</select>','hf-2u')+'</div>';
+  if(typ===''){
+    /* Ralf-Vorgabe 2026-07-10: "Miete bei Einzug"/"Urspr. NK/Monat" waren zuvor immer sichtbar,
+       obwohl sie nur ohne Automatik-Typ ihren einzigen Zweck erfüllen (Index/Staffel/Adhoc haben
+       je ein eigenes Ausgangswert-Feld, s. u.) – jetzt EIN Ort dafür statt zwei parallelen Feldern. */
+    const vg=(m.vertragGrundmiete!==undefined?m.vertragGrundmiete:(m.grundmiete||0));
+    const vnk=(m.vertragNK!==undefined?m.vertragNK:(m.vmonat||0));
+    h+='<div class="mv-grid">'+
+        mvf('Miete bei Einzug','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vg)+' €" oninput="updVertrag('+ei+','+mi+',\'vertragGrundmiete\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c0 / aux1')+
+        mvf('Urspr. NK/Monat','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(vnk)+' €" oninput="updVertrag('+ei+','+mi+',\'vertragNK\',this.value,1)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">','c2')+
+      '</div>';
+  }
   if(typ==='adhoc'){
     const basis=+m.grundmiete||0;
     const betrag=+m.adhocBetrag||0;
@@ -712,7 +757,7 @@ function indexBlock(m,ei,mi){
     h+='<div class="heiz-felder">'+
       hfFeld('Beginn / Einzug','<input type="date" value="'+(m.idxEinzug||'')+'" onchange="store.setMvFeld('+ei+','+mi+',\'idxEinzug\',this.value)" onblur="renderEinheiten()">')+
       hfFeld('Miete bei Einzug','<input type="text" inputmode="decimal" value="'+nkFmtBetrag(m.idxAusgangsmiete||0)+' €" onchange="updIdxNum('+ei+','+mi+',\'idxAusgangsmiete\',this.value)">')+
-      hfFeld('Anpassung alle … Jahre','<input type="number" min="1" step="1" value="'+(m.idxFrequenz||1)+'" onchange="updIdxNum('+ei+','+mi+',\'idxFrequenz\',this.value)">')+
+      hfFeld('Anpassungsintervall','<input type="number" min="1" step="1" value="'+(m.idxFrequenz||1)+'" onchange="updIdxNum('+ei+','+mi+',\'idxFrequenz\',this.value)">')+
     '</div>';
     if(!nkIndexFrequenzGueltig(m.idxFrequenz||1)) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Frequenz muss eine ganze Zahl ab 1 Jahr sein (§ 557b).</div>';
     h+='<div class="mh-aktuell">Aktuell gültige Miete: <b>'+eur(basis)+'</b></div>';
@@ -823,7 +868,12 @@ function recomputeVoraus(m){
 function updVorausMV(ei, mi, field, val){
   store.setMvNum(ei,mi,field, nkParseBetrag(val));
   const m=store.mv(ei,mi); recomputeVoraus(m);
-  const c=document.getElementById('gesamt-'+ei+'-'+mi); if(c) c.textContent=eur(nkSollMonat(m.grundmiete, m.vmonat, m.stellAnzahl, m.stellPreis));
+  const gesamtWarm=nkSollMonat(m.grundmiete, m.vmonat, m.stellAnzahl, m.stellPreis);
+  const c=document.getElementById('gesamt-'+ei+'-'+mi); if(c) c.textContent=eur(gesamtWarm);
+  /* Ralf-Vorgabe 2026-07-10: "Mieter & Vertrag" zeigt NK/Monat + Gesamt (warm) nur read-only an –
+     hier patchen, damit beide Reiter ohne vollen Re-Render synchron bleiben. */
+  const gw=document.getElementById('gesamtwarm-'+ei+'-'+mi); if(gw) gw.value=nkFmtBetrag(gesamtWarm)+' €';
+  const nkAnzeige=document.getElementById('nkmonat-'+ei+'-'+mi); if(nkAnzeige) nkAnzeige.value=nkFmtBetrag(m.vmonat||0)+' €';
 }
 function renderVoraus(){
   const head=document.getElementById('voraus_head');

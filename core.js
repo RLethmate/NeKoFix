@@ -67,6 +67,9 @@ const store = {
   /* nkParseBetrag statt (+val): flaeche/unbeheizt zeigen seit US-121-Nachschliff die Einheit (z.B.
      "70 m²") im Feld selbst – (+val) würde daran (NaN) scheitern, nkParseBetrag ist tolerant. */
   setEinheitFeld(ei,field,val){ state.einheiten[ei][field] = field==='name'?val:nkParseBetrag(val); commit(); },
+  /* Ralf-Vorgabe 2026-07-10 (Rauchwarnmelder): rohe Feldwerte (Datum) auf der Einheit setzen, OHNE
+     nkParseBetrag – das würde ein ISO-Datum wie "2026-07-10" als Zahl fehlinterpretieren. */
+  setEinheitDatum(ei,field,val){ state.einheiten[ei][field] = val; commit(); },
   // Mietverhältnisse
   addMv(ei){ state.einheiten[ei].mv.push(neuesMv()); commit(); },
   removeMv(ei,mi){ const mv=state.einheiten[ei].mv; if(mv.length>1){ mv.splice(mi,1); commit(); } },
@@ -165,8 +168,11 @@ function makeFreshDaten(){ const von="2025-01-01", bis="2025-12-31"; return {
   abrechnungStatus:"inArbeit"
 }; }
 function objektJahr(d){ const v=d&&d.objekt&&(d.objekt.von||d.objekt.bis); const m=String(v||'').match(/^(\d{4})/); return m?m[1]:''; }
-/* US-65: Combobox zeigt den Objekt-/Dateinamen (name), nicht das Live-Adressfeld. Fallback: Adresse. */
-function objektLabel(d,i){ const nm=(d&&d.objekt&&String((d.objekt.name||d.objekt.addr)||"").trim())||("Objekt "+(i+1)); const j=objektJahr(d); return j?(nm+" · "+j):nm; }
+/* US-65: Objekt-/Dateiname (name), nicht das Live-Adressfeld. Fallback: Adresse, dann „Objekt N". */
+function objName(d,i){ return (d&&d.objekt&&String((d.objekt.name||d.objekt.addr)||"").trim())||("Objekt "+(i+1)); }
+/* Kombiniertes Label (Name + Jahr) – wird noch für „Objekt öffnen…" und „Zuletzt verwendet" genutzt.
+   Der Header-Titel selbst trennt Name und Jahr seit 2026-07-10 in zwei eigene Felder (view-shell.js). */
+function objektLabel(d,i){ const nm=objName(d,i); const j=objektJahr(d); return j?(nm+" · "+j):nm; }
 function objSignatur(d){ const o=(d&&d.objekt)||{}; return [String(o.addr||"").trim(), o.von||"", o.bis||""].join("|"); }
 /* US-38: Persistenz meldet Erfolg/Fehler über einen Listener; die DOM-Anzeige liegt im View. */
 let _persistListener = null;

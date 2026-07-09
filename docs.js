@@ -5,15 +5,18 @@
 
    Zwei Schemata nebeneinander (Ralf-Vorgabe 2026-07-08, "Datenablage v2"):
    - v1 (Bestand, kein objekt.dokAblageVersion oder Wert < 2): EIN global gewählter Stammordner
-     (_dokBasis) für ALLE Objekte, Pfad "Objekt/Jahr/Einheit/Mieter" darunter (nkDokPfad). Die JSON
+     (_dokBasis) für ALLE Objekte, Pfad "Objekt/Einheit/Mieter/Jahr" darunter (nkDokPfad). Die JSON
      ("Speichern unter") landet unabhängig davon an einem frei gewählten Ort (schreibeDatei).
    - v2 (neu angelegte Objekte ab jetzt, objekt.dokAblageVersion===2): JEDES Objekt bekommt seinen
-     EIGENEN Stammordner (an selbst gewähltem Ort, benannt nach dem Objekt), Pfad "Jahr/Einheit/
-     Mieter" darunter (nkDokPfadObjekt – kein Objekt-Segment mehr, das Objekt IST der Ordner). Die
+     EIGENEN Stammordner (an selbst gewähltem Ort, benannt nach dem Objekt), Pfad "Einheit/Mieter/
+     Jahr" darunter (nkDokPfadObjekt – kein Objekt-Segment mehr, das Objekt IST der Ordner). Die
      JSON liegt als Kind IN diesem Ordner (dokJsonSpeichern statt schreibeDatei).
    Umgesetzt nur für künftige Objekte (Bestandsschutz nicht nötig: noch niemand arbeitet mit realen
    Daten in der alten Struktur). Kann sich laut Ralf nach weiterem Feedback noch ändern – daher eine
-   Versionsnummer statt eines simplen Flags. */
+   Versionsnummer statt eines simplen Flags.
+   Ralf-Vorgabe 2026-07-10: Jahr steht INNERHALB von Einheit/Mieter statt als oberste Ebene – die
+   meisten Mietverhältnisse laufen über mehrere Jahre, ein Jahresordner ganz oben hätte den Mieter-
+   Ordner bei jedem Jahreswechsel dupliziert statt seine Belege fortzuführen. */
 let _dokBasis = null; /* FileSystemDirectoryHandle, v1 (global) */
 let _dokObjektRootCache = {}; /* {[objektId]: FileSystemDirectoryHandle}, v2 (pro Objekt) */
 function dokVerfuegbar(){ return typeof window.showDirectoryPicker === 'function'; }
@@ -191,7 +194,7 @@ async function dokOrdnerUmziehen(){
   if(!quelle){ alert('Es ist noch kein Dokumentenordner gewählt – nichts zum Umziehen.'); await _dokBasisAktuell(true); return; }
   const bezeichnung = v2 ? ('„'+quelle.name+'" (Objekt „'+(state.objekt.name||state.objekt.addr)+'")') : ('„'+quelle.name+'"');
   openBestaetigDialog(
-    'Dokumentenordner umziehen',
+    'Objektordner umziehen',
     'Alle Dateien aus '+bezeichnung+' in einen neuen Ordner verschieben?\n\nDanach ist der neue Ordner aktiv; der bisherige wird geleert.',
     'Ordner wählen',
     function(){ return _dokOrdnerUmziehenWeiter(quelle, v2, bezeichnung); }
