@@ -352,18 +352,30 @@ function switchObjekt(idx){
 }
 /* US-91: Anlegen bewusst bestätigen (Objekte entstehen sonst zu beiläufig). Das aktuelle Objekt
    bleibt erhalten und ist über „Öffnen"/„Zuletzt verwendet" wieder erreichbar. */
-function neuesObjekt(){
-  if(!confirm('Neues, leeres Objekt anlegen?\n\nDas aktuelle Objekt bleibt erhalten und ist über „Datei → Öffnen" oder „Zuletzt verwendet" wieder erreichbar.')) return;
-  saveState(); objekte.push(makeFreshDaten()); aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); ui.current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
-  /* Ralf-Vorgabe 2026-07-08: den Dokumentenordner (US-109) beim Anlegen aktiv anbieten statt nur
-     beiläufig beim ersten "Datei anfügen" zu verlangen – sonst wissen die wenigsten, dass es diese
-     Ablage überhaupt gibt. Überspringbar ("Später" = Cancel), da nicht jeder Browser/Nutzer das
-     braucht (File System Access API ist Chromium-exklusiv, siehe dokVerfuegbar). Nur beim
-     allerersten Mal (kein _dokBasis vorhanden) – der Ordner ist global, nicht je Objekt. */
-  if(typeof dokVerfuegbar==='function' && dokVerfuegbar() && !_dokBasis){
-    if(confirm('Möchtest du jetzt einen Ordner für Belege & Fotos (Mietverträge, Rechnungen, Fotos) festlegen?\n\nKannst du auch später über Datei → Dokumentenordner wählen nachholen.')){
-      dokBasisWaehlen();
-    }
+/* Ralf-Vorgabe 2026-07-09: "Neu" hieß bisher immer "Neues Objekt" (irreführend, sobald mehrere
+   Objekte existieren) und fragte erst NACH dem Anlegen beiläufig nach einem Dokumentenordner.
+   Jetzt: Name zuerst abfragen (mit Tipp zur verkürzten Anschrift), Name direkt in Straße &
+   Hausnummer übernehmen, danach EIN Dialog (der Ordner-Picker in dokObjektRootSicherstellen) statt
+   einer Kette mehrerer Dialoge – siehe Fund in docs.js zu ablaufender "User Activation". Ohne
+   Datenablage-Unterstützung (kein Chromium) bleibt es beim einfachen Rückfrage-Confirm. */
+async function neuesObjekt(){
+  const v2moeglich = typeof dokVerfuegbar==='function' && dokVerfuegbar();
+  let name = '';
+  if(v2moeglich){
+    const eingabe = prompt('Name des neuen Objekts (Tipp: eine kurze/verkürzte Anschrift eignet sich gut, z. B. „Lindenhof" oder „Musterstr. 12"):\n\nIm nächsten Schritt wählst du den Ordner, in dem das Objekt angelegt wird.', '');
+    if(eingabe==null) return;
+    name = eingabe.trim();
+    if(!name){ alert('Ohne Namen kann kein Objekt angelegt werden.'); return; }
+  } else if(!confirm('Neues, leeres Objekt anlegen?\n\nDas aktuelle Objekt bleibt erhalten und ist über „Datei → Öffnen" oder „Zuletzt verwendet" wieder erreichbar.')){
+    return;
+  }
+  saveState();
+  const frisch = makeFreshDaten();
+  if(name){ frisch.objekt.name=name; frisch.objekt.addr=name; }
+  objekte.push(frisch); aktivIdx=objekte.length-1; ladeDaten(frisch); ensureIds(); ui.current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
+  if(v2moeglich && name){
+    await dokObjektRootSicherstellen(state.objekt);
+    saveState();
   }
 }
 /* US-91: aktuelles Objekt löschen (mit Bestätigung) – damit versehentlich angelegte Objekte

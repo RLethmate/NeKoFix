@@ -40,19 +40,28 @@ async function _dokObjektRootLaden(objektId){ try{ return (await _dokIdbGet(_dok
 async function _dokObjektRootSetzen(objektId, handle){ await _dokIdbSet(_dokObjektRootKey(objektId), handle); }
 /* Liefert den Stammordner des übergebenen Objekts; fragt beim allerersten Mal EINMALIG nach dem
    ÜBERGEORDNETEN Ordner und legt darin einen Unterordner mit dem Objektnamen an (das wird der
-   Stammordner). Null bei Abbruch/fehlender Objekt-ID/fehlendem Browser-Support. */
+   Stammordner). Null bei Abbruch/fehlender Objekt-ID/fehlendem Browser-Support.
+   Ralf-Fund 2026-07-09: hier stand vorher noch ein eigener confirm() direkt vor dem
+   showDirectoryPicker()-Aufruf ("Im nächsten Dialog bitte..."). Mehrere native Dialoge
+   (prompt/confirm) HINTEREINANDER lassen die für showDirectoryPicker() nötige "User Activation"
+   ablaufen – der Picker öffnete sich dann nach "OK" nicht mehr, ohne sichtbaren Fehler ("da
+   passiert nichts"). Die Erklärung gehört jetzt in den EINEN vorausgehenden Dialog der Aufrufer
+   (z. B. der Namens-prompt() in neuesObjekt()/speichernUnter()), hier kein weiterer Dialog mehr
+   dazwischen. */
 async function dokObjektRootSicherstellen(objekt){
   if(!dokVerfuegbar() || !objekt || !objekt.id) return null;
   let root=_dokObjektRootCache[objekt.id] || await _dokObjektRootLaden(objekt.id);
   if(root){ _dokObjektRootCache[objekt.id]=root; return root; }
   const ordnername=nkDokSegment(objekt.name||objekt.addr||'Objekt');
-  if(!confirm('Für „'+(objekt.name||objekt.addr||'dieses Objekt')+'" wird jetzt ein eigener Ordner angelegt.\n\nIm nächsten Dialog bitte den ÜBERGEORDNETEN Ordner wählen (z. B. „Dokumente") – der Ordner „'+ordnername+'" wird darin neu erstellt.')) return null;
   let eltern;
   try{ eltern=await window.showDirectoryPicker({mode:'readwrite'}); }catch(e){ return null; /* abgebrochen */ }
   if(!(await _dokPerm(eltern))){ alert('Kein Schreibzugriff auf den gewählten Ordner.'); return null; }
   try{ root=await eltern.getDirectoryHandle(ordnername,{create:true}); }
   catch(e){ alert('Ordner „'+ordnername+'" konnte nicht angelegt werden: '+((e&&e.message)||e)); return null; }
   _dokObjektRootCache[objekt.id]=root; await _dokObjektRootSetzen(objekt.id, root);
+  /* Der Browser liefert aus Sicherheitsgründen keinen absoluten Dateisystem-Pfad, nur Ordnernamen –
+     daher als Orientierung die Namenskette statt eines echten Pfads. */
+  alert('Ordner angelegt: „'+eltern.name+'" / „'+ordnername+'"\n\nDort liegen künftig die Belege und die Objektdatei dieses Objekts.');
   return root;
 }
 /* Liefert den fürs AKTUELLE Objekt zuständigen Stammordner (v2: pro Objekt, v1: global) –
