@@ -83,18 +83,27 @@ function buildTenantPdf(sel){
   // US-59: Spaltenformat (Gesamt · Einheiten · Preis/Einh. · Ihre Einheiten · Anteil), je Rubrik gruppiert.
   // US-99: bei gewerblich enger schieben und eine USt-Spalte (links vom Netto-Anteil) einfügen.
   const cG=gew?226:250, cB=gew?300:330, cP=gew?366:400, cI=gew?432:470, cU=gew?490:null; // rechte Kanten der Zahlenspalten
+  /* Ralf-Vorgabe 2026-07-11: Gleichung wie bei Techem ("Gesamt : Einh. = Preis × Ihre Einh. = Anteil")
+     – Operator-Zeichen direkt nach der jeweils LINKEN Spaltenkante (linksbündig, kleiner fester
+     Abstand), nicht mittig zwischen den Kanten: eine mittige Platzierung überlappt bei breiten
+     Beträgen (z. B. "1.562,79 €") die rechtsbündige Zahl der NÄCHSTEN Spalte, da deren Breite variiert
+     und über die Kantenmitte hinausreichen kann – Fund beim visuellen Test des PDF-Exports. */
+  const opG=cG+6, opB=cB+6, opP=cP+6, opI=cI+6;
   const fmtE=n=>(Number(n)||0).toLocaleString('de-DE',{maximumFractionDigits:2});
   const fmtP=n=>(Number(n)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:4});
   doc.setFont(undefined,'bold'); doc.setFontSize(8);
   doc.text('Kostenart',L,y); doc.text('Gesamt',cG,y,{align:'right'}); doc.text('Einh.',cB,y,{align:'right'}); doc.text('Preis',cP,y,{align:'right'}); doc.text('Ihre Einh.',cI,y,{align:'right'}); if(gew) doc.text('USt.',cU,y,{align:'right'}); doc.text(gew?'Anteil netto':'Anteil',R,y,{align:'right'});
   doc.setFont(undefined,'normal'); doc.setFontSize(10); y+=4; doc.line(L,y,R,y); y+=13;
   nkRubrikenListe(state.objekt, state.kosten).forEach(rub=>{
-    const grp=ab.zeilen.map((i,ix)=>({i,ix})).filter(o=>Math.round(o.i.anteil*100)!==0 && nkRubrik(state.kosten[o.ix])===rub);
+    /* Fund im Code-Review 2026-07-10: nkRubrik(i) statt nkRubrik(state.kosten[ix]) – nach einem
+       aktiven Heizkosten-Split (nkExpandHeizSplit) passt ein Index in ab.zeilen nicht mehr zum
+       Original-Array state.kosten, das Zeilen-Objekt trägt seine Rubrik jetzt direkt mit. */
+    const grp=ab.zeilen.filter(i=>Math.round(i.anteil*100)!==0 && nkRubrik(i)===rub);
     if(!grp.length) return;
     if(y>755){ doc.addPage(); y=64; }
     doc.setFont(undefined,'bold'); doc.setFontSize(9); doc.text(rub,L,y); doc.setFont(undefined,'normal'); doc.setFontSize(8); y+=13;
     let sub=0;
-    grp.forEach(({i})=>{
+    grp.forEach(i=>{
       if(y>772){ doc.addPage(); y=64; }
       const direkt=i.schluessel==='direkt';
       doc.text(String(i.bez).substring(0,26),L+10,y);
@@ -102,6 +111,7 @@ function buildTenantPdf(sel){
       doc.text(direkt?'direkt':(fmtE(i.basis)+' '+i.einheitLabel),cB,y,{align:'right'});
       doc.text(direkt?'—':fmtP(i.preisJeEinheit),cP,y,{align:'right'});
       doc.text(direkt?'100 %':(fmtE(i.ihreEinheiten)+' '+i.einheitLabel),cI,y,{align:'right'});
+      if(!direkt){ doc.setTextColor(140); doc.text(':',opG,y); doc.text('=',opB,y); doc.text('x',opP,y); doc.text('=',opI,y); doc.setTextColor(0); }
       // US-99: bei gewerblich den USt-Satz der Kostenart (0/7/19 %) in eigener Spalte ausweisen.
       if(gew) doc.text((+i.vorsteuer||0)+' %',cU,y,{align:'right'});
       doc.text(eur(i.wert)+(i.zeitanteil<0.999?' (×'+Math.round(i.zeitanteil*100)+'%)':''),R,y,{align:'right'}); y+=12; sub+=i.wert;
@@ -117,11 +127,14 @@ function buildTenantPdf(sel){
   } else {
     doc.setFont(undefined,'bold'); doc.text('Ihr Anteil an den Gesamtkosten',L,y); doc.text(eur(anteil),R,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=16;
   }
+  doc.setFontSize(8); doc.setTextColor(110);
+  doc.text('Gesamtkosten : Gesamteinheiten = Preis je Einheit x Ihre Einheiten = Ihr Anteil (Rechenweg je Kostenart).',L,y); doc.setFontSize(10); doc.setTextColor(0); y+=14;
   // US-07: CO2-Kostenaufteilung ausweisen (Anteil enthält den Abzug bereits).
   if(ab.co2 && ab.co2.aktiv){
     doc.setFontSize(9); doc.setTextColor(90);
     nl('CO2-Kostenaufteilung (CO2KostAufG):');
-    doc.splitTextToSize('CO2-Kosten gesamt (Gebäude) '+eur(co2KostenGesamt())+', Ihr Anteil '+eur(ab.co2.kostenMieter)+'. '+nkCo2Erklaerung(ab.co2)+' Davon trägt der Vermieter – '+eur(ab.co2.abzug)+' (in Ihrem Anteil oben bereits abgezogen).', W).forEach(l=>nl(l));
+    const co2Hinweis = nkCo2VermieterHinweis(ab.co2);
+    doc.splitTextToSize('CO2-Kosten gesamt (Gebäude) '+eur(co2KostenGesamt())+', Ihr Anteil '+eur(ab.co2.kostenMieter)+'. '+nkCo2Erklaerung(ab.co2)+(co2Hinweis?' Davon trägt der Vermieter – '+eur(ab.co2.abzugGesamt)+' ('+co2Hinweis+').':''), W).forEach(l=>nl(l));
     doc.setFontSize(10); doc.setTextColor(0); y+=6;
   }
   // Vorauszahlung/Saldo stehen bereits im Ergebnis-Block oben (US-62) – hier nicht wiederholen.

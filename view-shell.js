@@ -12,7 +12,10 @@
    US-123: "Vermieter & Zahlungsangaben" als eigener Reiter (Index 9) aus Index 0 herausgezogen;
    Index 0 heißt wieder "Gebäude & Einheiten" (entspricht seinem verbliebenen Inhalt), keine
    Umnummerierung bestehender data-step/go()-Indizes (wie bei Index 7 seinerzeit). */
-const STEPS = ["Gebäude & Einheiten","Vorauszahlung (Soll)","Heizung","Kosten","Berechnung","Fertige Abrechnung","Zahlungen (Ist)","Mieter & Vertrag","Termine & Wartung","Vermieter & Zahlungsangaben"];
+/* Ralf-Vorgabe 2026-07-13: "Berechnung" war zu generisch (klang nach Gesamtmiete, dabei geht es hier
+   ausschließlich um die Nebenkosten: Kostenanteil ./. Vorauszahlung = Saldo + Anpassungsvorschlag für
+   die künftige Vorauszahlung). Umbenannt in "Nebenkosten-Saldo". */
+const STEPS = ["Gebäude & Einheiten","Vorauszahlung (Soll)","Heizung","Kosten","Nebenkosten-Saldo","Fertige Abrechnung","Zahlungen (Ist)","Mieter & Vertrag","Termine & Wartung","Vermieter & Zahlungsangaben"];
 const ui = { current:0, activeMieter:0, vorausModus:"monatlich", zeigeVorjahr:false, nurUngeprueft:false, expandedKosten:new Set(), expandedHeizZeit:new Set(), expandedAutomatik:new Set(), expandedChronik:new Set(), navPlausiOpen:false, drag:null, zahlBisAktuell:false, csvImport:{ buchungen:[], dateiname:"", fehler:null }, csvAutoProtokoll:false, termineAnsicht:"faellig" }; /* AC-3 (US-118): gebündelter UI-/Sitzungs-State. expandedMV entfaellt (Mieter&Vertrag-Layout-Story 2026-07-07): Kaltmiete/Anrede/E-Mail immer sichtbar, kein Vertrag-Aufklapper mehr; expandedChronik neu fuer die "┃ Chronik"-Leiste. */
 
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
@@ -30,8 +33,10 @@ function setSchluessel(idx,val){
   const k=store.kosten(idx); store.setKostenFeld(idx,'schluessel',val);
   if(val==='direkt' && !k.direktEinheit && state.einheiten[0]) store.setKostenFeld(idx,'direktEinheit',state.einheiten[0].id);
   if(val==='verbrauch') ui.expandedKosten.add(k.id); /* US-57: Verbrauch-Eingabe gleich sichtbar */
+  store.setKostenVorschlagFeld(idx,'schluessel', false); /* manuelle Wahl bestätigt einen offenen Techem-Vorschlag zugleich */
   renderKosten();
 }
+function kostenSchluesselVorschlagUebernehmen(idx){ store.setKostenVorschlagFeld(idx,'schluessel', false); renderKosten(); }
 /* US-57: Summe der erfassten Verbräuche (teilnehmende Einheiten) – für Anzeige. */
 function verbrauchSumme(k){ return nkVerbrauchSumme(k, state.einheiten); }
 function updKostenVerbrauch(idx,einheitId,val){ store.setKostenVerbrauch(idx,einheitId, nkParseBetrag(val)); renderKosten(); }
@@ -73,18 +78,23 @@ function alleMV(){ const out=[]; state.einheiten.forEach((e,ei)=>{ (e.mv||[]).fo
 function leerstandZa(e){ const s=(e.mv||[]).reduce((a,m)=>a+nkZeitanteil(m.von,nkMvEnde(m,state.objekt.bis),state.objekt.von,state.objekt.bis),0); return Math.max(0,1-s); }
 
 /* ---------- Stepper (US-54: seitliche Lasche, Gruppen, Kürzel, Versand-Ampel) ---------- */
-const STEP_ABBR = ["GE","VZ","HE","KO","BE","AB","ZA","MV","TW","VM"];
-/* US-122: drei themenbasierte Bereiche statt "Abrechnung erstellen"/"Nachverfolgung" (erzwungene
-   Assistenten-Reihenfolge) - Objekt (selten geändert), Laufende Verwaltung (ganzjährig, ohne
-   Reihenfolge), Abrechnung (das abgeleitete Ergebnis). Siehe UX-Review-Navigation-und-Workflow.md.
+const STEP_ABBR = ["GE","VZ","HE","KO","NS","AB","ZA","MV","TW","VM"];
+/* US-122: themenbasierte Bereiche statt "Abrechnung erstellen"/"Nachverfolgung" (erzwungene
+   Assistenten-Reihenfolge) statt strikter Reihenfolge. Siehe UX-Review-Navigation-und-Workflow.md.
    "Vorauszahlung (Soll)" bleibt bewusst inhaltlich unverändert (weiterhin editierbar) - der Umbau
    zur reinen Übersicht hängt am noch nicht gebauten Mieterhöhungs-Konzept.
    US-123: Vermieter & Zahlungsangaben (Index 9) zwischen Gebäude und Mieter & Vertrag einsortiert -
    entspricht der Objekt-Reihenfolge aus dem Dummy (Gebäude → Vermieter → Mieter & Vertrag). */
+/* Ralf-Vorgabe 2026-07-13: Kosten direkt vor Fertige Abrechnung (Drag&Drop-Reihenfolge dort wirkt
+   sich unmittelbar, nur einen Reiter weiter, auf das fertige Dokument aus) - dafür Nebenkosten-Saldo
+   aus der Abrechnungs-Gruppe herausgezogen (nutzt die VEREINBARTE Vorauszahlung, nicht die
+   tatsächlichen Zahlungseingänge - s. Rechtshinweis im Reiter selbst - deshalb bewusst NICHT mit
+   „Zahlungen (Ist)" verschmolzen, sondern nur thematisch gruppiert). „Laufende Verwaltung" entfällt
+   als eigene Rubrik (Termine & Wartung wandert zu Objekt) - ein Ein-Reiter-Rest wäre unausgewogen. */
 const STEP_GROUPS = [
-  { titel:"Objekt",              steps:[0,9,7] },
-  { titel:"Laufende Verwaltung", steps:[3,6,8] },
-  { titel:"Abrechnung",          steps:[2,1,4,5] }
+  { titel:"Objekt",              steps:[0,9,7,8] },
+  { titel:"Abrechnung",          steps:[2,3,5] },
+  { titel:"Zahlungen & Saldo",   steps:[1,6,4] }
 ];
 function renderStepper(){
   const el = document.getElementById('stepper'); if(!el) return; el.innerHTML='';
@@ -186,7 +196,29 @@ function fillObjektKopf(){
   set('z_iban', z.iban); set('z_bic', z.bic); set('z_frist', z.frist);
   const frist=document.getElementById('z_frist'); if(frist) autoGrow(frist);
   updateIbanHint();
+  /* Techem-Import 2026-07-11: bereits vorhandene Vermieter-Angaben werden beim Import nicht still
+     überschrieben, sondern als unbestätigter Vorschlag markiert (WISO-Stil blaues Eck, s. US-90 /
+     .vorschlag-tri) – z.vorschlag wird von techemUebernehmen() gesetzt. */
+  const zv = z.vorschlag || {};
+  setFeldVorschlagUi('z_empfaenger_wrap', zv.empfaenger, 'Vermieter-Name aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)', ()=>zVorschlagUebernehmen('empfaenger','z_empfaenger_wrap'));
+  setFeldVorschlagUi('z_strasse_wrap', zv.anschrift, 'Vermieter-Anschrift aus Techem-Import übernehmen – bitte prüfen (Straße/PLZ/Ort), dann anklicken', ()=>zVorschlagUebernehmen('anschrift','z_strasse_wrap'));
+  setFeldVorschlagUi('z_iban_wrap', zv.iban, 'IBAN aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)', ()=>zVorschlagUebernehmen('iban','z_iban_wrap'));
 }
+/* Generisches WISO-Stil-Eck (US-90): zeigt/entfernt das blaue Dreieck oben rechts in `wrapId` und
+   verdrahtet den Klick-Handler. Ursprünglich nur für Vorjahres-Kosten (view-kosten.js), seit
+   2026-07-11 auch für Techem-Import-Vorschläge (Vermieter-Felder, Mieter-Name) genutzt. */
+function setFeldVorschlagUi(wrapId, aktiv, titel, onAccept){
+  const wrap=document.getElementById(wrapId); if(!wrap) return;
+  wrap.classList.toggle('unbestaetigt', !!aktiv);
+  let btn=wrap.querySelector('.vorschlag-tri');
+  if(aktiv){
+    if(!btn){ btn=document.createElement('button'); btn.type='button'; btn.className='vorschlag-tri'; wrap.appendChild(btn); }
+    btn.title=titel; btn.onclick=onAccept;
+  } else if(btn){ btn.remove(); }
+}
+function zVorschlagUebernehmen(field, wrapId){ store.setZahlungVorschlagFeld(field,false); setFeldVorschlagUi(wrapId,false); }
+/* Bei manueller Eingabe gilt der Vorschlag als abgelehnt/übernommen – Dreieck verschwindet. */
+function zVorschlagAbgelehnt(field, wrapId){ if(state.zahlung && state.zahlung.vorschlag && state.zahlung.vorschlag[field]) zVorschlagUebernehmen(field, wrapId); }
 function updateIbanHint(){
   const el=document.getElementById('z_iban_hint'); if(!el) return;
   const iban=(state.zahlung&&state.zahlung.iban)||'';
@@ -477,13 +509,25 @@ async function _neuesObjektMitName(name){
   return {ok:true, msg:'Ordner angelegt: „'+erg.eltern.name+'" / „'+erg.ordnername+'"\n\nDort liegen künftig die Belege und die Objektdatei ('+(schreibRes.ok?dateiname:'Fehler beim Schreiben')+') dieses Objekts.'};
 }
 /* US-91: aktuelles Objekt löschen (mit Bestätigung) – damit versehentlich angelegte Objekte
-   wieder entfernt werden können. */
-function objektLoeschen(){
+   wieder entfernt werden können.
+   Ralf-Vorgabe 2026-07-13: der verknüpfte Dokumentenordner wird NIE angefasst (weder gelöscht noch
+   verschoben) – die File System Access API kennt keinen Papierkorb, removeEntry() löscht endgültig.
+   Stattdessen nennt der Warnhinweis den Ordnernamen, damit sichtbar bleibt, was ggf. manuell im
+   Finder/Explorer aufzuräumen ist (dort gibt es einen echten Papierkorb). */
+async function objektLoeschen(){
   if(!objekte.length) return;
   const name = objektLabel(objekte[aktivIdx], aktivIdx);
-  const msg = objekte.length<=1
+  const istV2 = (+state.objekt.dokAblageVersion||0)>=2;
+  let ordnerHinweis = '';
+  if(istV2 && state.objekt.id && typeof dokObjektOrdnerName==='function'){
+    const on = await dokObjektOrdnerName(state.objekt.id);
+    if(on) ordnerHinweis = '\n\nHinweis: der verknüpfte Dokumentenordner „'+on+'" bleibt davon unberührt auf der Festplatte erhalten – bei Bedarf dort manuell aufräumen.';
+  } else if(typeof dokBasisName==='function' && dokBasisName()){
+    ordnerHinweis = '\n\nHinweis: eventuell abgelegte Dokumente liegen im gemeinsamen Ordner „'+dokBasisName()+'" und bleiben davon unberührt.';
+  }
+  const msg = (objekte.length<=1
     ? 'Dies ist das einzige Objekt. „Löschen" leert es und lädt ein neues, leeres Objekt.\n\nFortfahren?'
-    : 'Objekt „'+name+'" wirklich löschen? Das kann nicht rückgängig gemacht werden.';
+    : 'Objekt „'+name+'" wirklich löschen? Das kann nicht rückgängig gemacht werden.') + ordnerHinweis;
   if(!confirm(msg)) return;
   deleteAktivesObjekt(); ui.current=0; renderAll(); go(0); neuerVerlauf(); updateSaveStatus();
 }

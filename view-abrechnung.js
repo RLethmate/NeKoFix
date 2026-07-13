@@ -228,30 +228,38 @@ function renderDoc(){
   /* US-59: Spaltenformat (Rechenweg) + US-58 Rubrik-Gruppierung mit Zwischensummen. */
   const fmtEinh=n=>(Number(n)||0).toLocaleString('de-DE',{maximumFractionDigits:2});
   const fmtPreis=n=>(Number(n)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:4});
-  const COLS=gew?7:6, leer=c=>'<td colspan="'+c+'"></td>'; /* US-99: gewerblich = zusätzliche USt-Spalte */
+  /* Ralf-Vorgabe 2026-07-11: Rechenweg als sichtbare Gleichung wie bei Techem – Gesamtkosten :
+     Gesamteinheiten = Preis je Einheit × Ihre Einheiten = Ihr Anteil. Erleichtert den Abgleich
+     gegen eine Techem-Abrechnung (gleicher Aufbau) und macht den Rechenweg für Mieter
+     nachvollziehbar. Die vier op-col-Spalten (":"/"="/"×"/"=") kommen zu den bisherigen Spalten
+     hinzu, deshalb COLS/leer() um 4 erhöht. */
+  const COLS=gew?11:10, leer=c=>'<td colspan="'+c+'"></td>'; /* US-99: gewerblich = zusätzliche USt-Spalte */
   let rows='';
   nkRubrikenListe(src.objekt, src.kosten).forEach(rub=>{
-    const grp=ab.zeilen.map((i,ix)=>({i,ix}))
-      .filter(o=>Math.round(o.i.anteil*100)!==0 && nkRubrik(src.kosten[o.ix])===rub); /* US-22/US-50 */
+    /* Fund im Code-Review 2026-07-10: nkRubrik(i) statt nkRubrik(src.kosten[ix]) – nach einem
+       aktiven Heizkosten-Split (nkExpandHeizSplit) passt ein Index in ab.zeilen nicht mehr zum
+       Original-Array src.kosten, das Zeilen-Objekt trägt seine Rubrik jetzt direkt mit. */
+    const grp=ab.zeilen.filter(i=>Math.round(i.anteil*100)!==0 && nkRubrik(i)===rub); /* US-22/US-50 */
     if(!grp.length) return;
     rows+='<tr class="rubrik-row"><td colspan="'+COLS+'">'+esc(rub)+'</td></tr>';
-    grp.forEach(({i})=>{
+    grp.forEach(i=>{
       const direkt=i.schluessel==='direkt';
       const basisC=direkt?'direkt':(fmtEinh(i.basis)+' '+i.einheitLabel);
       const preisC=direkt?'—':(fmtPreis(i.preisJeEinheit)+' €');
       const ihreC=direkt?'100 %':(fmtEinh(i.ihreEinheiten)+' '+i.einheitLabel);
       const zeitC=(i.zeitanteil<0.999)?' <span class="muted">(×'+Math.round(i.zeitanteil*100)+' %)</span>':'';
       const ustC = gew ? '<td class="num ust-col">'+(+i.vorsteuer||0)+'&nbsp;%</td>' : ''; /* US-99: Satz der Kostenart (0/7/19 %) */
-      rows+='<tr><td>'+esc(i.bez)+'</td><td class="num">'+eur(i.gesamt)+'</td><td class="num">'+basisC+'</td><td class="num">'+preisC+'</td><td class="num">'+ihreC+'</td>'+ustC+'<td class="num">'+eur(i.wert)+zeitC+'</td></tr>';
+      const op=s=>'<td class="op-col">'+(direkt?'':s)+'</td>'; /* Direktkosten sind keine Gleichung (100 % ohne Basis/Preis) */
+      rows+='<tr><td>'+esc(i.bez)+'</td><td class="num">'+eur(i.gesamt)+'</td>'+op(':')+'<td class="num">'+basisC+'</td>'+op('=')+'<td class="num">'+preisC+'</td>'+op('×')+'<td class="num">'+ihreC+'</td>'+op('=')+ustC+'<td class="num">'+eur(i.wert)+zeitC+'</td></tr>';
     });
-    const sub=grp.reduce((s,o)=>s+o.i.wert,0);
-    rows+='<tr class="rubrik-subtotal"><td>Zwischensumme '+esc(rub)+'</td>'+leer(4)+(gew?'<td class="num"></td>':'')+'<td class="num">'+eur(sub)+'</td></tr>';
+    const sub=grp.reduce((s,i)=>s+i.wert,0);
+    rows+='<tr class="rubrik-subtotal"><td>Zwischensumme '+esc(rub)+'</td>'+leer(8)+(gew?'<td class="num"></td>':'')+'<td class="num">'+eur(sub)+'</td></tr>';
   });
   const summen = gew
-    ? '<tr class="total-row"><td>Zwischensumme netto</td>'+leer(5)+'<td class="num">'+eur(ab.netto)+'</td></tr>'+
-      '<tr><td>zzgl. '+NK_UST_SATZ+' % Umsatzsteuer</td>'+leer(5)+'<td class="num">'+eur(ab.ust)+'</td></tr>'+
-      '<tr class="total-row"><td>Ihr Anteil (brutto)</td>'+leer(5)+'<td class="num">'+eur(ab.brutto)+'</td></tr>'
-    : '<tr class="total-row"><td>Ihr Anteil an den Gesamtkosten</td>'+leer(4)+'<td class="num">'+eur(ab.brutto)+'</td></tr>';
+    ? '<tr class="total-row"><td>Zwischensumme netto</td>'+leer(9)+'<td class="num">'+eur(ab.netto)+'</td></tr>'+
+      '<tr><td>zzgl. '+NK_UST_SATZ+' % Umsatzsteuer</td>'+leer(9)+'<td class="num">'+eur(ab.ust)+'</td></tr>'+
+      '<tr class="total-row"><td>Ihr Anteil (brutto)</td>'+leer(9)+'<td class="num">'+eur(ab.brutto)+'</td></tr>'
+    : '<tr class="total-row"><td>Ihr Anteil an den Gesamtkosten</td>'+leer(8)+'<td class="num">'+eur(ab.brutto)+'</td></tr>';
   docEl.innerHTML=
     '<h2>Betriebs- und Heizkostenabrechnung</h2>'+
     '<div class="meta">'+esc(src.objekt.addr)+' · Einheit '+esc(e.name)+' · Mieter: <b>'+esc(m.mieter)+'</b>'+(gew?' (gewerblich, umsatzsteuerpflichtig)':'')+'<br>Abrechnungszeitraum: '+(vjDoc?(fmtDatum(src.objekt.von)+'–'+fmtDatum(src.objekt.bis)):zeitraumText())+' · Mietzeit: '+fmtDatum(m.von)+'–'+fmtDatum(nkMvEnde(m,src.objekt.bis))+(m.laeuft?' (läuft)':'')+' ('+Math.round(za*100)+' % des Zeitraums)</div>'+
@@ -260,15 +268,17 @@ function renderDoc(){
       '<div class="hl-row"><span>Ihre Vorauszahlung</span><span>'+eur(+m.voraus||0)+'</span></div>'+
       '<div class="hl-row hl-result"><span>'+(saldo>0?'Ihre Nachzahlung':'Ihr Guthaben')+'</span><span>'+eur(Math.abs(saldo))+'</span></div>'+
     '</div>'+
-    '<table><thead><tr><th>Kostenart</th><th class="num">Gesamtkosten</th><th class="num">Einheiten</th><th class="num">Preis/Einh.</th><th class="num">Ihre Einheiten</th>'+(gew?'<th class="num ust-col">USt.</th>':'')+'<th class="num">'+(gew?'Ihr Anteil (netto)':'Ihr Anteil')+'</th></tr></thead><tbody>'+
+    '<table><thead><tr><th>Kostenart</th><th class="num">Gesamtkosten</th><th class="op-col"></th><th class="num">Gesamteinheiten</th><th class="op-col"></th><th class="num">Preis/Einh.</th><th class="op-col"></th><th class="num">Ihre Einheiten</th><th class="op-col"></th>'+(gew?'<th class="num ust-col">USt.</th>':'')+'<th class="num">'+(gew?'Ihr Anteil (netto)':'Ihr Anteil')+'</th></tr></thead><tbody>'+
     rows+
     summen+
     '</tbody></table>'+
+    '<p class="hint" style="margin:4px 0 10px;">Gesamtkosten : Gesamteinheiten = Preis je Einheit &times; Ihre Einheiten = Ihr Anteil (Rechenweg je Kostenart).</p>'+
     (ab.co2.aktiv && !vjDoc
       ? '<div class="pay"><h3>CO2-Kostenaufteilung (CO2KostAufG)</h3>'+
         'CO2-Kosten gesamt (Gebäude): '+eur(co2KostenGesamt())+' · Ihr Anteil: '+eur(ab.co2.kostenMieter)+'<br>'+
-        nkCo2Erklaerung(ab.co2)+'<br>'+
-        'Davon trägt der Vermieter: <b>– '+eur(ab.co2.abzug)+'</b> (in Ihrem Anteil oben bereits abgezogen).</div>'
+        nkCo2Erklaerung(ab.co2)+
+        (nkCo2VermieterHinweis(ab.co2) ? '<br>Davon trägt der Vermieter: <b>– '+eur(ab.co2.abzugGesamt)+'</b> ('+nkCo2VermieterHinweis(ab.co2)+').' : '')+
+        '</div>'
       : '')+
     p35aBlock(ab.p35a)+  /* US-62: zwei Volltabellen (Abs. 2 / Abs. 3), nur private MV */
     '<div class="pay"><h3>Zahlungsmodalitäten</h3>'+

@@ -41,6 +41,16 @@ async function _dokPerm(h){ if(!h) return false; const o={mode:'readwrite'}; try
 function _dokObjektRootKey(objektId){ return 'objroot:'+objektId; }
 async function _dokObjektRootLaden(objektId){ try{ return (await _dokIdbGet(_dokObjektRootKey(objektId)))||null; }catch(e){ return null; } }
 async function _dokObjektRootSetzen(objektId, handle){ await _dokIdbSet(_dokObjektRootKey(objektId), handle); }
+/* Ralf-Vorgabe 2026-07-13: "Objekt löschen" fasst den verknüpften Dokumentenordner NICHT an (kein
+   Papierkorb über die File System Access API verfügbar, removeEntry() löscht endgültig – s.
+   objektLoeschen() in view-shell.js) – nur der Name für den Warnhinweis, kein Zugriff/Berechtigung
+   nötig (reine Anzeige). */
+async function dokObjektOrdnerName(objektId){
+  const cached = _dokObjektRootCache[objektId];
+  if(cached) return cached.name;
+  const h = await _dokObjektRootLaden(objektId);
+  return h ? h.name : '';
+}
 /* Ralf-Fund 2026-07-09/2026-07-10: ein natives prompt()/confirm() VOR showDirectoryPicker() lässt
    die dafür nötige "User Activation" verstreichen (die Zeit, die der Nutzer zum Lesen/Tippen im
    blockierenden Dialog braucht) - der Picker öffnet sich danach lautlos nicht mehr ("da passiert

@@ -49,6 +49,7 @@ function heizFaktorInfo(ea){
 }
 function heizKarte(k,idx){
   const ea=nkEnergieart(k.energieart);
+  const energieartVorschlag = !!(k.vorschlag && k.vorschlag.energieart);
   const fi=heizFaktorInfo(ea);
   const kwh=nkMengeZuKwh(k.menge, k.heizwert);
   const eurKwh=nkEurProKwh(k.betrag, kwh); /* US-95: Ø €/kWh nur als Kennzahl */
@@ -83,10 +84,13 @@ function heizKarte(k,idx){
      (NK_ENERGIEARTEN): 3× direkt (kein Umrechnungs-Schritt), 4× hi (Verbrauch×Heizwert=Wärmemenge),
      1× jaz/Wärmepumpe (Verbrauch×Arbeitszahl=Wärmemenge) – dieselbe Struktur in allen drei Fällen. */
   const umrechnungZeile = fi.show ? (verbrauchFeld+op('×')+heizwertFeld+op('=')+waermemengeFeld) : '';
+  const betragVorschlag = !!(k.vorschlag && k.vorschlag.betrag);
   const mittelwertZeile =
     /* Ralf-Feedback 2026-07-06: Einheit gehört in den Wert, nicht nur ins Label (Label deshalb ohne
-       "(€)", updHeizBetrag rendert bei jeder Aenderung neu – kein separates onblur-Reformat noetig). */
-    hf('Heizkosten gesamt', '<input type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag||0)+' €" onchange="updHeizBetrag('+idx+',this.value)">', null, 'hf-2u')+
+       "(€)", updHeizBetrag rendert bei jeder Aenderung neu – kein separates onblur-Reformat noetig).
+       Ralf-Vorgabe 2026-07-13: blaues Eck, solange ein abweichend importierter Betrag (z. B. andere
+       Abrechnungsperiode versehentlich importiert) nicht bestätigt ist. */
+    hf('Heizkosten gesamt', '<span class="feld-wrap'+(betragVorschlag?' unbestaetigt':'')+'" id="heiz-betrag-wrap-'+idx+'"><input type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag||0)+' €" onchange="updHeizBetrag('+idx+',this.value)">'+(betragVorschlag?'<button type="button" class="vorschlag-tri" title="Betrag aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="heizBetragVorschlagUebernehmen('+idx+')"></button>':'')+'</span>', null, 'hf-2u')+
     op('/')+
     nennerFeld+
     op('=')+
@@ -98,15 +102,30 @@ function heizKarte(k,idx){
      inhaltlich darunter/danach kommt (CO2-Felder, Verbrauch je Einheit, Zeitraum) – hf-1u statt
      hf-2u, damit die Spalten senkrecht exakt übereinanderstehen. Die ersten Gleichungs-Zeilen
      (Verbrauch/Heizwert/Wärmemenge/Heizkosten/Mittelwert) dürfen breiter bleiben (hf-2u). */
-  const co2Felder = ea.fossil ? hf('CO₂-Emissionen', '<input type="text" inputmode="decimal" value="'+nkFmtZahl(k.co2Kg||0)+' kg" onchange="updHeizNum('+idx+',\'co2Kg\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u')+hf('CO₂-Kosten', '<input type="text" inputmode="decimal" value="'+nkFmtBetrag(k.co2Kosten||0)+' €" onchange="updHeizNum('+idx+',\'co2Kosten\',this.value)">', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u') : '';
+  /* Ralf-Vorgabe 2026-07-13: blaues Eck, solange ein per Techem-Import abweichend gesetzter CO2-Wert
+     nicht bestätigt ist (ein gemeinsames Flag für beide Felder, da techem.js sie zusammen setzt). */
+  const co2Vorschlag = !!(k.vorschlag && k.vorschlag.co2);
+  const co2Tri = (feldId)=> co2Vorschlag ? '<button type="button" class="vorschlag-tri" title="CO2-Wert aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="heizCo2VorschlagUebernehmen('+idx+')"></button>' : '';
+  const co2Felder = ea.fossil ? hf('CO₂-Emissionen', '<span class="feld-wrap'+(co2Vorschlag?' unbestaetigt':'')+'" id="heiz-co2kg-wrap-'+idx+'"><input type="text" inputmode="decimal" value="'+nkFmtZahl(k.co2Kg||0)+' kg" onchange="updHeizNum('+idx+',\'co2Kg\',this.value)">'+co2Tri()+'</span>', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u')+hf('CO₂-Kosten', '<span class="feld-wrap'+(co2Vorschlag?' unbestaetigt':'')+'" id="heiz-co2kosten-wrap-'+idx+'"><input type="text" inputmode="decimal" value="'+nkFmtBetrag(k.co2Kosten||0)+' €" onchange="updHeizNum('+idx+',\'co2Kosten\',this.value)">'+co2Tri()+'</span>', 'CO2KostAufG: von der Brennstoffrechnung übernehmen.', 'hf-1u') : '';
   /* Ralf-Feedback 2026-07-06: dieselbe Einheit wie die Summe (Zeile darunter) auch je Einheit im Feld. */
   const vbEinheitenFelder = state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>hf(esc(x.name), '<input type="text" inputmode="decimal" value="'+nkFmtZahl((k.verbrauch&&k.verbrauch[x.id])||0)+' '+esc(k.einheit||'kWh')+'" onchange="updHeizVerbrauch('+idx+','+x.id+',this.value)">', null, 'hf-1u'));
-  const vbFelder = vbEinheitenFelder.join(op('+'))+op('=')+hf('Summe', ro(nkFmtBetrag(vsum)+' '+esc(k.einheit||'kWh')), null, 'hf-1u');
+  const vbFelder = vbEinheitenFelder.join(op('+'))+op('=')+hf('Erfasst', ro(nkFmtBetrag(vsum)+' '+esc(k.einheit||'kWh')), 'Summe der oben je Einheit erfassten Verbräuche – zeigt, wie viele Einheiten schon importiert/erfasst sind.', 'hf-1u');
+  /* Ralf-Vorgabe 2026-07-13: Gesamtmenge der Liegenschaft – bei Techem-Import bereits auf dem
+     ERSTEN importierten Mieter-PDF enthalten (s. nkVerbrauchGesamt), Grundlage der Gleichung
+     statt der u. U. noch unvollständigen Live-Summe. Blaues Eck (wie Mieter-/Vermieter-Vorschläge),
+     wenn ein späterer Import einen abweichenden Wert liefert. */
+  const gvVorschlag = !!(k.vorschlag && k.vorschlag.gesamtmenge);
+  const gesamtmengeFeld = hf('Gesamtmenge (Liegenschaft)',
+    '<span class="feld-wrap'+(gvVorschlag?' unbestaetigt':'')+'" id="heiz-gesamt-wrap-'+idx+'">'+
+      '<input type="text" inputmode="decimal" value="'+nkFmtZahl(k.gesamtmenge||0)+' '+esc(k.einheit||'kWh')+'" onchange="updHeizGesamtmenge('+idx+',this.value)">'+
+      (gvVorschlag?'<button type="button" class="vorschlag-tri" title="Gesamtmenge aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="heizGesamtmengeVorschlagUebernehmen('+idx+')"></button>':'')+
+    '</span>',
+    'Gesamtmenge der Liegenschaft laut Techem-Abrechnung – Grundlage für den Verteilerschlüssel, auch bevor alle Einheiten importiert sind. Ohne Import: leer lassen, dann gilt die Summe der erfassten Einzelverbräuche.', 'hf-1u');
   return '<div class="unit-card einheit-card'+(k.vorjahr?' vorjahr':'')+'">'+
     (k.vorjahr ? '<div class="heiz-vorjahr"><span><b>Aus dem Vorjahr vorbelegt.</b> Bitte Verbrauch und Preis prüfen.</span><button type="button" onclick="uebernehmeHeizVorjahr('+idx+')">Übernehmen</button></div>' : '')+
     '<div class="unit-head">'+
       '<input class="unit-name" value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)">'+
-      '<label class="unit-f">Energieart <select onchange="setEnergieart('+idx+',this.value)">'+eaOpts+'</select></label>'+
+      '<label class="unit-f">Energieart <span class="feld-wrap'+(energieartVorschlag?' unbestaetigt':'')+'" id="heiz-energieart-wrap-'+idx+'"><select onchange="setEnergieart('+idx+',this.value)">'+eaOpts+'</select>'+(energieartVorschlag?'<button type="button" class="vorschlag-tri" title="Energieart aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder ändern)" onclick="heizEnergieartVorschlagUebernehmen('+idx+')"></button>':'')+'</span></label>'+
       '<button class="row-del" title="Heizblock entfernen" onclick="delHeizblock('+idx+')" style="margin-left:auto;">×</button>'+
     '</div>'+
     /* US-121 Phase 1: .hf-raster statt .heiz-felder – Feldbreite richtet sich nach Inhalt (hf-1u/
@@ -119,6 +138,7 @@ function heizKarte(k,idx){
     '<div class="hint" style="margin:2px 0 8px;">30 % Grund / 70 % Verbrauch ist Standard; bei älteren Öl-/Gas-Gebäuden sind 70 % Verbrauch ggf. verpflichtend (§ 7 Abs. 1 HeizkostenV). Wartungs-/Betriebskosten der Anlage gehören in diesen Block.'+(ea.fossil?' CO₂-Werte von der Brennstoffrechnung – Vermieteranteil wird automatisch ermittelt.':'')+'</div>'+
     (co2Felder ? '<div class="hf-raster">'+co2Felder+'</div>' : '')+
     '<div class="heiz-vb"><div class="heiz-vb-lbl">Verbrauch je Einheit ('+esc(k.einheit||'kWh')+'):</div>'+
+      '<div class="hf-raster">'+gesamtmengeFeld+'</div>'+
       '<div class="hf-raster">'+vbFelder+'</div>'+
       (vsum>0 ? '' : '<div class="leer-hint" style="margin-top:6px;width:100%;">⚠ Ohne erfassten Verbrauch wird '+verbr+' % nicht verbrauchsgerecht verteilt – der Block wird vorerst nach Fläche abgerechnet. Bitte Verbrauch je Einheit eintragen.</div>')+
     '</div>'+
@@ -148,9 +168,11 @@ function setEnergieart(idx, key){
   store.setKostenFeld(idx,'heizwert',ea.hi);
   if(!k.bez || /^Heizung \(/.test(k.bez)) store.setKostenFeld(idx,'bez','Heizung ('+ea.label+')');
   store.setKostenFeld(idx,'betrag', nkHeizkosten(k.menge, k.preis));
+  store.setKostenVorschlagFeld(idx,'energieart', false); /* manuelle Wahl bestätigt einen offenen Techem-Vorschlag zugleich */
   heizVorjahrBestaetigt(idx);
   renderHeizung();
 }
+function heizEnergieartVorschlagUebernehmen(idx){ store.setKostenVorschlagFeld(idx,'energieart', false); renderHeizung(); }
 function updHeiz(idx, field, val){
   /* US-95: Menge/Heizwert wirken nur noch auf die Kennzahl Ø €/kWh, NICHT mehr auf den Betrag. */
   store.setKostenFeld(idx, field, nkParseBetrag(val));
@@ -160,9 +182,11 @@ function updHeiz(idx, field, val){
 /* US-95: Heizkostensumme direkt setzen (führender Wert; früher aus Menge×Preis errechnet). */
 function updHeizBetrag(idx, val){
   store.setKostenFeld(idx,'betrag', nkParseBetrag(val));
+  store.setKostenVorschlagFeld(idx,'betrag', false); /* manuelle Korrektur bestätigt einen offenen Techem-Vorschlag zugleich */
   heizVorjahrBestaetigt(idx);
   renderHeizung();
 }
+function heizBetragVorschlagUebernehmen(idx){ store.setKostenVorschlagFeld(idx,'betrag', false); renderHeizung(); }
 /* US-94: Grundkostenanteil (%) eines Heizblocks setzen (Klemmung auf 30–50 % erfolgt beim Lesen via nkHeizGrundProzent). */
 function updHeizGrund(idx, val){
   store.setKostenFeld(idx,'grundProzent', nkParseBetrag(val));
@@ -170,10 +194,15 @@ function updHeizGrund(idx, val){
   renderHeizung();
 }
 /* US-07: CO2-Felder (kg / €) numerisch setzen, ohne die Heizkostensumme neu zu rechnen. */
-function updHeizNum(idx, field, val){ store.setKostenFeld(idx, field, nkParseBetrag(val)); heizVorjahrBestaetigt(idx); renderHeizung(); }
+function updHeizNum(idx, field, val){ store.setKostenFeld(idx, field, nkParseBetrag(val)); store.setKostenVorschlagFeld(idx,'co2', false); heizVorjahrBestaetigt(idx); renderHeizung(); }
+function heizCo2VorschlagUebernehmen(idx){ store.setKostenVorschlagFeld(idx,'co2', false); renderHeizung(); }
 /* US-58: Verteilerschlüssel und Verbrauch je Einheit auch im Heizung-Reiter setzen. */
 function setHeizSchluessel(idx, val){ store.setKostenFeld(idx,'schluessel',val); heizVorjahrBestaetigt(idx); renderHeizung(); }
 function updHeizVerbrauch(idx, einheitId, val){ store.setKostenVerbrauch(idx, einheitId, nkParseBetrag(val)); heizVorjahrBestaetigt(idx); renderHeizung(); }
+/* Ralf-Vorgabe 2026-07-13: manuelle Eingabe/Korrektur bestätigt die Gesamtmenge zugleich (blaues
+   Eck verschwindet), analog zu den Mieter-/Vermieter-Vorschlägen aus dem Techem-Import. */
+function updHeizGesamtmenge(idx, val){ store.setKostenFeld(idx, 'gesamtmenge', nkParseBetrag(val)); store.setKostenVorschlagFeld(idx, 'gesamtmenge', false); renderHeizung(); }
+function heizGesamtmengeVorschlagUebernehmen(idx){ store.setKostenVorschlagFeld(idx, 'gesamtmenge', false); renderHeizung(); }
 function delHeizblock(idx){ store.removeKosten(idx); renderHeizung(); }
 /* US-90: Heizblock aus dem Vorjahr aktiv übernehmen (Button auf der Heizkarte). */
 function uebernehmeHeizVorjahr(idx){ const k=store.kosten(idx); if(!(k&&k.vorjahr)) return; store.setKostenFeld(idx,'vorjahr',false); finalizeVorjahrWennFertig(); renderHeizung(); renderVorjahrBanner(); saveState(); updateSaveStatus(); }

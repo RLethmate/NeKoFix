@@ -60,6 +60,9 @@ const store = {
      bzw. Vertragsteil merken; der nächste Stichtag rückt dadurch nach. Schreibt in die vereinte Map. */
   setMhAngekuendigt(ei,mi,datum,checked){ this.setAnk(ei,mi,datum, checked?{verschicktAm:"", typ:"Index"}:null); },
   setZahlungFeld(field,val){ if(!state.zahlung) state.zahlung={}; state.zahlung[field]=val; commit(); }, /* US-51 */
+  /* Techem-Import 2026-07-11: Vermieter-Felder, die aus einer Techem-Abrechnung vorgeschlagen
+     wurden, aber noch nicht bestätigt sind (WISO-Stil blaues Eck, s. .vorschlag-tri). */
+  setZahlungVorschlagFeld(field,val){ if(!state.zahlung) state.zahlung={}; if(!state.zahlung.vorschlag) state.zahlung.vorschlag={}; state.zahlung.vorschlag[field]=val; commit(); },
   setAbrechnungStatus(val){ state.abrechnungStatus=val; commit(); },
   // Einheiten
   addEinheit(){ const name=nkNaechsteEinheitName(state.einheiten.map(e=>e.name)); const id=state.einheiten.reduce((m,e)=>Math.max(m,e.id||0),0)+1; state.einheiten.push({ id, name, flaeche:0, personen:1, mv:[neuesMv()] }); commit(); },
@@ -70,6 +73,9 @@ const store = {
   /* Ralf-Vorgabe 2026-07-10 (Rauchwarnmelder): rohe Feldwerte (Datum) auf der Einheit setzen, OHNE
      nkParseBetrag – das würde ein ISO-Datum wie "2026-07-10" als Zahl fehlinterpretieren. */
   setEinheitDatum(ei,field,val){ state.einheiten[ei][field] = val; commit(); },
+  /* Ralf-Vorgabe 2026-07-13: Fläche (u. ä.) aus Techem-Import, noch nicht bestätigt (WISO-Stil
+     blaues Eck, wie setKostenVorschlagFeld/setZahlungVorschlagFeld). */
+  setEinheitVorschlagFeld(ei,field,val){ const e=state.einheiten[ei]; if(!e.vorschlag) e.vorschlag={}; e.vorschlag[field]=val; commit(); },
   // Mietverhältnisse
   addMv(ei){ state.einheiten[ei].mv.push(neuesMv()); commit(); },
   removeMv(ei,mi){ const mv=state.einheiten[ei].mv; if(mv.length>1){ mv.splice(mi,1); commit(); } },
@@ -97,6 +103,9 @@ const store = {
   setKostenFeld(idx,field,val){ state.kosten[idx][field]=val; commit(); },
   setKostenBetrag(idx,val){ state.kosten[idx].betrag=+val; commit(); },
   setKostenVerbrauch(idx,einheitId,val){ const k=state.kosten[idx]; if(!k.verbrauch) k.verbrauch={}; k.verbrauch[einheitId]=+val||0; commit(); }, /* US-57 */
+  /* Ralf-Vorgabe 2026-07-13: Gesamtmenge (schluessel="verbrauch") aus Techem-Import, noch nicht
+     bestätigt (WISO-Stil blaues Eck, wie setZahlungVorschlagFeld). */
+  setKostenVorschlagFeld(idx,field,val){ const k=state.kosten[idx]; if(!k.vorschlag) k.vorschlag={}; k.vorschlag[field]=val; commit(); },
   setKostenart(idx,val){ const k=state.kosten[idx]; k.bez=val; k.schluessel=nkVorschlagSchluessel(val); k.vorsteuer=nkVorschlagVorsteuer(val); commit(); },
   resetKostenSchluessel(idx){ const k=state.kosten[idx]; k.schluessel=nkVorschlagSchluessel(k.bez); commit(); },
   // Rubriken (US-89): objekt-eigene, geordnete Liste; Zuordnung über k.rubrik (Name)

@@ -81,7 +81,7 @@ function exportExcel(){
       verForm.push({r:vr,c:sumCol,f:"SUM("+nkColLetter(4)+rr+":"+nkColLetter(3+n)+rr+")",v:Math.round(zsum*100)/100});
     });
   });
-  XL.utils.book_append_sheet(wb, mkSheet(verAoa, verForm), "Berechnung");
+  XL.utils.book_append_sheet(wb, mkSheet(verAoa, verForm), "Nebenkosten-Saldo");
 
   /* --- Reiter „Abrechnung": je Mietverhältnis; Einheit verweist auf „Objekt & Einheiten",
      USt = 19 % vom Netto (gewerblich) und Saldo = Brutto − Vorauszahlung als Formel. --- */

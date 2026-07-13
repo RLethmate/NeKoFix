@@ -28,6 +28,12 @@
   header.app{background:var(--primary);color:#fff;padding:16px 28px;display:flex;align-items:center;gap:14px;}
   .logo{font-weight:700;font-size:22px;letter-spacing:.3px;}
   .logo span{font-weight:300;opacity:.85}
+  /* Ralf-Vorgabe 2026-07-13: Hinweis im Header, dass Personen-/Verbrauchsdaten nie den Rechner
+     verlassen (rein lokale Verarbeitung, s. auch Techem-Import-Kommentar in techem.js) – als
+     kompaktes Badge neben dem Logo, Erläuterung im Tooltip statt eigener Zeile (Platz im Header
+     ist bereits knapp, s. .undo-bar/.menu/Objekt-Auswahl daneben). */
+  .local-badge{display:inline-flex;align-items:center;padding:2px 9px;margin-left:2px;border:1px solid rgba(255,255,255,.35);border-radius:6px;background:rgba(255,255,255,.14);color:#fff;font-size:11px;font-weight:700;letter-spacing:.6px;cursor:help;vertical-align:middle;}
+  .local-badge:hover{background:rgba(255,255,255,.22);}
   .tag{margin-left:auto;font-size:13px;opacity:.85;}
   .spacer{margin-left:auto;}
   .app-version{font-size:12px;opacity:.65;white-space:nowrap;}
@@ -58,7 +64,11 @@
   /* US-91: „Öffnen"-Dialog */
   .overlay-obj{position:fixed;inset:0;background:rgba(13,30,38,.45);z-index:60;display:flex;align-items:center;justify-content:center;padding:24px;}
   .overlay-obj[hidden]{display:none;}
-  .dialog-obj{background:#fff;border-radius:12px;width:min(520px,94vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.3);}
+  /* Fund 2026-07-10 (Ralf, Techem-Review-Dialog): alle Overlay-Dialoge liegen strukturell INNERHALB
+     von header.app (color:#fff) – bisher unsichtbar, weil jeder bisherige Dialog-Text seine Farbe
+     selbst setzt (h2, Buttons). Explizite Farbe hier, damit künftiger Inhalt (z. B. eine Tabelle)
+     nicht wieder weiß auf weiß verschwindet. */
+  .dialog-obj{background:#fff;color:var(--ink);border-radius:12px;width:min(520px,94vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.3);}
   .dialog-obj h2{margin:0;padding:16px 18px 8px;font-size:16px;color:#1d2733;}
   .dlg-search{margin:0 18px 10px;padding:9px 11px;border:1px solid #d6dde6;border-radius:8px;font-size:14px;}
   .dlg-list{overflow:auto;padding:0 10px 6px;flex:1;}
@@ -105,11 +115,22 @@
   #doc.vj-view td.num, #doc.vj-view .headline-box{color:#1565c0;font-style:italic;}
   tr.vj-only-row td{background:#f7faff;color:#1565c0;}
   .vj-only-badge{display:inline-block;font-size:11px;color:#1565c0;background:#eaf1fb;border:1px solid #c3d6f5;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
-  /* US-90: WISO-Stil – kleines blaues Dreieck oben rechts im Feld = vorbelegt, aktiv zu übernehmen (Klick übernimmt). */
-  .betrag-wrap{position:relative;display:inline-block;}
-  .betrag-wrap.unbestaetigt input{padding-right:16px;}
-  .vorjahr-tri{position:absolute;top:2px;right:2px;width:0;height:0;padding:0;margin:0;border:none;background:transparent;cursor:pointer;border-top:12px solid #2f6fed;border-left:12px solid transparent;}
-  .vorjahr-tri:hover,.vorjahr-tri:focus{border-top-color:#1b4fc0;outline:none;}
+  /* US-90: WISO-Stil – kleines blaues Dreieck oben rechts im Feld = vorbelegt, aktiv zu übernehmen
+     (Klick übernimmt). Ursprünglich nur für die Vorjahres-Kosten-Übernahme, seit 2026-07-11 auch
+     für Werte aus dem Techem-Import (Mieter-Name, Vermieter/Anschrift/IBAN) – daher generisch
+     benannt (.feld-wrap/.vorschlag-tri) statt "vorjahr"-spezifisch; .betrag-wrap bleibt als Alias
+     für bestehende Aufrufstellen (Kosten-Beträge) erhalten. */
+  .betrag-wrap,.feld-wrap{position:relative;display:inline-block;}
+  .betrag-wrap.unbestaetigt input,.feld-wrap.unbestaetigt input{padding-right:16px;}
+  /* Ralf-Fund 2026-07-13: Empfänger/Straße/IBAN (Vermieter & Zahlungsangaben) wurden wieder zu kurz –
+     .feld-wrap ist absichtlich inline-block (schrumpft auf den Inhalt, s. o.), das global gesetzte
+     "input{width:100%}" hat gegen eine schrumpfende Bezugsbreite keinen Effekt mehr (Browser fällt auf
+     die Default-Eingabefeldbreite zurück). Nur innerhalb von .field (volle Rasterbreite gewünscht, wie
+     bei Zahlungsfrist) den Wrapper selbst auf Blockbreite stellen; die schmalen Verwendungen (Kosten-
+     Beträge, Gesamtmenge-Felder in .hf/.teilnahme-item) bleiben unangetastet. */
+  .field>.feld-wrap,.field>.betrag-wrap{display:block;width:100%;}
+  .vorschlag-tri{position:absolute;top:2px;right:2px;width:0;height:0;padding:0;margin:0;border:none;background:transparent;cursor:pointer;border-top:12px solid #2f6fed;border-left:12px solid transparent;}
+  .vorschlag-tri:hover,.vorschlag-tri:focus{border-top-color:#1b4fc0;outline:none;}
   .unit-card.vorjahr{border-color:#e6c878;box-shadow:0 0 0 1px rgba(230,200,120,.35);}
   .heiz-vorjahr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fbf4e6;border:1px solid #e6c878;border-radius:8px;padding:6px 10px;margin-bottom:8px;font-size:12.5px;color:#7a5a12;}
   .heiz-vorjahr button{margin-left:auto;background:var(--primary);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:12.5px;cursor:pointer;}
@@ -681,6 +702,7 @@
 <body>
 <header class="app">
   <div class="logo">NeKo<span>Fix</span></div>
+  <span class="local-badge" title="Alle Personen- und Verbrauchsdaten werden ausschließlich lokal in diesem Browser verarbeitet und gespeichert – nichts wird an einen Server übertragen.">LOCAL</span>
   <select class="obj-title-select" id="obj_title_select" title="Objekt wechseln (zuletzt verwendete)" onchange="onObjTitelChange(this)"></select>
   <select class="obj-jahr-select" id="obj_jahr_select" title="Anderen Jahrgang dieses Objekts öffnen" onchange="onObjJahrChange(this)"></select>
   <div class="undo-bar" role="group" aria-label="Rückgängig / Wiederherstellen">
@@ -705,6 +727,16 @@
       <div class="menu-sep"></div>
       <button onclick="neuesJahrAusVorjahr();toggleDateiMenu(true)">Neues Jahr aus Objekt…</button>
       <button onclick="document.getElementById('csv_import').click();toggleDateiMenu(true)">Kontoauszug (.csv) importieren</button>
+      <!-- Ralf-Vorgabe 2026-07-10: Techem-Abrechnung (Heiz-/Warmwasser-/Kaltwasserkosten + die
+           durchgereichten Betriebskosten) als Kostenarten importieren – rein client-seitig
+           (pdf.js), keine PDF-Inhalte verlassen den Browser. Reine Text-/Zahlen-Verarbeitung in
+           calc.js (nkTechemAbrechnungParsen, getestet); die Übernahme + Einheiten-Zuordnung hier
+           in techem.js.
+           Ralf-Feedback 2026-07-10: Namen/Einheiten-Erkennung noch unzuverlässig (die PDF liefert
+           dafür kein verlässlich strukturiertes Format, s. Recherche zu ARGE/bved-Standard) – bis
+           zu einer besseren Lösung nur im Debug-Modus sichtbar (?debug in der URL, wie
+           btn_testdaten in view-init.js). -->
+      <button id="btn_techem_import" hidden onclick="techemImportStarten();toggleDateiMenu(true)" title="Kostenarten aus einer Techem-Heizkostenabrechnung (PDF) übernehmen – experimentell, Namens-/Einheiten-Erkennung unzuverlässig">Techem-Abrechnung importieren… (Debug)</button>
       <button onclick="exportExcel();toggleDateiMenu(true)" title="Objektdaten als Excel exportieren – Verteilung als prüfbare Formeln">Nach Excel exportieren (.xlsx)</button>
       <div class="menu-sep"></div>
       <!-- Ralf-Vorgabe 2026-07-08: expliziter Menüpunkt statt nur beiläufigem Angebot beim ersten
@@ -718,6 +750,7 @@
   </div>
   <input type="file" id="obj_import" accept=".json,application/json" style="display:none" onchange="importObjekt(event)">
   <input type="file" id="csv_import" accept=".csv,text/csv,text/plain" style="display:none" onchange="importUmsaetze(event)">
+  <input type="file" id="techem_import" accept=".pdf,application/pdf" style="display:none" onchange="techemDateiGewaehlt(event)">
   <!-- US-91: „Öffnen"-Dialog (alle Objekte, Suche, progressive Gruppierung) -->
   <div class="overlay-obj" id="objekt_overlay" hidden onclick="if(event.target===this)closeObjektDialog()">
     <div class="dialog-obj">
@@ -745,6 +778,42 @@
       <div class="dlg-foot">
         <button class="btn-ghost" onclick="closeNamensDialog()">Abbrechen</button>
         <button class="btn-primary" id="namensdlg_weiter" onclick="_namensdialogWeiter()">Weiter</button>
+      </div>
+    </div>
+  </div>
+  <!-- Ralf-Vorgabe 2026-07-10: Review vor dem Übernehmen (wie beim CSV-Import) – zeigt die
+       erkannten Kostenpositionen und lässt die Ziel-Einheit bestätigen/korrigieren, bevor
+       irgendetwas in state.kosten geschrieben wird. -->
+  <div class="overlay-obj" id="techem_overlay" hidden onclick="if(event.target===this)techemReviewSchliessen()">
+    <div class="dialog-obj" style="width:min(980px,96vw)">
+      <h2>Techem-Abrechnung importieren</h2>
+      <div id="techem_gebaeude_hinweis"></div>
+      <p class="hint" id="techem_hinweis" style="margin:0 18px 8px;"></p>
+      <div style="margin:0 18px 4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <label style="font-size:13px;color:var(--muted);">Einheit<br>
+          <select id="techem_einheit" style="margin-top:3px;" onchange="techemAufEinheitWechsel()"></select>
+        </label>
+        <span style="font-size:13px;color:var(--muted);">Abrechnungszeitraum<br><b id="techem_zeitraum">–</b></span>
+      </div>
+      <p class="hint" id="techem_flaeche_hinweis" style="margin:0 18px 8px;"></p>
+      <div class="dlg-list">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="text-align:left;color:var(--muted);">
+            <th style="padding:4px 8px;">Rubrik</th><th style="padding:4px 8px;">Bezeichnung</th>
+            <th style="padding:4px 8px;" class="num">Gesamtkosten</th>
+            <th style="padding:4px 8px;" class="num">Gesamteinheiten</th>
+            <th style="padding:4px 8px;" class="num">Preis/Einh.</th>
+            <th style="padding:4px 8px;" class="num">Ihre Einheiten</th>
+            <th style="padding:4px 8px;" class="num">Ihre Kosten (PDF)</th>
+            <th style="padding:4px 8px;">Status</th>
+          </tr></thead>
+          <tbody id="techem_positionen"></tbody>
+        </table>
+      </div>
+      <p class="hint" style="margin:6px 18px 0;font-size:12px;">Gesamtkosten : Gesamteinheiten = Preis je Einheit &times; Ihre Einheiten = Ihre Kosten (Rechenweg lt. Techem-Abrechnung).</p>
+      <div class="dlg-foot">
+        <button class="btn-ghost" onclick="techemReviewSchliessen()">Abbrechen</button>
+        <button class="btn-primary" onclick="techemUebernehmen()">Übernehmen</button>
       </div>
     </div>
   </div>
@@ -788,6 +857,11 @@
     <h1>Gebäude &amp; Einheiten<span id="vjt_einh" class="vj-titel"></span><button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
     <div class="dok-anker"><span class="dok-ico" aria-hidden="true">ⓘ</span><span class="dok-text">Das brauchst du jetzt: <b>Mietvertrag (Wohnungsgrößen) bzw. Grundriss</b></span><button class="dok-toggle" onclick="toggleDokAnker()" aria-label="Unterlagen-Hinweis ausblenden" title="Unterlagen-Hinweis ausblenden"><span class="dok-chev" aria-hidden="true">▾</span></button></div>
     <p class="sub">Grunddaten des Hauses und der Wohneinheiten – Basis für jede Verteilung.</p>
+    <!-- Ralf-Vorgabe 2026-07-13: laufende Summe sichtbar machen, damit ein falsch erfasster
+         Flächenwert (z. B. beim Techem-Import, s. nkTotals/nkVerbrauchGesamt) sofort auffällt,
+         statt erst in der fertigen Abrechnung. Als Ovale (.pill) wie bei "Mieter & Vertrag"
+         (dort m²/Pers./€ pro m² je Einheit) statt Fließtext. -->
+    <div id="einh_summary" style="display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 10px;"></div>
     <div class="legal">Recht (V11): Für die Betriebskostenverteilung zählt die <b>tatsächliche</b> Wohnfläche, nicht die im Mietvertrag vereinbarte.</div>
     <!-- US-121 Phase 3: .hf-raster/.hf-Nu statt .grid2. Adresse (Ralf-Feedback 2026-07-06) jetzt in
          Straße/PLZ/Ort getrennt statt einem Freitextfeld – Speicherformat bleibt eine kombinierte
@@ -817,12 +891,12 @@
     <h1>Vermieter &amp; Zahlungsangaben</h1>
     <p class="sub">Einmal pro Objekt – erscheinen auf der Abrechnung und im PDF.</p>
     <div class="hf-raster">
-      <div class="field hf-3u"><label>Empfänger (Vermieter)</label><input id="z_empfaenger" placeholder="z. B. M. Vermieter"></div>
+      <div class="field hf-3u"><label>Empfänger (Vermieter)</label><span class="feld-wrap" id="z_empfaenger_wrap"><input id="z_empfaenger" placeholder="z. B. M. Vermieter"></span></div>
     </div>
     <!-- Ralf-Feedback 2026-07-06: Straße/PLZ/Ort getrennt statt einem Freitextfeld (Speicherformat
          bleibt eine kombinierte Zeile in state.zahlung.anschrift, siehe recomputeZAdresse). -->
     <div class="hf-raster">
-      <div class="field hf-3u"><label>Straße &amp; Hausnummer</label><input id="z_strasse"></div>
+      <div class="field hf-3u"><label>Straße &amp; Hausnummer</label><span class="feld-wrap" id="z_strasse_wrap"><input id="z_strasse"></span></div>
       <div class="field hf-1u"><label>PLZ</label><input id="z_plz" inputmode="numeric"></div>
       <div class="field hf-2u"><label>Ort</label><input id="z_ort"></div>
     </div>
@@ -831,7 +905,7 @@
          Zahlungsfrist gemeinsam brauchen 670px, nicht bei jeder Fensterbreite garantiert) – jetzt
          eigene Zeile, dadurch nie mehr vom verfügbaren Platz neben IBAN/BIC abhängig. -->
     <div class="hf-raster" style="align-items:flex-start;">
-      <div class="field hf-3u"><label>IBAN</label><input id="z_iban" placeholder="DE.. .... .... .... .... .."><span id="z_iban_hint" class="iban-hint"></span></div>
+      <div class="field hf-3u"><label>IBAN</label><span class="feld-wrap" id="z_iban_wrap"><input id="z_iban" placeholder="DE.. .... .... .... .... .."></span><span id="z_iban_hint" class="iban-hint"></span></div>
       <div class="field hf-2u"><label>BIC</label><input id="z_bic" placeholder="optional"></div>
     </div>
     <div class="hf-raster">
@@ -917,7 +991,7 @@
 
   <!-- Step 5: Berechnung Übersicht -->
   <section class="panel" data-step="4">
-    <h1>Berechnung<span id="vjt_berech" class="vj-titel"></span></h1>
+    <h1>Nebenkosten-Saldo<span id="vjt_berech" class="vj-titel"></span></h1>
     <p class="sub">Verteilung aller Kosten auf die Einheiten und Saldierung mit den Vorauszahlungen.</p>
     <div class="summary-cards">
       <div class="scard"><div class="lbl">Gesamtkosten</div><div class="val" id="sum_total">–</div></div>
@@ -989,12 +1063,17 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- Ralf-Vorgabe 2026-07-10 (Techem-Abrechnungsimport): pdf.js liest PDF-Text rein client-seitig
+     (nur die Bibliothek selbst kommt per CDN, wie jsPDF/xlsx – keine PDF-Inhalte verlassen den
+     Browser). worker via CDN, damit die Textextraktion nicht den UI-Thread blockiert. -->
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>if(typeof pdfjsLib!=='undefined') pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
 <script>
 /* US-56: lokale Skripte mit Versionskennung laden (Cache-Busting). `v` wird beim Deploy
    automatisch auf den Commit-Hash gesetzt (siehe .github/workflows/pages.yml); lokal bleibt "0.4".
    Lokal (v unverändert "0.4") wird je Aufruf ein frischer Wert genutzt, damit beim lokalen Testen
    nie eine veraltete Datei aus dem Browser-Cache geladen wird. */
-(function(){ var v="0.4"; var bust=(v==="0.4")?String(Date.now()):v; var files=["calc.js","core.js","view-shell.js","view-mieter.js","view-kosten.js","view-heizung.js","view-abrechnung.js","view-csv.js","view-termine.js","view-init.js","pdf.js","excel.js","docs.js"];
+(function(){ var v="0.4"; var bust=(v==="0.4")?String(Date.now()):v; var files=["calc.js","core.js","view-shell.js","view-mieter.js","view-kosten.js","view-heizung.js","view-abrechnung.js","view-csv.js","view-termine.js","view-init.js","pdf.js","excel.js","docs.js","techem.js"];
   if(document.readyState==="loading"){ /* normaler Parse (Browser/Pages): schnellster Weg */
     files.forEach(function(f){ document.write('<script src="'+f+'?v='+encodeURIComponent(bust)+'"><\/script>'); });
   } else { /* Fallback (eingebettete Webview/nach dem Parsen): geordnetes Nachladen */

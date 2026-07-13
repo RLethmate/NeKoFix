@@ -219,6 +219,7 @@
       "rubrik": "Heizkosten",
       "vorsteuer": 19,
       "grundProzent": 30,
+      "gesamtmenge": 48000,
       "verbrauch": {
         "1": 12000,
         "2": 9000,
