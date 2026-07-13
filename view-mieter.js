@@ -1,18 +1,43 @@
 /* view-mieter.js (US-118 AC-4) – Reiter „Objekt/Einheiten", „Vorauszahlung (Soll)" und
    „Mieter & Vertrag": Einheiten, Mietverhältnisse, Vertrag, Mieterhöhung/Index/Staffel,
    Chronik, Vorauszahlungen. Aus view.js herausgelöst; nutzt state/store (core.js), ui (view-shell.js). */
+/* Ralf-Vorgabe 2026-07-13: Anzahl Einheiten/Gesamtfläche/Ø Kaltmiete pro m² oben im Reiter „Gebäude
+   & Einheiten" als Ovale (.pill, wie bei „Mieter & Vertrag" m²/Pers./€ je m²) – laufende Kontrolle,
+   ob die Summe zur tatsächlichen Liegenschaft passt (s. auch die Gesamtmenge-Anzeige bei
+   importierten Verbrauchs-Kostenarten, calc.js nkVerbrauchGesamt). Eigene Funktion (nicht nur
+   Teil von renderEinheiten()), damit updEinheit() sie bei jeder Flächen-Eingabe live nachziehen
+   kann, OHNE die Eingabefelder komplett neu zu rendern (das würde Fokus/Cursor zerstören –
+   dasselbe Muster wie updVertrag() beim Gesamtkalt-Feld). */
+function renderEinhSummary(){
+  const einhSum = document.getElementById('einh_summary');
+  if(!einhSum) return;
+  const t = nkTotals(state.einheiten);
+  const gesamtKaltmiete = state.einheiten.reduce((s,e)=>{
+    const aktivMv = (e.mv||[]).find(m=>m.laeuft) || (e.mv||[])[(e.mv||[]).length-1];
+    return s + (aktivMv ? (+aktivMv.grundmiete||0) : 0);
+  }, 0);
+  const eurQm = t.flaeche>0 ? gesamtKaltmiete/t.flaeche : 0;
+  einhSum.innerHTML =
+    '<span class="pill">'+t.einheiten+' Einh.</span>'+
+    '<span class="pill">'+nkFmtZahl(t.flaeche)+' m²</span>'+
+    (t.flaeche>0 ? '<span class="pill">'+nkFmtBetrag(eurQm)+' EUR/m²</span>' : '');
+}
 function renderEinheiten(){
   ensureIds();
+  renderEinhSummary();
   const box = document.getElementById('einheiten_box'); box.innerHTML='';
   const vjSnap = ui.zeigeVorjahr ? nkFindVorjahr(objekte, aktivIdx) : null; /* US-59 */
   const vjOn = ui.zeigeVorjahr && !!vjSnap;
   state.einheiten.forEach((e,ei)=>{
     const vjE = vjSnap ? nkVorjahrEinheit(vjSnap, e.name) : null; /* US-59: Einheit über Namen matchen */
     /* Ralf-Feedback 2026-07-06: Einheit (m²) im Feld statt nur im Label; oninput-Felder rendern nicht
-       bei jeder Eingabe neu, daher eigenes onblur-Reformat (wie bei den Betragsfeldern). */
+       bei jeder Eingabe neu, daher eigenes onblur-Reformat (wie bei den Betragsfeldern).
+       Ralf-Vorgabe 2026-07-13: blaues Eck, solange eine per Techem-Import abweichend gesetzte Fläche
+       nicht bestätigt ist (s. techem.js techemUebernehmen, e.vorschlag.flaeche). */
+    const flaecheVorschlag = !!(e.vorschlag && e.vorschlag.flaeche);
     const flaecheInp = vjOn
       ? vjFeld(vjE && vjE.flaeche!=null ? nkFmtZahl(vjE.flaeche)+' m²' : null)
-      : '<input class="short" type="text" inputmode="decimal" value="'+nkFmtZahl(e.flaeche)+' m²" oninput="updEinheit('+ei+',\'flaeche\',this.value)" onblur="this.value=nkFmtZahl(nkParseBetrag(this.value))+\' m²\'">';
+      : '<span class="feld-wrap'+(flaecheVorschlag?' unbestaetigt':'')+'" id="einh-flaeche-wrap-'+ei+'"><input class="short" type="text" inputmode="decimal" value="'+nkFmtZahl(e.flaeche)+' m²" oninput="updEinheit('+ei+',\'flaeche\',this.value)" onblur="this.value=nkFmtZahl(nkParseBetrag(this.value))+\' m²\'">'+(flaecheVorschlag?'<button type="button" class="vorschlag-tri" title="Fläche aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="einheitFlaecheVorschlagUebernehmen('+ei+')"></button>':'')+'</span>';
     const personenInp = vjOn
       ? vjFeld(vjE && vjE.personen!=null ? vjE.personen : null)
       : '<input class="short" type="number" value="'+e.personen+'" oninput="updEinheit('+ei+',\'personen\',this.value)">';
@@ -100,7 +125,7 @@ function mvZeilen(e, ei){
       let row=mvHeadrow(mi,e.mv.length)+'<div class="mv-grid mv-summary">'+
         '<div style="grid-column:c0"><select onchange="updVertrag('+ei+','+mi+',\'anrede\',this.value)"><option value=""'+(m.anrede?'':' selected')+'>neutral</option><option value="herr"'+(m.anrede==="herr"?" selected":"")+'>Herr</option><option value="frau"'+(m.anrede==="frau"?" selected":"")+'>Frau</option></select></div>'+
         '<div class="mv-aux warn" style="grid-column:c1w">'+warnHtml+'</div>'+
-        '<div style="grid-column:c1 / c3"><input value="'+esc(m.mieter)+'" oninput="updMV('+ei+','+mi+',\'mieter\',this.value)"></div>'+
+        '<div style="grid-column:c1 / c3"><span class="feld-wrap'+(m.mieterVorschlag?' unbestaetigt':'')+'" id="mvname-wrap-'+ei+'-'+mi+'"><input value="'+esc(m.mieter)+'" oninput="updMV('+ei+','+mi+',\'mieter\',this.value)">'+(m.mieterVorschlag?'<button type="button" class="vorschlag-tri" title="Mieter-Name aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder den Namen anpassen)" onclick="mvMieterVorschlagUebernehmen('+ei+','+mi+')"></button>':'')+'</span></div>'+
         '<div style="grid-column:c3"><input type="date" value="'+m.von+'" onchange="updMV('+ei+','+mi+',\'von\',this.value)" onblur="renderEinheiten()"></div>'+
         (m.laeuft
             ? '<div class="hint mv-vcenter" style="grid-column:c4" title="laufendes Mietverhältnis – Ende = Abrechnungszeitraum">läuft</div>'
@@ -280,15 +305,16 @@ document.getElementById('obj_bis').addEventListener('change',e=>{store.setObjekt
 document.getElementById('obj_von').addEventListener('blur',renderEinheiten);
 document.getElementById('obj_bis').addEventListener('blur',renderEinheiten);
 /* US-51: Vermieter & Zahlungsangaben */
-document.getElementById('z_empfaenger').addEventListener('input',e=>store.setZahlungFeld('empfaenger',e.target.value));
+document.getElementById('z_empfaenger').addEventListener('input',e=>{store.setZahlungFeld('empfaenger',e.target.value); zVorschlagAbgelehnt('empfaenger','z_empfaenger_wrap');});
 function recomputeZAdresse(){
+  zVorschlagAbgelehnt('anschrift','z_strasse_wrap');
   const s=document.getElementById('z_strasse').value, p=document.getElementById('z_plz').value, o=document.getElementById('z_ort').value;
   store.setZahlungFeld('anschrift', nkJoinAdresse(s,p,o));
 }
 document.getElementById('z_strasse').addEventListener('input',recomputeZAdresse);
 document.getElementById('z_plz').addEventListener('input',recomputeZAdresse);
 document.getElementById('z_ort').addEventListener('input',recomputeZAdresse);
-document.getElementById('z_iban').addEventListener('input',e=>{store.setZahlungFeld('iban',e.target.value); updateIbanHint();});
+document.getElementById('z_iban').addEventListener('input',e=>{store.setZahlungFeld('iban',e.target.value); zVorschlagAbgelehnt('iban','z_iban_wrap'); updateIbanHint();});
 /* Ralf-Feedback 2026-07-06: IBAN in 4er-Gruppen sichtbar machen, sobald das Feld verlassen wird
    (nicht bei jedem Tastendruck, sonst springt der Cursor mitten im Tippen). */
 document.getElementById('z_iban').addEventListener('blur',e=>{ const f=nkFmtIban(e.target.value); e.target.value=f; store.setZahlungFeld('iban',f); updateIbanHint(); });
@@ -304,8 +330,27 @@ document.getElementById('z_frist').addEventListener('input',e=>{store.setZahlung
 
 /* Store (Zustandsmutationen) ausgelagert nach core.js (US-33b/US-34). */
 
-function updEinheit(ei,field,val){ store.setEinheitFeld(ei,field,val); }
-function updMV(ei,mi,field,val){ store.setMvFeld(ei,mi,field,val); /* Datum: Neu-Zeichnen via onblur, nicht beim Tippen */ }
+/* Ralf-Fund 2026-07-13: die Fläche-Eingabe rendert bewusst nicht komplett neu (Fokus/Cursor würde
+   beim Tippen verloren gehen, s. Kommentar bei flaecheInp) – dadurch blieb die Ovale-Summenanzeige
+   oben (renderEinhSummary) beim Tippen unverändert stehen. Jetzt gezielt nachgezogen, ohne die
+   Eingabefelder anzufassen. */
+function updEinheit(ei,field,val){
+  store.setEinheitFeld(ei,field,val);
+  if(field==='flaeche'){
+    renderEinhSummary();
+    /* manuelle Korrektur bestätigt einen offenen Techem-Vorschlag zugleich (blaues Eck verschwindet) */
+    const e=state.einheiten[ei];
+    if(e.vorschlag && e.vorschlag.flaeche){ store.setEinheitVorschlagFeld(ei,'flaeche',false); const w=document.getElementById('einh-flaeche-wrap-'+ei); if(w) w.classList.remove('unbestaetigt'); const t=w&&w.querySelector('.vorschlag-tri'); if(t) t.remove(); }
+  }
+}
+function einheitFlaecheVorschlagUebernehmen(ei){ store.setEinheitVorschlagFeld(ei,'flaeche',false); renderEinheiten(); }
+function updMV(ei,mi,field,val){ store.setMvFeld(ei,mi,field,val); /* Datum: Neu-Zeichnen via onblur, nicht beim Tippen */
+  if(field==='mieter') mvMieterVorschlagAbgelehnt(ei,mi); /* manuelle Eingabe verwirft einen evtl. offenen Techem-Namensvorschlag */
+}
+/* Techem-Import 2026-07-11: Mieter-Name-Vorschlag (WISO-Stil blaues Eck) bestätigen/verwerfen –
+   ohne Voll-Rerender, damit der Cursor beim Tippen im Feld nicht verloren geht (wie updKostenBetrag). */
+function mvMieterVorschlagUebernehmen(ei,mi){ store.setMvFeld(ei,mi,'mieterVorschlag',false); setFeldVorschlagUi('mvname-wrap-'+ei+'-'+mi,false); }
+function mvMieterVorschlagAbgelehnt(ei,mi){ const m=state.einheiten[ei].mv[mi]; if(m.mieterVorschlag) mvMieterVorschlagUebernehmen(ei,mi); }
 function updMVLaeuft(ei,mi,checked){ store.setMvFeld(ei,mi,'laeuft', !!checked); renderEinheiten(); } /* US-75: offenes Ende */
 function addMV(ei){ store.addMv(ei); renderEinheiten(); }
 /* Ralf-Vorgabe 2026-07-08: Löschen sperren, solange im Dokumentenordner dieses Mietverhältnisses
@@ -609,9 +654,14 @@ function indexAnkuendigung(ei,mi,idx,checked){
 /* AC-2a (US-118): Ankündigung der kommenden (noch nicht übernommenen) Index-Anpassung.
    Nutzt dieselbe mhAngekuendigt-Map wie der Termine-Reiter (Stichtag-keyed) -> beidseitig verknüpft. */
 function idxVorabAnkuendigung(ei,mi,stichtag,checked){ store.setMhAngekuendigt(ei,mi,stichtag,checked); renderEinheiten(); }
-/* US-70: Staffel – gültige Miete automatisch aus dem Plan ableiten und als Soll setzen. */
+/* US-70: Staffel – gültige Miete automatisch aus dem Plan ableiten und als Soll setzen.
+   Code-Review-Fund 2026-07-10: ohne Enddatum liefert nkStaffelPlan() eine leere Liste, wodurch
+   nkStaffelMieteAm() unbemerkt für immer die reine Ausgangsmiete zurückgibt (die tatsächlich
+   fällige, höhere Stufe wird nie gesetzt) – ohne Enddatum daher grundmiete NICHT überschreiben,
+   statt sie still auf einen falschen Wert einzufrieren. §557a verlangt ohnehin ein Enddatum. */
 function staffelSync(ei,mi){
   const m=store.mv(ei,mi);
+  if(!m.stafEnde) return;
   const plan=nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag);
   store.setMvNum(ei,mi,'grundmiete', nkStaffelMieteAm(plan, m.stafAusgangsmiete, heute()));
 }
@@ -804,9 +854,11 @@ function indexBlock(m,ei,mi){
       hfFeld('Erhöhung je Staffel','<input type="text" inputmode="decimal" value="'+((+m.stafBetrag||0)?nkFmtBetrag(m.stafBetrag)+' €':'')+'" placeholder="z. B. 25,00 €" onchange="updStaf('+ei+','+mi+',\'stafBetrag\',this.value)">')+
       hfFeld('Anpassung alle … Jahre','<input type="number" min="1" step="1" value="'+(m.stafFrequenz||1)+'" onchange="updStaf('+ei+','+mi+',\'stafFrequenz\',this.value)">')+
     '</div>';
-    if(!m.stafEnde) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Bitte ein Enddatum der Staffelvereinbarung angeben.</div>';
+    if(!m.stafEnde) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Bitte ein Enddatum der Staffelvereinbarung angeben – ohne Enddatum wird die Miete NICHT automatisch auf die fällige Stufe angehoben.</div>';
     if(!nkIndexFrequenzGueltig(m.stafFrequenz||1)) h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Frequenz muss eine ganze Zahl ab 1 Jahr sein (§ 557a).</div>';
-    h+='<div class="mh-aktuell">Aktuell gültige Miete: <b>'+(spanZuGross?'—':eur(aktuell))+'</b></div>';
+    /* Code-Review-Fund 2026-07-10: ohne Enddatum (leerer plan) waere "aktuell" nur die
+       Ausgangsmiete - keinen plausibel wirkenden, aber falschen Wert anzeigen. */
+    h+='<div class="mh-aktuell">Aktuell gültige Miete: <b>'+((spanZuGross||!m.stafEnde)?'—':eur(aktuell))+'</b></div>';
     if(spanZuGross){
       h+='<div class="leer-hint" style="color:var(--nachzahlung);">'+WARN_ICON+' Der Zeitraum zwischen Beginn und Enddatum darf höchstens 15 Jahre betragen. Bitte Beginn und Enddatum prüfen.</div>';
     } else if(plan.length){

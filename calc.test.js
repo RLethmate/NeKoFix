@@ -570,6 +570,57 @@ test("CO2: Abzug reduziert den Mieterbetrag (Wohnen)", () => {
   assert.ok(Math.abs(ab.bruttoVorCo2 - 1000) < 1e-9);
   assert.ok(Math.abs(ab.brutto - 955) < 1e-9);           // 1000 − 45
   assert.equal(ab.co2.aktiv, true);
+  assert.equal(ab.co2.informativ, false);
+});
+
+/* Ralf-Fund 2026-07-13 (Rechenkette einer echten Techem-Abrechnung): "Anlieferung Brennstoff ./.
+   CO2-Kosten Vermieter = Verbrauch" – der Vermieteranteil ist beim Techem-Import bereits VOR der
+   Heizung/Warmwasser-Aufteilung vom Brennstoffpreis abgezogen, "Ihre Heizkosten" (und damit der
+   importierte Betrag) sind schon netto davon. co2Informativ=true (von techem.js gesetzt) darf den
+   Mieterbetrag deshalb NICHT nochmal mindern – nur informativ in kostenMieter/abzugGesamt zeigen. */
+test("CO2: co2Informativ (Techem-Import) mindert den Betrag NICHT – nur zur Anzeige", () => {
+  const E = [{ id: 1, flaeche: 50, personen: 1 }, { id: 2, flaeche: 50, personen: 1 }];
+  const K = [{ bez: "Heizung", betrag: 2000, schluessel: "flaeche", typ: "heizung", energieart: "erdgas_kwh", co2Kg: 2400, co2Kosten: 300, co2Informativ: true }];
+  const o = { von: "2025-01-01", bis: "2025-12-31" };
+  const m = { mieter: "A", von: "2025-01-01", bis: "2025-12-31", voraus: 0 };
+  const ab = calc.nkMieterAbrechnung(E[0], m, K, o, E);
+  assert.ok(Math.abs(ab.co2.kostenMieter - 150) < 1e-9);   // weiterhin berechnet (Anzeige)
+  assert.ok(Math.abs(ab.co2.abzugGesamt - 45) < 1e-9);     // informativer Gesamtwert
+  assert.equal(ab.co2.abzug, 0);                            // aber NICHT tatsächlich abgezogen
+  assert.equal(ab.brutto, ab.bruttoVorCo2);                 // Betrag unverändert
+  assert.equal(ab.co2.informativ, true);
+});
+
+/* US-07 Fix 2026-07-13 (Ralf-Fund anhand einer echten Techem-Abrechnung): der CO2-Mieteranteil
+   einer Heizungs-Position folgt "Ihr Anteil an den Gesamtkosten" DIESER Position (Fläche- UND
+   Verbrauchs-Anteil gewichtet nach Grundkosten-%), NICHT dem Fläche- oder Verbrauchs-Anteil allein –
+   sonst würde er bei sehr unterschiedlichen Fläche-/Verbrauchsanteilen falsch. */
+test("nkHeizBlockMieterProzent: Grund-/Verbrauchs-gewichteter Anteil, nicht Fläche oder Verbrauch allein", () => {
+  const E = [{ id: 1, flaeche: 80 }, { id: 2, flaeche: 20 }]; // E1 hat 80% der Fläche
+  const k = { betrag: 1000, typ: "heizung", grundProzent: 30, verbrauch: { 1: 10, 2: 90 } }; // E1 nur 10% des Verbrauchs
+  const p1 = calc.nkHeizBlockMieterProzent(k, E[0], E);
+  // 30 % Grund nach Fläche (80 %) + 70 % Verbrauch nach Zähler (10 %) = 0,3*0,8 + 0,7*0,1 = 0,31
+  assert.ok(Math.abs(p1 - 0.31) < 1e-9);
+  const p2 = calc.nkHeizBlockMieterProzent(k, E[1], E);
+  assert.ok(Math.abs(p2 - 0.69) < 1e-9);
+  assert.ok(Math.abs(p1 + p2 - 1) < 1e-9); // beide Anteile ergeben zusammen 100 %
+});
+/* Der eigentliche Ralf-Fund: Warmwasser bekam beim Techem-Import bislang GAR KEIN CO2 zugeordnet
+   (nur der Heizungs-Block), obwohl Techem die Gebäude-CO2-Abgabe auf beide Positionen aufteilt (s.
+   techem.js techemHeizBlockUebernehmen). Hier rein rechnerisch: zwei unabhängige fossile
+   Heizblöcke müssen sich zum CO2-Mieteranteil addieren. */
+test("CO2: Mieteranteil summiert sich über MEHRERE fossile Heizblöcke (Heizung + Warmwasser)", () => {
+  const E = [{ id: 1, flaeche: 50, personen: 1 }, { id: 2, flaeche: 50, personen: 1 }];
+  const K = [
+    { bez: "Heizung", betrag: 2000, schluessel: "flaeche", typ: "heizung", energieart: "erdgas_kwh", co2Kg: 2000, co2Kosten: 250 },
+    { bez: "Warmwasser", betrag: 500, schluessel: "flaeche", typ: "heizung", energieart: "erdgas_kwh", co2Kg: 400, co2Kosten: 50 }
+  ];
+  const o = { von: "2025-01-01", bis: "2025-12-31" };
+  const m = { mieter: "A", von: "2025-01-01", bis: "2025-12-31", voraus: 0 };
+  const ab = calc.nkMieterAbrechnung(E[0], m, K, o, E);
+  // je 50 % Fläche -> 50 % von (250+50) = 150; Abzug 30 % davon = 45
+  assert.ok(Math.abs(ab.co2.kostenMieter - 150) < 1e-9);
+  assert.ok(Math.abs(ab.co2.abzug - 45) < 1e-9);
 });
 
 test("CO2: ohne fossile Heizung keine Aufteilung", () => {
@@ -588,6 +639,14 @@ test("CO2: Erläuterungstext nennt den greifenden Fall", () => {
   assert.ok(/Gewerbe/.test(calc.nkCo2Erklaerung({ aktiv: true, fall: "gewerbe", vermieterProzent: 50, denkmal: false })));
   assert.ok(/halbiert/.test(calc.nkCo2Erklaerung({ aktiv: true, fall: "wohnen", stufe: 4, spez: 24, vermieterProzent: 15, denkmal: true })));
   assert.ok(/Keine/.test(calc.nkCo2Erklaerung({ aktiv: false })));
+});
+/* Ralf-Vorgabe 2026-07-13: "Davon trägt der Vermieter: 0,00 €" ist bei 0 % Vermieteranteil (Stufe 1)
+   kein sinnvoller Hinweis und muss entfallen. */
+test("nkCo2VermieterHinweis: null bei 0 % Vermieteranteil, sonst passender Erläuterungstext", () => {
+  assert.equal(calc.nkCo2VermieterHinweis({ abzugGesamt: 0 }), null);
+  assert.equal(calc.nkCo2VermieterHinweis(null), null);
+  assert.ok(/abgezogen/.test(calc.nkCo2VermieterHinweis({ abzugGesamt: 45, informativ: false })));
+  assert.ok(/enthalten/.test(calc.nkCo2VermieterHinweis({ abzugGesamt: 45, informativ: true })));
 });
 
 /* US-59: Spaltenwerte für den Rechenweg (Gesamteinheiten, Preis je Einheit, Einheit-Label). */
@@ -699,6 +758,31 @@ test("Verbrauch: Faktor = Einheit-Verbrauch ÷ Gesamtverbrauch", () => {
   assert.ok(Math.abs(calc.nkFaktorFuer(E[0], k, E) - 0.3) < 1e-9);
   assert.ok(Math.abs(calc.nkFaktorFuer(E[1], k, E) - 0.7) < 1e-9);
   assert.equal(calc.nkVerbrauchSumme(k, E), 100);
+});
+
+/* Ralf-Fund 2026-07-13 (echte Buick-Techem-PDF): eine einzelne Techem-Abrechnung importiert immer
+   nur DIESE Einheit, die anderen Einheiten des Gebäudes kommen sukzessive über weitere Importe
+   dazu. Bis dahin ist die Live-Summe der bislang erfassten Einzelverbräuche zu niedrig – Techem
+   selbst nennt die Gebäude-Gesamtmenge aber schon auf dem ERSTEN Mieter-PDF (hier 37.595 kWh),
+   NeKoFix muss diese als Nenner nutzen statt die (noch unvollständige) Live-Summe. */
+test("nkVerbrauchGesamt: bevorzugt gespeicherte Gesamtmenge (Techem-Import) vor der Live-Summe", () => {
+  const E = [{ id: 1, name: "2 OG S" }, { id: 2, name: "Rest" }];
+  const k = { schluessel: "verbrauch", verbrauch: { 1: 1617 }, gesamtmenge: 37595 };
+  assert.equal(calc.nkVerbrauchGesamt(k, E), 37595);
+  assert.ok(Math.abs(calc.nkFaktorFuer(E[0], k, E) - 1617 / 37595) < 1e-9);
+});
+test("nkVerbrauchGesamt: ohne gespeicherte Gesamtmenge (manuell gepflegte Kostenart) Live-Summe wie bisher", () => {
+  const E = [{ id: 1 }, { id: 2 }];
+  const k = { schluessel: "verbrauch", verbrauch: { 1: 30, 2: 70 } };
+  assert.equal(calc.nkVerbrauchGesamt(k, E), 100);
+});
+test("nkLineItemsFor: Gesamtmenge aus Import als Basis der Gleichung (statt Live-Summe) – reproduziert Techems Preis je Einheit", () => {
+  const E = [{ id: 1, name: "2 OG S" }, { id: 2, name: "Rest" }];
+  const k = [{ bez: "Heizung – Verbrauch (70 %)", betrag: 5695.72, schluessel: "verbrauch", einheit: "kWh", verbrauch: { 1: 1617 }, gesamtmenge: 37595 }];
+  const z = calc.nkLineItemsFor(E[0], k, E)[0];
+  assert.equal(z.basis, 37595);
+  assert.ok(Math.abs(z.preisJeEinheit - 0.151502) < 1e-6); // lt. Techem-PDF
+  assert.ok(Math.abs(z.anteil - 244.98) < 0.02); // lt. Techem-PDF "Ihre Kosten"
 });
 
 test("Verbrauch: ohne erfasste Werte Faktor 0 (nicht verteilbar)", () => {
@@ -1000,6 +1084,29 @@ test("nkExpandHeizSplit: Heizblock in Grund (Fläche) + Verbrauch aufteilen (US-
   assert.equal(Math.round(calc.nkAnteilOf(E[1], [heiz], E)*100)/100, 610);
   // Idempotent: erneutes Expandieren ändert nichts (Teilpositionen tragen _split)
   assert.equal(calc.nkExpandHeizSplit(ex, E).length, 2);
+});
+test("Code-Review-Fund 2026-07-10: Rubrik-Zuordnung bleibt nach Heizsplit korrekt (Regressionstest)", () => {
+  // Vorher wurde die Rubrik über den Index im ORIGINAL-kosten-Array nachgeschlagen
+  // (state.kosten[ix]); nkExpandHeizSplit macht aus dem einen Heizblock zwei Zeilen, wodurch
+  // der Index der NACHFOLGENDEN Kostenart in ab.zeilen nicht mehr zu ihrem Original-Index passt.
+  // Aufbau: [Heizblock (splittet in 2 Zeilen), Grundsteuer danach] -> ab.zeilen hat 3 Einträge,
+  // aber nur 2 kosten-Einträge; Grundsteuer landet beim alten (Index-basierten) Code fälschlich
+  // gar nicht in state.kosten (Index 2 existiert dort nicht) bzw. bei mehr Folge-Positionen auf
+  // der jeweils falschen Kostenart.
+  const E = [{ id: 1, name: "A", flaeche: 100 }];
+  const heiz = { typ: "heizung", energieart: "erdgas_kwh", bez: "Heizung", betrag: 1000, grundProzent: 30,
+                 schluessel: "flaeche", verbrauch: { 1: 50 } };
+  const grundsteuer = { bez: "Grundsteuer", betrag: 500, schluessel: "flaeche" };
+  const K = [heiz, grundsteuer];
+  const objekt = { von: "2025-01-01", bis: "2025-12-31" };
+  const ab = calc.nkMieterAbrechnung(E[0], { mieter: "A", von: "2025-01-01", bis: "2025-12-31", voraus: 0 }, K, objekt, E);
+  assert.equal(ab.zeilen.length, 3); // Heizblock -> 2 Zeilen + Grundsteuer -> insgesamt 3
+  const heizZeilen = ab.zeilen.filter(z => calc.nkRubrik(z) === "Heizkosten");
+  const betriebZeilen = ab.zeilen.filter(z => calc.nkRubrik(z) === "Betriebskosten");
+  assert.equal(heizZeilen.length, 2); // Grund- und Verbrauchskosten des Heizblocks
+  assert.equal(betriebZeilen.length, 1); // Grundsteuer bleibt Betriebskosten, nicht fälschlich Heizkosten
+  assert.equal(betriebZeilen[0].bez, "Grundsteuer");
+  assert.equal(Math.round(betriebZeilen[0].anteil), 500); // volle Grundsteuer, nicht mit dem Heizblock vertauscht
 });
 test("nkExpandHeizSplit: ohne erfassten Verbrauch -> kein Split (Fallback), Warnung möglich (US-94)", () => {
   const E = [{ id:1, name:"A", flaeche:60 }, { id:2, name:"B", flaeche:40 }];
@@ -1343,7 +1450,12 @@ test("nkVorjahrHeizblock: Heizblock über Bezeichnung", () => {
    Abrechnung (Verteilung, Heizungs-Grund/Verbrauch-Split, USt, CO2, Summen, Saldo) nicht unbemerkt
    ändert. Die Fixture (lindenhof-2025.fixture.json) enthält gemischte Vorsteuersätze, einen
    Heizblock mit Verbrauch je Einheit und einen gewerblichen Mieter. Ändert sich die Rechenlogik
-   bewusst, wird `erwartet` mit Begründung aktualisiert (nicht stillschweigend). */
+   bewusst, wird `erwartet` mit Begründung aktualisiert (nicht stillschweigend).
+   2026-07-13: Heizblock "Heizung (Erdgas)" bekam zusätzlich `gesamtmenge:48000` (Techem-Import-
+   Pfad, s. nkVerbrauchGesamt) – bewusst höher als die Summe der vier erfassten Einzelverbräuche
+   (46000), wie es bei einem Hauptzähler ggü. den Wohnungszählern real vorkommt. Dadurch verteilt
+   der Verbrauchs-Split nur noch 46000/48000 statt 100 % des Blocks – die neuen `erwartet`-Werte
+   sind niedriger als zuvor. */
 test("Golden-Master: Lindenhof-Abrechnung bleibt stabil (US-115)", () => {
   const d = require("./lindenhof-2025.fixture.json");
   const r2 = n => Math.round((+n || 0) * 100) / 100;
@@ -1356,17 +1468,17 @@ test("Golden-Master: Lindenhof-Abrechnung bleibt stabil (US-115)", () => {
     }))
   };
   const erwartet = {
-    summeAnteil: 14192.51, summeVoraus: 6820, summeSaldo: 7372.51,
+    summeAnteil: 14064.36, summeVoraus: 6820, summeSaldo: 7244.36,
     einheiten: [
-      { name: "EG links", unitShare: 3544.02, leerstandBetrag: 0, mv: [
-        { mieter: "Familie Brandt", gewerblich: false, netto: 3544.02, ust: 0, brutto: 3476.5, saldo: 1676.5 } ] },
-      { name: "EG rechts", unitShare: 2705.81, leerstandBetrag: 0, mv: [
-        { mieter: "Frau Yilmaz", gewerblich: false, netto: 2705.81, ust: 0, brutto: 2654.51, saldo: 1214.51 } ] },
-      { name: "1. OG", unitShare: 4378.21, leerstandBetrag: 359.85, mv: [
-        { mieter: "Herr Novak", gewerblich: false, netto: 2914.81, ust: 0, brutto: 2859.94, saldo: 1499.94 },
-        { mieter: "Familie Schäfer", gewerblich: false, netto: 1103.55, ust: 0, brutto: 1082.78, saldo: 542.78 } ] },
-      { name: "DG", unitShare: 3601.96, leerstandBetrag: 0, mv: [
-        { mieter: "Herr Petersen", gewerblich: true, netto: 3212.35, ust: 610.35, brutto: 3758.93, saldo: 2078.93 } ] }
+      { name: "EG links", unitShare: 3508.86, leerstandBetrag: 0, mv: [
+        { mieter: "Familie Brandt", gewerblich: false, netto: 3508.86, ust: 0, brutto: 3443.11, saldo: 1643.11 } ] },
+      { name: "EG rechts", unitShare: 2679.44, leerstandBetrag: 0, mv: [
+        { mieter: "Frau Yilmaz", gewerblich: false, netto: 2679.44, ust: 0, brutto: 2629.47, saldo: 1189.47 } ] },
+      { name: "1. OG", unitShare: 4337.2, leerstandBetrag: 356.48, mv: [
+        { mieter: "Herr Novak", gewerblich: false, netto: 2887.51, ust: 0, brutto: 2834.01, saldo: 1474.01 },
+        { mieter: "Familie Schäfer", gewerblich: false, netto: 1093.21, ust: 0, brutto: 1072.96, saldo: 532.96 } ] },
+      { name: "DG", unitShare: 3569.74, leerstandBetrag: 0, mv: [
+        { mieter: "Herr Petersen", gewerblich: true, netto: 3185.28, ust: 605.2, brutto: 3728.33, saldo: 2048.33 } ] }
     ]
   };
   assert.deepEqual(snap, erwartet);
@@ -1384,6 +1496,7 @@ test("US-115: Lindenhof-Fixture deckt die abrechnungsrelevanten Pfade ab", () =>
   assert.ok(d.einheiten.some(e => (e.mv || []).length > 1), "Mieterwechsel/unterjähriges Mietverhältnis");
   const heiz = d.kosten.filter(k => k.typ === "heizung");
   assert.ok(heiz.some(k => calc.nkHeizSplitAktiv(k, d.einheiten)), "Heizblock mit aktivem Grund-/Verbrauchs-Split");
+  assert.ok(heiz.some(k => (+k.gesamtmenge || 0) > 0), "Verbrauchsposition mit Techem-Import-Gesamtmenge (nkVerbrauchGesamt-Pfad)");
   const saetze = new Set(d.kosten.map(k => +k.vorsteuer || 0));
   [0, 7, 19].forEach(s => assert.ok(saetze.has(s), "Vorsteuersatz " + s + " % in den Kosten vertreten"));
 });
@@ -1642,4 +1755,240 @@ test("nkChronikNaechsteOffene: erledigte und bereits angekündigte Einträge zä
 test("nkChronikNaechsteOffene: keine Chronik-Einträge -> null", () => {
   assert.equal(calc.nkChronikNaechsteOffene([], "2026-05-01"), null);
   assert.equal(calc.nkChronikNaechsteOffene(undefined, "2026-05-01"), null);
+});
+
+/* ================= Techem-Abrechnungsimport (2026-07-10) =================
+   Fixture-Zeilen sind mit pdf.js (Node, gleiche Bibliothek wie im Browser) aus der von Ralf
+   anonymisierten Testvorlage "Techem anonym Test2.pdf" extrahiert (Seite 1 + Seite-2-Kopfzeile).
+   Namen/Bankdaten sind in der Vorlage bereits geschwärzt; die hier verwendeten Zahlen sind reine
+   Objekt-Kostendaten (keine Personendaten), s. [[keine-echten-daten-im-code]]. */
+test("nkPdfZeilenAusItems: gruppiert nach y (Toleranz), sortiert je Zeile nach x", () => {
+  const items = [
+    { str: "B", x: 50, y: 100.2, w: 10 },
+    { str: "A", x: 10, y: 100.0, w: 10 },
+    { str: "Zeile2", x: 10, y: 80, w: 30 },
+  ];
+  const zeilen = calc.nkPdfZeilenAusItems(items);
+  assert.equal(zeilen.length, 2);
+  assert.ok(zeilen[0].indexOf("A") < zeilen[0].indexOf("B")); // x-Reihenfolge trotz vertauschter Eingabe
+  assert.equal(zeilen[1], "Zeile2");
+});
+test("nkPdfZeilenAusItems: leicht versetzte Baselines (Toleranz 3pt) verschmelzen zu einer Zeile", () => {
+  const items = [
+    { str: "Grundkosten", x: 10, y: 500.0, w: 60 },
+    { str: "446,61", x: 400, y: 501.4, w: 30 }, // 1.4pt Versatz - wie bei Techem üblich
+  ];
+  const zeilen = calc.nkPdfZeilenAusItems(items);
+  assert.equal(zeilen.length, 1);
+});
+test("nkTechemZeileParsen: einzelne Tabellenzeile (Fläche)", () => {
+  const p = calc.nkTechemZeileParsen("30% Grundkosten  2.441,03 :  470,600 m²Nutzfläche  =  5,187059 x  86,100  =  446,61");
+  assert.equal(p.bez, "30% Grundkosten");
+  assert.equal(p.gesamtbetrag, 2441.03);
+  assert.equal(p.gesamtmenge, 470.6);
+  assert.equal(p.schluessel, "flaeche");
+  assert.equal(p.einheit, "m²");
+  assert.equal(p.preisJeEinheit, 5.187059);
+  assert.equal(p.ihreMenge, 86.1);
+  assert.equal(p.ihreKosten, 446.61);
+});
+test("nkTechemZeileParsen: Verbrauchszeile (kWh) und (m³)", () => {
+  const kwh = calc.nkTechemZeileParsen("70% Verbrauchskosten  5.695,72 :  37.595,000 Kilowatt-Stunden  =  0,151502 x 12.732,000  =  1.928,92");
+  assert.equal(kwh.schluessel, "verbrauch");
+  assert.equal(kwh.einheit, "kWh");
+  assert.equal(kwh.ihreMenge, 12732);
+  const m3 = calc.nkTechemZeileParsen("Kaltwasser Gesamt  704,38 :  206,100 Kubikmeter  =  3,417661 x  46,800  =  159,95");
+  assert.equal(m3.schluessel, "verbrauch");
+  assert.equal(m3.einheit, "m³");
+  assert.equal(m3.ihreMenge, 46.8);
+});
+test("nkTechemZeileParsen: Nutzeinheiten-Zeile (schluessel einheit)", () => {
+  const p = calc.nkTechemZeileParsen("Abrechnungsservice  148,62 :  7,000 Nutzeinheiten  =  21,231429 x  1,000  =  21,23");
+  assert.equal(p.schluessel, "einheit");
+  assert.equal(p.gesamtmenge, 7);
+});
+test("nkTechemZeileParsen: Zwischensummen ohne Verteilerschlüssel -> null (bewusst kein Import)", () => {
+  assert.equal(calc.nkTechemZeileParsen("zu verteilende Kosten  1.210,71"), null);
+  assert.equal(calc.nkTechemZeileParsen("70% Verbrauchskosten  847,50"), null);
+  assert.equal(calc.nkTechemZeileParsen("Ihre Heizkosten  2.375,53"), null);
+});
+
+const TECHEM_SEITE1_ZEILEN = [
+  "Auftraggeber", ".....", "D-5000 ...", "Heiz-, Warmwasser- und Haus-",
+  "nebenkostenabrechnung 2024/2025", "Erstellt am", "18.07.2025",
+  "Techem Energy Services GmbH · Zentrale Poststelle · 22780 Hamburg",
+  "Ihre Nutzer-Nr.", "Frau  EG", "...", "Techem Nutzer-Nr.  Lage",
+  "...str. 13  00../053...0001/0-12  EG", "D-5000 ,...", "Abrechnungseinheit",
+  "C...str. 13D-48147", "M...",
+  "Abrechnungszeitraum  Ihre Heizkosten  2.375,53 EUR",
+  "01.05.2024 - 30.04.2025  Ihre Warmwasserkosten  204,16 EUR",
+  "Ihre Kaltwasserkosten  370,66 EUR", "Ihre Betriebskosten  1.447,66 EUR",
+  "Ihr Anteil an den Gesamtkosten  4.398,01 EUR", "Ihre Vorauszahlung  -3.360,00 EUR",
+  "Ihre Nachzahlung  1.038,01 EUR", "Ihr Anteil an den Gesamtkosten (1)",
+  "Gesamtkosten :  Gesamteinheiten (2)  =  Preis je Einheit x  Ihre Einheiten  =  Ihre Kosten",
+  "in EUR  in EUR", "Heizkosten  8.136,75",
+  "30% Grundkosten  2.441,03 :  470,600 m²Nutzfläche  =  5,187059 x  86,100  =  446,61",
+  "70% Verbrauchskosten  5.695,72 :  37.595,000 Kilowatt-Stunden  =  0,151502 x 12.732,000  =  1.928,92",
+  "Ihre Heizkosten  2.375,53", "Warmwasserkosten  1.615,08",
+  "Kaltwasser für Warmwasser  -205,06", "Abwasser aus Warmwasser  -199,31",
+  "zu verteilende Kosten  1.210,71",
+  "30% Grundkosten  363,21 :  470,600 m²Nutzfläche  =  0,771802 x  86,100  =  66,46",
+  "70% Verbrauchskosten  847,50", "Kaltwasser für Warmwasser  205,06",
+  "Abwasser aus Warmwasser  199,31",
+  "Verbrauchskosten  1.251,87 :  60,000 Kubikmeter  =  20,864500 x  6,600  =  137,70",
+  "Ihre Warmwasserkosten  204,16", "Kaltwasserkosten  1.632,27",
+  "Kaltwasser Gesamt  704,38 :  206,100 Kubikmeter  =  3,417661 x  46,800  =  159,95",
+  "Schmutzwasser  684,65 :  206,100 Kubikmeter  =  3,321931 x  46,800  =  155,47",
+  "Gerätewartung Kaltwasser  105,63 :  206,100 Kubikmeter  =  0,512518 x  46,800  =  23,99",
+  "Verbrauchserfassung KW  137,61 :  206,100 Kubikmeter  =  0,667686 x  46,800  =  31,25",
+  "Ihre Kaltwasserkosten  370,66", "Betriebskosten  8.333,07",
+  "Niederschlag+Gewässergeb  129,37 :  470,600 m²Nutzfläche  =  0,274904 x  86,100  =  23,67",
+  "THrg-Feulöwart.-Leuchtmit  1.730,80 :  7,000 Nutzeinheiten  =  247,257143 x  1,000  =  247,25",
+  "Grundsteuer  1.552,44 :  470,600 m²Nutzfläche  =  3,298853 x  86,100  =  284,03",
+  "Müllabfuhr  1.417,20 :  470,600 m²Nutzfläche  =  3,011475 x  86,100  =  259,28",
+  "Straßenreinigung  48,48 :  470,600 m²Nutzfläche  =  0,103017 x  86,100  =  8,87",
+  "Gebäudeversicherung  2.714,75 :  470,600 m²Nutzfläche  =  5,768700 x  86,100  =  496,69",
+  "Allgemeinstrom  582,90 :  470,600 m²Nutzfläche  =  1,238632 x  86,100  =  106,64",
+  "Auslaufv. matt chr 1/2", "Direktkostenanteil  8,51  davon entfallen direkt auf Sie  0,00",
+  "Abrechnungsservice  148,62 :  7,000 Nutzeinheiten  =  21,231429 x  1,000  =  21,23",
+  "Ihre Betriebskosten  1.447,66", "Direktkosten", "Ihre Direktkosten  0,00",
+  "Ihr Anteil an den Gesamtkosten  4.398,01",
+  "(1) Die Gesamtkosten können Sie der nachfolgenden Kostenaufstellung des gesamten Objektes entnehmen",
+  "(2) Gesamteinheiten des Objektes", "Seite 1/4",
+  "Name  Abrechnungszeitraum  Ihre Nutzer-Nr.  Techem Nutzer-Nr.",
+  "r  01.05.2024 - 30.04.2025  EG  0069/05365 0001/0-12",
+];
+
+test("nkTechemAbrechnungParsen: vollständiger Beleg (echte anonymisierte Testvorlage) - 16 Positionen", () => {
+  const beleg = calc.nkTechemAbrechnungParsen(TECHEM_SEITE1_ZEILEN);
+  assert.equal(beleg.positionen.length, 16);
+  assert.equal(beleg.von, "2024-05-01");
+  assert.equal(beleg.bis, "2025-04-30");
+  assert.equal(beleg.lage, "EG");
+});
+test("nkTechemAbrechnungParsen: spätere, anders aufgebaute Seite (z. B. Techems 'Verbrauchsanalyse') überschreibt die korrekte Lage-Erkennung von Seite 1 NICHT", () => {
+  // Regressionstest für einen beim Testen mit der echten Vorlage gefundenen Bug: eine zweite,
+  // per Namensabgleich unpassend gelayoutete Kopfzeile hätte "lage" mit einem Adressfragment
+  // überschrieben ("sstr. 13" statt "EG"), weil zunächst der LETZTE statt der ERSTE Treffer galt.
+  const verunreinigt = TECHEM_SEITE1_ZEILEN.concat([
+    "Ihre Nutzer-Nr.  Frau EG r  Techem Nutzer-Nr.  Lage",
+    "sstr. 13  0069/05365 0001/0-12  EG",
+  ]);
+  const beleg = calc.nkTechemAbrechnungParsen(verunreinigt);
+  assert.equal(beleg.lage, "EG");
+});
+test("nkTechemAbrechnungParsen: Rubriken korrekt zugeordnet", () => {
+  const beleg = calc.nkTechemAbrechnungParsen(TECHEM_SEITE1_ZEILEN);
+  const nach = bez => beleg.positionen.find(p => p.bez === bez);
+  assert.equal(nach("30% Grundkosten").rubrik, "Heizkosten"); // erste Fundstelle (Heizung)
+  assert.equal(nach("Verbrauchskosten").rubrik, "Warmwasserkosten");
+  assert.equal(nach("Kaltwasser Gesamt").rubrik, "Kaltwasserkosten");
+  assert.equal(nach("Gerätewartung Kaltwasser").rubrik, "Kaltwasserkosten");
+  assert.equal(nach("Grundsteuer").rubrik, "Betriebskosten");
+  assert.equal(nach("Abrechnungsservice").rubrik, "Betriebskosten");
+});
+test("nkTechemAbrechnungParsen: Gesamtsumme der Positionen (ohne Direktkosten, die nicht über einen Verteilerschlüssel laufen)", () => {
+  const beleg = calc.nkTechemAbrechnungParsen(TECHEM_SEITE1_ZEILEN);
+  const summe = beleg.positionen.reduce((s, p) => s + p.gesamtbetrag, 0);
+  // "Zu verteilende Gesamtkosten" (Seite 2) ist 19.778,55; Differenz von 69,89 = die bewusst NICHT
+  // importierten Direktkosten (Gesamtkosten Direktkosten 61,38 + Direktkostenanteil 8,51) - beide
+  // laufen über keinen Verteilerschlüssel und passen daher nicht in dieses Kostenarten-Modell.
+  assert.equal(Math.round(summe * 100) / 100, 19708.66);
+});
+
+/* Ralf-Vorgabe 2026-07-13: Plausi-Hinweis beim Techem-Import – die Liegenschaft hat laut Techem
+   470,6 m² über 7 Einheiten, im Objekt sind aber (noch) nicht alle Einheiten mit ihrer Fläche
+   erfasst (nur eine importierte Einheit + ggf. Platzhalter). */
+test("nkTechemGebaeudeAbweichung: meldet fehlende Fläche/Einheiten, solange nicht alle importiert sind", () => {
+  const positionen = [
+    { schluessel: "flaeche", gesamtmenge: 470.6 },
+    { schluessel: "einheit", gesamtmenge: 7 }
+  ];
+  const E = [{ id: 1, flaeche: 47.9 }]; // nur die gerade importierte Einheit
+  const r = calc.nkTechemGebaeudeAbweichung(positionen, E);
+  assert.ok(Math.abs(r.flaeche.fehlt - (470.6 - 47.9)) < 1e-9);
+  assert.equal(r.flaeche.gesamt, 470.6);
+  assert.equal(r.einheiten.fehlt, 6);
+});
+test("nkTechemGebaeudeAbweichung: kein Hinweis, sobald Fläche/Einheiten-Summe passt (innerhalb Toleranz)", () => {
+  const positionen = [
+    { schluessel: "flaeche", gesamtmenge: 470.6 },
+    { schluessel: "einheit", gesamtmenge: 7 }
+  ];
+  const E = Array.from({ length: 7 }, (_, i) => ({ id: i + 1, flaeche: 470.6 / 7 }));
+  const r = calc.nkTechemGebaeudeAbweichung(positionen, E);
+  assert.equal(r.flaeche, undefined);
+  assert.equal(r.einheiten, undefined);
+});
+test("nkTechemGebaeudeAbweichung: ohne Gesamtmenge in der Abrechnung kein Hinweis (nichts zu vergleichen)", () => {
+  const r = calc.nkTechemGebaeudeAbweichung([{ schluessel: "verbrauch", gesamtmenge: 0 }], [{ id: 1, flaeche: 47.9 }]);
+  assert.deepEqual(r, {});
+});
+
+// Ralf-Vorgabe 2026-07-11: Kopfzeilen einer zweiten, unredigierten echten Testvorlage
+// ("Buick, Nathalie - 2OG-Techem2.pdf") - anders als TECHEM_SEITE1_ZEILEN oben (deren
+// Absender/Name/IBAN Ralf beim Anonymisieren durch Platzhalter wie "Auftraggeber"/"....." ersetzt
+// hat) zeigt diese Vorlage die echte Feldstruktur unverändert, nur mit erfundenen Dummy-Werten
+// (Name "Nathalie Buick", IBAN "DE00...", Bank "Volksbank Musterstadt Nord" - keine echten Daten).
+const TECHEM_KOPF_ZEILEN = [
+  "Hans Lohmann", "Essener Str. 11", "D-50000 Bonn", "Heiz-, Warmwasser- und Haus-",
+  "nebenkostenabrechnung 2024/2025", "Erstellt am", "18.07.2025",
+  "Techem Energy Services GmbH · Zentrale Poststelle · 22780 Hamburg",
+  "Ihre Nutzer-Nr.", "Frau  2 OG S", "Buick, Nathalie", "Dammstr. 11  Techem Nutzer-Nr.  Lage",
+  "0069/05365 1005/0-16  2G", "D-50000 Bonn  STR", "Abrechnungseinheit", "Dammstr. 11",
+  "D-50000Musterstadt",
+  "Abrechnungszeitraum  Ihre Heizkosten  493,44 EUR",
+  "01.05.2024 - 30.04.2025  Ihre Warmwasserkosten  243,53 EUR",
+  "Menge Erdgas in kWh  Datum  Kosten  Zwischensumme  Gesamtsumme",
+  "Die CO2-Abgabe beträgt  733,59 EUR",
+  "Die Liegenschaft liegt mit einem CO2 -Ausstoß von 26,2 kg pro Quadratmeter und Jahr (12.332,0 kg CO2 : 470,600 m²) in",
+  "Bankverbindung", "Kontoinhaber  : Hans Lohmann", "Kreditinstitut  : Volksbank Musterstadt Nord",
+  "Int. Bankbezeichnung (IBAN)  : DE0000000000000000",
+  // Ralf-Vorgabe 2026-07-13: Seite "Verteilung des Anteils an der CO2-Abgabe" (echte Vorlage) –
+  // gebäudeweite Aufteilung der CO2-Abgabe auf Heizung/Warmwasser (unabhängig vom Mieteranteil).
+  "87,75% für Heizung  =  450,61 EUR x  6,0643%  = 27,33 EUR",
+  "12,25% für Warmwasser  =  62,91 EUR x  15,0785%  = 9,49 EUR",
+];
+
+test("nkTechemKopfParsen: Mieter-Name+Anrede aus 'Frau'/'Herr'-Zeile (Nachname, Vorname -> Vorname Nachname)", () => {
+  const kopf = calc.nkTechemKopfParsen(TECHEM_KOPF_ZEILEN);
+  assert.equal(kopf.mieterName, "Nathalie Buick");
+  assert.equal(kopf.anrede, "frau");
+});
+test("nkTechemKopfParsen: Absender (Vermieter/Hausverwaltung) aus den ersten Zeilen vor dem Techem-Kopf", () => {
+  const kopf = calc.nkTechemKopfParsen(TECHEM_KOPF_ZEILEN);
+  assert.equal(kopf.absenderName, "Hans Lohmann");
+  assert.equal(kopf.absenderAnschrift, "Essener Str. 11, D-50000 Bonn");
+});
+test("nkTechemKopfParsen: Bankverbindung (Kontoinhaber + IBAN)", () => {
+  const kopf = calc.nkTechemKopfParsen(TECHEM_KOPF_ZEILEN);
+  assert.equal(kopf.kontoinhaber, "Hans Lohmann");
+  assert.equal(kopf.iban, "DE0000000000000000");
+});
+test("nkTechemKopfParsen: Energieträger aus der Verbrauchsanalyse-Zeile 'Menge X in Y'", () => {
+  const kopf = calc.nkTechemKopfParsen(TECHEM_KOPF_ZEILEN);
+  assert.equal(kopf.energietraeger, "Erdgas");
+});
+test("nkTechemKopfParsen: Gebäude-CO2 (Gesamt-kg + Gesamt-Kosten der CO2-Abgabe)", () => {
+  const kopf = calc.nkTechemKopfParsen(TECHEM_KOPF_ZEILEN);
+  assert.equal(kopf.co2KgGebaeude, 12332);
+  assert.equal(kopf.co2KostenGebaeude, 733.59);
+});
+test("nkTechemKopfParsen: CO2-Aufteilung Heizung/Warmwasser (Seite 'Verteilung des Anteils an der CO2-Abgabe')", () => {
+  const kopf = calc.nkTechemKopfParsen(TECHEM_KOPF_ZEILEN);
+  assert.equal(kopf.co2AnteilHeizungProzent, 87.75);
+  assert.equal(kopf.co2AnteilWarmwasserProzent, 12.25);
+});
+test("nkTechemEnergieartKey: Erdgas+kWh -> erdgas_kwh; unbekannter Text -> null (kein Raten)", () => {
+  assert.equal(calc.nkTechemEnergieartKey("Erdgas", "kWh"), "erdgas_kwh");
+  assert.equal(calc.nkTechemEnergieartKey("Heizöl", "l"), "heizoel");
+  assert.equal(calc.nkTechemEnergieartKey("Fernwärme", "kWh"), "fernwaerme");
+  assert.equal(calc.nkTechemEnergieartKey("Sonstwas", "x"), null);
+});
+test("nkTechemKopfParsen: unvollständige/anonymisierte Vorlage liefert leere Strings statt Fehler", () => {
+  const kopf = calc.nkTechemKopfParsen(TECHEM_SEITE1_ZEILEN);
+  // TECHEM_SEITE1_ZEILEN hat echte Platzhalter ("Auftraggeber"/"...") statt echter Werte -
+  // die Felder werden trotzdem gefüllt (kein Crash), liefern hier nur eben die Platzhalter selbst.
+  assert.equal(kopf.absenderName, "Auftraggeber");
+  assert.equal(kopf.mieterName, "...");
 });

@@ -165,6 +165,15 @@ function nkCo2Erklaerung(co2) {
   if (co2.denkmal) s += " Anteil wegen Denkmal-/Milieuschutz halbiert.";
   return s;
 }
+/* Ralf-Vorgabe 2026-07-13: der Satz "Davon trägt der Vermieter: X €" darf bei 0 % Vermieteranteil
+   (Stufe 1, sehr effizientes Gebäude) nicht erscheinen ("davon trägt der Vermieter 0,00 €" ist kein
+   sinnvoller Hinweis). Liefert null, wenn nichts anzuzeigen ist, sonst den Erläuterungstext für den
+   jeweils passenden Fall – "bereits enthalten" bei informativer CO2 (Techem-Import, s. co2Informativ
+   in nkMieterAbrechnung), "bereits abgezogen" wenn NeKoFix den Betrag selbst abzieht. */
+function nkCo2VermieterHinweis(co2) {
+  if (!co2 || !(co2.abzugGesamt > 0.004)) return null;
+  return co2.informativ ? "bereits in Ihren Heizkosten/Warmwasserkosten enthalten" : "in Ihrem Anteil oben bereits abgezogen";
+}
 
 /* US-53: Briefanrede aus Mietverhältnis (anrede: "herr"/"frau"/sonst neutral). Bei Herr/Frau wird
    eine bereits im Namen enthaltene Anrede entfernt (kein „Frau Frau …"). Reine Funktion. */
@@ -242,6 +251,18 @@ function nkTeilnahme(e, k) {
 function nkVerbrauchSumme(k, einheiten) {
   const vb = (k && k.verbrauch) || {};
   return (einheiten || []).filter(x => nkTeilnahme(x, k)).reduce((s, x) => s + (+vb[x.id] || 0), 0);
+}
+/* Ralf-Vorgabe 2026-07-13: Gesamtmenge für schluessel="verbrauch" – bevorzugt die beim Techem-
+   Import gespeicherte Gesamtmenge der Liegenschaft (k.gesamtmenge), die schon auf dem ERSTEN
+   importierten Mieter-PDF steht (jedes Techem-PDF nennt den Gebäude-Gesamtwert, nicht nur den
+   eigenen Anteil) – anders als bei Fläche/Nutzeinheiten (Stammdaten, die schon vor jedem Import
+   vollständig sein sollten) kommen Verbrauchswerte sukzessive an, ein Mieter-PDF nach dem anderen;
+   die Live-Summe der bislang erfassten Einzelverbräuche (nkVerbrauchSumme) wäre bis zum letzten
+   Import zwangsläufig zu niedrig. Ohne gespeicherte Gesamtmenge (manuell gepflegte, nicht
+   importierte Verbrauchs-Kostenarten) bleibt die Live-Summe wie bisher die Grundlage. */
+function nkVerbrauchGesamt(k, einheiten) {
+  const g = +(k && k.gesamtmenge) || 0;
+  return g > 0 ? g : nkVerbrauchSumme(k, einheiten);
 }
 /* US-105: auffällig niedrigen Verbrauch je Einheit erkennen. Heuristik: je verbrauchsbasierter
    Position (bzw. Heizblock mit Verbrauch) den Verbrauch je m² bilden und Einheiten melden, deren
@@ -333,7 +354,7 @@ function nkFaktorFuer(e, k, einheiten) {
   if (k && k.schluessel === "direkt") return e.id === k.direktEinheit ? 1 : 0; // US-22: 100 % auf eine Einheit
   if (!nkTeilnahme(e, k)) return 0;
   if (k && k.schluessel === "verbrauch") { // US-57: Anteil = Einheit-Verbrauch ÷ Gesamtverbrauch
-    const total = nkVerbrauchSumme(k, einheiten);
+    const total = nkVerbrauchGesamt(k, einheiten);
     return total > 0 ? ((+(k.verbrauch || {})[e.id] || 0) / total) : 0;
   }
   const teil = (einheiten || []).filter(x => nkTeilnahme(x, k));
@@ -347,6 +368,19 @@ function nkAusschlussNamen(k, einheiten) {
 
 function nkAnteilOf(e, kosten, einheiten) {
   return nkExpandHeizSplit(kosten || [], einheiten).reduce((s, k) => s + (+k.betrag || 0) * nkFaktorFuer(e, k, einheiten), 0);
+}
+/* US-07 Fix 2026-07-13 (Ralf-Fund anhand einer echten Techem-Abrechnung): der Mieteranteil an den
+   CO2-Kosten EINER Heizungs-Position darf NICHT über den HeizkostenV-Grundkosten/Verbrauchskosten-
+   Split (Fläche/Verbrauch, s. nkExpandHeizSplit) berechnet werden – der teilt nur die Energiekosten
+   auf, nicht das CO2. Techem selbst wendet auf die CO2-Kosten direkt "Ihr Anteil an den
+   Gesamtkosten" DIESER Position an (Ihre Heizkosten ÷ Gesamtheizkosten), unabhängig von jeder
+   Grund-/Verbrauchs-Aufteilung. Reine Prozentzahl (0..1) – nkAnteilOf(e,[k],einheiten) kennt den
+   Split intern bereits (für die € -Verteilung), hier nur durch k.betrag geteilt, um die reine
+   Anteils-Prozentzahl zu gewinnen, auf die dann k.co2Kosten (unangetastet vom Split) angewendet
+   wird, s. nkMieterAbrechnung. */
+function nkHeizBlockMieterProzent(k, e, einheiten) {
+  const gesamt = +(k && k.betrag) || 0;
+  return gesamt > 0 ? (nkAnteilOf(e, [k], einheiten) / gesamt) : 0;
 }
 
 /* US-59: Anzeige-Einheit je Verteilerschlüssel (kurz, ohne Zusatztext). Bei Verbrauch aus der
@@ -370,13 +404,20 @@ function nkLineItemsFor(e, kosten, einheiten) {
     else if (k.schluessel === "beheizt") { basis = nkTotals(teil).beheizt; ihre = nkTeilnahme(e, k) ? nkBeheizteFlaeche(e) : 0; } // US-96
     else if (k.schluessel === "person") { basis = nkTotals(teil).personen; ihre = nkTeilnahme(e, k) ? (+e.personen || 0) : 0; }
     else if (k.schluessel === "einheit") { basis = nkTotals(teil).einheiten; ihre = nkTeilnahme(e, k) ? 1 : 0; }
-    else if (k.schluessel === "verbrauch") { basis = nkVerbrauchSumme(k, einheiten); ihre = nkTeilnahme(e, k) ? (+(k.verbrauch || {})[e.id] || 0) : 0; }
+    else if (k.schluessel === "verbrauch") { basis = nkVerbrauchGesamt(k, einheiten); ihre = nkTeilnahme(e, k) ? (+(k.verbrauch || {})[e.id] || 0) : 0; }
     else if (k.schluessel === "direkt") { basis = 0; ihre = (e.id === k.direktEinheit) ? 1 : 0; }
     const preisJeEinheit = basis > 0 ? gesamt / basis : 0;
     return {
       bez: k.bez, gesamt: gesamt, schluessel: k.schluessel, vorsteuer: +k.vorsteuer || 0,
       faktor: f, anteil: gesamt * f, von: k.von, bis: k.bis,
-      basis: basis, ihreEinheiten: ihre, preisJeEinheit: preisJeEinheit, einheitLabel: nkSchluesselEinheit(k)
+      basis: basis, ihreEinheiten: ihre, preisJeEinheit: preisJeEinheit, einheitLabel: nkSchluesselEinheit(k),
+      /* Fund im Code-Review 2026-07-10: die Rubrik wurde bislang von den Aufrufern über den
+         Index im ORIGINAL-kosten-Array nachgeschlagen (state.kosten[ix]). nkExpandHeizSplit teilt
+         Heizblöcke aber in zwei Zeilen auf, wodurch alle nachfolgenden Indizes gegenüber dem
+         Original-Array verschoben sind -> falsche Rubrik-Zuordnung/Zwischensummen im Rechenweg und
+         im versendeten PDF. Rubrik/Typ hier direkt am Zeilen-Objekt mitgeben (nkRubrik(o.i) statt
+         nkRubrik(state.kosten[o.ix]) in view-abrechnung.js/pdf.js), damit kein Index mehr nötig ist. */
+      rubrik: k.rubrik, typ: k.typ
     };
   });
 }
@@ -872,7 +913,32 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
   const flaecheSumme = nkTotals(einheiten || []).flaeche;
   const spezCo2 = nkSpezCo2(nkCo2KgSumme(K), flaecheSumme);
   const co2Prozent = nkCo2Vermieterprozent(spezCo2, { override: o.co2ProzentOverride, gewerblich: gewerblich, denkmal: o.co2Denkmal });
-  let co2KostenMieter = 0, co2Abzug = 0;
+  /* US-07 Fix 2026-07-13: der Mieteranteil an den CO2-Kosten wird je fossilem Heizblock direkt aus
+     "Ihr Anteil an den Gesamtkosten" DIESER Position (nkHeizBlockMieterProzent) berechnet – NICHT
+     mehr aus dem Grund-/Verbrauchs-Split innerhalb der Zeilen-Schleife unten (der teilt nur die
+     Energiekosten auf, nicht das CO2, s. Kommentar bei nkHeizBlockMieterProzent). Läuft deshalb über
+     die UNGESPLITTETEN `kosten`, nicht über `K`. */
+  /* Ralf-Fund 2026-07-13 (Rechenkette einer echten Techem-Abrechnung nachvollzogen): Techem
+     verrechnet den Vermieteranteil an der CO2-Abgabe bereits VOR der Heizung/Warmwasser-Aufteilung
+     mit dem rohen Brennstoffpreis ("Anlieferung Brennstoff ./. CO2-Kosten Vermieter = Verbrauch" –
+     die "CO2-Kosten Vermieter" entsprechen exakt dem auf S.4/4 ausgewiesenen Vermieteranteil).
+     "Ihre Heizkosten"/"Ihre Warmwasserkosten" und damit die von techem.js importierten Beträge sind
+     also bereits NETTO des Vermieteranteils. Ein zusätzlicher Abzug hier würde ihn doppelt
+     abziehen. techem.js markiert deshalb importierte Heizblöcke mit `co2Informativ:true` – deren
+     CO2-Anteil fließt weiterhin in `kostenMieter`/`abzug` (Anzeige/Erläuterung) ein, aber NICHT in
+     `abzugAktiv`, das tatsächlich vom Mieterbetrag abgezogen wird. Bei manuell erfassten Heizkosten
+     (ohne diese Vorverrechnung) bleibt der Abzug unverändert aktiv. */
+  let co2KostenMieter = 0, co2Abzug = 0, co2AbzugAktiv = 0;
+  (kosten || []).forEach(k => {
+    const istFossilCo2 = k.typ === "heizung" && nkEnergieart(k.energieart).fossil && (+k.co2Kosten || 0) > 0;
+    if (!istFossilCo2) return;
+    const zaL = (k.von && k.bis) ? nkZeitanteil(m.von, mvBis, k.von, k.bis) : za;
+    const co2Anteil = (+k.co2Kosten) * nkHeizBlockMieterProzent(k, e, einheiten) * zaL;
+    co2KostenMieter += co2Anteil;
+    const abzugAnteil = co2Anteil * co2Prozent / 100;
+    co2Abzug += abzugAnteil;
+    if (!k.co2Informativ) co2AbzugAktiv += abzugAnteil;
+  });
   let p35aDienst = 0, p35aHandw = 0; // US-32: begünstigte Arbeitskosten je Kategorie (Mieteranteil)
   const p35aPosten = []; // US-62: je Position eine Zeile (für die Volltabellen)
   const zeilen = nkLineItemsFor(e, K, einheiten).map((i, ix) => {
@@ -882,12 +948,6 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
     const zaL = (i.von && i.bis) ? nkZeitanteil(m.von, mvBis, i.von, i.bis) : za;
     const anteil = i.anteil * zaL;
     const wert = gewerblich ? nkNetto(anteil, i.vorsteuer) : anteil; // Anzeige je Zeile
-    // US-07: Mieteranteil an den CO2-Kosten dieses fossilen Heizblocks und der vom Vermieter
-    // getragene (= dem Mieter erlassene) Betrag. Nur fossile Heizblöcke mit CO2-Kosten zählen.
-    const istFossilCo2 = k.typ === "heizung" && nkEnergieart(k.energieart).fossil && (+k.co2Kosten || 0) > 0;
-    const co2Anteil = (istFossilCo2 && i.gesamt > 0) ? (+k.co2Kosten) * (anteil / i.gesamt) : 0;
-    co2KostenMieter += co2Anteil;
-    co2Abzug += co2Anteil * co2Prozent / 100;
     // US-32: Mieteranteil am begünstigten Arbeitskosten-Anteil dieser Position (gleiche Verteilung).
     const p35aKat = nkP35aKategorie(k);
     const p35aMieter = ((+k.arbeitskosten || 0) > 0 && p35aKat && i.gesamt > 0) ? (+k.arbeitskosten) * (anteil / i.gesamt) : 0;
@@ -897,11 +957,12 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
     return {
       bez: i.bez, gesamt: i.gesamt, schluessel: i.schluessel, vorsteuer: i.vorsteuer,
       faktor: i.faktor, anteilVoll: i.anteil, anteil: anteil, wert: wert, zeitanteil: zaL,
-      basis: i.basis, ihreEinheiten: i.ihreEinheiten, preisJeEinheit: i.preisJeEinheit, einheitLabel: i.einheitLabel // US-59
+      basis: i.basis, ihreEinheiten: i.ihreEinheiten, preisJeEinheit: i.preisJeEinheit, einheitLabel: i.einheitLabel, // US-59
+      rubrik: i.rubrik, typ: i.typ // Code-Review 2026-07-10: für nkRubrik(zeile) ohne Index-Rückgriff auf kosten[]
     };
   });
   const betrag = nkMieterBetrag(zeilen, gewerblich); // liest .anteil und .vorsteuer
-  const bruttoNachCo2 = betrag.brutto - co2Abzug;    // US-07: Vermieteranteil entlastet den Mieter
+  const bruttoNachCo2 = betrag.brutto - co2AbzugAktiv; // US-07: Vermieteranteil entlastet den Mieter (nur wo noch nicht anderweitig verrechnet)
   const vorauszahlung = +m.voraus || 0;
   return {
     einheit: e.name, mieter: m.mieter, gewerblich: gewerblich,
@@ -909,9 +970,9 @@ function nkMieterAbrechnung(e, m, kosten, objekt, einheiten) {
     netto: betrag.netto, ust: betrag.ust, bruttoVorCo2: betrag.brutto, brutto: bruttoNachCo2,
     co2: {
       spez: spezCo2, stufe: nkCo2Stufe(spezCo2), vermieterProzent: co2Prozent,
-      kostenMieter: co2KostenMieter, abzug: co2Abzug,
+      kostenMieter: co2KostenMieter, abzug: co2AbzugAktiv, abzugGesamt: co2Abzug,
       fall: gewerblich ? "gewerbe" : "wohnen", denkmal: !!o.co2Denkmal,
-      aktiv: co2KostenMieter > 0
+      aktiv: co2KostenMieter > 0, informativ: co2Abzug - co2AbzugAktiv > 1e-9
     },
     p35a: { // US-32/US-62: nur für private Haushalte relevant
       dienstleistung: p35aDienst, handwerker: p35aHandw, posten: p35aPosten,
@@ -1527,6 +1588,219 @@ function nkTerminIcs(items) {
   return L.join("\r\n");
 }
 
+/* ================= Techem-Abrechnungsimport (Ralf-Vorgabe 2026-07-10) =================
+   Liest den Text einer Techem "Heiz-, Warmwasser- und Hausnebenkostenabrechnung"-PDF (client-
+   seitig per pdf.js extrahiert, siehe techem.js) und leitet daraus NeKoFix-Kostenarten ab – NICHT
+   Techems fertigen €-Betrag pro Mieter, sondern dieselben Rohdaten (Gesamtkosten je Position,
+   Verteilerschlüssel, Verbrauchsmenge DIESER Einheit), aus denen NeKoFix den Anteil dann selbst
+   genauso berechnet wie Techem (schluessel „flaeche"/„verbrauch"/„einheit", siehe nkFaktorFuer).
+   Eine einzelne PDF liefert nur die Verbrauchsmenge EINER Einheit – für eine vollständige
+   Verteilung müssen alle Einheiten-PDFs nacheinander importiert werden (Ralf-Entscheidung
+   2026-07-10): der erste Import legt die Positionen an, jeder weitere ergänzt/aktualisiert
+   dieselben Positionen (Abgleich über `bez`, siehe techem.js). */
+
+/* Gruppiert Text-Items (bereits auf {str,x,y,w} normalisiert, siehe techem.js) zu Zeilen: sortiert
+   nach y (oben→unten) und x (links→rechts); Items mit ähnlichem y (Toleranz tol, Default 3pt)
+   gehören zur selben Zeile – Techem legt manche Tabellenzeilen auf zwei leicht versetzte
+   Baselines (Wert vs. Mengen-Einheit), ein zu enges Runden würde sie künstlich aufspalten.
+   Reine Funktion. */
+function nkPdfZeilenAusItems(items, tol) {
+  tol = tol == null ? 3 : +tol;
+  const pts = (items || []).filter(it => it && it.str != null && String(it.str).trim() !== "");
+  const sortiert = pts.slice().sort((a, b) => (b.y - a.y) || (a.x - b.x));
+  const zeilen = [];
+  let aktuelle = null, aktY = null;
+  sortiert.forEach(p => {
+    if (aktuelle && Math.abs(p.y - aktY) <= tol) aktuelle.push(p);
+    else { aktuelle = [p]; zeilen.push(aktuelle); aktY = p.y; }
+  });
+  return zeilen.map(zelle => {
+    const sortZelle = zelle.slice().sort((a, b) => a.x - b.x);
+    let zeile = "", vorherEnde = null;
+    sortZelle.forEach(c => {
+      if (vorherEnde != null) { const luecke = c.x - vorherEnde; zeile += luecke > 8 ? "  " : (luecke > 2 ? " " : ""); }
+      zeile += c.str; vorherEnde = c.x + (+c.w || 0);
+    });
+    return zeile;
+  });
+}
+/* Divisor-Einheitslabel aus der Techem-Tabelle → NeKoFix-Verteilerschlüssel + Mengen-Einheit.
+   Unbekanntes Label → null (Zeile wird verworfen statt geraten). */
+function nkTechemSchluesselFuerLabel(label) {
+  const l = String(label || "");
+  if (l.indexOf("Nutzfläche") >= 0) return { schluessel: "flaeche", einheit: "m²" };
+  if (l.indexOf("Nutzeinheiten") >= 0) return { schluessel: "einheit", einheit: "Whg." };
+  if (l.indexOf("Kilowatt") >= 0) return { schluessel: "verbrauch", einheit: "kWh" };
+  if (l.indexOf("Kubikmeter") >= 0) return { schluessel: "verbrauch", einheit: "m³" };
+  return null;
+}
+/* Techem nennt den Energieträger der Heizung als Klartext (aus "Menge <Energieträger> in
+   <Einheit>", s. nkTechemKopfParsen) – hier auf einen NK_ENERGIEARTEN-Key gemappt, damit der
+   Heizblock beim Import die richtige Energieart vorbelegen kann. Unbekannter Text -> null (UI muss
+   dann die Energieart wie gewohnt manuell abfragen, kein Raten). */
+function nkTechemEnergieartKey(traeger, einheit) {
+  const t = String(traeger || "").toLowerCase();
+  const e = String(einheit || "").toLowerCase();
+  if (t.indexOf("erdgas") >= 0) return (e === "kwh") ? "erdgas_kwh" : "erdgas_m3";
+  if (t.indexOf("heizöl") >= 0 || t.indexOf("heizoel") >= 0) return "heizoel";
+  if (t.indexOf("flüssiggas") >= 0 || t.indexOf("fluessiggas") >= 0) return "fluessiggas";
+  if (t.indexOf("pellet") >= 0) return "pellets";
+  if (t.indexOf("fernwärme") >= 0 || t.indexOf("fernwaerme") >= 0) return "fernwaerme";
+  return null;
+}
+/* Eine Kostenzeile aus der Tabelle „Gesamtkosten : Gesamteinheiten = Preis je Einheit x Ihre
+   Einheiten = Ihre Kosten" (Techem-Seite 1, „Ihr Anteil an den Gesamtkosten") parsen. null, wenn
+   die Zeile nicht passt – Zwischensummen ohne Verteilerschlüssel-Angabe (z. B. „zu verteilende
+   Kosten", „70% Verbrauchskosten" als Vorstufe) werden bewusst NICHT importiert, weil die
+   zugehörige Endzeile weiter unten den bereits vollständig aufgelösten Betrag+Schlüssel liefert. */
+function nkTechemZeileParsen(zeile) {
+  const NUM = "-?[0-9.]+,[0-9]+";
+  const re = new RegExp("^(.+?)\\s+(" + NUM + ")\\s*:\\s*(" + NUM + ")\\s*([^0-9=]+?)\\s*=\\s*(" + NUM + ")\\s*x\\s*(" + NUM + ")\\s*=\\s*(" + NUM + ")\\s*$");
+  const m = String(zeile || "").trim().match(re);
+  if (!m) return null;
+  const info = nkTechemSchluesselFuerLabel(m[4]);
+  if (!info) return null;
+  return {
+    bez: m[1].trim(), gesamtbetrag: nkParseBetrag(m[2]), gesamtmenge: nkParseBetrag(m[3]),
+    schluessel: info.schluessel, einheit: info.einheit,
+    preisJeEinheit: nkParseBetrag(m[5]), ihreMenge: nkParseBetrag(m[6]), ihreKosten: nkParseBetrag(m[7])
+  };
+}
+/* Kopfdaten (bestmöglich – Techem-Layout variiert leicht, unvollständige Angaben sind kein
+   Fehler): Abrechnungszeitraum, „Lage" (Kürzel der Einheit, z. B. „EG", aus der Tabelle „Techem
+   Nutzer-Nr. / Lage") und „Ihre Nutzer-Nr.". Dienen nur dem VORSCHLAG für die Einheiten-Zuordnung
+   beim Import (mit Rückfrage, falls kein eindeutiger Treffer) – nicht der Kostenberechnung.
+
+   Ralf-Vorgabe 2026-07-11: zusätzlich Mieter-Name, Absender (Vermieter/Hausverwaltung) und dessen
+   Bankverbindung sowie den Energieträger der Heizung samt Gebäude-CO2-Werten vorschlagen – anhand
+   der beiden echten anonymisierten Testvorlagen verifiziert (nicht erfunden):
+   - Mieter-Anrede+Name: Zeile "Frau"/"Herr" (ggf. mit angehängter Nutzer-Nr. aus der Spalte daneben),
+     die FOLGENDE Zeile ist der Name im Format "Nachname, Vorname".
+   - Absender (Vermieter/Hausverwaltung): die Zeilen VOR "Techem Energy Services..." – erste Zeile
+     Name, restliche Zeilen Anschrift.
+   - Bankverbindung: eigener Abschnitt mit Label-Zeilen "Kontoinhaber : X" und
+     "Int. Bankbezeichnung (IBAN) : Y" (IBAN-Erkennung robust gegen Leerzeichen mitten im Label,
+     da eine der beiden Testvorlagen dort unregelmäßig umbricht).
+   - Energieträger: Zeile "Menge <Energieträger> in <Einheit>" aus der Verbrauchsanalyse-Seite.
+   - Gebäude-CO2: Gesamt-kg aus der Klammer "(NNN,N kg CO2 : ... m²)" und Gesamt-Kosten aus
+     "Die CO2-Abgabe beträgt NNN,NN EUR". */
+function nkTechemKopfParsen(zeilen) {
+  let lage = "", nutzerNr = "", mieterName = "", anrede = "", absenderName = "", absenderAnschrift = "",
+    kontoinhaber = "", iban = "", energietraeger = "", co2KgGebaeude = "", co2KostenGebaeude = "";
+  const arr = zeilen || [];
+  /* Absender (Vermieter/Hausverwaltung) steht in beiden echten Testvorlagen als erste Zeile (Name),
+     gefolgt von 2 Anschriftzeilen (Straße, PLZ+Ort) – VOR dem übrigen Kopfbereich ("Heiz-,
+     Warmwasser...", "Erstellt am" etc., die durch Spaltenüberlagerung in derselben Zeilenhöhe
+     landen). Fester kleiner Suchbereich statt Ankern an einer weiter entfernten Zeile, da deren
+     Index je nach Adresslänge variiert. */
+  if (String(arr[0] || "").trim()) {
+    absenderName = String(arr[0] || "").trim();
+    const stop = /^(Heiz-,|nebenkostenabrechnung|Erstellt am)/;
+    for (let i = 1; i < 4 && i < arr.length; i++) {
+      const zi = String(arr[i] || "").trim();
+      if (!zi || stop.test(zi)) break;
+      absenderAnschrift = absenderAnschrift ? (absenderAnschrift + ", " + zi) : zi;
+    }
+  }
+  /* Ralf-Vorgabe 2026-07-10 (Fund beim Testen mit der echten Vorlage): NUR den ERSTEN Treffer
+     nehmen, nicht überschreiben lassen – die PDF enthält oft ein zweites, anders aufgebautes
+     Dokument (z. B. Techems "Verbrauchsanalyse" nach der eigentlichen Abrechnung), dessen
+     Kopfzeilen-Spalten anders angeordnet sind und sonst die korrekte Seite-1-Erkennung mit einem
+     Adressfragment überschreiben würden. Gilt auch für die neuen Felder unten. Anders als die
+     ursprüngliche Schleife (die wegen des i+1-Lookaheads bei "arr.length-1" endete) muss hier auch
+     die LETZTE Zeile geprüft werden – sonst würde z. B. eine ganz am Dateiende stehende IBAN-Zeile
+     übersehen (Fund beim Testen mit einer 4-zeiligen Bankverbindungs-Fixture). */
+  for (let i = 0; i < arr.length; i++) {
+    const z = String(arr[i] || "");
+    if (!lage && /Techem Nutzer-Nr\..*Lage/.test(z)) {
+      const spalten = String(arr[i + 1] || "").trim().split(/\s{2,}/);
+      if (spalten.length) lage = spalten[spalten.length - 1].trim();
+    }
+    if (!nutzerNr && /Ihre Nutzer-Nr\..*Techem Nutzer-Nr\./.test(z)) {
+      const spalten = String(arr[i + 1] || "").trim().split(/\s{2,}/);
+      if (spalten.length >= 2) nutzerNr = spalten[spalten.length - 2].trim();
+    }
+    if (!mieterName) {
+      const am = z.match(/^(Frau|Herr)\b/);
+      if (am) { anrede = am[1] === "Frau" ? "frau" : "herr";
+        const nm = String(arr[i + 1] || "").trim().match(/^([^,]+),\s*(.+)$/);
+        mieterName = nm ? (nm[2].trim() + " " + nm[1].trim()) : String(arr[i + 1] || "").trim();
+      }
+    }
+    if (!kontoinhaber && /^Kontoinhaber\s*:/.test(z)) kontoinhaber = z.replace(/^Kontoinhaber\s*:\s*/, "").trim();
+    if (!iban && /IBAN/i.test(z.replace(/\s+/g, "")) && z.indexOf(":") >= 0) iban = z.slice(z.indexOf(":") + 1).trim();
+    if (!energietraeger) {
+      const em = z.match(/^Menge\s+(\S+)\s+in\s+(\S+)/i);
+      if (em) energietraeger = em[1].trim();
+    }
+  }
+  const text = arr.join("\n");
+  const zeitraum = text.match(/(\d{2}\.\d{2}\.\d{4})\s*-\s*(\d{2}\.\d{2}\.\d{4})/);
+  const co2Kg = text.match(/\(([\d.,]+)\s*kg\s*CO\s*2\s*:/i);
+  if (co2Kg) co2KgGebaeude = nkParseBetrag(co2Kg[1]);
+  const co2Kosten = text.match(/CO\s*2\s*-\s*Abgabe beträgt\s+([\d.,]+)\s*EUR/i);
+  if (co2Kosten) co2KostenGebaeude = nkParseBetrag(co2Kosten[1]);
+  /* Ralf-Vorgabe 2026-07-13 (Fund anhand einer echten Techem-Abrechnung, Seite "Verteilung des
+     Anteils an der CO2-Abgabe"): die Gebäude-CO2-Abgabe wird von Techem selbst gebäudeweit auf
+     Heizung/Warmwasser aufgeteilt (hier 87,75 %/12,25 %) – unabhängig vom Mieter-/Vermieteranteil,
+     bei jedem Mieter dieselben zwei Werte. Ohne diese Aufteilung würde der Import (s. techem.js
+     techemUebernehmen) die komplette Gebäude-CO2 fälschlich nur dem Heizungs-Block zuordnen und
+     Warmwasser ginge beim CO2-Kostenaufteilungsgesetz-Abzug leer aus. */
+  let co2AnteilHeizungProzent = "", co2AnteilWarmwasserProzent = "";
+  const co2AnteilH = text.match(/([\d.,]+)\s*%\s*für\s+Heizung\b/i);
+  if (co2AnteilH) co2AnteilHeizungProzent = nkParseBetrag(co2AnteilH[1]);
+  const co2AnteilW = text.match(/([\d.,]+)\s*%\s*für\s+Warmwasser\b/i);
+  if (co2AnteilW) co2AnteilWarmwasserProzent = nkParseBetrag(co2AnteilW[1]);
+  return {
+    von: zeitraum ? nkParseDatumDE(zeitraum[1]) : "", bis: zeitraum ? nkParseDatumDE(zeitraum[2]) : "",
+    lage: lage, nutzerNr: nutzerNr, mieterName: mieterName, anrede: anrede,
+    absenderName: absenderName, absenderAnschrift: absenderAnschrift,
+    kontoinhaber: kontoinhaber, iban: iban, energietraeger: energietraeger,
+    co2KgGebaeude: co2KgGebaeude, co2KostenGebaeude: co2KostenGebaeude,
+    co2AnteilHeizungProzent: co2AnteilHeizungProzent, co2AnteilWarmwasserProzent: co2AnteilWarmwasserProzent
+  };
+}
+/* Gesamter Techem-Beleg: Kopfdaten + Kostenpositionen. `zeilen` = alle Seiten hintereinander
+   (Reihenfolge relevant für die Rubrik-Zuordnung: jede Position übernimmt die zuletzt gesehene
+   Rubrik-Überschrift „Heizkosten"/„Warmwasserkosten"/„Kaltwasserkosten"/„Betriebskosten"/
+   „Direktkosten"). Reine Funktion. */
+function nkTechemAbrechnungParsen(zeilen) {
+  const RUBRIK_ZEILE = /^(Heizkosten|Warmwasserkosten|Kaltwasserkosten|Betriebskosten|Direktkosten)(\s+[0-9.]+,[0-9]+)?\s*$/;
+  let rubrik = "Sonstige";
+  const positionen = [];
+  (zeilen || []).forEach(zeile => {
+    const z = String(zeile || "").trim();
+    const rm = z.match(RUBRIK_ZEILE);
+    if (rm) { rubrik = rm[1]; return; }
+    const pos = nkTechemZeileParsen(z);
+    if (pos) positionen.push(Object.assign({ rubrik: rubrik }, pos));
+  });
+  return Object.assign({ positionen: positionen }, nkTechemKopfParsen(zeilen));
+}
+/* Ralf-Vorgabe 2026-07-13 (Fund: Testobjekt mit falscher Flächen-Summe berechnete den falschen
+   Verteilerschlüssel, s. Session zu "173,5 statt 470,6 m²"): eine Techem-Abrechnung importiert
+   immer nur EINE Einheit – die Gesamtfläche/Nutzeinheiten-Anzahl der Liegenschaft steht aber schon
+   auf dem ERSTEN Mieter-PDF (`p.gesamtmenge` bei schluessel "flaeche"/"einheit"). Vergleicht das mit
+   der im Objekt AKTUELL erfassten Summe (nkTotals) und liefert – nur bei nennenswerter Abweichung
+   (Toleranz) – einen Hinweis, wie viel Fläche/wie viele Einheiten noch fehlen. Rein informativ (der
+   Import wird dadurch nicht blockiert, s. Ralf-Entscheidung "Plausi-Warnung" statt Override/Sperre).
+   Reine Funktion. */
+function nkTechemGebaeudeAbweichung(positionen, einheiten) {
+  const t = nkTotals(einheiten || []);
+  const out = {};
+  const flaechenPos = (positionen || []).find(p => p.schluessel === "flaeche");
+  if (flaechenPos && (+flaechenPos.gesamtmenge || 0) > 0) {
+    const gesamt = +flaechenPos.gesamtmenge;
+    if (Math.abs(gesamt - t.flaeche) > 0.5) out.flaeche = { erfasst: t.flaeche, gesamt: gesamt, fehlt: gesamt - t.flaeche };
+  }
+  const einheitPos = (positionen || []).find(p => p.schluessel === "einheit");
+  if (einheitPos && (+einheitPos.gesamtmenge || 0) > 0) {
+    const gesamt = +einheitPos.gesamtmenge;
+    if (Math.abs(gesamt - t.einheiten) > 0.001) out.einheiten = { erfasst: t.einheiten, gesamt: gesamt, fehlt: gesamt - t.einheiten };
+  }
+  return out;
+}
+
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
    und die Funktionen stehen global zur Verfügung.
    Eine Funktion pro Zeile (mit Komma am Ende) – das entschärft Merge-Konflikte beim
@@ -1539,6 +1813,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkTotals,
     nkFactor,
     nkAnteilOf,
+    nkHeizBlockMieterProzent,
     nkLineItemsFor,
     nkOwnerOverview,
     nkVorschlagSchluessel,
@@ -1599,6 +1874,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkTeilnahme,
     nkFaktorFuer,
     nkVerbrauchSumme,
+    nkVerbrauchGesamt,
     nkAusschlussNamen,
     NK_ENERGIEARTEN,
     nkEnergieart,
@@ -1627,6 +1903,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkCo2Vermieterprozent,
     nkCo2KgSumme,
     nkCo2Erklaerung,
+    nkCo2VermieterHinweis,
     NK_INDEX_MIN_JAHRE,
     nkPlusJahre,
     nkIndexFrequenzGueltig,
@@ -1681,5 +1958,12 @@ if (typeof module !== "undefined" && module.exports) {
     NK_TERMIN_VORLAGEN,
     NK_TERMIN_ARTEN,
     NK_TERMIN_ARTEN_ALLE,
+    nkPdfZeilenAusItems,
+    nkTechemSchluesselFuerLabel,
+    nkTechemEnergieartKey,
+    nkTechemZeileParsen,
+    nkTechemKopfParsen,
+    nkTechemAbrechnungParsen,
+    nkTechemGebaeudeAbweichung,
   };
 }

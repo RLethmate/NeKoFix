@@ -21,7 +21,14 @@ function renderKosten(){
         : '';
       return '<td class="num"><span class="betrag-wrap"><input class="short vj-field'+(hit?'':' vj-none')+'" type="text" readonly tabindex="-1" title="Vorjahreswert (zum Vergleich)" value="'+(hit?nkFmtBetrag(vjMap[key])+' €':'–')+'">'+delta+'</span></td>';
     }
-    return '<td class="num"><span class="betrag-wrap'+(k.vorjahr?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+' €" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">'+(k.vorjahr?'<button type="button" class="vorjahr-tri" title="Vorjahreswert übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="uebernehmeKostenVorjahr('+idx+')"></button>':'')+'</span></td>';
+    /* Ralf-Vorgabe 2026-07-13: dieselbe blaue Ecke auch für einen unbestätigten Techem-Import-
+       Betrag (k.vorschlag.betrag) – eigener Accept-Handler (kein Vorjahres-Übernehmen). Vorjahr
+       hat Vorrang, falls (theoretisch) beides zutrifft. */
+    const betragVorjahr = !!k.vorjahr, betragVorschlag = !betragVorjahr && !!(k.vorschlag && k.vorschlag.betrag);
+    const betragTri = betragVorjahr
+      ? '<button type="button" class="vorschlag-tri" title="Vorjahreswert übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="uebernehmeKostenVorjahr('+idx+')"></button>'
+      : (betragVorschlag ? '<button type="button" class="vorschlag-tri" title="Betrag aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="kostenBetragVorschlagUebernehmen('+idx+')"></button>' : '');
+    return '<td class="num"><span class="betrag-wrap'+((betragVorjahr||betragVorschlag)?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+' €" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">'+betragTri+'</span></td>';
   }
   /* US-58: eine Kostenzeile (+ Detail) anhängen. */
   function appendKostenRow(k, idx){
@@ -39,7 +46,7 @@ function renderKosten(){
     tr.innerHTML=
       '<td class="bez-col"><div class="bez-wrap"><span class="drag-grip" draggable="true" ondragstart="kostenDragStart(event,'+k.id+')" title="Ziehen zum Verschieben (Rubrik &amp; Reihenfolge)">⠿</span><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+'</span></div></td>'+
       betragCellHtml(k,idx)+
-      '<td><span class="schluessel-cell"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug). „Direkt" ordnet die Position einer einzelnen Einheit zu 100 % zu." onchange="setSchluessel('+idx+',this.value)">'+opts+'</select><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button>'+
+      '<td><span class="schluessel-cell"><span class="feld-wrap'+((k.vorschlag&&k.vorschlag.schluessel)?' unbestaetigt':'')+'" id="kv-schluessel-wrap-'+idx+'"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug). „Direkt" ordnet die Position einer einzelnen Einheit zu 100 % zu." onchange="setSchluessel('+idx+',this.value)">'+opts+'</select>'+((k.vorschlag&&k.vorschlag.schluessel)?'<button type="button" class="vorschlag-tri" title="Verteilerschlüssel aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder ändern)" onclick="kostenSchluesselVorschlagUebernehmen('+idx+')"></button>':'')+'</span><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button>'+
         (k.schluessel==='direkt'
           ? '<select class="direkt-select" title="Diese Kosten trägt eine Einheit zu 100 %" onchange="store.setKostenFeld('+idx+',\'direktEinheit\',+this.value)">'+state.einheiten.map(x=>'<option value="'+x.id+'"'+(k.direktEinheit===x.id?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>'
           : '<button class="teilnahme-chip'+(ausNamen.length?' aktiv':'')+'" title="Teilnehmende Einheiten festlegen" onclick="toggleKostenDetail('+k.id+')">'+(ausNamen.length?'ohne '+ausNamen.map(esc).join(', '):'alle')+'</button>')+
@@ -77,9 +84,14 @@ function renderKosten(){
        '</div>')+
       (k.schluessel==='verbrauch' ?  /* US-57/US-59: Verbrauch je Einheit + Einheit-Label (kWh/m³) */
        '<div class="teilnahme"><span class="teilnahme-lbl">Verbrauch je Einheit:</span> '+
-        '<label class="teilnahme-item">Einheit <input class="short" type="text" value="'+esc(k.einheit||'')+'" placeholder="z. B. m³" onchange="updKosten('+idx+',\'einheit\',this.value)" style="max-width:64px"></label> '+
+        '<label class="teilnahme-item">Einheit <span class="feld-wrap'+((k.vorschlag&&k.vorschlag.einheit)?' unbestaetigt':'')+'" id="kv-einheit-wrap-'+idx+'"><input class="short" type="text" value="'+esc(k.einheit||'')+'" placeholder="z. B. m³" onchange="updKosten('+idx+',\'einheit\',this.value)" style="max-width:64px">'+((k.vorschlag&&k.vorschlag.einheit)?'<button type="button" class="vorschlag-tri" title="Einheit aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder ändern)" onclick="kostenEinheitVorschlagUebernehmen('+idx+')"></button>':'')+'</span></label> '+
         state.einheiten.filter(x=>nkTeilnahme(x,k)).map(x=>'<label class="teilnahme-item">'+esc(x.name)+' <input class="short" type="text" inputmode="decimal" value="'+nkFmtZahl((k.verbrauch&&k.verbrauch[x.id])||0)+' '+esc(k.einheit||'')+'" onchange="updKostenVerbrauch('+idx+','+x.id+',this.value)"></label>').join('')+
-        ' <span class="unit-f">Summe: '+nkFmtBetrag(verbrauchSumme(k))+' '+esc(k.einheit||'')+'</span></div>'
+        ' <span class="unit-f">Erfasst: '+nkFmtBetrag(verbrauchSumme(k))+' '+esc(k.einheit||'')+'</span>'+
+        /* Ralf-Vorgabe 2026-07-13: Gesamtmenge der Liegenschaft (aus Techem-Import bereits auf dem
+           ersten importierten Mieter-PDF enthalten) statt der bis zum letzten Import zwangsläufig
+           unvollständigen Live-Summe – s. nkVerbrauchGesamt. Blaues Eck bei abweichendem Folgeimport. */
+        ' <label class="teilnahme-item">Gesamtmenge <span class="feld-wrap'+((k.vorschlag&&k.vorschlag.gesamtmenge)?' unbestaetigt':'')+'" id="kv-gesamt-wrap-'+idx+'"><input class="short" type="text" inputmode="decimal" value="'+nkFmtZahl(k.gesamtmenge||0)+' '+esc(k.einheit||'')+'" onchange="updKostenGesamtmenge('+idx+',this.value)">'+((k.vorschlag&&k.vorschlag.gesamtmenge)?'<button type="button" class="vorschlag-tri" title="Gesamtmenge aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="kostenGesamtmengeVorschlagUebernehmen('+idx+')"></button>':'')+'</span></label>'+
+       '</div>'
        : '')+
       '</td>';
       tb.appendChild(d);
@@ -187,7 +199,8 @@ function rowDrop(ev, zielId, rubrik){ ev.preventDefault(); const el=ev.currentTa
 function headDrop(ev, rubrik){ ev.preventDefault(); const el=ev.currentTarget; if(el&&el.classList) el.classList.remove('drag-over'); const d=ui.drag; ui.drag=null; if(!d) return;
   if(d.kind==='kosten'){ store.moveKosten(d.id, null, rubrik); renderKosten(); }
   else if(d.kind==='rubrik' && d.name!==rubrik){ const liste=nkRubrikenListe(state.objekt, state.kosten); store.moveRubrik(liste.indexOf(d.name), liste.indexOf(rubrik)); renderKosten(); } }
-function updKosten(idx,field,val){ store.setKostenFeld(idx,field,val); renderKosten(); }
+function updKosten(idx,field,val){ store.setKostenFeld(idx,field,val); if(field==='einheit') store.setKostenVorschlagFeld(idx,'einheit', false); /* manuelle Korrektur bestätigt einen offenen Techem-Vorschlag zugleich */ renderKosten(); }
+function kostenEinheitVorschlagUebernehmen(idx){ store.setKostenVorschlagFeld(idx,'einheit', false); renderKosten(); }
 /* US-100: kleines Custom-Dropdown für Status/Verfügbarkeit – farbiger Punkt + Text, auch in der
    geöffneten Liste (native <option>-Farben werden auf macOS nicht gerendert). */
 function cddHtml(kind, idx, cur, map, farbe){
@@ -207,6 +220,10 @@ function cddPick(kind, idx, key){ updKosten(idx, kind==='status'?'status':'verfu
 document.addEventListener('click', function(){ document.querySelectorAll('.cdd-list').forEach(l=>l.hidden=true); });
 /* US-32: begünstigten Arbeitskosten-Anteil (€) je Position setzen. */
 function updKostenArbeit(idx,val){ store.setKostenFeld(idx,'arbeitskosten', nkParseBetrag(val)); renderKosten(); }
+/* Ralf-Vorgabe 2026-07-13: manuelle Eingabe/Korrektur bestätigt die Gesamtmenge zugleich (blaues
+   Eck verschwindet), analog zu den Mieter-/Vermieter-Vorschlägen aus dem Techem-Import. */
+function updKostenGesamtmenge(idx,val){ store.setKostenFeld(idx,'gesamtmenge', nkParseBetrag(val)); store.setKostenVorschlagFeld(idx,'gesamtmenge', false); renderKosten(); }
+function kostenGesamtmengeVorschlagUebernehmen(idx){ store.setKostenVorschlagFeld(idx,'gesamtmenge', false); renderKosten(); }
 /* US-50: Teilnahme einer Einheit an einer Kostenart umschalten (ausgeschlossen = Liste von IDs). */
 function toggleTeilnahme(idx, einheitId, checked){
   const k=store.kosten(idx); let aus=((k.ausgeschlossen)||[]).slice();
@@ -215,7 +232,11 @@ function toggleTeilnahme(idx, einheitId, checked){
   store.setKostenFeld(idx,'ausgeschlossen',aus);
 }
 /* US-11/US-90: Betrag bearbeiten = Vorjahreswert aktiv übernehmen → Markierung (Dreieck/Zeile) aufheben. */
-function updKostenBetrag(idx,val){ store.setKostenBetrag(idx, nkParseBetrag(val)); const k=store.kosten(idx); if(k.vorjahr){ store.setKostenFeld(idx,'vorjahr',false); const r=document.getElementById('krow-'+idx); if(r){ r.classList.remove('vorjahr'); const b=r.querySelector('.vorjahr-badge'); if(b) b.remove(); const w=r.querySelector('.betrag-wrap'); if(w) w.classList.remove('unbestaetigt'); const t=r.querySelector('.vorjahr-tri'); if(t) t.remove(); } finalizeVorjahrWennFertig(); renderVorjahrBanner(); } refreshZwischensummen(); }
+function updKostenBetrag(idx,val){ store.setKostenBetrag(idx, nkParseBetrag(val)); const k=store.kosten(idx); if(k.vorjahr){ store.setKostenFeld(idx,'vorjahr',false); const r=document.getElementById('krow-'+idx); if(r){ r.classList.remove('vorjahr'); const b=r.querySelector('.vorjahr-badge'); if(b) b.remove(); const w=r.querySelector('.betrag-wrap'); if(w) w.classList.remove('unbestaetigt'); const t=r.querySelector('.vorschlag-tri'); if(t) t.remove(); } finalizeVorjahrWennFertig(); renderVorjahrBanner(); }
+  /* Ralf-Vorgabe 2026-07-13: manuelle Korrektur bestätigt einen offenen Techem-Vorschlag zugleich. */
+  if(k.vorschlag && k.vorschlag.betrag){ store.setKostenVorschlagFeld(idx,'betrag', false); const r=document.getElementById('krow-'+idx); const w=r&&r.querySelector('.betrag-wrap'); if(w){ w.classList.remove('unbestaetigt'); const t=w.querySelector('.vorschlag-tri'); if(t) t.remove(); } }
+  refreshZwischensummen(); }
+function kostenBetragVorschlagUebernehmen(idx){ store.setKostenVorschlagFeld(idx,'betrag', false); renderKosten(); }
 /* US-59-Begleitfix: Zwischensummen je Rubrik live nachziehen (beim Tippen im Betragsfeld), ohne die
    Tabelle neu aufzubauen – sonst würde der Fokus im Eingabefeld verloren gehen. */
 function refreshZwischensummen(){
