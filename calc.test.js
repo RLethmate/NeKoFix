@@ -488,6 +488,41 @@ test("Vorjahr übernehmen: Zeitraum +1J, Beträge mit Vorjahreswert vorbelegt+ma
   assert.equal(src.kosten[0].betrag, 1200);
 });
 
+/* Ralf-Vorgabe 2026-07-14: "bis aktueller Monat" (US-83) lässt schon VOR dem Anlegen des
+   Folgejahres Zahlungen für Monate des neuen Kalenderjahres im ALTEN Objekt erfassen (z. B. Objekt
+   2025, aber es ist schon Mitte 2026) - diese Erfassung darf beim "Neues Jahr aus Objekt…" nicht
+   verloren gehen, weil es dabei um hohe Summen gehen kann. Alte Monate (2025) werden bewusst NICHT
+   übernommen (die bleiben im alten Objekt korrekt stehen). */
+test("nkVorjahrUebernehmen: bereits erfasste Zahlungen für Monate des NEUEN Jahres bleiben erhalten (US-83/US-74)", () => {
+  const src = {
+    objekt: { addr: "Teststr. 1", von: "2025-01-01", bis: "2025-12-31" },
+    einheiten: [
+      { id: 1, name: "EG", flaeche: 70, personen: 2, mv: [
+        {
+          mieter: "Nachname_3", von: "2025-01-01", bis: "2025-12-31", laeuft: true, vmonat: 150, vmonate: 12, voraus: 1800,
+          bezahlt: { "2025-12": true, "2026-01": true, "2026-02": true },
+          erhalten: { "2025-12": 150, "2026-01": 150, "2026-02": 150 },
+          sollSnap: { "2025-12": 150, "2026-01": 150, "2026-02": 150 }
+        }
+      ]}
+    ],
+    kosten: [],
+    zahlung: { iban: "DE12", empfaenger: "V" }
+  };
+  const neu = calc.nkVorjahrUebernehmen(src);
+  const m = neu.einheiten[0].mv[0];
+  assert.deepEqual(m.bezahlt, { "2026-01": true, "2026-02": true });
+  assert.deepEqual(m.erhalten, { "2026-01": 150, "2026-02": 150 });
+  assert.deepEqual(m.sollSnap, { "2026-01": 150, "2026-02": 150 });
+  // altes Objekt (Quelle) bleibt unverändert – kein Verlust dort
+  assert.deepEqual(src.einheiten[0].mv[0].bezahlt, { "2025-12": true, "2026-01": true, "2026-02": true });
+});
+test("nkMonatMapFuerZeitraum: filtert Monatsschlüssel (YYYY-MM) auf den angegebenen Zeitraum", () => {
+  const map = { "2025-11": 1, "2025-12": 2, "2026-01": 3, "2026-06": 4, "2026-12": 5, "2027-01": 6 };
+  assert.deepEqual(calc.nkMonatMapFuerZeitraum(map, "2026-01-01", "2026-12-31"), { "2026-01": 3, "2026-06": 4, "2026-12": 5 });
+  assert.deepEqual(calc.nkMonatMapFuerZeitraum(null, "2026-01-01", "2026-12-31"), {});
+});
+
 test("nkOffeneVorjahrKosten: liefert nur noch markierte (unbestätigte) Vorjahr-Positionen (US-90)", () => {
   const kosten = [
     { bez: "Grundsteuer", betrag: 1200, vorjahr: true },

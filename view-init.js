@@ -13,6 +13,7 @@ if(savedSigs.length!==objekte.length){ objekte[aktivIdx]=snapshot(); savedSigs=o
 if(savedData.length!==objekte.length){ savedData=objekte.map(d=>nkClone(d)); } /* Speicher: gespeicherte Daten je Objekt baseline (fürs Verwerfen) */
 renderObjTitle();
 (function(){ const v=document.getElementById('app_version'); if(v) v.textContent=APP_VERSION+' · '+BUILD_DATE; })();
+(function(){ const j=document.getElementById('copyright_jahr'); if(j) j.textContent=new Date().getFullYear(); })(); /* US-125 */
 (function(){ if(new URLSearchParams(location.search).has('debug')){ const b=document.getElementById('btn_testdaten'); if(b) b.hidden=false;
   const t=document.getElementById('btn_techem_import'); if(t) t.hidden=false; /* Ralf-Vorgabe 2026-07-10: experimentell, s. index.html */ } })();
 (function(){ const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus; })();
