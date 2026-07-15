@@ -1020,6 +1020,21 @@ function nkPlusJahr(d) {
      aktive werden auf den vollen Folgezeitraum gesetzt, Zahlungseingänge zurückgesetzt
    - Vorauszahlung: Monatsbetrag bleibt, Jahreswert auf 12 Monate gesetzt
    - alle übernommenen Daten tragen die Markierung `vorjahr:true` (AC5) */
+/* Ralf-Vorgabe 2026-07-14: bei "Neues Jahr aus Objekt…" wurde bezahlt (der "geprüft"-Haken je
+   Monat) bisher hart geleert – erhalten/sollSnap blieben zwar über Object.assign zufällig als
+   Nebeneffekt erhalten (alte Monatsschlüssel des Vorjahres liegen einfach ungenutzt herum, da
+   nkAktiveMonate nur Schlüssel im NEUEN Zeitraum erzeugt), aber das war nie explizit so gewollt/
+   geprüft. Wichtig, weil "bis aktueller Monat" (US-83) schon VOR dem Anlegen des Folgejahres
+   Zahlungen für Monate des neuen Kalenderjahres im ALTEN Objekt erfassen lässt (hohe Summen können
+   betroffen sein) – diese Erfassung darf beim Anlegen des Folgejahres nicht verloren gehen. Filtert
+   alle drei Monats-Maps EXPLIZIT auf den neuen Zeitraum (Monate des alten Jahres werden bewusst
+   nicht mit rübergenommen – die stehen im alten Objekt weiterhin korrekt). Reine Funktion. */
+function nkMonatMapFuerZeitraum(map, von, bis) {
+  const out = {};
+  const vonMonat = String(von || "").slice(0, 7), bisMonat = String(bis || "").slice(0, 7);
+  Object.keys(map || {}).forEach(key => { if (key >= vonMonat && key <= bisMonat) out[key] = map[key]; });
+  return out;
+}
 function nkVorjahrUebernehmen(src) {
   const s = JSON.parse(JSON.stringify(src || {}));
   const o = s.objekt || {};
@@ -1032,7 +1047,10 @@ function nkVorjahrUebernehmen(src) {
       return Object.assign({}, m, {
         von: objekt.von, bis: objekt.bis,
         vmonate: 12, vjahr: monat * 12, voraus: monat * 12,
-        bezahlt: {}, vorjahr: true
+        bezahlt: nkMonatMapFuerZeitraum(m.bezahlt, objekt.von, objekt.bis),
+        erhalten: nkMonatMapFuerZeitraum(m.erhalten, objekt.von, objekt.bis),
+        sollSnap: nkMonatMapFuerZeitraum(m.sollSnap, objekt.von, objekt.bis),
+        vorjahr: true
       });
     });
     return Object.assign({}, e, { mv, vorjahr: true });
@@ -1857,6 +1875,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkVorjahrMv,
     nkVorjahrHeizblock,
     nkVorjahrUebernehmen,
+    nkMonatMapFuerZeitraum,
     nkOffeneVorjahrKosten,
     nkObjekteGruppieren,
     nkDedupeObjekte,

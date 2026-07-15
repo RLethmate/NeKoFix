@@ -15,8 +15,14 @@
 /* Ralf-Vorgabe 2026-07-13: "Berechnung" war zu generisch (klang nach Gesamtmiete, dabei geht es hier
    ausschließlich um die Nebenkosten: Kostenanteil ./. Vorauszahlung = Saldo + Anpassungsvorschlag für
    die künftige Vorauszahlung). Umbenannt in "Nebenkosten-Saldo". */
-const STEPS = ["Gebäude & Einheiten","Vorauszahlung (Soll)","Heizung","Kosten","Nebenkosten-Saldo","Fertige Abrechnung","Zahlungen (Ist)","Mieter & Vertrag","Termine & Wartung","Vermieter & Zahlungsangaben"];
-const ui = { current:0, activeMieter:0, vorausModus:"monatlich", zeigeVorjahr:false, nurUngeprueft:false, expandedKosten:new Set(), expandedHeizZeit:new Set(), expandedAutomatik:new Set(), expandedChronik:new Set(), navPlausiOpen:false, drag:null, zahlBisAktuell:false, csvImport:{ buchungen:[], dateiname:"", fehler:null }, csvAutoProtokoll:false, termineAnsicht:"faellig" }; /* AC-3 (US-118): gebündelter UI-/Sitzungs-State. expandedMV entfaellt (Mieter&Vertrag-Layout-Story 2026-07-07): Kaltmiete/Anrede/E-Mail immer sichtbar, kein Vertrag-Aufklapper mehr; expandedChronik neu fuer die "┃ Chronik"-Leiste. */
+/* Ralf-Vorgabe 2026-07-13: "Mietspiegel" als Index 10 angehängt (Muster US-81/US-123: kein
+   Umnummerieren, Position über STEP_GROUPS). Bettet den RentMap-Prototyp per iframe ein.
+   Ralf-Vorgabe 2026-07-15: nicht mehr Debug-only, für alle Nutzer sichtbar (s. DEBUG_ONLY_STEPS). */
+const STEPS = ["Gebäude & Einheiten","Vorauszahlung (Soll)","Heizung","Kosten","Nebenkosten-Saldo","Fertige Abrechnung","Zahlungen (Ist)","Mieter & Vertrag","Termine & Wartung","Vermieter & Zahlungsangaben","Mietspiegel"];
+/* Ralf-Vorgabe 2026-07-14: "bis aktueller Monat" ist jetzt die Voreinstellung (US-83 – Monate
+   sollen bis zum echten aktuellen Monat sichtbar sein, nicht nur bis zum Ende des
+   Abrechnungszeitraums; passendes Markup dazu in index.html, s. #zv_faellig/#zahl_laeuft_hint). */
+const ui = { current:0, activeMieter:0, vorausModus:"monatlich", zeigeVorjahr:false, nurUngeprueft:false, expandedKosten:new Set(), expandedHeizZeit:new Set(), expandedAutomatik:new Set(), expandedChronik:new Set(), navPlausiOpen:false, drag:null, zahlBisAktuell:true, csvImport:{ buchungen:[], dateiname:"", fehler:null }, csvAutoProtokoll:false, termineAnsicht:"faellig" }; /* AC-3 (US-118): gebündelter UI-/Sitzungs-State. expandedMV entfaellt (Mieter&Vertrag-Layout-Story 2026-07-07): Kaltmiete/Anrede/E-Mail immer sichtbar, kein Vertrag-Aufklapper mehr; expandedChronik neu fuer die "┃ Chronik"-Leiste. */
 
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit", verbrauch:"nach Verbrauch", direkt:"Direkt (eine Einheit)" };
@@ -78,7 +84,7 @@ function alleMV(){ const out=[]; state.einheiten.forEach((e,ei)=>{ (e.mv||[]).fo
 function leerstandZa(e){ const s=(e.mv||[]).reduce((a,m)=>a+nkZeitanteil(m.von,nkMvEnde(m,state.objekt.bis),state.objekt.von,state.objekt.bis),0); return Math.max(0,1-s); }
 
 /* ---------- Stepper (US-54: seitliche Lasche, Gruppen, Kürzel, Versand-Ampel) ---------- */
-const STEP_ABBR = ["GE","VZ","HE","KO","NS","AB","ZA","MV","TW","VM"];
+const STEP_ABBR = ["GE","VZ","HE","KO","NS","AB","ZA","MV","TW","VM","MS"];
 /* US-122: themenbasierte Bereiche statt "Abrechnung erstellen"/"Nachverfolgung" (erzwungene
    Assistenten-Reihenfolge) statt strikter Reihenfolge. Siehe UX-Review-Navigation-und-Workflow.md.
    "Vorauszahlung (Soll)" bleibt bewusst inhaltlich unverändert (weiterhin editierbar) - der Umbau
@@ -92,10 +98,15 @@ const STEP_ABBR = ["GE","VZ","HE","KO","NS","AB","ZA","MV","TW","VM"];
    „Zahlungen (Ist)" verschmolzen, sondern nur thematisch gruppiert). „Laufende Verwaltung" entfällt
    als eigene Rubrik (Termine & Wartung wandert zu Objekt) - ein Ein-Reiter-Rest wäre unausgewogen. */
 const STEP_GROUPS = [
-  { titel:"Objekt",              steps:[0,9,7,8] },
+  { titel:"Objekt",              steps:[0,10,9,7,8] },
   { titel:"Abrechnung",          steps:[2,3,5] },
   { titel:"Zahlungen & Saldo",   steps:[1,6,4] }
 ];
+/* Nur im Debug-Modus sichtbare Reiter. Gleiche Prüfung wie nkMvDebugAktiv (view-mieter.js):
+   explizit ?debug=1, nicht bloß Anwesenheit von ?debug. Aktuell leer - Mietspiegel (Index 10)
+   ist seit Ralf-Vorgabe 2026-07-15 für alle Nutzer sichtbar, kein Reiter mehr debug-only. */
+const DEBUG_ONLY_STEPS = new Set([]);
+function nkStepDebugAktiv(){ return /[?&]debug=1(&|$)/i.test(location.search); }
 function renderStepper(){
   const el = document.getElementById('stepper'); if(!el) return; el.innerHTML='';
   /* US-122/Ralf-Feedback 2026-07-06: kein Nummern-Kreis mehr (freie Navigation, keine erzwungene
@@ -105,6 +116,7 @@ function renderStepper(){
   STEP_GROUPS.forEach(g=>{
     const gt=document.createElement('div'); gt.className='nav-group'; gt.textContent=g.titel; el.appendChild(gt);
     g.steps.forEach(i=>{
+      if(DEBUG_ONLY_STEPS.has(i) && !nkStepDebugAktiv()) return;
       const d=document.createElement('div');
       d.className='step'+(i===ui.current?' active':'');
       d.title=STEPS[i];
@@ -168,7 +180,39 @@ const RENDERERS = {
      fillObjektKopf() (Panel noch display:none) liefert scrollHeight einen falschen (zu kleinen)
      Wert, das Feld wirkte dadurch wie leer/kollabiert (Ralf-Fund 2026-07-06). */
   9: () => { const el=document.getElementById('z_frist'); if(el) autoGrow(el); },
+  /* Mietspiegel (Index 10): RentMap-iframe erst beim ersten Öffnen laden, damit der
+     externe Prototyp nicht bei jedem App-Start angefragt wird.
+     Quelle: bevorzugt das mit ausgelieferte statische Bundle unter mietspiegel/ (Produktiv-
+     Einbettung; einmal per HEAD erkannt und in nkMsBase gemerkt), nur wenn es fehlt, der
+     Dev-Server aus data-src (localhost:3001).
+     Die Objektadresse (state.objekt.addr) wird als ?address=... mitgegeben - RentMap fliegt sie
+     automatisch an; embed=1 startet dort mit eingeklappter Einstellungs-Lasche. Der src wird nur
+     bei geänderten Parametern neu gesetzt, sonst würde das iframe bei jedem Reiterwechsel neu laden. */
+  10: () => {
+    const f=document.getElementById('ms_frame'); if(!f) return;
+    const adr=((state.objekt&&state.objekt.addr)||'').trim();
+    /* Wohnfläche + aktuelle Grundmiete der ersten Einheit mit gültigen Werten mitgeben
+       (jüngstes Mietverhältnis = letzter mv-Eintrag) - RentMap belegt damit "Mein Objekt"
+       vor und zeigt das Spannen-Urteil ohne weitere Eingaben. */
+    let size=0, rent=0;
+    for(const e of (state.einheiten||[])){
+      const m=(e.mv||[])[ (e.mv||[]).length-1 ];
+      if(e.flaeche>0 && m && m.grundmiete>0){ size=e.flaeche; rent=m.grundmiete; break; }
+    }
+    const params='?embed=1'
+      +(adr?'&address='+encodeURIComponent(adr):'')
+      +(size&&rent?'&size='+size+'&rent='+rent:'');
+    const apply=(base)=>{ const src=base+params; if(f.getAttribute('src')!==src) f.src=src; };
+    if(nkMsBase){ apply(nkMsBase); return; }
+    /* Verzeichnis-URL mit Slash: nur so bleiben die relativen Pfade des Bundles intakt
+       (z. B. redirectet "serve" .../index.html auf eine Extension-lose URL ohne Slash). */
+    fetch('mietspiegel/',{method:'HEAD'})
+      .then(r=>{ nkMsBase = r.ok ? 'mietspiegel/' : f.dataset.src; apply(nkMsBase); })
+      .catch(()=>{ nkMsBase=f.dataset.src; apply(nkMsBase); });
+  },
 };
+/* Erkannte RentMap-Quelle (eingebettetes Bundle oder Dev-Server), einmal pro Sitzung. */
+let nkMsBase=null;
 function go(i){
   /* Sichtbarkeit ZUERST umschalten, dann rendern: RENDERERS[9] misst scrollHeight (autoGrow für
      z_frist) – auf einem noch display:none-Panel liefert das einen falschen (zu kleinen) Wert
