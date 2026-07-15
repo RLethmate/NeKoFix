@@ -230,7 +230,7 @@ function buildTenantPdf(sel){
   pdfWasserzeichen(doc); /* US-40: Vorschau bis Freischaltung */
   return doc;
 }
-function exportTenantPdf(){ if(!ensurePdfLib())return; if(!pdfStandOk())return; const sel=alleMV()[ui.activeMieter]; if(sel){ buildTenantPdf(sel).save("Abrechnung-"+pdfSafeName(sel.m.mieter)+".pdf"); showBackupHinweis(); } } /* US-76: Backup-Hinweis nach Export */
+function exportTenantPdf(){ if(!ensurePdfLib())return; if(!pdfStandOk())return; const sel=alleMV()[ui.activeMieter]; if(sel){ buildTenantPdf(sel).save("Abrechnung-"+pdfSafeName(sel.m.mieter)+".pdf"); showBackupHinweis(); zeigeFertigMoment(); } } /* US-76: Backup-Hinweis nach Export; UX-Review 2026-07-15 (Kano): einmaliger "Fertig!"-Moment */
 /* US-69: Mieterhöhungs-Anschreiben als DIN-Brief (Index § 557b oder Staffel § 557a).
    `a` = {typ:'index'|'staffel', stichtag, stichtag1, alteMiete, neueMiete, prozent, rohNeu,
    betrag, monatVon, monatBis, frist}. Briefkopf/Adresse wie buildTenantPdf (US-53). */
@@ -317,14 +317,15 @@ async function sharePdfAktiv(){
   let file=null;
   try{ file=new File([doc.output("blob")], fname, {type:"application/pdf"}); }catch(e){ file=null; }
   if(file && navigator.canShare && navigator.canShare({files:[file]})){
-    try{ await navigator.share({files:[file], title:titel, text:text}); }
+    try{ await navigator.share({files:[file], title:titel, text:text}); showBackupHinweis(); zeigeFertigMoment(); } /* wie die Export-Wege (US-76/Kano) – nur nach tatsächlichem Teilen */
     catch(e){ /* vom Nutzer abgebrochen – nichts tun */ }
   } else {
     doc.save(fname);
     alert("Teilen mit Anhang wird hier nicht unterstützt. Das PDF wurde heruntergeladen – bitte manuell an eine E-Mail"+(email?" an "+email:"")+" anhängen.");
+    showBackupHinweis(); zeigeFertigMoment(); /* US-76/Kano: bisher der einzige Export-Weg ohne Backup-Hinweis */
   }
 }
-function exportAllTenantPdfs(){ if(!ensurePdfLib())return; if(!pdfStandOk())return; const list=alleMV(); list.forEach(sel=> buildTenantPdf(sel).save("Abrechnung-"+pdfSafeName(sel.m.mieter)+"-"+pdfSafeName(sel.e.name)+".pdf")); if(list.length) showBackupHinweis(); } /* US-76: Backup-Hinweis nach Export */
+function exportAllTenantPdfs(){ if(!ensurePdfLib())return; if(!pdfStandOk())return; const list=alleMV(); list.forEach(sel=> buildTenantPdf(sel).save("Abrechnung-"+pdfSafeName(sel.m.mieter)+"-"+pdfSafeName(sel.e.name)+".pdf")); if(list.length){ showBackupHinweis(); zeigeFertigMoment(); } } /* US-76: Backup-Hinweis nach Export; UX-Review 2026-07-15 (Kano): einmaliger "Fertig!"-Moment */
 function exportOwnerOverviewPdf(){
   if(!ensurePdfLib())return; if(!pdfStandOk())return;
   const { jsPDF } = window.jspdf;

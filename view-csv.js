@@ -50,7 +50,12 @@ function setUmsatzZiel(i, val){
 }
 /* US-87/88: zugeordnete Buchungen übernehmen – Kosten je Kostenart summiert (neue werden
    angelegt), Zahlungen als „erhalten" je Mietverhältnis/Monat. Bereits übernommene werden über
-   den Fingerabdruck übersprungen (Dedupe). Schreibt über den Store; danach App neu zeichnen. */
+   den Fingerabdruck übersprungen (Dedupe). Schreibt über den Store; danach App neu zeichnen.
+   UX-Review 2026-07-15 (Kano, blaue Ecke): der Sammel-confirm() vor der Übernahme ist entfallen –
+   „Importieren" ist bereits die bewusste Aktion (Review-Dialog: „nichts wird gespeichert, bis …").
+   Stattdessen gilt die Regel der übrigen Importe (Techem): war ein Feld vorher leer/0, wird direkt
+   gesetzt; hatte es schon einen Wert, wird aufaddiert UND als unbestätigter Vorschlag markiert
+   (blaues Dreieck ▲ am Feld – k.vorschlag.betrag bzw. m.erhaltenVorschlag[monat]). */
 function uebernehmeUmsaetze(){
   const plan=nkImportPlan(ui.csvImport.buchungen, state.objekt.importRegeln||[], { kostenBez:(state.kosten||[]).map(k=>k.bez), gesehen:state.objekt.importGesehen||[] });
   if(!plan.kosten.length && !plan.zahlungen.length){
@@ -59,23 +64,28 @@ function uebernehmeUmsaetze(){
   const teile=[];
   if(plan.kosten.length) teile.push(plan.kosten.length+' Kostenart(en)'+(plan.neueKosten.length?(' ('+plan.neueKosten.length+' neu)'):''));
   if(plan.zahlungen.length) teile.push(plan.zahlungen.length+' Zahlungseingang/-gänge');
-  if(!confirm('Übernehmen: '+teile.join(' und ')+'?'+(plan.offen?('\n\n'+plan.offen+' nicht zugeordnete Buchung(en) werden NICHT übernommen.'):''))) return;
+  let markiert=0;
   plan.kosten.forEach(k=>{
     let idx=state.kosten.findIndex(x=>String(x.bez||'').trim()===k.bez);
     if(idx<0){ store.addKosten(k.bez); idx=state.kosten.findIndex(x=>String(x.bez||'').trim()===k.bez); }
-    if(idx>=0){ store.setKostenBetrag(idx, (+state.kosten[idx].betrag||0)+k.summe); }
+    if(idx>=0){ const alt=+state.kosten[idx].betrag||0; store.setKostenBetrag(idx, alt+k.summe);
+      if(alt>0){ store.setKostenVorschlagFeld(idx,'betrag',true); markiert++; } }
   });
   plan.zahlungen.forEach(z=>{
     const ei=state.einheiten.findIndex(e=>e.id===z.einheitId); if(ei<0) return;
     const mi=state.einheiten[ei].mv.findIndex(m=>m.id===z.mvId); if(mi<0) return;
     const cur=(state.einheiten[ei].mv[mi].erhalten&&state.einheiten[ei].mv[mi].erhalten[z.monat])||0;
     store.setErhalten(ei, mi, z.monat, cur+z.betrag);
+    if(cur>0){ store.setErhaltenVorschlag(ei, mi, z.monat, true); markiert++; }
   });
   store.setObjektFeld('importGesehen', (state.objekt.importGesehen||[]).concat(plan.fingerprints));
   if(ui.csvAutoProtokoll) exportUmsatzProtokoll(); /* US-108: Prüfprotokoll auf Wunsch direkt öffnen (vor dem Schließen, solange die Daten noch da sind) */
   closeUmsatzReview(); renderAll();
-  if(plan.kosten.length) go(2); else if(plan.zahlungen.length) go(6); /* US-87/88: nach der Übernahme zum betroffenen Reiter (Kosten bzw. Zahlungen) */
-  alert('Übernommen: '+teile.join(' und ')+'. Kosten ggf. im Reiter „Kosten" benennen und einer Rubrik zuordnen.');
+  if(plan.kosten.length) go(3); else if(plan.zahlungen.length) go(6); /* US-87/88: nach der Übernahme zum betroffenen Reiter (Kosten=3 bzw. Zahlungen=6; go(2) war ein Altstand von vor dem Heizung/Kosten-Reitertausch aus US-91) */
+  alert('Übernommen: '+teile.join(' und ')+'.'
+    +(plan.offen?(' '+plan.offen+' nicht zugeordnete Buchung(en) wurden NICHT übernommen.'):'')
+    +(markiert?('\n\n'+markiert+' Feld(er) hatten bereits einen Wert – dort wurde aufaddiert und mit einem blauen Dreieck ▲ markiert: bitte prüfen, dann ▲ anklicken (oder den Wert anpassen).'):'')
+    +'\n\nKosten ggf. im Reiter „Kosten" benennen und einer Rubrik zuordnen.');
 }
 function renderUmsatzReview(){
   const o=document.getElementById('csv_overlay'), box=document.getElementById('csv_modal'); if(!o||!box) return;

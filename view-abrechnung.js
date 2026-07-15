@@ -63,7 +63,36 @@ function renderEurProQm(ein, kos){
     '<tr><td>'+esc(z.bez)+'</td><td class="num">'+eq(z.jahr)+'</td><td class="num">'+eq(z.monat)+'</td></tr>').join('');
   box.innerHTML='<p class="hint" style="margin:6px 0;">Zum Vergleich mit typischen Markt-Nebenkosten (Betriebskostenspiegel, meist €/m²·Monat). Bezogen auf '+nkFmtBetrag(flaeche)+' m² Gesamtfläche. Reine Kennzahl – ändert die Verteilung nicht.</p>'+
     '<table class="eurqm-tab"><thead><tr><th>Kostenart</th><th class="num">€/m²·Jahr</th><th class="num">€/m²·Monat</th></tr></thead><tbody>'+rows+
-    '<tr class="eurqm-total"><td>Gesamt</td><td class="num">'+eq(r.gesamt.jahr)+'</td><td class="num">'+eq(r.gesamt.monat)+'</td></tr></tbody></table>';
+    '<tr class="eurqm-total"><td>Gesamt</td><td class="num">'+eq(r.gesamt.jahr)+'</td><td class="num">'+eq(r.gesamt.monat)+'</td></tr></tbody></table>'+
+    jahresverlaufHtml();
+}
+/* UX-Review 2026-07-15 (Kano): sichtbarer Jahresvergleich – Balkendiagramm "Nebenkosten je m² und
+   Monat" über alle gespeicherten Jahrgänge desselben Objekts (nkJahresverlauf). Erst ab zwei
+   Jahren sinnvoll (ein einzelner Balken wäre nur Rauschen). Schlichtes Inline-SVG ohne Bibliothek:
+   aktives Jahr Petrol, frühere Jahre gedämpft (#6E97A1); jeder Balken direkt beschriftet
+   (Wert oben, Jahr unten – Identität hängt damit nie an der Farbe allein), Tooltip via <title>. */
+function jahresverlaufHtml(){
+  /* Live-Stand des aktiven Objekts einsetzen: objekte[aktivIdx] läuft dem Tippen bis zum
+     entprellten saveState() (600 ms) hinterher – die Tabelle darüber rechnet aber live. */
+  const liste=objekte.slice(); if(liste[aktivIdx]) liste[aktivIdx]=snapshot();
+  const verlauf=nkJahresverlauf(liste, aktivIdx);
+  if(verlauf.length<2) return '';
+  const max=Math.max.apply(null, verlauf.map(v=>v.eurQmMonat).concat([0.01]));
+  const bw=46, gap=14, padL=8, H=150, top=22, base=H-24;
+  const W=padL*2+verlauf.length*bw+(verlauf.length-1)*gap;
+  let s='';
+  verlauf.forEach((v,i)=>{
+    const x=padL+i*(bw+gap);
+    const h=Math.max(2, Math.round((base-top)*(v.eurQmMonat/max)));
+    const y=base-h;
+    s+='<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+h+'" rx="3" fill="'+(v.aktiv?'#15616D':'#6E97A1')+'"><title>'+esc(v.jahr)+': '+nkFmtBetrag(v.eurQmMonat)+' €/m²·Monat ('+nkFmtBetrag(v.gesamt)+' € gesamt, '+nkFmtBetrag(v.flaeche)+' m²)</title></rect>'+
+      '<text x="'+(x+bw/2)+'" y="'+(y-6)+'" text-anchor="middle" class="jv-wert">'+nkFmtBetrag(v.eurQmMonat)+'</text>'+
+      '<text x="'+(x+bw/2)+'" y="'+(base+16)+'" text-anchor="middle" class="jv-jahr'+(v.aktiv?' aktiv':'')+'">'+esc(v.jahr)+'</text>';
+  });
+  return '<div class="jv-box"><div class="jv-titel">Ihre Nebenkosten je m² und Monat über die Jahre</div>'+
+    '<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="Jahresvergleich: Nebenkosten je m² und Monat">'+
+    '<line x1="0" y1="'+base+'" x2="'+W+'" y2="'+base+'" stroke="#dbe3e6"/>'+s+'</svg>'+
+    '<p class="hint" style="margin:4px 0 6px;">Werte in €/m²·Monat, je gespeichertem Abrechnungsjahr dieses Objekts. Das aktuelle Jahr ist dunkel hervorgehoben.</p></div>';
 }
 /* US-14: Plausibilitätsprüfung + Rechenweg */
 function renderPlausi(){
@@ -344,7 +373,10 @@ function renderZahlungen(){
       const curEnd=aktuellerMonatKey()+'-01';
       const mvEnde=m.laeuft? curEnd : (m.bis || curEnd);
       monate=nkAktiveMonate(m.von, mvEnde, m.von, curEnd)
-        .filter(k=>{ const soll=monatSoll(m,k); return monatErhalten(m,k,soll)+0.005<soll; });
+        /* UX-Review 2026-07-15 (Kano): Monate mit unbestätigtem CSV-Import-Vorschlag (blaues Eck)
+           bleiben sichtbar, auch wenn sie durch den Import rechnerisch voll beglichen sind – sonst
+           verschwände die Markierung aus der Standard-Ansicht, bevor sie jemand prüfen kann. */
+        .filter(k=>{ const soll=monatSoll(m,k); return monatErhalten(m,k,soll)+0.005<soll || (m.erhaltenVorschlag&&m.erhaltenVorschlag[k]); });
     }
     let sumSoll=0, sumErh=0, hatTeil=false;
     const rows=monate.map(k=>{
@@ -364,10 +396,14 @@ function renderZahlungen(){
           : st==='ueberzahlt'
           ? '<span class="zm-diff pos" title="mehr als das Soll erhalten">Überzahlung '+eur(Math.abs(diffBetrag))+'</span>'
           : '';
+      /* UX-Review 2026-07-15 (Kano, blaue Ecke): CSV-Import hat auf einen bereits erfassten
+         Monatswert aufaddiert → dasselbe Dreieck-Muster wie bei Kosten/Techem statt stiller
+         Änderung; manuelle Eingabe (updErhalten) bestätigt zugleich. */
+      const erhVorschlag=!!(m.erhaltenVorschlag&&m.erhaltenVorschlag[k]);
       return '<div class="zahl-monat '+st+'">'+
         '<span class="zm-label">'+monatLabel(k)+'</span>'+
         '<span class="zm-soll"'+(sollTitle?' title="'+sollTitle+'"':'')+'>Soll '+eur(soll)+'</span>'+
-        '<label class="zm-erh">erhalten <input class="short" type="text" inputmode="decimal" value="'+(erhalten?nkFmtBetrag(erhalten)+' €':'')+'" placeholder="'+nkFmtBetrag(soll)+' €" onchange="updErhalten('+ei+','+mi+',\''+k+'\',this.value)"></label>'+
+        '<label class="zm-erh">erhalten <span class="feld-wrap'+(erhVorschlag?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+(erhalten?nkFmtBetrag(erhalten)+' €':'')+'" placeholder="'+nkFmtBetrag(soll)+' €" onchange="updErhalten('+ei+','+mi+',\''+k+'\',this.value)">'+(erhVorschlag?'<button type="button" class="vorschlag-tri" title="Summe aus CSV-Import übernehmen (Bestandswert + importierte Zahlung) – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="erhaltenVorschlagUebernehmen('+ei+','+mi+',\''+k+'\')"></button>':'')+'</span></label>'+
         diffHtml+
         '<button class="zm-pruef'+(geprueft?' aktiv':'')+'" title="'+(geprueft?'Geprüft – erneut klicken hebt es auf':'Zahlungseingang als korrekt bestätigen (setzt erhalten = Soll)')+'" onclick="toggleGeprueft('+ei+','+mi+',\''+k+'\')">'+(geprueft?'geprüft':'zu prüfen')+'</button>'+
       '</div>';
@@ -387,6 +423,7 @@ function renderZahlungen(){
 function updErhalten(ei,mi,key,val){
   const betrag=nkParseBetrag(val);
   store.setErhalten(ei,mi,key,betrag);
+  const mv0=store.mv(ei,mi); if(mv0.erhaltenVorschlag&&mv0.erhaltenVorschlag[key]) store.setErhaltenVorschlag(ei,mi,key,false); /* manuelle Eingabe bestätigt einen offenen CSV-Vorschlag zugleich (Kano/blaue Ecke) */
   const m=store.mv(ei,mi); const snap=m.sollSnap||{};
   if(!(key in snap)){ /* Soll einfrieren, sobald der Monat voll beglichen ist (bezahlt oder überzahlt) */
     const soll=nkSollMonat(nkMieteAm(m, key+'-01'), nkMonatNK(m), m.stellAnzahl, m.stellPreis);
@@ -408,5 +445,8 @@ function toggleGeprueft(ei,mi,key){
     updErhalten(ei,mi,key, nkFmtBetrag(soll));
   }
 }
+/* UX-Review 2026-07-15 (Kano, blaue Ecke): CSV-Import-Summe eines Zahlungsmonats per Klick aufs
+   Dreieck übernehmen (Wert bleibt, Markierung weg) – analog kostenBetragVorschlagUebernehmen. */
+function erhaltenVorschlagUebernehmen(ei,mi,key){ store.setErhaltenVorschlag(ei,mi,key,false); renderZahlungen(); }
 /* US-67: updMVNum entfernt – Miete/Stellplätze werden jetzt im Vertrag (updVertrag) gepflegt. */
 
