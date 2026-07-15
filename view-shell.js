@@ -16,8 +16,8 @@
    ausschließlich um die Nebenkosten: Kostenanteil ./. Vorauszahlung = Saldo + Anpassungsvorschlag für
    die künftige Vorauszahlung). Umbenannt in "Nebenkosten-Saldo". */
 /* Ralf-Vorgabe 2026-07-13: "Mietspiegel" als Index 10 angehängt (Muster US-81/US-123: kein
-   Umnummerieren, Position über STEP_GROUPS). Bettet den RentMap-Prototyp per iframe ein und ist
-   nur im Debug-Modus (?debug=1) sichtbar, siehe DEBUG_ONLY_STEPS in renderStepper. */
+   Umnummerieren, Position über STEP_GROUPS). Bettet den RentMap-Prototyp per iframe ein.
+   Ralf-Vorgabe 2026-07-15: nicht mehr Debug-only, für alle Nutzer sichtbar (s. DEBUG_ONLY_STEPS). */
 const STEPS = ["Gebäude & Einheiten","Vorauszahlung (Soll)","Heizung","Kosten","Nebenkosten-Saldo","Fertige Abrechnung","Zahlungen (Ist)","Mieter & Vertrag","Termine & Wartung","Vermieter & Zahlungsangaben","Mietspiegel"];
 /* Ralf-Vorgabe 2026-07-14: "bis aktueller Monat" ist jetzt die Voreinstellung (US-83 – Monate
    sollen bis zum echten aktuellen Monat sichtbar sein, nicht nur bis zum Ende des
@@ -103,8 +103,9 @@ const STEP_GROUPS = [
   { titel:"Zahlungen & Saldo",   steps:[1,6,4] }
 ];
 /* Nur im Debug-Modus sichtbare Reiter. Gleiche Prüfung wie nkMvDebugAktiv (view-mieter.js):
-   explizit ?debug=1, nicht bloß Anwesenheit von ?debug. */
-const DEBUG_ONLY_STEPS = new Set([10]);
+   explizit ?debug=1, nicht bloß Anwesenheit von ?debug. Aktuell leer - Mietspiegel (Index 10)
+   ist seit Ralf-Vorgabe 2026-07-15 für alle Nutzer sichtbar, kein Reiter mehr debug-only. */
+const DEBUG_ONLY_STEPS = new Set([]);
 function nkStepDebugAktiv(){ return /[?&]debug=1(&|$)/i.test(location.search); }
 function renderStepper(){
   const el = document.getElementById('stepper'); if(!el) return; el.innerHTML='';
@@ -179,11 +180,14 @@ const RENDERERS = {
      fillObjektKopf() (Panel noch display:none) liefert scrollHeight einen falschen (zu kleinen)
      Wert, das Feld wirkte dadurch wie leer/kollabiert (Ralf-Fund 2026-07-06). */
   9: () => { const el=document.getElementById('z_frist'); if(el) autoGrow(el); },
-  /* Mietspiegel (Index 10, Debug): RentMap-iframe erst beim ersten Öffnen laden, damit der
-     externe Prototyp (localhost:3001) nicht bei jedem App-Start angefragt wird.
+  /* Mietspiegel (Index 10): RentMap-iframe erst beim ersten Öffnen laden, damit der
+     externe Prototyp nicht bei jedem App-Start angefragt wird.
+     Quelle: bevorzugt das mit ausgelieferte statische Bundle unter mietspiegel/ (Produktiv-
+     Einbettung; einmal per HEAD erkannt und in nkMsBase gemerkt), nur wenn es fehlt, der
+     Dev-Server aus data-src (localhost:3001).
      Die Objektadresse (state.objekt.addr) wird als ?address=... mitgegeben - RentMap fliegt sie
      automatisch an; embed=1 startet dort mit eingeklappter Einstellungs-Lasche. Der src wird nur
-     bei geänderter Adresse neu gesetzt, sonst würde das iframe bei jedem Reiterwechsel neu laden. */
+     bei geänderten Parametern neu gesetzt, sonst würde das iframe bei jedem Reiterwechsel neu laden. */
   10: () => {
     const f=document.getElementById('ms_frame'); if(!f) return;
     const adr=((state.objekt&&state.objekt.addr)||'').trim();
@@ -195,12 +199,20 @@ const RENDERERS = {
       const m=(e.mv||[])[ (e.mv||[]).length-1 ];
       if(e.flaeche>0 && m && m.grundmiete>0){ size=e.flaeche; rent=m.grundmiete; break; }
     }
-    const src=f.dataset.src+'?embed=1'
+    const params='?embed=1'
       +(adr?'&address='+encodeURIComponent(adr):'')
       +(size&&rent?'&size='+size+'&rent='+rent:'');
-    if(f.getAttribute('src')!==src) f.src=src;
+    const apply=(base)=>{ const src=base+params; if(f.getAttribute('src')!==src) f.src=src; };
+    if(nkMsBase){ apply(nkMsBase); return; }
+    /* Verzeichnis-URL mit Slash: nur so bleiben die relativen Pfade des Bundles intakt
+       (z. B. redirectet "serve" .../index.html auf eine Extension-lose URL ohne Slash). */
+    fetch('mietspiegel/',{method:'HEAD'})
+      .then(r=>{ nkMsBase = r.ok ? 'mietspiegel/' : f.dataset.src; apply(nkMsBase); })
+      .catch(()=>{ nkMsBase=f.dataset.src; apply(nkMsBase); });
   },
 };
+/* Erkannte RentMap-Quelle (eingebettetes Bundle oder Dev-Server), einmal pro Sitzung. */
+let nkMsBase=null;
 function go(i){
   /* Sichtbarkeit ZUERST umschalten, dann rendern: RENDERERS[9] misst scrollHeight (autoGrow für
      z_frist) – auf einem noch display:none-Panel liefert das einen falschen (zu kleinen) Wert

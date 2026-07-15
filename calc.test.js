@@ -131,6 +131,18 @@ test("Heizblock mit Teilzeitraum: Verteilung über Blockperiode (US-06)", () => 
   assert.ok(mv2[0].brutto > 400 && mv2[0].brutto < 600);
 });
 
+/* Mutationstest-Fund (2026-07-14) + Spec-Konformität (US-06 AC: "leer = ganzer
+   Abrechnungszeitraum"): ist nur EINES der beiden Zeitraumfelder gesetzt, muss die Position wie
+   eine normale (nicht teilzeitraum-begrenzte) Position über den vollen Mietzeitraum verteilt
+   werden, statt mit einem undefinierten Ende zu rechnen. */
+test("Position mit nur EINEM gesetzten Zeitraumfeld (von ohne bis) fällt auf die volle Mietzeit zurück", () => {
+  const objekt = { von: "2025-01-01", bis: "2025-12-31" };
+  const einheiten = [{ id: 1, name: "EG", flaeche: 100, personen: 1, mv: [{ mieter: "A", von: "2025-01-01", bis: "2025-12-31", voraus: 0 }] }];
+  const kosten = [{ bez: "Gas", betrag: 600, schluessel: "flaeche", von: "2025-01-01" }]; // bis fehlt
+  const mvs = calc.nkObjektAbrechnung(einheiten, kosten, objekt).einheiten[0].mietverhaeltnisse;
+  assert.ok(Math.abs(mvs[0].brutto - 600) < 1e-6); // volles Jahr, volle Fläche -> voller Betrag, kein Bruch
+});
+
 test("IBAN-Prüfung: Prüfziffer und Länge (US-51)", () => {
   assert.equal(calc.nkIbanGueltig("DE36 0000 0000 0000 0000 00"), true);  // gültige Beispiel-IBAN
   assert.equal(calc.nkIbanGueltig("DE36000000000000000000"), true);       // ohne Leerzeichen
@@ -669,6 +681,61 @@ test("CO2: ohne fossile Heizung keine Aufteilung", () => {
   assert.equal(ab.brutto, ab.bruttoVorCo2);
 });
 
+/* Mutationstest-Fund (2026-07-14, Stryker): typ==="heizung" und die Fossil-Prüfung wurden bisher
+   nicht einzeln abgesichert – co2Kosten auf einer NICHT-Heizungs-Kostenart (z. B. versehentlich
+   gesetztes Feld) durfte nicht in die CO2-Aufteilung einfließen. */
+test("CO2: co2Kosten/Energieart auf einer Nicht-Heizungs-Kostenart zählen NICHT (nur typ==='heizung')", () => {
+  const E = [{ id: 1, flaeche: 100, personen: 1 }];
+  const K = [{ bez: "Sonstiges", betrag: 500, schluessel: "flaeche", typ: "sonstige", energieart: "erdgas_kwh", co2Kosten: 80 }];
+  const o = { von: "2025-01-01", bis: "2025-12-31" };
+  const m = { mieter: "A", von: "2025-01-01", bis: "2025-12-31", voraus: 0 };
+  const ab = calc.nkMieterAbrechnung(E[0], m, K, o, E);
+  assert.equal(ab.co2.aktiv, false);
+  assert.equal(ab.co2.kostenMieter, 0);
+  assert.equal(ab.co2.abzug, 0);
+});
+
+/* Mutationstest-Fund (2026-07-14): fehlendes co2Kosten an einem fossilen Heizblock (z. B.
+   unvollständiger Import) darf nicht zu NaN im Mieteranteil führen – der Eligibilitäts-Check
+   (+k.co2Kosten||0)>0 muss VOR der Verwendung von +k.co2Kosten in der Berechnung greifen. */
+test("CO2: fossiler Heizblock ohne co2Kosten ergibt 0, nicht NaN", () => {
+  const E = [{ id: 1, flaeche: 100, personen: 1 }];
+  const K = [{ bez: "Heizung", betrag: 2000, schluessel: "flaeche", typ: "heizung", energieart: "erdgas_kwh", co2Kg: 2400 }]; // kein co2Kosten
+  const o = { von: "2025-01-01", bis: "2025-12-31" };
+  const m = { mieter: "A", von: "2025-01-01", bis: "2025-12-31", voraus: 0 };
+  const ab = calc.nkMieterAbrechnung(E[0], m, K, o, E);
+  assert.equal(ab.co2.kostenMieter, 0);
+  assert.equal(ab.co2.abzug, 0);
+  assert.ok(!Number.isNaN(ab.brutto));
+});
+
+/* Mutationstest-Fund (2026-07-14): die CO2-Umlage eines Heizblocks mit EIGENEM Teilzeitraum
+   (US-06) muss über DIESEN Zeitraum anteilig berechnet werden, nicht über den vollen
+   Mietverhältnis-Zeitraum – sonst bekäme ein Mieter CO2-Kosten für eine Heizperiode angerechnet,
+   in der er noch gar nicht eingezogen war. */
+test("CO2: Heizblock mit eigenem Teilzeitraum – kein CO2-Anteil, wenn der Mieter erst NACH dessen Ende einzieht", () => {
+  const E = [{ id: 1, flaeche: 100, personen: 1 }];
+  const K = [{ bez: "Heizung (Gas, 1. Halbjahr)", betrag: 1000, schluessel: "flaeche", typ: "heizung", energieart: "erdgas_kwh", co2Kg: 1000, co2Kosten: 200, von: "2025-01-01", bis: "2025-06-30" }];
+  const o = { von: "2025-01-01", bis: "2025-12-31" };
+  const m = { mieter: "A", von: "2025-07-01", bis: "2025-12-31", voraus: 0 }; // Einzug NACH Ende des Heizblocks
+  const ab = calc.nkMieterAbrechnung(E[0], m, K, o, E);
+  assert.equal(ab.co2.kostenMieter, 0);
+  assert.equal(ab.co2.abzug, 0);
+});
+
+/* Spec-Konformität (US-06 AC: "leer = ganzer Abrechnungszeitraum") + Mutationstest-Fund: ist NUR
+   von ODER NUR bis eines Heizblocks gesetzt (unvollständiger Teilzeitraum), muss die CO2-Umlage
+   auf den vollen Zeitanteil zurückfallen statt mit einem undefinierten Ende zu rechnen. */
+test("CO2: Heizblock mit nur EINEM gesetzten Zeitraumfeld (von ohne bis) fällt auf den vollen Zeitanteil zurück", () => {
+  const E = [{ id: 1, flaeche: 100, personen: 1 }];
+  const K = [{ bez: "Heizung (Gas, seit Umstellung)", betrag: 1000, schluessel: "flaeche", typ: "heizung", energieart: "erdgas_kwh", co2Kg: 1000, co2Kosten: 200, von: "2025-01-01" }]; // bis fehlt
+  const o = { von: "2025-01-01", bis: "2025-12-31" };
+  const m = { mieter: "A", von: "2025-01-01", bis: "2025-12-31", voraus: 0 };
+  const ab = calc.nkMieterAbrechnung(E[0], m, K, o, E);
+  // volles Jahr, ganze Fläche -> voller CO2-Mieteranteil, kein Bruch durch das fehlende "bis"
+  assert.ok(Math.abs(ab.co2.kostenMieter - 200) < 1e-9);
+});
+
 test("CO2: Erläuterungstext nennt den greifenden Fall", () => {
   assert.ok(/Wohngeb/.test(calc.nkCo2Erklaerung({ aktiv: true, fall: "wohnen", stufe: 4, spez: 24, vermieterProzent: 30, denkmal: false })));
   assert.ok(/Gewerbe/.test(calc.nkCo2Erklaerung({ aktiv: true, fall: "gewerbe", vermieterProzent: 50, denkmal: false })));
@@ -773,6 +840,67 @@ test("§35a: Positionsliste je Kategorie (US-62) – Summe = Kategorie-Summe", (
   assert.ok(Math.abs(hw.reduce((s, p) => s + p.anteil, 0) - ab.p35a.handwerker) < 1e-9);
   // EG-Anteil Hausmeister: 800 × 50/100 = 400
   assert.ok(Math.abs(dl.find(p => p.bez === "Hausmeister").anteil - 400) < 1e-9);
+  // Mutationstest-Fund (2026-07-14): das arbeitskosten-Feld JE POSITION (Anzeige in der
+  // Volltabelle, US-62) muss den tatsächlichen Positionsbetrag zeigen, nicht nur die Summe stimmen.
+  assert.equal(dl.find(p => p.bez === "Hausmeister").arbeitskosten, 800);
+  assert.equal(hw.find(p => p.bez === "Heizungswartung").arbeitskosten, 300);
+});
+
+/* Mutationstest-Fund (2026-07-14): "aktiv" muss auf JEDER positiven Summe beruhen (Dienstleistung
+   + Handwerker), nicht auf einer Differenz – sonst kippt das Flag fälschlich auf false, sobald der
+   Handwerkeranteil größer als der Dienstleistungsanteil ist. */
+test("§35a: aktiv bleibt true, auch wenn Handwerkeranteil größer als Dienstleistungsanteil", () => {
+  const E = [{ id: 1, flaeche: 100, personen: 1 }];
+  const K = [
+    { bez: "Hausmeister", betrag: 200, schluessel: "flaeche", arbeitskosten: 100 },       // Dienstleistung, klein
+    { bez: "Heizungswartung", betrag: 800, schluessel: "flaeche", arbeitskosten: 600 }    // Handwerker, groß
+  ];
+  const o = { von: "2025-01-01", bis: "2025-12-31" };
+  const m = { mieter: "A", von: o.von, bis: o.bis, voraus: 0 };
+  const ab = calc.nkMieterAbrechnung(E[0], m, K, o, E);
+  assert.equal(ab.p35a.aktiv, true);
+});
+
+/* Mutationstest-Fund (2026-07-14, Stryker): arbeitskosten darf nur zählen, wenn die Kostenart
+   TATSÄCHLICH als Dienstleistung/Handwerker kategorisiert ist – ein arbeitskosten-Feld auf einer
+   nicht kategorisierten Position (z. B. versehentlich befüllt) darf nicht in den §35a-Bonus
+   einfließen. */
+test("§35a: arbeitskosten auf nicht kategorisierter Kostenart zählt nicht", () => {
+  const E = [{ id: 1, flaeche: 100, personen: 1 }];
+  const K = [{ bez: "Allgemeinstrom", betrag: 600, schluessel: "flaeche", arbeitskosten: 400 }]; // kein Kategorie-Treffer
+  const o = { von: "2025-01-01", bis: "2025-12-31" };
+  const m = { mieter: "A", von: o.von, bis: o.bis, voraus: 0 };
+  const ab = calc.nkMieterAbrechnung(E[0], m, K, o, E);
+  assert.equal(ab.p35a.dienstleistung, 0);
+  assert.equal(ab.p35a.handwerker, 0);
+  assert.equal(ab.p35a.posten.length, 0);
+  assert.equal(ab.p35a.aktiv, false);
+});
+
+/* Mutationstest-Fund (2026-07-14): negative arbeitskosten (Dateneingabefehler) dürfen den
+   §35a-Bonus nicht ins Negative ziehen – die Prüfung (+k.arbeitskosten||0)>0 muss auch bei einer
+   an sich kategorisierten Position greifen. */
+test("§35a: negative arbeitskosten werden nicht angerechnet", () => {
+  const E = [{ id: 1, flaeche: 100, personen: 1 }];
+  const K = [{ bez: "Heizungswartung", betrag: 400, schluessel: "flaeche", arbeitskosten: -50 }]; // Handwerker-Kategorie, aber unplausibler Wert
+  const o = { von: "2025-01-01", bis: "2025-12-31" };
+  const m = { mieter: "A", von: o.von, bis: o.bis, voraus: 0 };
+  const ab = calc.nkMieterAbrechnung(E[0], m, K, o, E);
+  assert.equal(ab.p35a.handwerker, 0);
+  assert.equal(ab.p35a.posten.length, 0);
+});
+
+/* Mutationstest-Fund (2026-07-14): eine Kostenart mit Gesamtbetrag 0 (z. B. Platzhalter-Position)
+   darf bei der §35a-Berechnung keine Division durch 0 auslösen (anteil / i.gesamt). */
+test("§35a: Kostenart mit Gesamtbetrag 0 verursacht keine Division durch 0", () => {
+  const E = [{ id: 1, flaeche: 100, personen: 1 }];
+  const K = [{ bez: "Heizungswartung", betrag: 0, schluessel: "flaeche", arbeitskosten: 100 }];
+  const o = { von: "2025-01-01", bis: "2025-12-31" };
+  const m = { mieter: "A", von: o.von, bis: o.bis, voraus: 0 };
+  const ab = calc.nkMieterAbrechnung(E[0], m, K, o, E);
+  assert.equal(ab.p35a.handwerker, 0);
+  assert.ok(!Number.isNaN(ab.p35a.handwerker));
+  assert.equal(ab.p35a.posten.length, 0);
 });
 
 /* US-58: Rubriken (Kostengruppen). */

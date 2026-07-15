@@ -1,1 +1,4 @@
 .DS_Store
+node_modules/
+reports/
+.stryker-tmp/

@@ -4,6 +4,10 @@
   "private": true,
   "description": "NeKoFix Prototyp – Rechenkern und Regressionstests",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "test:mutation": "stryker run"
+  },
+  "devDependencies": {
+    "@stryker-mutator/core": "^9.6.1"
   }
 }
