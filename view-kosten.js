@@ -79,7 +79,7 @@ function renderKosten(){
         '<label class="notiz-field">Notiz <input value="'+esc(k.notiz)+'" oninput="store.setKostenFeld('+idx+',\'notiz\',this.value)" placeholder="z. B. Zähler defekt, Belegquelle, …"></label>'+
         /* Ralf-Feedback 2026-07-30: Dienstleister auch bei normalen Kostenarten – ohne dieses Feld
            landet der Beleg-Dateiname beim Ablegen ohne jeden Aussteller-Hinweis (nur "<Jahr>-<Nr>"). */
-        '<label class="notiz-field">Dienstleister <input value="'+esc(k.dienstleister||'')+'" list="dienstleister_liste" oninput="store.setKostenFeld('+idx+',\'dienstleister\',this.value)" placeholder="z. B. Handwerksbetrieb"></label>'+
+        '<label class="notiz-field">Dienstleister <input value="'+esc(k.dienstleister||'')+'" list="dienstleister_liste" oninput="updKostenDienstleister('+idx+',this.value)" placeholder="z. B. Handwerksbetrieb"></label>'+
         '<label class="notiz-field">Beleg '+belegSpalteHtml('kosten', idx, k)+'</label>'+
       '</div>'+
       (k.schluessel==='direkt' ? '' :
@@ -238,7 +238,7 @@ function toggleTeilnahme(idx, einheitId, checked){
   store.setKostenFeld(idx,'ausgeschlossen',aus);
 }
 /* US-11/US-90: Betrag bearbeiten = Vorjahreswert aktiv übernehmen → Markierung (Dreieck/Zeile) aufheben. */
-function updKostenBetrag(idx,val){ store.setKostenBetrag(idx, nkParseBetrag(val)); const k=store.kosten(idx); if(k.vorjahr){ store.setKostenFeld(idx,'vorjahr',false); const r=document.getElementById('krow-'+idx); if(r){ r.classList.remove('vorjahr'); const b=r.querySelector('.vorjahr-badge'); if(b) b.remove(); const w=r.querySelector('.betrag-wrap'); if(w) w.classList.remove('unbestaetigt'); const t=r.querySelector('.vorschlag-tri'); if(t) t.remove(); } finalizeVorjahrWennFertig(); renderVorjahrBanner(); }
+function updKostenBetrag(idx,val){ store.setKostenBetrag(idx, nkParseBetrag(val)); belegNamenAktualisierenDebounced('kosten',idx); const k=store.kosten(idx); if(k.vorjahr){ store.setKostenFeld(idx,'vorjahr',false); const r=document.getElementById('krow-'+idx); if(r){ r.classList.remove('vorjahr'); const b=r.querySelector('.vorjahr-badge'); if(b) b.remove(); const w=r.querySelector('.betrag-wrap'); if(w) w.classList.remove('unbestaetigt'); const t=r.querySelector('.vorschlag-tri'); if(t) t.remove(); } finalizeVorjahrWennFertig(); renderVorjahrBanner(); }
   /* Ralf-Vorgabe 2026-07-13: manuelle Korrektur bestätigt einen offenen Techem-Vorschlag zugleich. */
   if(k.vorschlag && k.vorschlag.betrag){ store.setKostenVorschlagFeld(idx,'betrag', false); const r=document.getElementById('krow-'+idx); const w=r&&r.querySelector('.betrag-wrap'); if(w){ w.classList.remove('unbestaetigt'); const t=w.querySelector('.vorschlag-tri'); if(t) t.remove(); } }
   refreshZwischensummen(); }
@@ -285,6 +285,9 @@ function deleteKostenRow(idx){ store.removeKosten(idx); renderKosten(); }
 /* US-03: Kostenart setzen und passenden Verteilerschlüssel vorschlagen (überschreibbar). */
 function applyKostenart(idx, val){ store.setKostenart(idx,val); renderKosten(); }
 function resetSchluessel(idx){ store.resetKostenSchluessel(idx); renderKosten(); }
+/* Ralf-Feedback 2026-07-30: Dienstleister-Änderung soll bereits abgelegte Belege dieser Kostenart
+   live umbenennen, nicht erst beim nächsten neuen Beleg. */
+function updKostenDienstleister(idx,val){ store.setKostenFeld(idx,'dienstleister',val); belegNamenAktualisierenDebounced('kosten',idx); }
 
 /* US-131: kleines Herkunfts-Badge (manuell bleibt unmarkiert, um die häufigste Herkunft nicht
    optisch aufzublähen) – für Kosten- und Ausgaben-Zeilen gleichermaßen. */
@@ -360,19 +363,21 @@ function updAusgabeFeld(idx,field,val){
     if(a.csvSchluessel){
       store.setObjektFeld('importRegeln', nkRegelSetDienstleister(state.objekt.importRegeln||[], a.csvSchluessel.schluessel, a.csvSchluessel.typ, val));
     }
+    belegNamenAktualisierenDebounced('ausgabe',idx); /* Ralf-Feedback 2026-07-30: Beleg-Dateiname live nachziehen */
   }
 }
-function updAusgabeBetrag(idx,val){ store.setAusgabeBetrag(idx,val); }
+function updAusgabeBetrag(idx,val){ store.setAusgabeBetrag(idx,val); belegNamenAktualisierenDebounced('ausgabe',idx); }
 /* Zurechnungsjahr wird beim ERSTEN Setzen des Belegdatums vorbelegt; ist bereits ein Jahr gesetzt
    (manuell oder aus einem früheren Datum), bleibt es unangetastet – Abweichungen zeigt das ↺. */
 function updAusgabeDatum(idx,val){
   store.setAusgabeFeld(idx,'datum',val);
   const a=state.ausgaben[idx];
   if(!a.zurechnungsjahr) store.setAusgabeFeld(idx,'zurechnungsjahr', nkAusgabeJahrVorschlag(val, objektJahr(snapshot())));
+  belegNamenAktualisierenDebounced('ausgabe',idx);
   renderAusgaben();
 }
-function updAusgabeJahr(idx,val){ store.setAusgabeFeld(idx,'zurechnungsjahr', val); renderAusgaben(); }
-function resetAusgabeJahr(idx){ const a=state.ausgaben[idx]; store.setAusgabeFeld(idx,'zurechnungsjahr', nkAusgabeJahrVorschlag(a.datum, objektJahr(snapshot()))); renderAusgaben(); }
+function updAusgabeJahr(idx,val){ store.setAusgabeFeld(idx,'zurechnungsjahr', val); belegNamenAktualisierenDebounced('ausgabe',idx); renderAusgaben(); }
+function resetAusgabeJahr(idx){ const a=state.ausgaben[idx]; store.setAusgabeFeld(idx,'zurechnungsjahr', nkAusgabeJahrVorschlag(a.datum, objektJahr(snapshot()))); belegNamenAktualisierenDebounced('ausgabe',idx); renderAusgaben(); }
 
 /* US-131: Checklisten-Übersicht über alle beleg-pflichtigen Positionen (Kosten + Sonstige
    Ausgaben), mit Fortschritt "X von Y vollständig belegt" und Filter offen/vollständig. Rein

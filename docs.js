@@ -194,11 +194,14 @@ async function belegHochladen(art, idx, file){
   const dup = nkBelegDuplikat(state.kosten, state.ausgaben, hash);
   if(dup && !confirm('Diese Datei ist inhaltsgleich bereits als „'+dup.dateiname+'" bei „'+dup.bez+'" hinterlegt.\n\nTrotzdem zusätzlich ablegen?')) return;
   const belegNr = (pos.belege||[]).length + 1; /* 1-basiert, macht den Namen bei mehreren Belegen je Position eindeutig */
-  const name = nkBelegDateiname(jahr, pos.id, belegNr, dienstleister, file.name);
+  const name = nkBelegDateiname({ zurechnungsjahr:jahr, laufendeNummer:pos.id, belegNr:belegNr, dienstleister:dienstleister, betrag:pos.betrag, originalName:file.name });
   try{
     const dir=await _dokOrdner(basis, nkBelegPfad(jahr), true);
     const fh=await dir.getFileHandle(name,{create:true}); const w=await fh.createWritable(); await w.write(file); await w.close();
-    store.addBeleg(art, idx, { dateiname:name, jahr:jahr, angehaengtAm:new Date().toISOString().slice(0,10), schlussrechnung:false, hash:hash });
+    /* originalName wird mitgespeichert, damit die spätere Live-Umbenennung (belegNamenAktualisieren)
+       weiterhin auf den echten Original-Dateinamen als Vorbelegung zurückgreifen kann, falls
+       Dienstleister leer bleibt – s. nkBelegDateiname. */
+    store.addBeleg(art, idx, { dateiname:name, jahr:jahr, angehaengtAm:new Date().toISOString().slice(0,10), schlussrechnung:false, hash:hash, originalName:file.name });
     /* Ralf-Feedback 2026-07-30: bestehenden "Beleg"-Status im Kosten-Aufklapper (US-58, VERFUEGBAR)
        konsistent mitziehen, statt zwei getrennte, unsynchronisierte Beleg-Anzeigen zu haben. Gilt
        nur für Kostenarten – Sonstige Ausgaben (US-130) haben dieses Altfeld nicht. */
@@ -277,6 +280,48 @@ function belegSchlussrechnung(art, idx, belegIdx){
   store.toggleSchlussrechnung(art, idx, belegIdx);
   if(art==='ausgabe' && typeof renderAusgaben==='function') renderAusgaben();
   if(art==='kosten' && typeof renderKosten==='function') renderKosten();
+}
+/* Ralf-Feedback 2026-07-30: vorher bekam ein Beleg seinen Kürzel-Namen NUR einmalig beim Ablegen –
+   wurden Dienstleister/Betrag/Zurechnungsjahr DANACH ausgefüllt oder geändert, blieb der alte,
+   weniger aussagekräftige Name stehen. Diese Funktion benennt alle Belege einer Position auf den
+   aktuell zutreffenden Namen um (Datei lesen, unter neuem Namen schreiben, alte entfernen) und wird
+   aus den Feld-Änderungshandlern in view-kosten.js aufgerufen, sobald sich einer der drei Werte
+   ändert. Läuft still im Hintergrund; eine nicht mehr auffindbare Datei wird übersprungen statt
+   den Namen im State zu verwerfen (US-109-Muster: Datei-Ordner-Trennung bleibt tolerant). */
+async function belegNamenAktualisieren(art, idx){
+  if(!dokVerfuegbar()) return;
+  const pos = art==='kosten' ? store.kosten(idx) : store.ausgabe(idx);
+  if(!pos || !pos.belege || !pos.belege.length) return;
+  const basis = await _belegBasisVorhanden(); if(!basis) return;
+  const jahrAktuell = art==='ausgabe' ? (pos.zurechnungsjahr||objektJahr(snapshot())) : objektJahr(snapshot());
+  let geaendert=false;
+  for(let i=0;i<pos.belege.length;i++){
+    const beleg=pos.belege[i];
+    const altesJahr=beleg.jahr||jahrAktuell;
+    const neuerName=nkBelegDateiname({ zurechnungsjahr:jahrAktuell, laufendeNummer:pos.id, belegNr:i+1, dienstleister:pos.dienstleister||'', betrag:pos.betrag, originalName:beleg.originalName||beleg.dateiname });
+    if(neuerName===beleg.dateiname && altesJahr===jahrAktuell) continue; /* nichts zu tun */
+    try{
+      const altDir=await _dokOrdner(basis, nkBelegPfad(altesJahr), false);
+      const altFh=await altDir.getFileHandle(beleg.dateiname);
+      const datei=await altFh.getFile();
+      const neuDir=await _dokOrdner(basis, nkBelegPfad(jahrAktuell), true);
+      const neuFh=await neuDir.getFileHandle(neuerName,{create:true});
+      const w=await neuFh.createWritable(); await w.write(datei); await w.close();
+      if(!(neuerName===beleg.dateiname && altesJahr===jahrAktuell)) await altDir.removeEntry(beleg.dateiname).catch(()=>{});
+      beleg.dateiname=neuerName; beleg.jahr=jahrAktuell; geaendert=true;
+    }catch(e){ /* Datei extern verschoben/gelöscht - Name im State bewusst unangetastet lassen */ }
+  }
+  if(geaendert){ if(typeof scheduleSave==='function') scheduleSave();
+    if(art==='ausgabe' && typeof renderAusgaben==='function') renderAusgaben();
+    if(art==='kosten' && typeof renderKosten==='function') renderKosten(); }
+}
+/* Entprellt (600 ms), damit nicht jeder einzelne Tastenanschlag im Dienstleister-/Betragsfeld
+   sofort eine Datei-Umbenennung auf der Platte auslöst – erst wenn kurz Ruhe ist, wird umbenannt. */
+let _belegRenameTimer={};
+function belegNamenAktualisierenDebounced(art, idx){
+  const key=art+':'+idx;
+  clearTimeout(_belegRenameTimer[key]);
+  _belegRenameTimer[key]=setTimeout(function(){ belegNamenAktualisieren(art, idx); }, 600);
 }
 
 /* Ralf-Vorgabe 2026-07-08: JSON-Speicherstand ("Speichern unter") bei v2-Objekten als KIND des

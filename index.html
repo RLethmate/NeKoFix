@@ -604,10 +604,16 @@
      .tabelle-scroll faengt auf, wenn die Summe der festen Breiten (bei 7 Spalten) den verfügbaren
      Platz sprengt, statt Spalten unsichtbar aus dem Fenster laufen zu lassen. */
   .tabelle-scroll{overflow-x:auto;}
-  #tbl_ausgaben{min-width:820px;}
-  #tbl_ausgaben td.bez-col input,#tbl_ausgaben td:nth-child(3) input{width:100%;}
+  /* Ralf-Feedback 2026-07-30: unter table-layout:auto (Standard) konnte ein langer Beleg-Chip in
+     einer anderen Zeile die Betrag-Spalte zusammendrücken, obwohl ihr eine feste Breite zugewiesen
+     war – table-layout:fixed haelt die Spaltenbreiten unabhaengig vom Inhalt anderer Zellen ein. */
+  #tbl_ausgaben{min-width:900px;width:100%;table-layout:fixed;}
+  #tbl_ausgaben th{overflow-wrap:break-word;}
+  /* Ralf-Feedback 2026-07-30: Betragsfeld war trotz Spaltenbreite zu kurz (kein width:100% auf dem
+     Input selbst) – jetzt wie Bezeichnung/Dienstleister behandelt, Spalte zusätzlich verbreitert. */
+  #tbl_ausgaben td.bez-col input,#tbl_ausgaben td:nth-child(2) input,#tbl_ausgaben td:nth-child(3) input{width:100%;}
   #tbl_ausgaben td:nth-child(1),#tbl_ausgaben th:nth-child(1){min-width:140px;}
-  #tbl_ausgaben td:nth-child(2),#tbl_ausgaben th:nth-child(2){width:95px;}
+  #tbl_ausgaben td:nth-child(2),#tbl_ausgaben th:nth-child(2){width:140px;}
   #tbl_ausgaben td:nth-child(3),#tbl_ausgaben th:nth-child(3){width:130px;}
   #tbl_ausgaben td:nth-child(4),#tbl_ausgaben th:nth-child(4){width:115px;}
   #tbl_ausgaben td:nth-child(5),#tbl_ausgaben th:nth-child(5){width:70px;}
@@ -1084,7 +1090,7 @@
            unsichtbar aus dem Fenster laufen zu lassen. -->
       <div class="tabelle-scroll">
       <table id="tbl_ausgaben">
-        <thead><tr><th>Bezeichnung</th><th class="num">Betrag</th><th>Dienstleister</th><th>Belegdatum</th><th>Zurechnungsjahr</th><th>Beleg</th><th></th></tr></thead>
+        <thead><tr><th>Bezeichnung</th><th class="num">Betrag</th><th>Dienstleister</th><th>Belegdatum</th><th title="Zurechnungsjahr (Steuerjahr)">Jahr</th><th>Beleg</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
       </div>

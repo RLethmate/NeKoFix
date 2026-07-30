@@ -1553,14 +1553,20 @@ test("nkAusgabeNeu / nkAusgabeJahrVorschlag: Vorbelegung Sonstige Ausgaben (US-1
 test("nkBelegPfad / nkBelegDateiname: Ordnerzweig und Kürzel-Umbenennung (US-131)", () => {
   assert.deepEqual(calc.nkBelegPfad("2025"), ["Belege", "2025"]);
   assert.deepEqual(calc.nkBelegPfad(""), ["Belege", "ohne Jahr"]);
-  assert.equal(calc.nkBelegDateiname("2025", 14, 1, "Viessmann", "Rechnung.pdf"), "25-14_Viessmann.pdf");
-  assert.equal(calc.nkBelegDateiname("2025", 14, 1, "Viessmann", "Rechnung.PDF"), "25-14_Viessmann.pdf"); // Endung klein
-  assert.equal(calc.nkBelegDateiname("2025", 14, 1, "", "scan.jpg"), "25-14.jpg");                        // kein Dienstleister -> nur Jahr-Nummer
-  assert.equal(calc.nkBelegDateiname("2026", 3, 1, "Heiztechnik/Müller GmbH", "x.pdf"), "26-3_Heiztechnik_Müller GmbH.pdf"); // Schrägstrich ersetzt (nkDokSegment)
+  assert.equal(calc.nkBelegDateiname({ zurechnungsjahr: "2025", laufendeNummer: 14, belegNr: 1, dienstleister: "Viessmann", betrag: 1200, originalName: "Rechnung.pdf" }), "25-14_Viessmann_1.200,00.pdf");
+  assert.equal(calc.nkBelegDateiname({ zurechnungsjahr: "2025", laufendeNummer: 14, belegNr: 1, dienstleister: "Viessmann", betrag: 1200, originalName: "Rechnung.PDF" }), "25-14_Viessmann_1.200,00.pdf"); // Endung klein
+  // kein Dienstleister -> ersatzweise der bereinigte Original-Dateiname als Vorbelegung (Ralf-Feedback 2026-07-30)
+  assert.equal(calc.nkBelegDateiname({ zurechnungsjahr: "2025", laufendeNummer: 14, belegNr: 1, dienstleister: "", betrag: 0, originalName: "Rechnung_Elektro_Hansen.jpg" }), "25-14_Rechnung Elektro Hansen_0,00.jpg");
+  // weder Dienstleister noch Originalname -> nur Jahr-Nummer(+Betrag)
+  assert.equal(calc.nkBelegDateiname({ zurechnungsjahr: "2025", laufendeNummer: 14, belegNr: 1, dienstleister: "", betrag: 0, originalName: "" }), "25-14_0,00");
+  assert.equal(calc.nkBelegDateiname({ zurechnungsjahr: "2026", laufendeNummer: 3, belegNr: 1, dienstleister: "Heiztechnik/Müller GmbH", betrag: 500, originalName: "x.pdf" }), "26-3_Heiztechnik_Müller GmbH_500,00.pdf"); // Schrägstrich ersetzt (nkDokSegment)
   // Mehrere Belege an derselben Position: ab der zweiten Belegnummer eindeutige Namen (Kollisions-Fix)
-  assert.equal(calc.nkBelegDateiname("2025", 16, 1, "Müller GmbH", "abschlag.pdf"), "25-16_Müller GmbH.pdf");
-  assert.equal(calc.nkBelegDateiname("2025", 16, 2, "Müller GmbH", "schluss.pdf"), "25-16-2_Müller GmbH.pdf");
-  assert.notEqual(calc.nkBelegDateiname("2025", 16, 1, "Müller GmbH", "abschlag.pdf"), calc.nkBelegDateiname("2025", 16, 2, "Müller GmbH", "schluss.pdf"));
+  assert.equal(calc.nkBelegDateiname({ zurechnungsjahr: "2025", laufendeNummer: 16, belegNr: 1, dienstleister: "Müller GmbH", betrag: 12000, originalName: "abschlag.pdf" }), "25-16_Müller GmbH_12.000,00.pdf");
+  assert.equal(calc.nkBelegDateiname({ zurechnungsjahr: "2025", laufendeNummer: 16, belegNr: 2, dienstleister: "Müller GmbH", betrag: 10000, originalName: "schluss.pdf" }), "25-16-2_Müller GmbH_10.000,00.pdf");
+  assert.notEqual(
+    calc.nkBelegDateiname({ zurechnungsjahr: "2025", laufendeNummer: 16, belegNr: 1, dienstleister: "Müller GmbH", betrag: 12000, originalName: "abschlag.pdf" }),
+    calc.nkBelegDateiname({ zurechnungsjahr: "2025", laufendeNummer: 16, belegNr: 2, dienstleister: "Müller GmbH", betrag: 10000, originalName: "schluss.pdf" })
+  );
 });
 test("nkBelegStatus: kein Beleg / ein Beleg reicht / mehrere brauchen die Schlussrechnung (US-131)", () => {
   assert.equal(calc.nkBelegStatus([]), "kein_beleg");

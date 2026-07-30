@@ -300,8 +300,8 @@ const APP_MAJOR="0";
    läuft dieser Schritt nie. Damit sich beim lokalen Testen sofort erkennen lässt, welcher Branch/
    Stand gerade offen ist (statt eines immer gleichen Platzhalters), hier den Branch-/Story-Namen
    + heutiges Datum eintragen, sobald ein Stand zum lokalen Testen ansteht. */
-const APP_VERSION="v-0.0.0 (lokal: kano-begeisterungsfeatures)";
-const BUILD_DATE="2026-07-16";
+const APP_VERSION="v-0.0.0 (lokal: us-131-belege-drag-drop)";
+const BUILD_DATE="2026-07-30";
 function toggleDateiMenu(forceClose){ const m=document.getElementById('datei_menu'); if(!m) return; m.hidden = forceClose ? true : !m.hidden; const s=document.getElementById('mru_sub'); if(s) s.hidden=true; /* US-91: Submenü „Zuletzt verwendet" beim Öffnen/Schließen zurücksetzen */ }
 document.addEventListener('click', e=>{ const m=document.getElementById('datei_menu'); if(m && !m.hidden && !e.target.closest('.menu')){ m.hidden=true; const s=document.getElementById('mru_sub'); if(s) s.hidden=true; } });
 

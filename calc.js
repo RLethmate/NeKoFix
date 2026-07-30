@@ -1153,20 +1153,27 @@ function nkBelegPfad(zurechnungsjahr) {
   return ["Belege", nkDokSegment(zurechnungsjahr || "ohne Jahr")];
 }
 /* US-131: Dateiname-Kürzel beim Ablegen eines Belegs:
-   "<Zurechnungsjahr zweistellig>-<laufende Nummer>[-<Belegnummer>]_<Dienstleister><Original-
+   "<Zurechnungsjahr zweistellig>-<laufende Nummer>[-<Belegnummer>]_<Label>_<Betrag><Original-
    Endung>". Die laufende Nummer ist die stabile Positions-ID (Kostenart oder Ausgabe, s. ensureIds
-   in core.js) und verweist eindeutig auf die zugehörige Zeile zurück; der Dienstleister ist ein
-   optionales Freitextfeld (leer -> nur Jahr-Nummer). belegNr (1-basiert, 1 = der/die erste Beleg
-   dieser Position) macht den Namen bei MEHREREN Belegen an derselben Position (Teilzahlungen)
-   eindeutig – ohne sie würden zwei Belege derselben Position denselben Dateinamen erhalten und
-   sich auf der Platte gegenseitig überschreiben (Fund aus der Verifikation: bei belegNr 1 bleibt
-   der Name unverändert kurz, ab 2 kommt "-<belegNr>" dazu). Reine Funktion. */
-function nkBelegDateiname(zurechnungsjahr, laufendeNummer, belegNr, dienstleister, originalName) {
-  const jj = String(zurechnungsjahr || "").slice(-2).padStart(2, "0");
-  const ext = (String(originalName || "").match(/\.[^.]+$/) || [""])[0].toLowerCase();
-  const dl = nkDokSegment(dienstleister || "");
-  const nr = (+belegNr || 1) > 1 ? ("-" + (+belegNr || 1)) : "";
-  const kern = jj + "-" + (laufendeNummer || 0) + nr + (dl !== "_" ? ("_" + dl) : "");
+   in core.js) und verweist eindeutig auf die zugehörige Zeile zurück. "Label" ist der
+   Dienstleister – ist der (noch) leer, wird ersatzweise der bereinigte ORIGINAL-Dateiname
+   verwendet (Ralf-Feedback 2026-07-30: "aus dem Originalnamen eine Vorbelegung"), statt den Namen
+   ganz ohne jeden Wiedererkennungswert zu lassen. Der Betrag steht mit im Namen, damit er sich
+   ohne Öffnen der Datei nachvollziehen lässt (Ralf-Feedback 2026-07-30). belegNr (1-basiert, 1 =
+   der/die erste Beleg dieser Position) macht den Namen bei MEHREREN Belegen an derselben Position
+   (Teilzahlungen) eindeutig – ohne sie würden zwei Belege derselben Position denselben Dateinamen
+   erhalten und sich auf der Platte gegenseitig überschreiben (Fund aus der Verifikation: bei
+   belegNr 1 bleibt der Name unverändert kurz, ab 2 kommt "-<belegNr>" dazu). Objekt-Parameter statt
+   langer Positionsliste, da die Funktion inzwischen recht viele Eingaben hat. Reine Funktion. */
+function nkBelegDateiname(opts) {
+  opts = opts || {};
+  const jj = String(opts.zurechnungsjahr || "").slice(-2).padStart(2, "0");
+  const ext = (String(opts.originalName || "").match(/\.[^.]+$/) || [""])[0].toLowerCase();
+  const label = opts.dienstleister || nkDateiTitelVorschlag(opts.originalName);
+  const dl = nkDokSegment(label);
+  const nr = (+opts.belegNr || 1) > 1 ? ("-" + (+opts.belegNr || 1)) : "";
+  const betragTeil = (opts.betrag != null && isFinite(+opts.betrag)) ? ("_" + nkFmtBetrag(+opts.betrag)) : "";
+  const kern = jj + "-" + (opts.laufendeNummer || 0) + nr + (dl !== "_" ? ("_" + dl) : "") + betragTeil;
   return kern + ext;
 }
 /* US-131: Beleg-Vollständigkeitsstatus einer Position aus ihrer Beleg-Liste
