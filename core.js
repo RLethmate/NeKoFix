@@ -135,7 +135,12 @@ const store = {
   addAusgabePos(pos){ if(!state.ausgaben) state.ausgaben=[]; state.ausgaben.push(pos); commit(); },
   removeAusgabe(idx){ state.ausgaben.splice(idx,1); commit(); },
   setAusgabeFeld(idx,field,val){ state.ausgaben[idx][field]=val; commit(); },
-  setAusgabeBetrag(idx,val){ state.ausgaben[idx].betrag=+val||0; commit(); }
+  setAusgabeBetrag(idx,val){ state.ausgaben[idx].betrag=+val||0; commit(); },
+  // Belege (US-131): art='kosten'|'ausgabe' – dieselbe kleine API für beide Positionsarten.
+  _belegListe(art,idx){ const pos=art==='kosten'?state.kosten[idx]:state.ausgaben[idx]; if(!pos) return null; if(!pos.belege) pos.belege=[]; return pos; },
+  addBeleg(art,idx,beleg){ const pos=this._belegListe(art,idx); if(!pos) return; pos.belege.push(beleg); commit(); },
+  removeBeleg(art,idx,belegIdx){ const pos=this._belegListe(art,idx); if(!pos) return; pos.belege.splice(belegIdx,1); commit(); },
+  toggleSchlussrechnung(art,idx,belegIdx){ const pos=this._belegListe(art,idx); if(!pos||!pos.belege[belegIdx]) return; pos.belege[belegIdx].schlussrechnung=!pos.belege[belegIdx].schlussrechnung; commit(); }
 };
 /* US-89: beim ersten Rubriken-Eingriff materialisieren – die effektive Liste am Objekt festschreiben
    und jede Position auf ihre aktuelle (vorgeschlagene) Rubrik festlegen, damit Umbenennen/Umordnen

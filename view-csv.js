@@ -70,7 +70,7 @@ function uebernehmeUmsaetze(){
   let markiert=0;
   plan.kosten.forEach(k=>{
     let idx=state.kosten.findIndex(x=>String(x.bez||'').trim()===k.bez);
-    if(idx<0){ store.addKosten(k.bez); idx=state.kosten.findIndex(x=>String(x.bez||'').trim()===k.bez); }
+    if(idx<0){ store.addKosten(k.bez); idx=state.kosten.findIndex(x=>String(x.bez||'').trim()===k.bez); if(idx>=0) store.setKostenFeld(idx,'herkunft','csv'); /* US-131: Herkunfts-Badge nur für neu angelegte, nicht bei Aufaddieren auf eine manuell angelegte Position */ }
     if(idx>=0){ const alt=+state.kosten[idx].betrag||0; store.setKostenBetrag(idx, alt+k.summe);
       if(alt>0){ store.setKostenVorschlagFeld(idx,'betrag',true); markiert++; } }
   });

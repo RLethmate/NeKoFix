@@ -1145,6 +1145,63 @@ function nkAusgabeJahrVorschlag(datum, fallbackJahr) {
   return m ? m[1] : (fallbackJahr || "");
 }
 
+/* US-131: Ordnerpfad-Segmente für Belege – eigener Zweig "Belege/<Zurechnungsjahr>" im
+   Objekt-Stammordner (US-109/docs.js), UNABHÄNGIG vom bestehenden Einheit/Mieter/Jahr-Zweig
+   (nkDokPfadObjekt) – eine Heizöl-Rechnung oder Investition gehört keinem einzelnen Mieter,
+   sondern dem Objekt als Ganzem. Reine Funktion. */
+function nkBelegPfad(zurechnungsjahr) {
+  return ["Belege", nkDokSegment(zurechnungsjahr || "ohne Jahr")];
+}
+/* US-131: Dateiname-Kürzel beim Ablegen eines Belegs:
+   "<Zurechnungsjahr zweistellig>-<laufende Nummer>[-<Belegnummer>]_<Dienstleister><Original-
+   Endung>". Die laufende Nummer ist die stabile Positions-ID (Kostenart oder Ausgabe, s. ensureIds
+   in core.js) und verweist eindeutig auf die zugehörige Zeile zurück; der Dienstleister ist ein
+   optionales Freitextfeld (leer -> nur Jahr-Nummer). belegNr (1-basiert, 1 = der/die erste Beleg
+   dieser Position) macht den Namen bei MEHREREN Belegen an derselben Position (Teilzahlungen)
+   eindeutig – ohne sie würden zwei Belege derselben Position denselben Dateinamen erhalten und
+   sich auf der Platte gegenseitig überschreiben (Fund aus der Verifikation: bei belegNr 1 bleibt
+   der Name unverändert kurz, ab 2 kommt "-<belegNr>" dazu). Reine Funktion. */
+function nkBelegDateiname(zurechnungsjahr, laufendeNummer, belegNr, dienstleister, originalName) {
+  const jj = String(zurechnungsjahr || "").slice(-2).padStart(2, "0");
+  const ext = (String(originalName || "").match(/\.[^.]+$/) || [""])[0].toLowerCase();
+  const dl = nkDokSegment(dienstleister || "");
+  const nr = (+belegNr || 1) > 1 ? ("-" + (+belegNr || 1)) : "";
+  const kern = jj + "-" + (laufendeNummer || 0) + nr + (dl !== "_" ? ("_" + dl) : "");
+  return kern + ext;
+}
+/* US-131: Beleg-Vollständigkeitsstatus einer Position aus ihrer Beleg-Liste
+   (belege:[{schlussrechnung:boolean, ...}]). Ohne Beleg -> "kein_beleg". Mit genau einem Beleg
+   reicht das bereits als Nachweis (der Normalfall: eine Rechnung, keine Teilzahlungen) ->
+   "vollstaendig". Bei mehreren Belegen (Teilzahlungen) erst "vollstaendig", wenn einer davon
+   explizit als Schlussrechnung markiert ist – sonst "unvollstaendig" (Ralf-Vorgabe 2026-07-30:
+   die Schlussrechnung allein reicht als Nachweis, keine Summen-Logik nötig). Reine Funktion. */
+function nkBelegStatus(belege) {
+  const liste = Array.isArray(belege) ? belege : [];
+  if (!liste.length) return "kein_beleg";
+  if (liste.length === 1) return "vollstaendig";
+  return liste.some(b => b && b.schlussrechnung) ? "vollstaendig" : "unvollstaendig";
+}
+/* US-131: sammelt alle beleg-pflichtigen Positionen (Kostenarten + Sonstige Ausgaben aus US-130)
+   für die Checklisten-Übersicht. Heizblöcke (k.typ==="heizung") werden ausgeschlossen – sie haben
+   ihre eigene Pflege im Reiter "Heizung" (s. view-kosten.js appendHeizHinweisRow) und werden dort
+   künftig separat beleg-geführt. Reine Funktion. */
+function nkBelegChecklist(kosten, ausgaben) {
+  const kostenItems = (kosten || []).filter(k => k.typ !== "heizung").map(k => ({
+    id: k.id, art: "kosten", bez: k.bez, betrag: k.betrag,
+    status: nkBelegStatus(k.belege), herkunft: k.herkunft || "manuell",
+  }));
+  const ausgabenItems = (ausgaben || []).map(a => ({
+    id: a.id, art: "ausgabe", bez: a.bez, betrag: a.betrag,
+    status: nkBelegStatus(a.belege), herkunft: a.herkunft || "manuell",
+  }));
+  return kostenItems.concat(ausgabenItems);
+}
+/* US-131: Fortschritt "X von Y vollständig belegt" für die Checklisten-Übersicht. Reine Funktion. */
+function nkBelegFortschritt(items) {
+  const liste = Array.isArray(items) ? items : [];
+  return { gesamt: liste.length, fertig: liste.filter(i => i.status === "vollstaendig").length };
+}
+
 /* US-104: prozentuale Veränderung neu ggü. alt (Vorjahr), auf eine Nachkommastelle gerundet.
    Liefert null, wenn alt nicht endlich oder 0 ist (kein sinnvoller Bezug). Reine Funktion (Tests). */
 function nkProzentDelta(neu, alt) {
@@ -1401,7 +1458,7 @@ function nkImportPlan(buchungen, regeln, opts) {
       fps.push(fp);
     } else if (ziel.art === "ausgabe") {
       if (schon) return;
-      ausgaben.push({ bez: b.name || b.zweck || "Sonstige Ausgabe", betrag: Math.abs(+b.betrag || 0), datum: b.datum || "", zurechnungsjahr: nkAusgabeJahrVorschlag(b.datum, opts.objektJahr) });
+      ausgaben.push({ bez: b.name || b.zweck || "Sonstige Ausgabe", betrag: Math.abs(+b.betrag || 0), datum: b.datum || "", zurechnungsjahr: nkAusgabeJahrVorschlag(b.datum, opts.objektJahr), herkunft: "csv" });
       fps.push(fp);
     }
   });
@@ -2049,5 +2106,10 @@ if (typeof module !== "undefined" && module.exports) {
     nkTechemGebaeudeAbweichung,
     nkAusgabeNeu,
     nkAusgabeJahrVorschlag,
+    nkBelegPfad,
+    nkBelegDateiname,
+    nkBelegStatus,
+    nkBelegChecklist,
+    nkBelegFortschritt,
   };
 }

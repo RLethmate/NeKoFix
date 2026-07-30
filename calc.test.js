@@ -1495,7 +1495,7 @@ test("nkImportPlan: Sonstige Ausgaben (nicht umlagefähig) einzeln übernommen, 
   const plan = calc.nkImportPlan(bs, regeln, { kostenBez: [], gesehen: [], objektJahr: "2025" });
   assert.equal(plan.kosten.length, 0);
   assert.equal(plan.ausgaben.length, 2);
-  assert.deepEqual(plan.ausgaben[0], { bez: "Heiztechnik Müller GmbH", betrag: 8500, datum: "2025-12-03", zurechnungsjahr: "2025" });
+  assert.deepEqual(plan.ausgaben[0], { bez: "Heiztechnik Müller GmbH", betrag: 8500, datum: "2025-12-03", zurechnungsjahr: "2025", herkunft: "csv" });
   // Zurechnungsjahr folgt dem Belegdatum, nicht dem übergebenen objektJahr-Fallback
   assert.equal(plan.ausgaben[1].zurechnungsjahr, "2026");
   assert.equal(plan.fingerprints.length, 2);
@@ -1509,6 +1509,44 @@ test("nkAusgabeNeu / nkAusgabeJahrVorschlag: Vorbelegung Sonstige Ausgaben (US-1
   assert.equal(calc.nkAusgabeJahrVorschlag("2026-01-14", "2025"), "2026"); // Belegdatum hat Vorrang
   assert.equal(calc.nkAusgabeJahrVorschlag("", "2025"), "2025");          // kein Datum -> Fallback
   assert.equal(calc.nkAusgabeJahrVorschlag("", ""), "");
+});
+test("nkBelegPfad / nkBelegDateiname: Ordnerzweig und Kürzel-Umbenennung (US-131)", () => {
+  assert.deepEqual(calc.nkBelegPfad("2025"), ["Belege", "2025"]);
+  assert.deepEqual(calc.nkBelegPfad(""), ["Belege", "ohne Jahr"]);
+  assert.equal(calc.nkBelegDateiname("2025", 14, 1, "Viessmann", "Rechnung.pdf"), "25-14_Viessmann.pdf");
+  assert.equal(calc.nkBelegDateiname("2025", 14, 1, "Viessmann", "Rechnung.PDF"), "25-14_Viessmann.pdf"); // Endung klein
+  assert.equal(calc.nkBelegDateiname("2025", 14, 1, "", "scan.jpg"), "25-14.jpg");                        // kein Dienstleister -> nur Jahr-Nummer
+  assert.equal(calc.nkBelegDateiname("2026", 3, 1, "Heiztechnik/Müller GmbH", "x.pdf"), "26-3_Heiztechnik_Müller GmbH.pdf"); // Schrägstrich ersetzt (nkDokSegment)
+  // Mehrere Belege an derselben Position: ab der zweiten Belegnummer eindeutige Namen (Kollisions-Fix)
+  assert.equal(calc.nkBelegDateiname("2025", 16, 1, "Müller GmbH", "abschlag.pdf"), "25-16_Müller GmbH.pdf");
+  assert.equal(calc.nkBelegDateiname("2025", 16, 2, "Müller GmbH", "schluss.pdf"), "25-16-2_Müller GmbH.pdf");
+  assert.notEqual(calc.nkBelegDateiname("2025", 16, 1, "Müller GmbH", "abschlag.pdf"), calc.nkBelegDateiname("2025", 16, 2, "Müller GmbH", "schluss.pdf"));
+});
+test("nkBelegStatus: kein Beleg / ein Beleg reicht / mehrere brauchen die Schlussrechnung (US-131)", () => {
+  assert.equal(calc.nkBelegStatus([]), "kein_beleg");
+  assert.equal(calc.nkBelegStatus(undefined), "kein_beleg");
+  assert.equal(calc.nkBelegStatus([{ dateiname: "25-1_Foo.pdf" }]), "vollstaendig"); // ein Beleg genügt
+  assert.equal(calc.nkBelegStatus([{ dateiname: "a.pdf" }, { dateiname: "b.pdf" }]), "unvollstaendig"); // Teilzahlungen ohne Schlussrechnung
+  assert.equal(calc.nkBelegStatus([{ dateiname: "a.pdf" }, { dateiname: "b.pdf", schlussrechnung: true }]), "vollstaendig");
+});
+test("nkBelegChecklist / nkBelegFortschritt: Kosten + Ausgaben zusammengeführt, Heizblöcke ausgeschlossen (US-131)", () => {
+  const kosten = [
+    { id: 1, bez: "Grundsteuer", betrag: 1200, belege: [{ dateiname: "x" }] },
+    { id: 2, bez: "Wasser", betrag: 800 }, // kein Beleg
+    { id: 3, bez: "Heizung (Erdgas)", typ: "heizung", betrag: 3600, belege: [{ dateiname: "x" }] }, // ausgeschlossen
+  ];
+  const ausgaben = [
+    { id: 10, bez: "Wärmepumpe", betrag: 8500, herkunft: "csv", belege: [{ dateiname: "a" }, { dateiname: "b" }] },
+  ];
+  const items = calc.nkBelegChecklist(kosten, ausgaben);
+  assert.equal(items.length, 3); // Heizblock nicht dabei
+  assert.deepEqual(items.map(i => i.art), ["kosten", "kosten", "ausgabe"]);
+  assert.equal(items[0].status, "vollstaendig");
+  assert.equal(items[0].herkunft, "manuell"); // kein Feld gesetzt -> Default
+  assert.equal(items[1].status, "kein_beleg");
+  assert.equal(items[2].status, "unvollstaendig"); // 2 Belege, keine Schlussrechnung markiert
+  assert.equal(items[2].herkunft, "csv");
+  assert.deepEqual(calc.nkBelegFortschritt(items), { gesamt: 3, fertig: 1 });
 });
 test("nkArrMove: Element verschieben ohne Mutation (US-89)", () => {
   const a = ["A", "B", "C", "D"];

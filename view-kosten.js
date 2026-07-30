@@ -44,7 +44,7 @@ function renderKosten(){
     const ausNamen=nkAusschlussNamen(k, state.einheiten);
     const tr=document.createElement('tr'); tr.id='krow-'+idx; if(k.vorjahr) tr.className='vorjahr';
     tr.innerHTML=
-      '<td class="bez-col"><div class="bez-wrap"><span class="drag-grip" draggable="true" ondragstart="kostenDragStart(event,'+k.id+')" title="Ziehen zum Verschieben (Rubrik &amp; Reihenfolge)">⠿</span><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+'</span></div></td>'+
+      '<td class="bez-col"><div class="bez-wrap"><span class="drag-grip" draggable="true" ondragstart="kostenDragStart(event,'+k.id+')" title="Ziehen zum Verschieben (Rubrik &amp; Reihenfolge)">⠿</span><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+herkunftBadgeHtml(k)+'</span></div></td>'+
       betragCellHtml(k,idx)+
       '<td><span class="schluessel-cell"><span class="feld-wrap'+((k.vorschlag&&k.vorschlag.schluessel)?' unbestaetigt':'')+'" id="kv-schluessel-wrap-'+idx+'"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug). „Direkt" ordnet die Position einer einzelnen Einheit zu 100 % zu." onchange="setSchluessel('+idx+',this.value)">'+opts+'</select>'+((k.vorschlag&&k.vorschlag.schluessel)?'<button type="button" class="vorschlag-tri" title="Verteilerschlüssel aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder ändern)" onclick="kostenSchluesselVorschlagUebernehmen('+idx+')"></button>':'')+'</span><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button>'+
         (k.schluessel==='direkt'
@@ -77,6 +77,7 @@ function renderKosten(){
         '</select></label>'+
         '<label title="Begünstigter Arbeits-/Lohnanteil inkl. USt (ohne Material)">davon Arbeitskosten <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.arbeitskosten||0)+' €" onchange="updKostenArbeit('+idx+',this.value)"></label>'+
         '<label class="notiz-field">Notiz <input value="'+esc(k.notiz)+'" oninput="store.setKostenFeld('+idx+',\'notiz\',this.value)" placeholder="z. B. Zähler defekt, Belegquelle, …"></label>'+
+        '<label class="notiz-field">Beleg '+belegSpalteHtml('kosten', idx, k)+'</label>'+
       '</div>'+
       (k.schluessel==='direkt' ? '' :
        '<div class="teilnahme"><span class="teilnahme-lbl">Teilnehmende Einheiten:</span> '+
@@ -163,6 +164,7 @@ function renderKosten(){
   renderPicker();
   renderKostenTitel(); /* US-59: Titel-Suffix „aus Vorjahr …" konsistent mitführen */
   renderAusgaben(); /* US-130: eigener Bereich „Sonstige Ausgaben", getrennt von der Kosten-Liste */
+  renderBelegUebersicht(); /* US-131: Checklisten-Übersicht über alle beleg-pflichtigen Positionen */
 }
 /* US-89-Schliff: Rubrik-Auswahl als Combobox (analog „Kostenart wählen …"). Das Dropdown listet die
    typischen, noch nicht angelegten Rubriken (Klick legt an); im Fuß eine „Eigene …". Sortieren/
@@ -281,6 +283,39 @@ function deleteKostenRow(idx){ store.removeKosten(idx); renderKosten(); }
 function applyKostenart(idx, val){ store.setKostenart(idx,val); renderKosten(); }
 function resetSchluessel(idx){ store.resetKostenSchluessel(idx); renderKosten(); }
 
+/* US-131: kleines Herkunfts-Badge (manuell bleibt unmarkiert, um die häufigste Herkunft nicht
+   optisch aufzublähen) – für Kosten- und Ausgaben-Zeilen gleichermaßen. */
+const HERKUNFT_LABEL = { csv: "CSV-Import", beleg: "aus Beleg" };
+function herkunftBadgeHtml(pos){
+  const lbl = HERKUNFT_LABEL[pos.herkunft];
+  return lbl ? ' <span class="herkunft-badge" title="Herkunft dieser Position">'+esc(lbl)+'</span>' : '';
+}
+/* US-131: Dropzone + Beleg-Chips einer Position (Kosten oder Sonstige Ausgabe). Drag & Drop UND
+   Klick-Auswahl lösen dieselbe Übernahme aus (belegDrop/belegAuswaehlen in docs.js); die
+   Chip-Liste kommt direkt aus dem State (pos.belege), kein separates Nachladen vom Dateisystem
+   nötig. Bei mehreren Belegen (Teilzahlungen) kann einer als Schlussrechnung markiert werden –
+   bei genau einem Beleg reicht der bereits als Nachweis (s. nkBelegStatus). */
+function belegSpalteHtml(art, idx, pos){
+  if(!(typeof dokVerfuegbar==='function' && dokVerfuegbar())) return '<span class="hint">Nur in Chrome/Edge/Brave verfügbar.</span>';
+  const belege = pos.belege||[];
+  const chips = belege.map((b,bi)=>{
+    const mehrere = belege.length>1;
+    const sr = mehrere
+      ? (b.schlussrechnung
+          ? ' <b class="sr-marker" title="Als Schlussrechnung markiert">Schlussrechnung</b>'
+          : ' <button type="button" class="linklike" onclick="belegSchlussrechnung(\''+art+'\','+idx+','+bi+')">als Schlussrechnung markieren</button>')
+      : '';
+    return '<span class="dok-chip">'+esc(b.dateiname)+
+      ' <button type="button" class="linklike" onclick="belegOeffnen(\''+art+'\','+idx+','+bi+')">öffnen</button>'+sr+
+      ' <button type="button" class="row-del" title="Beleg löschen" onclick="belegLoeschen(\''+art+'\','+idx+','+bi+')">×</button></span>';
+  }).join('');
+  const status = nkBelegStatus(belege);
+  const label = status==='kein_beleg' ? 'Beleg ablegen' : (status==='unvollstaendig' ? 'unvollständig' : 'vollständig');
+  return '<div class="beleg-drop" title="Beleg hierher ziehen oder klicken zum Auswählen" '+
+      'ondragover="event.preventDefault();this.classList.add(\'drag-over\')" ondragleave="this.classList.remove(\'drag-over\')" '+
+      'ondrop="belegDrop(\''+art+'\','+idx+',event)" onclick="belegAuswaehlen(\''+art+'\','+idx+')">'+esc(label)+'</div>'+
+    (chips?'<div class="beleg-chips">'+chips+'</div>':'');
+}
 /* US-130: „Sonstige Ausgaben (nicht umlagefähig)" – eigener, von der Kosten-Liste getrennter
    Bereich im selben Reiter. Diese Positionen fließen NICHT in nkObjektAbrechnung ein, sie dienen
    nur der Dokumentation für die Steuererklärung des Vermieters. */
@@ -293,13 +328,14 @@ function renderAusgaben(){
     const jahrAbweichend = !!(jahrVorschlag && String(a.zurechnungsjahr||'')!==jahrVorschlag);
     const tr=document.createElement('tr');
     tr.innerHTML=
-      '<td><input value="'+esc(a.bez)+'" placeholder="z. B. Wärmepumpe" oninput="updAusgabeFeld('+idx+',\'bez\',this.value)"></td>'+
+      '<td><input value="'+esc(a.bez)+'" placeholder="z. B. Wärmepumpe" oninput="updAusgabeFeld('+idx+',\'bez\',this.value)">'+herkunftBadgeHtml(a)+'</td>'+
       '<td><input value="'+esc(a.dienstleister||'')+'" placeholder="Dienstleister" oninput="updAusgabeFeld('+idx+',\'dienstleister\',this.value)"></td>'+
       '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(a.betrag)+' €" oninput="updAusgabeBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'"></td>'+
       '<td><input type="date" value="'+esc(a.datum||'')+'" onchange="updAusgabeDatum('+idx+',this.value)"></td>'+
       '<td><span class="feld-wrap"><input class="short" type="text" inputmode="numeric" style="max-width:64px" title="Zurechnungsjahr (Steuerjahr) – bei Rechnungen nahe dem Jahreswechsel ggf. mit dem Steuerberater abstimmen" value="'+esc(a.zurechnungsjahr||'')+'" onchange="updAusgabeJahr('+idx+',this.value)"></span>'+
         (jahrAbweichend?' <button type="button" class="reset-btn" title="Auf Jahr aus dem Belegdatum ('+esc(jahrVorschlag)+') zurücksetzen" onclick="resetAusgabeJahr('+idx+')">↺</button>':'')+
       '</td>'+
+      '<td>'+belegSpalteHtml('ausgabe', idx, a)+'</td>'+
       '<td class="act-col"><button class="row-del" title="Position entfernen" onclick="deleteAusgabeRow('+idx+')">×</button></td>';
     tb.appendChild(tr);
   });
@@ -318,4 +354,28 @@ function updAusgabeDatum(idx,val){
 }
 function updAusgabeJahr(idx,val){ store.setAusgabeFeld(idx,'zurechnungsjahr', val); renderAusgaben(); }
 function resetAusgabeJahr(idx){ const a=state.ausgaben[idx]; store.setAusgabeFeld(idx,'zurechnungsjahr', nkAusgabeJahrVorschlag(a.datum, objektJahr(snapshot()))); renderAusgaben(); }
+
+/* US-131: Checklisten-Übersicht über alle beleg-pflichtigen Positionen (Kosten + Sonstige
+   Ausgaben), mit Fortschritt "X von Y vollständig belegt" und Filter offen/vollständig. Rein
+   informativ – kein eigener State-Schreibzugriff, nur Anzeige der bereits an den Positionen
+   gepflegten Belege. */
+const BELEG_STATUS_LABEL = { kein_beleg: "kein Beleg", unvollstaendig: "unvollständig", vollstaendig: "vollständig belegt" };
+function setBelegFilter(v){ ui.belegFilter=v; renderBelegUebersicht(); }
+function renderBelegUebersicht(){
+  const items = nkBelegChecklist(state.kosten, state.ausgaben);
+  const fortschritt = nkBelegFortschritt(items);
+  const fEl=document.getElementById('beleg_uebersicht_fortschritt');
+  if(fEl) fEl.textContent = fortschritt.gesamt ? ' — '+fortschritt.fertig+' von '+fortschritt.gesamt+' vollständig belegt' : '';
+  const box=document.getElementById('beleg_uebersicht_inhalt'); if(!box) return;
+  const filter = ui.belegFilter || 'alle';
+  const sichtbar = items.filter(i => filter==='alle' || (filter==='offen' ? i.status!=='vollstaendig' : i.status==='vollstaendig'));
+  const filterZeile = '<p class="filter-toggle">'+
+    ['alle','offen','vollstaendig'].map(f=>'<button type="button" class="linklike'+(filter===f?'':'')+'" style="font-weight:'+(filter===f?'700':'400')+'" onclick="setBelegFilter(\''+f+'\')">'+(f==='alle'?'Alle':f==='offen'?'Offen':'Vollständig')+'</button>').join(' · ')+
+    '</p>';
+  const zeilen = sichtbar.length ? sichtbar.map(i =>
+    '<div class="beleg-uebersicht-zeile"><span>'+esc(i.bez||'(ohne Bezeichnung)')+herkunftBadgeHtml(i)+'</span>'+
+    '<span>'+eur(i.betrag||0)+' <span class="beleg-uebersicht-status '+i.status+'">'+BELEG_STATUS_LABEL[i.status]+'</span></span></div>'
+  ).join('') : '<p class="hint">Keine Positionen in dieser Ansicht.</p>';
+  box.innerHTML = filterZeile + zeilen;
+}
 

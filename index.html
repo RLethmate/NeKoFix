@@ -96,6 +96,17 @@
   tr.vorjahr td{background:#fdf6e8;}
   tr.vorjahr td:nth-child(2) input{border-color:#e6c878;background:#fffaf0;font-style:italic;}
   .vorjahr-badge{display:inline-block;font-size:11px;color:#7a5a12;background:#fbf4e6;border:1px solid #e6c878;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
+  /* US-131: Belege per Drag & Drop – Dropzone je Position, Kürzel-Chips, Herkunfts-Badge. */
+  .beleg-drop{border:1px dashed var(--line);border-radius:6px;padding:5px 8px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap;}
+  .beleg-drop.drag-over{border-color:var(--primary);background:var(--soft,#eef3f8);color:var(--primary);}
+  .beleg-chips{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;}
+  .sr-marker{font-size:11px;color:#1a6b3c;}
+  .herkunft-badge{display:inline-block;font-size:10px;color:var(--muted);background:var(--soft,#eef3f8);border:1px solid var(--line);border-radius:6px;padding:0 5px;margin-left:6px;vertical-align:middle;}
+  .beleg-uebersicht-zeile{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--line);font-size:13px;}
+  .beleg-uebersicht-status{font-size:11px;padding:1px 6px;border-radius:6px;white-space:nowrap;}
+  .beleg-uebersicht-status.kein_beleg{background:#fbeaea;color:#a83232;}
+  .beleg-uebersicht-status.unvollstaendig{background:#fbf4e6;color:#7a5a12;}
+  .beleg-uebersicht-status.vollstaendig{background:#e8f5ec;color:#1a6b3c;}
   /* US-59: Vorjahreswert IM selben Betragsfeld eingeblendet (Toggle Alt+V) – read-only, blau kursiv.
      Bewusst kein zusätzliches Element, damit sich Layout/Zeilenhöhe nicht ändern. */
   input.vj-field{color:#1565c0;font-style:italic;background:#f3f7fe;border-color:#c3d6f5;cursor:default;}
@@ -1032,12 +1043,26 @@
       <h2 class="zahlungs-titel">Sonstige Ausgaben (nicht umlagefähig)</h2>
       <p class="hint">Investitionen und andere Ausgaben, die nicht auf die Mieter umgelegt werden (z. B. eine neue Wärmepumpe), aber für deine Steuererklärung dokumentiert sein sollten. Diese Positionen fließen nicht in die Nebenkostenabrechnung ein.</p>
       <table id="tbl_ausgaben">
-        <thead><tr><th>Bezeichnung</th><th>Dienstleister</th><th class="num">Betrag</th><th>Belegdatum</th><th>Zurechnungsjahr</th><th></th></tr></thead>
+        <thead><tr><th>Bezeichnung</th><th>Dienstleister</th><th class="num">Betrag</th><th>Belegdatum</th><th>Zurechnungsjahr</th><th>Beleg</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
       <button class="addrow" onclick="addAusgabeRow()">+ Ausgabe hinzufügen</button>
       <p class="hint">Das Zurechnungsjahr wird aus dem Belegdatum vorgeschlagen, ist aber frei änderbar – bei Rechnungen nahe dem Jahreswechsel (z. B. einer Schlussrechnung im Folgejahr) bitte mit dem Steuerberater abstimmen, welchem Jahr die Ausgabe zuzurechnen ist.</p>
+      <!-- US-131: allgemeine Ablagefläche – legt bei Bedarf selbst eine neue Ausgabe an, statt
+           eine vorhandene Zeile vorauszusetzen (Rechnung liegt vor, bevor sie erfasst ist). -->
+      <div class="beleg-drop" style="padding:10px;text-align:center"
+           title="Beleg hierher ziehen, um eine neue Ausgabe anzulegen"
+           ondragover="event.preventDefault();this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')"
+           ondrop="belegDropNeu(event)">Beleg hierher ziehen, um eine neue Ausgabe anzulegen</div>
     </div>
+
+    <!-- US-131: Checklisten-Übersicht über alle beleg-pflichtigen Positionen (Kosten + Sonstige
+         Ausgaben) mit Fortschrittsanzeige. -->
+    <details class="eurqm" id="beleg_uebersicht_box">
+      <summary>Beleg-Übersicht<span id="beleg_uebersicht_fortschritt"></span></summary>
+      <div id="beleg_uebersicht_inhalt"></div>
+    </details>
   </section>
 
   <!-- Step 4: Heizung (US-05) -->
