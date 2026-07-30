@@ -1058,10 +1058,11 @@
       <!-- US-131-Feedback: allgemeine Ablagefläche in die Nähe des CSV-Imports geholt – legt bei
            Bedarf selbst eine neue Ausgabe an, statt eine vorhandene Zeile vorauszusetzen. -->
       <div class="beleg-drop beleg-drop-haupt"
-           title="Beleg hierher ziehen, um eine neue Ausgabe anzulegen"
+           title="Beleg hierher ziehen oder klicken, um eine neue Ausgabe anzulegen"
            ondragover="event.preventDefault();this.classList.add('drag-over')"
            ondragleave="this.classList.remove('drag-over')"
-           ondrop="belegDropNeu(event)">Beleg hierher ziehen, um eine neue Ausgabe anzulegen</div>
+           ondrop="belegDropNeu(event)"
+           onclick="belegAuswaehlenNeu()">Beleg hierher ziehen, um eine neue Ausgabe anzulegen</div>
     </div>
     <div id="kleinrep_warn"></div>
     <label class="filter-toggle"><input type="checkbox" onchange="setNurUngeprueft(this.checked)"> Nur ungeprüfte Belege anzeigen<span id="ungeprueft_count" class="muted"></span></label>

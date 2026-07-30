@@ -185,7 +185,10 @@ async function belegHochladen(art, idx, file){
   const basis=await dokObjektRootSicherstellen(state.objekt); if(!basis) return;
   const pos = art==='kosten' ? store.kosten(idx) : store.ausgabe(idx); if(!pos) return;
   const jahr = art==='ausgabe' ? (pos.zurechnungsjahr||objektJahr(snapshot())) : objektJahr(snapshot());
-  const dienstleister = art==='ausgabe' ? (pos.dienstleister||'') : ''; /* Kosten haben (noch) kein eigenes Dienstleister-Feld */
+  /* Ralf-Feedback 2026-07-30: Kostenarten bekommen jetzt ebenfalls ein Dienstleister-Feld (view-
+     kosten.js appendKostenRow), damit auch dort abgelegte Belege ein aussagekräftiges Kürzel
+     bekommen statt nur "<Jahr>-<Nummer>.pdf" ohne jeden Hinweis auf den Aussteller. */
+  const dienstleister = pos.dienstleister || '';
   /* Ralf-Feedback 2026-07-30: inhaltsgleiche Datei erkennen, BEVOR sie erneut abgelegt wird. */
   const hash = await nkDateiHash(file);
   const dup = nkBelegDuplikat(state.kosten, state.ausgaben, hash);
@@ -218,22 +221,33 @@ async function belegDrop(art, idx, ev){
   if(art==='ausgabe' && typeof renderAusgaben==='function') renderAusgaben();
   if(art==='kosten' && typeof renderKosten==='function') renderKosten();
 }
-/* Drag & Drop auf die ALLGEMEINE Ablagefläche (Ralf-Feedback 2026-07-30): legt bei Bedarf selbst
-   eine neue "Sonstige Ausgabe" an, statt eine vorhandene Position vorauszusetzen – deckt den Fall
-   ab, dass die Rechnung vorliegt, bevor die Zahlung im Konto sichtbar oder manuell erfasst ist. */
-async function belegDropNeu(ev){
-  ev.preventDefault(); if(ev.currentTarget&&ev.currentTarget.classList) ev.currentTarget.classList.remove('drag-over');
-  const files=(ev.dataTransfer&&ev.dataTransfer.files)?[...ev.dataTransfer.files]:[];
+/* Gemeinsame Logik für die ALLGEMEINE Ablagefläche (Drag & Drop UND Klick-Auswahl): legt bei
+   Bedarf selbst eine neue "Sonstige Ausgabe" an, statt eine vorhandene Position vorauszusetzen –
+   deckt den Fall ab, dass die Rechnung vorliegt, bevor die Zahlung im Konto sichtbar oder manuell
+   erfasst ist. Bezeichnung wird mit dem (bereinigten) Dateinamen der ersten Datei vorbelegt; steckt
+   zusätzlich ein erkennbares Datum im Dateinamen, wird das auch gleich als Belegdatum/
+   Zurechnungsjahr übernommen. */
+async function _belegNeueAusgabeAusDateien(files){
   if(!files.length) return;
-  /* Ralf-Feedback 2026-07-30: Bezeichnung mit dem (bereinigten) Dateinamen der ersten Datei
-     vorbelegen, statt ein leeres Feld zu hinterlassen; steckt zusätzlich ein erkennbares Datum im
-     Dateinamen, wird das auch gleich als Belegdatum/Zurechnungsjahr übernommen. */
   const objJahr = objektJahr(snapshot());
   const neu = Object.assign(nkAusgabeNeu(objJahr), { herkunft:'beleg' }, nkDateiVorschlagAusName(files[0].name, objJahr));
   store.addAusgabePos(neu);
   const idx=state.ausgaben.length-1;
   for(const f of files){ await belegHochladen('ausgabe', idx, f); }
   if(typeof renderAusgaben==='function') renderAusgaben();
+}
+async function belegDropNeu(ev){
+  ev.preventDefault(); if(ev.currentTarget&&ev.currentTarget.classList) ev.currentTarget.classList.remove('drag-over');
+  const files=(ev.dataTransfer&&ev.dataTransfer.files)?[...ev.dataTransfer.files]:[];
+  await _belegNeueAusgabeAusDateien(files);
+}
+/* Ralf-Feedback 2026-07-30: Klick auf die allgemeine Ablagefläche soll wie bei den einzelnen
+   Beleg-Dropzones (belegAuswaehlen) einen Datei-Auswahldialog öffnen, statt nur auf Drag & Drop zu
+   reagieren. */
+function belegAuswaehlenNeu(){
+  const inp=document.createElement('input'); inp.type='file'; inp.multiple=true;
+  inp.onchange=function(){ _belegNeueAusgabeAusDateien([...inp.files]); };
+  inp.click();
 }
 /* Objekt-Stammordner NUR lesen (nie einen Dialog aufreißen) – für die reinen Lesepfade unten. */
 async function _belegBasisVorhanden(){

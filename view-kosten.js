@@ -77,6 +77,9 @@ function renderKosten(){
         '</select></label>'+
         '<label title="Begünstigter Arbeits-/Lohnanteil inkl. USt (ohne Material)">davon Arbeitskosten <input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.arbeitskosten||0)+' €" onchange="updKostenArbeit('+idx+',this.value)"></label>'+
         '<label class="notiz-field">Notiz <input value="'+esc(k.notiz)+'" oninput="store.setKostenFeld('+idx+',\'notiz\',this.value)" placeholder="z. B. Zähler defekt, Belegquelle, …"></label>'+
+        /* Ralf-Feedback 2026-07-30: Dienstleister auch bei normalen Kostenarten – ohne dieses Feld
+           landet der Beleg-Dateiname beim Ablegen ohne jeden Aussteller-Hinweis (nur "<Jahr>-<Nr>"). */
+        '<label class="notiz-field">Dienstleister <input value="'+esc(k.dienstleister||'')+'" list="dienstleister_liste" oninput="store.setKostenFeld('+idx+',\'dienstleister\',this.value)" placeholder="z. B. Handwerksbetrieb"></label>'+
         '<label class="notiz-field">Beleg '+belegSpalteHtml('kosten', idx, k)+'</label>'+
       '</div>'+
       (k.schluessel==='direkt' ? '' :
@@ -324,9 +327,10 @@ function renderAusgaben(){
   tb.innerHTML='';
   const liste=state.ausgaben||[];
   /* Ralf-Feedback 2026-07-30: Autovervollständigung – bereits erfasste Dienstleister-Namen des
-     Objekts als Vorschlagsliste, damit man sie bei der nächsten Position nicht neu tippen muss. */
+     Objekts (Kostenarten UND Sonstige Ausgaben) als Vorschlagsliste, damit man sie bei der
+     nächsten Position nicht neu tippen muss. */
   const dl=document.getElementById('dienstleister_liste');
-  if(dl) dl.innerHTML=[...new Set(liste.map(a=>a.dienstleister).filter(Boolean))].map(d=>'<option value="'+esc(d)+'">').join('');
+  if(dl) dl.innerHTML=[...new Set(state.kosten.map(k=>k.dienstleister).concat(liste.map(a=>a.dienstleister)).filter(Boolean))].map(d=>'<option value="'+esc(d)+'">').join('');
   liste.forEach((a,idx)=>{
     const jahrVorschlag=nkAusgabeJahrVorschlag(a.datum, objektJahr(snapshot()));
     const jahrAbweichend = !!(jahrVorschlag && String(a.zurechnungsjahr||'')!==jahrVorschlag);
