@@ -102,6 +102,10 @@
   .beleg-drop{border:1.5px dashed var(--primary);border-radius:6px;padding:5px 8px;font-size:12px;color:var(--primary-dark);background:#e3f0f3;cursor:pointer;white-space:nowrap;}
   .beleg-drop.drag-over{border-color:var(--primary-dark);background:var(--primary);color:#fff;}
   .beleg-drop-haupt{flex:1 1 260px;min-width:220px;text-align:center;padding:10px;white-space:normal;font-weight:600;align-self:stretch;display:flex;align-items:center;justify-content:center;}
+  /* Ralf-Feedback 2026-07-30: kurzes Aufblinken der Zielzeile, nachdem ein Beleg über die
+     allgemeine Ablagefläche einer Position zugeordnet wurde – zeigt, wohin es gegangen ist. */
+  @keyframes belegAufblinken{0%{background:#fff3b0;}100%{background:transparent;}}
+  tr.beleg-aufblink td{animation:belegAufblinken 1.6s ease-out;}
   .beleg-chips{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;}
   .sr-marker{font-size:11px;color:#1a6b3c;}
   .herkunft-badge{display:inline-block;font-size:10px;color:var(--muted);background:var(--soft,#eef3f8);border:1px solid var(--line);border-radius:6px;padding:0 5px;margin-left:6px;vertical-align:middle;}
@@ -885,6 +889,23 @@
       <div class="dlg-foot">
         <button class="btn-ghost" onclick="techemReviewSchliessen()">Abbrechen</button>
         <button class="btn-primary" onclick="techemUebernehmen()">Übernehmen</button>
+      </div>
+    </div>
+  </div>
+  <!-- Ralf-Feedback 2026-07-30: die allgemeine Beleg-Ablagefläche muss zwischen Kostenart (NK)
+       und Sonstiger Ausgabe (steuerrelevant) unterscheiden können - dasselbe "Ziel"-Prinzip wie
+       beim CSV-Import (view-csv.js umsatzZielSelect), hier als eigener kleiner Dialog. -->
+  <div class="overlay-obj" id="belegzieldlg_overlay" hidden onclick="if(event.target===this)closeBelegZielDialog()">
+    <div class="dialog-obj" style="width:min(440px,94vw)">
+      <h2>Wohin gehört dieser Beleg?</h2>
+      <p class="hint" style="margin:0 18px 12px;">Der Beleg wird an die gewählte Position angehängt.</p>
+      <div style="margin:0 18px;">
+        <select id="belegzieldlg_select" style="width:100%;" onchange="_belegZielDialogAuswahlGeaendert()"></select>
+        <input id="belegzieldlg_neu_name" class="dlg-search" placeholder="Name der neuen Kostenart" style="width:100%;margin-top:8px;" hidden onkeydown="if(event.key==='Enter'){event.preventDefault();_belegZielDialogWeiter();}">
+      </div>
+      <div class="dlg-foot">
+        <button class="btn-ghost" onclick="closeBelegZielDialog()">Abbrechen</button>
+        <button class="btn-primary" onclick="_belegZielDialogWeiter()">Übernehmen</button>
       </div>
     </div>
   </div>

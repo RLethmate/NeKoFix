@@ -66,8 +66,13 @@ function renderKosten(){
       d.innerHTML='<td colspan="5"><div class="detail-grid">'+
         '<label>Rubrik <select onchange="updKosten('+idx+',\'rubrik\',this.value)">'+ro+'</select></label>'+
         /* US-100: eigenes Dropdown – Punkt + Text farbig, sowohl zugeklappt als auch in der geöffneten Liste (native Selects färben die Liste auf macOS nicht ein). */
-        '<label>Status '+cddHtml('status', idx, st, STATUS_BELEG, STATUS_FARBE)+'</label>'+
-        '<label>Beleg '+cddHtml('verfuegbar', idx, vf, VERFUEGBAR, VERFUEGBAR_FARBE)+'</label>'+
+        '<label>Status '+cddHtml('kosten', 'status', idx, st, STATUS_BELEG, STATUS_FARBE)+'</label>'+
+        '<label>Beleg '+cddHtml('kosten', 'verfuegbar', idx, vf, VERFUEGBAR, VERFUEGBAR_FARBE)+'</label>'+
+        /* Ralf-Feedback 2026-07-30: direkt neben die alte Beleg-Ampel gesetzt, damit nicht zwei
+           gleichnamige "Beleg"-Bedienstellen in derselben Karte auseinanderliegen. Keine eigene
+           Bezeichnung mehr nötig – der Kontext (direkt neben "Beleg") reicht, die Dropzone selbst
+           sagt "PDF ablegen". */
+        '<div class="notiz-field" style="flex:0 0 auto;min-width:0;">'+belegSpalteHtml('kosten', idx, k)+'</div>'+
         '<label title="Im Beleg enthaltene Vorsteuer">Vorsteuer <select onchange="updKosten('+idx+',\'vorsteuer\',+this.value)">'+vsOpts+'</select></label>'+
         /* US-32: §35a-Kategorie + begünstigter Arbeitskosten-Anteil */
         '<label title="Steuerlich begünstigt nach §35a EStG (haushaltsnahe Dienstleistung oder Handwerkerleistung)">§35a <select onchange="updKosten('+idx+',\'p35a\',this.value)">'+
@@ -80,7 +85,6 @@ function renderKosten(){
         /* Ralf-Feedback 2026-07-30: Dienstleister auch bei normalen Kostenarten – ohne dieses Feld
            landet der Beleg-Dateiname beim Ablegen ohne jeden Aussteller-Hinweis (nur "<Jahr>-<Nr>"). */
         '<label class="notiz-field">Dienstleister <input value="'+esc(k.dienstleister||'')+'" list="dienstleister_liste" oninput="updKostenDienstleister('+idx+',this.value)" placeholder="z. B. Handwerksbetrieb"></label>'+
-        '<label class="notiz-field">Beleg '+belegSpalteHtml('kosten', idx, k)+'</label>'+
       '</div>'+
       (k.schluessel==='direkt' ? '' :
        '<div class="teilnahme"><span class="teilnahme-lbl">Teilnehmende Einheiten:</span> '+
@@ -209,10 +213,13 @@ function updKosten(idx,field,val){ store.setKostenFeld(idx,field,val); if(field=
 function kostenEinheitVorschlagUebernehmen(idx){ store.setKostenVorschlagFeld(idx,'einheit', false); renderKosten(); }
 /* US-100: kleines Custom-Dropdown für Status/Verfügbarkeit – farbiger Punkt + Text, auch in der
    geöffneten Liste (native <option>-Farben werden auf macOS nicht gerendert). */
-function cddHtml(kind, idx, cur, map, farbe){
-  const id='cdd-'+kind+'-'+idx;
+/* Ralf-Feedback 2026-07-30: "art" (kosten/ausgabe) zusätzlich zu "kind" in die ID aufgenommen –
+   sonst würden gleich indizierte Kosten- und Ausgaben-Zeilen dieselbe Dropdown-ID "cdd-verfuegbar-3"
+   erzeugen und sich beim Öffnen/Schließen gegenseitig stören. */
+function cddHtml(art, kind, idx, cur, map, farbe){
+  const id='cdd-'+art+'-'+kind+'-'+idx;
   const opts=Object.keys(map).map(key=>
-    '<button type="button" class="cdd-opt'+(key===cur?' sel':'')+'" style="color:'+farbe[key]+'" onclick="cddPick(\''+kind+'\','+idx+',\''+key+'\')">●&nbsp;'+esc(map[key])+'</button>').join('');
+    '<button type="button" class="cdd-opt'+(key===cur?' sel':'')+'" style="color:'+farbe[key]+'" onclick="cddPick(\''+art+'\',\''+kind+'\','+idx+',\''+key+'\')">●&nbsp;'+esc(map[key])+'</button>').join('');
   return '<span class="cdd" id="'+id+'">'+
     '<button type="button" class="cdd-btn" style="color:'+farbe[cur]+'" onclick="cddToggle(\''+id+'\',event)">●&nbsp;'+esc(map[cur])+' <span class="cdd-caret" aria-hidden="true">▾</span></button>'+
     '<div class="cdd-list" hidden>'+opts+'</div></span>';
@@ -222,7 +229,10 @@ function cddToggle(id, ev){ ev.stopPropagation();
   document.querySelectorAll('.cdd-list').forEach(l=>l.hidden=true);
   list.hidden=!willOpen;
 }
-function cddPick(kind, idx, key){ updKosten(idx, kind==='status'?'status':'verfuegbar', key); /* renderKosten schließt die Liste */ }
+function cddPick(art, kind, idx, key){
+  if(art==='kosten') updKosten(idx, kind==='status'?'status':'verfuegbar', key); /* renderKosten schließt die Liste */
+  else { store.setAusgabeFeld(idx,'verfuegbar',key); renderAusgaben(); }
+}
 document.addEventListener('click', function(){ document.querySelectorAll('.cdd-list').forEach(l=>l.hidden=true); });
 /* US-32: begünstigten Arbeitskosten-Anteil (€) je Position setzen. */
 function updKostenArbeit(idx,val){ store.setKostenFeld(idx,'arbeitskosten', nkParseBetrag(val)); renderKosten(); }
@@ -318,7 +328,7 @@ function belegSpalteHtml(art, idx, pos){
       ' <button type="button" class="row-del" title="Beleg löschen" onclick="belegLoeschen(\''+art+'\','+idx+','+bi+')">×</button></span>';
   }).join('');
   const status = nkBelegStatus(belege);
-  const label = status==='kein_beleg' ? 'Beleg ablegen' : (status==='unvollstaendig' ? 'unvollständig' : 'vollständig');
+  const label = status==='kein_beleg' ? 'PDF ablegen' : (status==='unvollstaendig' ? 'unvollständig' : 'vollständig');
   return '<div class="beleg-drop" title="Beleg hierher ziehen oder klicken zum Auswählen" '+
       'ondragover="event.preventDefault();this.classList.add(\'drag-over\')" ondragleave="this.classList.remove(\'drag-over\')" '+
       'ondrop="belegDrop(\''+art+'\','+idx+',event)" onclick="belegAuswaehlen(\''+art+'\','+idx+')">'+esc(label)+'</div>'+
@@ -339,7 +349,12 @@ function renderAusgaben(){
   liste.forEach((a,idx)=>{
     const jahrVorschlag=nkAusgabeJahrVorschlag(a.datum, objektJahr(snapshot()));
     const jahrAbweichend = !!(jahrVorschlag && String(a.zurechnungsjahr||'')!==jahrVorschlag);
-    const tr=document.createElement('tr');
+    /* Ralf-Feedback 2026-07-30: dieselbe Ampel (fehlt/kommt noch/vorhanden) wie bei Kostenarten –
+       eine Ausgabe kann angelegt werden, bevor die Rechnung überhaupt vorliegt. Default "fehlt"
+       (nicht "vorhanden" wie bei Kostenarten), da eine frisch angelegte Position noch keinen Beleg
+       hat; das Ablegen einer Datei setzt die Ampel automatisch auf "vorhanden" (belegHochladen). */
+    const vf=a.verfuegbar||'fehlt';
+    const tr=document.createElement('tr'); tr.id='arow-'+idx; /* Ralf-Feedback 2026-07-30: stabile ID fürs Aufblinken nach Beleg-Zuordnung */
     tr.innerHTML=
       '<td class="bez-col"><input value="'+esc(a.bez)+'" placeholder="z. B. Wärmepumpe" oninput="updAusgabeFeld('+idx+',\'bez\',this.value)">'+herkunftBadgeHtml(a)+'</td>'+
       '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(a.betrag)+' €" oninput="updAusgabeBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'"></td>'+
@@ -348,7 +363,7 @@ function renderAusgaben(){
       '<td><span class="feld-wrap"><input class="short" type="text" inputmode="numeric" style="max-width:64px" title="Zurechnungsjahr (Steuerjahr) – bei Rechnungen nahe dem Jahreswechsel ggf. mit dem Steuerberater abstimmen" value="'+esc(a.zurechnungsjahr||'')+'" onchange="updAusgabeJahr('+idx+',this.value)"></span>'+
         (jahrAbweichend?' <button type="button" class="reset-btn" title="Auf Jahr aus dem Belegdatum ('+esc(jahrVorschlag)+') zurücksetzen" onclick="resetAusgabeJahr('+idx+')">↺</button>':'')+
       '</td>'+
-      '<td>'+belegSpalteHtml('ausgabe', idx, a)+'</td>'+
+      '<td>'+cddHtml('ausgabe','verfuegbar', idx, vf, VERFUEGBAR, VERFUEGBAR_FARBE)+belegSpalteHtml('ausgabe', idx, a)+'</td>'+
       '<td class="act-col"><button class="row-del" title="Position entfernen" onclick="deleteAusgabeRow('+idx+')">×</button></td>';
     tb.appendChild(tr);
   });
@@ -369,7 +384,12 @@ function updAusgabeFeld(idx,field,val){
   }
   if(field==='bez') belegNamenAktualisierenDebounced('ausgabe',idx); /* Bezeichnung steht seit dem jüngsten Feedback ebenfalls im Kürzel */
 }
-function updAusgabeBetrag(idx,val){ store.setAusgabeBetrag(idx,val); belegNamenAktualisierenDebounced('ausgabe',idx); }
+/* Ralf-Feedback 2026-07-30: Bug gefunden – anders als updKostenBetrag wurde hier NICHT über
+   nkParseBetrag geparst, bevor gespeichert wurde. Im schon formatierten Feld ("8.500,00 €") tippen
+   ließ store.setAusgabeBetrag (rohes "+val") den Betrag still auf 0 zurücksetzen; die Anzeige sah
+   nach dem Verlassen des Feldes trotzdem normal aus (onblur formatiert nur die Anzeige neu, schreibt
+   aber nicht erneut in den State) – eine Diskrepanz zwischen Anzeige und gespeichertem Wert. */
+function updAusgabeBetrag(idx,val){ store.setAusgabeBetrag(idx, nkParseBetrag(val)); belegNamenAktualisierenDebounced('ausgabe',idx); }
 /* Zurechnungsjahr wird beim ERSTEN Setzen des Belegdatums vorbelegt; ist bereits ein Jahr gesetzt
    (manuell oder aus einem früheren Datum), bleibt es unangetastet – Abweichungen zeigt das ↺. */
 function updAusgabeDatum(idx,val){

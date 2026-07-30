@@ -202,10 +202,11 @@ async function belegHochladen(art, idx, file){
        weiterhin auf den echten Original-Dateinamen als Vorbelegung zurückgreifen kann, falls
        Dienstleister leer bleibt – s. nkBelegDateiname. */
     store.addBeleg(art, idx, { dateiname:name, jahr:jahr, angehaengtAm:new Date().toISOString().slice(0,10), schlussrechnung:false, hash:hash, originalName:file.name });
-    /* Ralf-Feedback 2026-07-30: bestehenden "Beleg"-Status im Kosten-Aufklapper (US-58, VERFUEGBAR)
-       konsistent mitziehen, statt zwei getrennte, unsynchronisierte Beleg-Anzeigen zu haben. Gilt
-       nur für Kostenarten – Sonstige Ausgaben (US-130) haben dieses Altfeld nicht. */
+    /* Ralf-Feedback 2026-07-30: bestehenden "Beleg"-Status (US-58, VERFUEGBAR) konsistent mitziehen,
+       statt zwei getrennte, unsynchronisierte Beleg-Anzeigen zu haben – gilt jetzt für Kostenarten
+       UND Sonstige Ausgaben (die Ampel wurde für Ausgaben nachgerüstet, s. renderAusgaben). */
     if(art==='kosten') store.setKostenFeld(idx,'verfuegbar','vorhanden');
+    else store.setAusgabeFeld(idx,'verfuegbar','vorhanden');
   }catch(e){ alert('Konnte „'+file.name+'" nicht speichern: '+((e&&e.message)||e)); }
 }
 /* Klick-Auswahl als Fallback zu Drag & Drop – eine oder mehrere Dateien auf einmal. */
@@ -224,32 +225,77 @@ async function belegDrop(art, idx, ev){
   if(art==='ausgabe' && typeof renderAusgaben==='function') renderAusgaben();
   if(art==='kosten' && typeof renderKosten==='function') renderKosten();
 }
-/* Gemeinsame Logik für die ALLGEMEINE Ablagefläche (Drag & Drop UND Klick-Auswahl): legt bei
-   Bedarf selbst eine neue "Sonstige Ausgabe" an, statt eine vorhandene Position vorauszusetzen –
-   deckt den Fall ab, dass die Rechnung vorliegt, bevor die Zahlung im Konto sichtbar oder manuell
-   erfasst ist. Bezeichnung wird mit dem (bereinigten) Dateinamen der ersten Datei vorbelegt; steckt
-   zusätzlich ein erkennbares Datum im Dateinamen, wird das auch gleich als Belegdatum/
-   Zurechnungsjahr übernommen. */
-async function _belegNeueAusgabeAusDateien(files){
+/* Ralf-Feedback 2026-07-30: die allgemeine Ablagefläche muss zwischen Kostenart (NK) und Sonstiger
+   Ausgabe (steuerrelevant) unterscheiden können – analog zum "Ziel"-Dropdown beim CSV-Import
+   (view-csv.js umsatzZielSelect). Statt sofort zu entscheiden, öffnet sich ein kleiner, seiten-
+   integrierter Dialog mit derselben Ziel-Auswahl; erst danach wird der Beleg zugeordnet. */
+let _belegZielPendingFiles = null;
+function openBelegZielDialog(files){
   if(!files.length) return;
-  const objJahr = objektJahr(snapshot());
-  const neu = Object.assign(nkAusgabeNeu(objJahr), { herkunft:'beleg' }, nkDateiVorschlagAusName(files[0].name, objJahr));
-  store.addAusgabePos(neu);
-  const idx=state.ausgaben.length-1;
-  for(const f of files){ await belegHochladen('ausgabe', idx, f); }
-  if(typeof renderAusgaben==='function') renderAusgaben();
+  _belegZielPendingFiles = files;
+  const opt=(v,t)=>'<option value="'+esc(v)+'">'+esc(t)+'</option>';
+  let h = opt('ausgabe', 'Sonstige Ausgabe (neu anlegen)');
+  const kostenOptionen = state.kosten.filter(k=>k.typ!=='heizung').map(k=>opt('kosten:'+k.id, k.bez)).join('');
+  h += '<optgroup label="Kostenart">'+opt('kosten_neu','+ neue Kostenart …')+kostenOptionen+'</optgroup>';
+  const sel=document.getElementById('belegzieldlg_select'); if(sel){ sel.innerHTML=h; sel.value='ausgabe'; }
+  const neuName=document.getElementById('belegzieldlg_neu_name'); if(neuName){ neuName.hidden=true; neuName.value=''; }
+  const ov=document.getElementById('belegzieldlg_overlay'); if(ov) ov.hidden=false;
+}
+function closeBelegZielDialog(){ _belegZielPendingFiles=null; const ov=document.getElementById('belegzieldlg_overlay'); if(ov) ov.hidden=true; }
+function _belegZielDialogAuswahlGeaendert(){
+  const sel=document.getElementById('belegzieldlg_select'), neuName=document.getElementById('belegzieldlg_neu_name');
+  if(neuName) neuName.hidden = !sel || sel.value!=='kosten_neu';
+}
+async function _belegZielDialogWeiter(){
+  const files=_belegZielPendingFiles; if(!files || !files.length){ closeBelegZielDialog(); return; }
+  const sel=document.getElementById('belegzieldlg_select'); const val=sel?sel.value:'ausgabe';
+  let art, idx;
+  if(val==='ausgabe'){
+    const objJahr=objektJahr(snapshot());
+    const neu=Object.assign(nkAusgabeNeu(objJahr), { herkunft:'beleg' }, nkDateiVorschlagAusName(files[0].name, objJahr));
+    store.addAusgabePos(neu);
+    art='ausgabe'; idx=state.ausgaben.length-1;
+  } else if(val==='kosten_neu'){
+    const name=((document.getElementById('belegzieldlg_neu_name')||{}).value||'').trim();
+    if(!name){ alert('Bitte einen Namen für die neue Kostenart eingeben.'); return; }
+    store.addKostenOben(name);
+    art='kosten'; idx=state.kosten.findIndex(k=>k.bez===name);
+    if(idx<0){ closeBelegZielDialog(); return; }
+  } else if(val.indexOf('kosten:')===0){
+    const zielId=+val.slice(7);
+    idx=state.kosten.findIndex(k=>k.id===zielId);
+    if(idx<0){ closeBelegZielDialog(); return; }
+    art='kosten';
+  } else { closeBelegZielDialog(); return; }
+  closeBelegZielDialog();
+  for(const f of files){ await belegHochladen(art, idx, f); }
+  belegZeileAufblinken(art, idx);
+}
+/* Ralf-Feedback 2026-07-30: Aufblinken + Hinscrollen zur Zielzeile, damit sichtbar wird, wohin ein
+   über die allgemeine Ablagefläche zugeordneter Beleg gelandet ist. Bei Kostenarten wird die
+   Detailkarte gleich mit aufgeklappt (sonst wäre der neue Beleg-Chip unsichtbar). */
+function belegZeileAufblinken(art, idx){
+  if(art==='kosten'){ const k=state.kosten[idx]; if(k) ui.expandedKosten.add(k.id); if(typeof renderKosten==='function') renderKosten(); }
+  else if(typeof renderAusgaben==='function') renderAusgaben();
+  setTimeout(function(){
+    const el=document.getElementById(art==='kosten' ? 'krow-'+idx : 'arow-'+idx);
+    if(!el) return;
+    el.scrollIntoView({behavior:'smooth', block:'center'});
+    el.classList.add('beleg-aufblink');
+    setTimeout(function(){ el.classList.remove('beleg-aufblink'); }, 1600);
+  }, 60);
 }
 async function belegDropNeu(ev){
   ev.preventDefault(); if(ev.currentTarget&&ev.currentTarget.classList) ev.currentTarget.classList.remove('drag-over');
   const files=(ev.dataTransfer&&ev.dataTransfer.files)?[...ev.dataTransfer.files]:[];
-  await _belegNeueAusgabeAusDateien(files);
+  openBelegZielDialog(files);
 }
 /* Ralf-Feedback 2026-07-30: Klick auf die allgemeine Ablagefläche soll wie bei den einzelnen
    Beleg-Dropzones (belegAuswaehlen) einen Datei-Auswahldialog öffnen, statt nur auf Drag & Drop zu
    reagieren. */
 function belegAuswaehlenNeu(){
   const inp=document.createElement('input'); inp.type='file'; inp.multiple=true;
-  inp.onchange=function(){ _belegNeueAusgabeAusDateien([...inp.files]); };
+  inp.onchange=function(){ openBelegZielDialog([...inp.files]); };
   inp.click();
 }
 /* Objekt-Stammordner NUR lesen (nie einen Dialog aufreißen) – für die reinen Lesepfade unten. */
