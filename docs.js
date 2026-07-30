@@ -194,7 +194,7 @@ async function belegHochladen(art, idx, file){
   const dup = nkBelegDuplikat(state.kosten, state.ausgaben, hash);
   if(dup && !confirm('Diese Datei ist inhaltsgleich bereits als „'+dup.dateiname+'" bei „'+dup.bez+'" hinterlegt.\n\nTrotzdem zusätzlich ablegen?')) return;
   const belegNr = (pos.belege||[]).length + 1; /* 1-basiert, macht den Namen bei mehreren Belegen je Position eindeutig */
-  const name = nkBelegDateiname({ zurechnungsjahr:jahr, laufendeNummer:pos.id, belegNr:belegNr, dienstleister:dienstleister, betrag:pos.betrag, originalName:file.name });
+  const name = nkBelegDateiname({ zurechnungsjahr:jahr, laufendeNummer:pos.id, belegNr:belegNr, bez:pos.bez, dienstleister:dienstleister, betrag:pos.betrag, originalName:file.name });
   try{
     const dir=await _dokOrdner(basis, nkBelegPfad(jahr), true);
     const fh=await dir.getFileHandle(name,{create:true}); const w=await fh.createWritable(); await w.write(file); await w.close();
@@ -298,7 +298,7 @@ async function belegNamenAktualisieren(art, idx){
   for(let i=0;i<pos.belege.length;i++){
     const beleg=pos.belege[i];
     const altesJahr=beleg.jahr||jahrAktuell;
-    const neuerName=nkBelegDateiname({ zurechnungsjahr:jahrAktuell, laufendeNummer:pos.id, belegNr:i+1, dienstleister:pos.dienstleister||'', betrag:pos.betrag, originalName:beleg.originalName||beleg.dateiname });
+    const neuerName=nkBelegDateiname({ zurechnungsjahr:jahrAktuell, laufendeNummer:pos.id, belegNr:i+1, bez:pos.bez, dienstleister:pos.dienstleister||'', betrag:pos.betrag, originalName:beleg.originalName||beleg.dateiname });
     if(neuerName===beleg.dateiname && altesJahr===jahrAktuell) continue; /* nichts zu tun */
     try{
       const altDir=await _dokOrdner(basis, nkBelegPfad(altesJahr), false);

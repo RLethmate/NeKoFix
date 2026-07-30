@@ -44,7 +44,7 @@ function renderKosten(){
     const ausNamen=nkAusschlussNamen(k, state.einheiten);
     const tr=document.createElement('tr'); tr.id='krow-'+idx; if(k.vorjahr) tr.className='vorjahr';
     tr.innerHTML=
-      '<td class="bez-col"><div class="bez-wrap"><span class="drag-grip" draggable="true" ondragstart="kostenDragStart(event,'+k.id+')" title="Ziehen zum Verschieben (Rubrik &amp; Reihenfolge)">⠿</span><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+herkunftBadgeHtml(k)+'</span></div></td>'+
+      '<td class="bez-col"><div class="bez-wrap"><span class="drag-grip" draggable="true" ondragstart="kostenDragStart(event,'+k.id+')" title="Ziehen zum Verschieben (Rubrik &amp; Reihenfolge)">⠿</span><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="updKostenBez('+idx+',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+herkunftBadgeHtml(k)+'</span></div></td>'+
       betragCellHtml(k,idx)+
       '<td><span class="schluessel-cell"><span class="feld-wrap'+((k.vorschlag&&k.vorschlag.schluessel)?' unbestaetigt':'')+'" id="kv-schluessel-wrap-'+idx+'"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug). „Direkt" ordnet die Position einer einzelnen Einheit zu 100 % zu." onchange="setSchluessel('+idx+',this.value)">'+opts+'</select>'+((k.vorschlag&&k.vorschlag.schluessel)?'<button type="button" class="vorschlag-tri" title="Verteilerschlüssel aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder ändern)" onclick="kostenSchluesselVorschlagUebernehmen('+idx+')"></button>':'')+'</span><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button>'+
         (k.schluessel==='direkt'
@@ -285,9 +285,11 @@ function deleteKostenRow(idx){ store.removeKosten(idx); renderKosten(); }
 /* US-03: Kostenart setzen und passenden Verteilerschlüssel vorschlagen (überschreibbar). */
 function applyKostenart(idx, val){ store.setKostenart(idx,val); renderKosten(); }
 function resetSchluessel(idx){ store.resetKostenSchluessel(idx); renderKosten(); }
-/* Ralf-Feedback 2026-07-30: Dienstleister-Änderung soll bereits abgelegte Belege dieser Kostenart
-   live umbenennen, nicht erst beim nächsten neuen Beleg. */
+/* Ralf-Feedback 2026-07-30: Dienstleister-/Bezeichnungs-Änderung soll bereits abgelegte Belege
+   dieser Kostenart live umbenennen, nicht erst beim nächsten neuen Beleg (die Bezeichnung steht
+   seit dem jüngsten Feedback ebenfalls im Kürzel). */
 function updKostenDienstleister(idx,val){ store.setKostenFeld(idx,'dienstleister',val); belegNamenAktualisierenDebounced('kosten',idx); }
+function updKostenBez(idx,val){ store.setKostenFeld(idx,'bez',val); belegNamenAktualisierenDebounced('kosten',idx); }
 
 /* US-131: kleines Herkunfts-Badge (manuell bleibt unmarkiert, um die häufigste Herkunft nicht
    optisch aufzublähen) – für Kosten- und Ausgaben-Zeilen gleichermaßen. */
@@ -365,6 +367,7 @@ function updAusgabeFeld(idx,field,val){
     }
     belegNamenAktualisierenDebounced('ausgabe',idx); /* Ralf-Feedback 2026-07-30: Beleg-Dateiname live nachziehen */
   }
+  if(field==='bez') belegNamenAktualisierenDebounced('ausgabe',idx); /* Bezeichnung steht seit dem jüngsten Feedback ebenfalls im Kürzel */
 }
 function updAusgabeBetrag(idx,val){ store.setAusgabeBetrag(idx,val); belegNamenAktualisierenDebounced('ausgabe',idx); }
 /* Zurechnungsjahr wird beim ERSTEN Setzen des Belegdatums vorbelegt; ist bereits ein Jahr gesetzt
