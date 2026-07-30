@@ -1484,6 +1484,32 @@ test("nkImportPlan: gelöschte Kostenart wird per Re-Import wiederhergestellt (U
   assert.deepEqual(nachLoeschen.neueKosten, ["Wasser"]);
   assert.equal(nachLoeschen.zahlungen.length, 0);
 });
+test("nkImportPlan: Sonstige Ausgaben (nicht umlagefähig) einzeln übernommen, Zurechnungsjahr aus Belegdatum (US-130)", () => {
+  const regeln = [
+    { schluessel: "DE00000000000000000030", typ: "iban", ziel: { art: "ausgabe" } },
+  ];
+  const bs = [
+    { buchungstag: "03.12.2025", datum: "2025-12-03", iban: "DE00000000000000000030", betrag: -8500, name: "Heiztechnik Müller GmbH", zweck: "Abschlagsrechnung Wärmepumpe" },
+    { buchungstag: "14.01.2026", datum: "2026-01-14", iban: "DE00000000000000000030", betrag: -2500, name: "Heiztechnik Müller GmbH", zweck: "Schlussrechnung Wärmepumpe" },
+  ];
+  const plan = calc.nkImportPlan(bs, regeln, { kostenBez: [], gesehen: [], objektJahr: "2025" });
+  assert.equal(plan.kosten.length, 0);
+  assert.equal(plan.ausgaben.length, 2);
+  assert.deepEqual(plan.ausgaben[0], { bez: "Heiztechnik Müller GmbH", betrag: 8500, datum: "2025-12-03", zurechnungsjahr: "2025" });
+  // Zurechnungsjahr folgt dem Belegdatum, nicht dem übergebenen objektJahr-Fallback
+  assert.equal(plan.ausgaben[1].zurechnungsjahr, "2026");
+  assert.equal(plan.fingerprints.length, 2);
+  // Dedupe beim Re-Import
+  const plan2 = calc.nkImportPlan(bs, regeln, { kostenBez: [], gesehen: plan.fingerprints, objektJahr: "2025" });
+  assert.equal(plan2.ausgaben.length, 0);
+});
+test("nkAusgabeNeu / nkAusgabeJahrVorschlag: Vorbelegung Sonstige Ausgaben (US-130)", () => {
+  assert.deepEqual(calc.nkAusgabeNeu("2025"), { bez: "", dienstleister: "", betrag: 0, datum: "", zurechnungsjahr: "2025" });
+  assert.deepEqual(calc.nkAusgabeNeu(""), { bez: "", dienstleister: "", betrag: 0, datum: "", zurechnungsjahr: "" });
+  assert.equal(calc.nkAusgabeJahrVorschlag("2026-01-14", "2025"), "2026"); // Belegdatum hat Vorrang
+  assert.equal(calc.nkAusgabeJahrVorschlag("", "2025"), "2025");          // kein Datum -> Fallback
+  assert.equal(calc.nkAusgabeJahrVorschlag("", ""), "");
+});
 test("nkArrMove: Element verschieben ohne Mutation (US-89)", () => {
   const a = ["A", "B", "C", "D"];
   assert.deepEqual(calc.nkArrMove(a, 0, 2), ["B", "C", "A", "D"]);

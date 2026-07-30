@@ -162,6 +162,7 @@ function renderKosten(){
   renderRubrikPicker();
   renderPicker();
   renderKostenTitel(); /* US-59: Titel-Suffix „aus Vorjahr …" konsistent mitführen */
+  renderAusgaben(); /* US-130: eigener Bereich „Sonstige Ausgaben", getrennt von der Kosten-Liste */
 }
 /* US-89-Schliff: Rubrik-Auswahl als Combobox (analog „Kostenart wählen …"). Das Dropdown listet die
    typischen, noch nicht angelegten Rubriken (Klick legt an); im Fuß eine „Eigene …". Sortieren/
@@ -279,4 +280,42 @@ function deleteKostenRow(idx){ store.removeKosten(idx); renderKosten(); }
 /* US-03: Kostenart setzen und passenden Verteilerschlüssel vorschlagen (überschreibbar). */
 function applyKostenart(idx, val){ store.setKostenart(idx,val); renderKosten(); }
 function resetSchluessel(idx){ store.resetKostenSchluessel(idx); renderKosten(); }
+
+/* US-130: „Sonstige Ausgaben (nicht umlagefähig)" – eigener, von der Kosten-Liste getrennter
+   Bereich im selben Reiter. Diese Positionen fließen NICHT in nkObjektAbrechnung ein, sie dienen
+   nur der Dokumentation für die Steuererklärung des Vermieters. */
+function renderAusgaben(){
+  const tb=document.querySelector('#tbl_ausgaben tbody'); if(!tb) return;
+  tb.innerHTML='';
+  const liste=state.ausgaben||[];
+  liste.forEach((a,idx)=>{
+    const jahrVorschlag=nkAusgabeJahrVorschlag(a.datum, objektJahr(snapshot()));
+    const jahrAbweichend = !!(jahrVorschlag && String(a.zurechnungsjahr||'')!==jahrVorschlag);
+    const tr=document.createElement('tr');
+    tr.innerHTML=
+      '<td><input value="'+esc(a.bez)+'" placeholder="z. B. Wärmepumpe" oninput="updAusgabeFeld('+idx+',\'bez\',this.value)"></td>'+
+      '<td><input value="'+esc(a.dienstleister||'')+'" placeholder="Dienstleister" oninput="updAusgabeFeld('+idx+',\'dienstleister\',this.value)"></td>'+
+      '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(a.betrag)+' €" oninput="updAusgabeBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'"></td>'+
+      '<td><input type="date" value="'+esc(a.datum||'')+'" onchange="updAusgabeDatum('+idx+',this.value)"></td>'+
+      '<td><span class="feld-wrap"><input class="short" type="text" inputmode="numeric" style="max-width:64px" title="Zurechnungsjahr (Steuerjahr) – bei Rechnungen nahe dem Jahreswechsel ggf. mit dem Steuerberater abstimmen" value="'+esc(a.zurechnungsjahr||'')+'" onchange="updAusgabeJahr('+idx+',this.value)"></span>'+
+        (jahrAbweichend?' <button type="button" class="reset-btn" title="Auf Jahr aus dem Belegdatum ('+esc(jahrVorschlag)+') zurücksetzen" onclick="resetAusgabeJahr('+idx+')">↺</button>':'')+
+      '</td>'+
+      '<td class="act-col"><button class="row-del" title="Position entfernen" onclick="deleteAusgabeRow('+idx+')">×</button></td>';
+    tb.appendChild(tr);
+  });
+}
+function addAusgabeRow(){ store.addAusgabe(); renderAusgaben(); }
+function deleteAusgabeRow(idx){ store.removeAusgabe(idx); renderAusgaben(); }
+function updAusgabeFeld(idx,field,val){ store.setAusgabeFeld(idx,field,val); }
+function updAusgabeBetrag(idx,val){ store.setAusgabeBetrag(idx,val); }
+/* Zurechnungsjahr wird beim ERSTEN Setzen des Belegdatums vorbelegt; ist bereits ein Jahr gesetzt
+   (manuell oder aus einem früheren Datum), bleibt es unangetastet – Abweichungen zeigt das ↺. */
+function updAusgabeDatum(idx,val){
+  store.setAusgabeFeld(idx,'datum',val);
+  const a=state.ausgaben[idx];
+  if(!a.zurechnungsjahr) store.setAusgabeFeld(idx,'zurechnungsjahr', nkAusgabeJahrVorschlag(val, objektJahr(snapshot())));
+  renderAusgaben();
+}
+function updAusgabeJahr(idx,val){ store.setAusgabeFeld(idx,'zurechnungsjahr', val); renderAusgaben(); }
+function resetAusgabeJahr(idx){ const a=state.ausgaben[idx]; store.setAusgabeFeld(idx,'zurechnungsjahr', nkAusgabeJahrVorschlag(a.datum, objektJahr(snapshot()))); renderAusgaben(); }
 

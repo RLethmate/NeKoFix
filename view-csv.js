@@ -17,17 +17,20 @@ function umsatzKategorie(b){
   return {key:'ignor', label:'ggf. ignorieren'};
 }
 function closeUmsatzReview(){ const o=document.getElementById('csv_overlay'); if(o) o.style.display='none'; }
-/* US-86: Ziel einer Buchung kodieren/dekodieren für das <select> (Wert <-> Regel-Ziel). */
+/* US-86/130: Ziel einer Buchung kodieren/dekodieren für das <select> (Wert <-> Regel-Ziel). */
 function umsatzZielWert(ziel){ if(!ziel) return ''; if(ziel.art==='ignorieren') return 'ignorieren';
-  if(ziel.art==='mieter') return 'mieter:'+ziel.einheitId+':'+ziel.mvId; if(ziel.art==='kosten') return 'kosten:'+ziel.bez; return ''; }
+  if(ziel.art==='mieter') return 'mieter:'+ziel.einheitId+':'+ziel.mvId; if(ziel.art==='kosten') return 'kosten:'+ziel.bez;
+  if(ziel.art==='ausgabe') return 'ausgabe'; return ''; }
 function umsatzWertZiel(val){ if(val==='ignorieren') return {art:'ignorieren'};
+  if(val==='ausgabe') return {art:'ausgabe'};
   if(val.indexOf('mieter:')===0){ const p=val.split(':'); return {art:'mieter', einheitId:+p[1], mvId:+p[2]}; }
   if(val.indexOf('kosten:')===0) return {art:'kosten', bez:val.slice(7)}; return null; }
-/* US-86: Ziel-Dropdown – Mietverhältnisse + bestehende Kostenarten + „ignorieren". */
+/* US-86/130: Ziel-Dropdown – Mietverhältnisse + bestehende Kostenarten + „Sonstige Ausgabe"
+   (nicht umlagefähig, US-130) + „ignorieren". */
 function umsatzZielSelect(b, i){
   const sel=umsatzZielWert(nkMatchRegel(b, state.objekt.importRegeln||[]));
   const opt=(v,t)=>'<option value="'+esc(v)+'"'+(sel===v?' selected':'')+'>'+esc(t)+'</option>';
-  let h='<select class="csv-ziel" onchange="setUmsatzZiel('+i+',this.value)">'+opt('','— nicht zugeordnet —')+opt('ignorieren','Ignorieren');
+  let h='<select class="csv-ziel" onchange="setUmsatzZiel('+i+',this.value)">'+opt('','— nicht zugeordnet —')+opt('ignorieren','Ignorieren')+opt('ausgabe','Sonstige Ausgabe (nicht umlagefähig)');
   const mv=[]; (state.einheiten||[]).forEach(e=>(e.mv||[]).forEach(m=>mv.push(opt('mieter:'+e.id+':'+m.id, e.name+' · '+(m.mieter||'')))));
   if(mv.length) h+='<optgroup label="Mieter">'+mv.join('')+'</optgroup>';
   /* Kostenarten: bestehende + bereits per Regel angelegte Bezeichnungen (damit eine neue sichtbar bleibt) */
@@ -57,8 +60,8 @@ function setUmsatzZiel(i, val){
    gesetzt; hatte es schon einen Wert, wird aufaddiert UND als unbestätigter Vorschlag markiert
    (blaues Dreieck ▲ am Feld – k.vorschlag.betrag bzw. m.erhaltenVorschlag[monat]). */
 function uebernehmeUmsaetze(){
-  const plan=nkImportPlan(ui.csvImport.buchungen, state.objekt.importRegeln||[], { kostenBez:(state.kosten||[]).map(k=>k.bez), gesehen:state.objekt.importGesehen||[] });
-  if(!plan.kosten.length && !plan.zahlungen.length){
+  const plan=nkImportPlan(ui.csvImport.buchungen, state.objekt.importRegeln||[], { kostenBez:(state.kosten||[]).map(k=>k.bez), gesehen:state.objekt.importGesehen||[], objektJahr:objektJahr(snapshot()) });
+  if(!plan.kosten.length && !plan.zahlungen.length && !plan.ausgaben.length){
     alert('Nichts zu übernehmen.'+(plan.offen?(' '+plan.offen+' Buchung(en) sind noch nicht zugeordnet.'):'')); return;
   }
   const teile=[];
@@ -78,6 +81,9 @@ function uebernehmeUmsaetze(){
     store.setErhalten(ei, mi, z.monat, cur+z.betrag);
     if(cur>0){ store.setErhaltenVorschlag(ei, mi, z.monat, true); markiert++; }
   });
+  /* US-130: jede Buchung bleibt eine eigene Position (keine Summierung wie bei Kostenarten) –
+     eine Anschaffung soll als einzelner, wiedererkennbarer Beleg erhalten bleiben. */
+  plan.ausgaben.forEach(a=>{ store.addAusgabePos(a); });
   store.setObjektFeld('importGesehen', (state.objekt.importGesehen||[]).concat(plan.fingerprints));
   if(ui.csvAutoProtokoll) exportUmsatzProtokoll(); /* US-108: Prüfprotokoll auf Wunsch direkt öffnen (vor dem Schließen, solange die Daten noch da sind) */
   closeUmsatzReview(); renderAll();
@@ -101,10 +107,11 @@ function renderUmsatzReview(){
   const daten=bs.map(b=>b.datum).filter(Boolean).sort();
   const zeitraum=daten.length?(fmtDatum(daten[0])+' – '+fmtDatum(daten[daten.length-1])):'–';
   /* Zuordnungs-Status für die Summenzeile */
-  let nMieter=0,sMieter=0,nKosten=0,sKosten=0,nIgnor=0,nOffen=0;
+  let nMieter=0,sMieter=0,nKosten=0,sKosten=0,nAusgabe=0,sAusgabe=0,nIgnor=0,nOffen=0;
   bs.forEach(b=>{ const z=nkMatchRegel(b, regeln);
     if(!z){ nOffen++; } else if(z.art==='mieter'){ nMieter++; sMieter+=b.betrag; }
-    else if(z.art==='kosten'){ nKosten++; sKosten+=Math.abs(b.betrag); } else { nIgnor++; } });
+    else if(z.art==='kosten'){ nKosten++; sKosten+=Math.abs(b.betrag); }
+    else if(z.art==='ausgabe'){ nAusgabe++; sAusgabe+=Math.abs(b.betrag); } else { nIgnor++; } });
   /* US-86: Filter „nur nicht zugeordnete" – Originalindex i bleibt erhalten (für setUmsatzZiel). */
   const nurOffen=!!ui.csvImport.nurOffen, rowsArr=[];
   bs.forEach((b,i)=>{ if(nurOffen && nkMatchRegel(b, regeln)) return;
@@ -120,7 +127,7 @@ function renderUmsatzReview(){
   const wrap0=box.querySelector('.csv-tablewrap'); const scroll0=wrap0?wrap0.scrollTop:0; /* Scroll-Position über das Re-Rendern erhalten */
   box.innerHTML='<h2>Kontoumsätze importieren – Zuordnung</h2>'+
     '<div class="csv-meta">'+esc(ui.csvImport.dateiname)+' · '+bs.length+' Buchungen · '+pos.length+' Eingänge ('+nkFmtBetrag(sumPos)+' €) · '+neg.length+' Kosten ('+nkFmtBetrag(sumNeg)+' €) · Zeitraum '+esc(zeitraum)+'</div>'+
-    (bs.length? '<div class="csv-summe">Zugeordnet: '+nMieter+' Mieter-Eingänge ('+nkFmtBetrag(sMieter)+' €) · '+nKosten+' Kosten ('+nkFmtBetrag(sKosten)+' €) · '+nIgnor+' ignoriert · <b'+(nOffen?' class="csv-offen"':'')+'>'+nOffen+' nicht zugeordnet</b></div>'+csvKontrolle+filterZeile+
+    (bs.length? '<div class="csv-summe">Zugeordnet: '+nMieter+' Mieter-Eingänge ('+nkFmtBetrag(sMieter)+' €) · '+nKosten+' Kosten ('+nkFmtBetrag(sKosten)+' €) · '+nAusgabe+' sonstige Ausgabe(n) ('+nkFmtBetrag(sAusgabe)+' €) · '+nIgnor+' ignoriert · <b'+(nOffen?' class="csv-offen"':'')+'>'+nOffen+' nicht zugeordnet</b></div>'+csvKontrolle+filterZeile+
       '<div class="csv-tablewrap"><table class="csv-table"><thead><tr><th>Datum</th><th>Name</th><th>Verwendungszweck</th><th>Betrag</th><th>Vorschlag</th><th>Ziel</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
               : '<div class="csv-err">Keine Buchungen gefunden (Kopfzeile erkannt, aber keine Datenzeilen).</div>')+
     '<div class="csv-foot"><span class="csv-note">Zuordnungen werden als Regel am Objekt gemerkt (IBAN bzw. Name) und beim nächsten Import automatisch vorgeschlagen. „Importieren" übernimmt: Kosten je Kostenart summiert (neue werden angelegt – Name/Rubrik später im Reiter „Kosten"), Zahlungseingänge als „erhalten" je Mieter/Monat. Bereits übernommene Buchungen werden beim erneuten Import übersprungen; eine gelöschte Kostenart wird durch erneuten Import wiederhergestellt.</span>'+

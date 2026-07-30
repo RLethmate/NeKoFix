@@ -31,6 +31,9 @@ const state = {
     /* US-05/06/07: fossiler Heizblock mit CO2-Angaben von der Brennstoffrechnung (Demo). */
     { bez:"Heizung (Erdgas)", typ:"heizung", energieart:"erdgas_kwh", einheit:"kWh", heizwert:1, menge:30000, preis:0.12, betrag:3600, schluessel:"flaeche", co2Kg:6030, co2Kosten:330 }
   ],
+  /* US-130: Sonstige, nicht umlagefähige Ausgaben (z. B. Investitionen wie eine Wärmepumpe) –
+     eigene Liste, getrennt von state.kosten, fließt NICHT in nkObjektAbrechnung ein. */
+  ausgaben: [],
   zahlung:{ frist:"14 Tage nach Zugang", iban:"DE36 0000 0000 0000 0000 00", bic:"", empfaenger:"M. Vermieter", anschrift:"Musterstraße 12, 12345 Musterstadt" },
   abrechnungStatus:"inArbeit"
 };
@@ -124,7 +127,15 @@ const store = {
   moveRubrik(from,to){ ensureRubrikenMaterialisiert(); state.objekt.rubriken=nkArrMove(state.objekt.rubriken, from, to); commit(); },
   /* US-89 Phase 2: Kostenposition (per id) verschieben – Rubrik setzen und vor das Ziel (id)
      einsortieren; zielId null => ans Ende der Rubrik. Drag & Drop in der Kostenliste. */
-  moveKosten(dragId,zielId,rubrik){ ensureRubrikenMaterialisiert(); if(rubrik!=null && rubrik!==''){ const d=state.kosten.find(k=>k.id===dragId); if(d) d.rubrik=rubrik; } state.kosten=nkListeEinsortieren(state.kosten, dragId, zielId); commit(); }
+  moveKosten(dragId,zielId,rubrik){ ensureRubrikenMaterialisiert(); if(rubrik!=null && rubrik!==''){ const d=state.kosten.find(k=>k.id===dragId); if(d) d.rubrik=rubrik; } state.kosten=nkListeEinsortieren(state.kosten, dragId, zielId); commit(); },
+  // Sonstige Ausgaben, nicht umlagefähig (US-130)
+  ausgabe(idx){ return state.ausgaben[idx]; },
+  addAusgabe(){ if(!state.ausgaben) state.ausgaben=[]; state.ausgaben.push(nkAusgabeNeu(objektJahr(snapshot()))); commit(); },
+  /* Für den CSV-Import (US-130): vollständige, bereits befüllte Position anlegen (vgl. addKostenPos). */
+  addAusgabePos(pos){ if(!state.ausgaben) state.ausgaben=[]; state.ausgaben.push(pos); commit(); },
+  removeAusgabe(idx){ state.ausgaben.splice(idx,1); commit(); },
+  setAusgabeFeld(idx,field,val){ state.ausgaben[idx][field]=val; commit(); },
+  setAusgabeBetrag(idx,val){ state.ausgaben[idx].betrag=+val||0; commit(); }
 };
 /* US-89: beim ersten Rubriken-Eingriff materialisieren – die effektive Liste am Objekt festschreiben
    und jede Position auf ihre aktuelle (vorgeschlagene) Rubrik festlegen, damit Umbenennen/Umordnen
@@ -140,9 +151,9 @@ function ensureRubrikenMaterialisiert(){
 /* ---------- Persistenz (US-27 / US-30) ---------- */
 function ensureIds(){
   let max=0; const bump=o=>{ if(o.id&&o.id>max)max=o.id; };
-  state.einheiten.forEach(e=>{bump(e);(e.mv||[]).forEach(bump);}); state.kosten.forEach(bump);
+  state.einheiten.forEach(e=>{bump(e);(e.mv||[]).forEach(bump);}); state.kosten.forEach(bump); (state.ausgaben||[]).forEach(bump);
   const set=o=>{ if(!o.id) o.id=++max; };
-  state.einheiten.forEach(e=>{set(e);(e.mv||[]).forEach(set);}); state.kosten.forEach(set);
+  state.einheiten.forEach(e=>{set(e);(e.mv||[]).forEach(set);}); state.kosten.forEach(set); (state.ausgaben||[]).forEach(set);
   ensureObjektId();
 }
 /* Ralf-Vorgabe 2026-07-08 (Datenablage v2): stabile, GLOBAL (über alle objekte[] hinweg) eindeutige
@@ -163,8 +174,8 @@ function naechsteObjektId(){
   return max+1;
 }
 /* aktives Objekt als reine Daten herausziehen / in `state` laden */
-function snapshot(){ return { objekt:state.objekt, einheiten:state.einheiten, kosten:state.kosten, zahlung:state.zahlung, abrechnungStatus:state.abrechnungStatus, vorjahr:!!state.vorjahr }; }
-function ladeDaten(d){ state.objekt=d.objekt; state.einheiten=d.einheiten||[]; state.kosten=d.kosten||[]; state.zahlung=d.zahlung||{}; state.abrechnungStatus=d.abrechnungStatus||"inArbeit"; state.vorjahr=!!d.vorjahr; if(state.objekt && !state.objekt.name) state.objekt.name=state.objekt.addr||""; /* US-65: Objektname aus Adresse vorbelegen, danach stabil */ migriereAnkuendigungen(); }
+function snapshot(){ return { objekt:state.objekt, einheiten:state.einheiten, kosten:state.kosten, ausgaben:state.ausgaben||[], zahlung:state.zahlung, abrechnungStatus:state.abrechnungStatus, vorjahr:!!state.vorjahr }; }
+function ladeDaten(d){ state.objekt=d.objekt; state.einheiten=d.einheiten||[]; state.kosten=d.kosten||[]; state.ausgaben=d.ausgaben||[]; state.zahlung=d.zahlung||{}; state.abrechnungStatus=d.abrechnungStatus||"inArbeit"; state.vorjahr=!!d.vorjahr; if(state.objekt && !state.objekt.name) state.objekt.name=state.objekt.addr||""; /* US-65: Objektname aus Adresse vorbelegen, danach stabil */ migriereAnkuendigungen(); }
 /* US-118 AC-2b: beim Laden die drei Alt-Speicher (mhAngekuendigt, stafAngekuendigt,
    idxAnpassungen[].angekuendigt/ankSnapshot) in die vereinte per-MV-Map `ankuendigungen` falten
    und die Alt-Felder entfernen. Idempotent (nkMigrateAnkuendigungen), verlustfrei. */
@@ -182,6 +193,7 @@ function makeFreshDaten(){ const von="2025-01-01", bis="2025-12-31"; return {
   objekt:{ addr:"Neues Objekt", name:"Neues Objekt", von, bis, dokAblageVersion:2 },
   einheiten:[{ id:1, name:"EG", flaeche:0, personen:1, mv:[{ mieter:"Mieter 1", von, bis, vmonat:0, vmonate:12, vjahr:0, einmal:0, voraus:0, grundmiete:0, stellAnzahl:0, stellPreis:0, bezahlt:{} }] }],
   kosten:[],
+  ausgaben:[],
   zahlung:{ frist:"14 Tage nach Zugang", iban:"", bic:"", empfaenger:"", anschrift:"" },
   abrechnungStatus:"inArbeit"
 }; }
