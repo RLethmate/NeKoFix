@@ -1101,8 +1101,11 @@
 
     <!-- US-130: eigener Bereich, bewusst getrennt von der Kosten-Liste oben – diese Positionen
          fließen NICHT in die Nebenkostenabrechnung ein. -->
-    <div class="zahlungs-box">
-      <h2 class="zahlungs-titel">Sonstige Ausgaben (nicht umlagefähig, aber steuerrelevant)</h2>
+    <!-- Ralf-Feedback 2026-07-30: reversibler Test gegen die zunehmende Reiter-Länge (UX-Review) –
+         einklappbar statt fest offen, wie die Beleg-Übersicht darunter. Standardmäßig offen, damit
+         sich am bisherigen Verhalten nichts ändert; wer will, kann den Abschnitt zuklappen. -->
+    <details class="zahlungs-box" id="ausgaben_box" open>
+      <summary class="zahlungs-titel" style="cursor:pointer;">Sonstige Ausgaben (nicht umlagefähig, aber steuerrelevant)</summary>
       <p class="hint">Investitionen und andere Ausgaben, die nicht auf die Mieter umgelegt werden (z. B. eine neue Wärmepumpe), aber für deine Steuererklärung dokumentiert sein sollten. Diese Positionen fließen nicht in die Nebenkostenabrechnung ein.</p>
       <!-- US-131-Feedback: Autovervollständigung bereits erfasster Dienstleister-Namen -->
       <datalist id="dienstleister_liste"></datalist>
@@ -1117,7 +1120,7 @@
       </div>
       <button class="addrow" onclick="addAusgabeRow()">+ Ausgabe hinzufügen</button>
       <p class="hint">Das Zurechnungsjahr wird aus dem Belegdatum vorgeschlagen, ist aber frei änderbar – bei Rechnungen nahe dem Jahreswechsel (z. B. einer Schlussrechnung im Folgejahr) bitte mit dem Steuerberater abstimmen, welchem Jahr die Ausgabe zuzurechnen ist.</p>
-    </div>
+    </details>
 
     <!-- US-131: Checklisten-Übersicht über alle beleg-pflichtigen Positionen (Kosten + Sonstige
          Ausgaben) mit Fortschrittsanzeige. -->
