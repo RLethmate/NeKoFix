@@ -27,7 +27,7 @@ function renderKosten(){
     const betragVorjahr = !!k.vorjahr, betragVorschlag = !betragVorjahr && !!(k.vorschlag && k.vorschlag.betrag);
     const betragTri = betragVorjahr
       ? '<button type="button" class="vorschlag-tri" title="Vorjahreswert übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="uebernehmeKostenVorjahr('+idx+')"></button>'
-      : (betragVorschlag ? '<button type="button" class="vorschlag-tri" title="Betrag aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="kostenBetragVorschlagUebernehmen('+idx+')"></button>' : '');
+      : (betragVorschlag ? '<button type="button" class="vorschlag-tri" title="Importierten Betrag übernehmen (Techem- oder CSV-Import) – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="kostenBetragVorschlagUebernehmen('+idx+')"></button>' : '');
     return '<td class="num"><span class="betrag-wrap'+((betragVorjahr||betragVorschlag)?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag)+' €" oninput="updKostenBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'">'+betragTri+'</span></td>';
   }
   /* US-58: eine Kostenzeile (+ Detail) anhängen. */

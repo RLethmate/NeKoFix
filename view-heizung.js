@@ -84,13 +84,21 @@ function heizKarte(k,idx){
      (NK_ENERGIEARTEN): 3× direkt (kein Umrechnungs-Schritt), 4× hi (Verbrauch×Heizwert=Wärmemenge),
      1× jaz/Wärmepumpe (Verbrauch×Arbeitszahl=Wärmemenge) – dieselbe Struktur in allen drei Fällen. */
   const umrechnungZeile = fi.show ? (verbrauchFeld+op('×')+heizwertFeld+op('=')+waermemengeFeld) : '';
-  const betragVorschlag = !!(k.vorschlag && k.vorschlag.betrag);
+  /* UX-Review 2026-07-15 (Kano, blaue Ecke): Vorjahr-Vorbelegung wie im Kosten-Reiter über das
+     Dreieck am Betragsfeld statt über die frühere .heiz-vorjahr-Banner-Zeile (Muster vereinheit-
+     licht). Vorjahr hat Vorrang vor einem (theoretisch gleichzeitigen) Techem-Vorschlag – wie in
+     betragCellHtml (view-kosten.js). */
+  const betragVorjahr = !!k.vorjahr;
+  const betragVorschlag = !betragVorjahr && !!(k.vorschlag && k.vorschlag.betrag);
+  const betragTri = betragVorjahr
+    ? '<button type="button" class="vorschlag-tri" title="Vorjahreswert übernehmen – bitte Betrag, Verbrauch und Preis prüfen, dann anklicken (oder den Wert anpassen)" onclick="uebernehmeHeizVorjahr('+idx+')"></button>'
+    : (betragVorschlag ? '<button type="button" class="vorschlag-tri" title="Betrag aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="heizBetragVorschlagUebernehmen('+idx+')"></button>' : '');
   const mittelwertZeile =
     /* Ralf-Feedback 2026-07-06: Einheit gehört in den Wert, nicht nur ins Label (Label deshalb ohne
        "(€)", updHeizBetrag rendert bei jeder Aenderung neu – kein separates onblur-Reformat noetig).
        Ralf-Vorgabe 2026-07-13: blaues Eck, solange ein abweichend importierter Betrag (z. B. andere
        Abrechnungsperiode versehentlich importiert) nicht bestätigt ist. */
-    hf('Heizkosten gesamt', '<span class="feld-wrap'+(betragVorschlag?' unbestaetigt':'')+'" id="heiz-betrag-wrap-'+idx+'"><input type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag||0)+' €" onchange="updHeizBetrag('+idx+',this.value)">'+(betragVorschlag?'<button type="button" class="vorschlag-tri" title="Betrag aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="heizBetragVorschlagUebernehmen('+idx+')"></button>':'')+'</span>', null, 'hf-2u')+
+    hf('Heizkosten gesamt', '<span class="feld-wrap'+((betragVorjahr||betragVorschlag)?' unbestaetigt':'')+'" id="heiz-betrag-wrap-'+idx+'"><input type="text" inputmode="decimal" value="'+nkFmtBetrag(k.betrag||0)+' €" onchange="updHeizBetrag('+idx+',this.value)">'+betragTri+'</span>', null, 'hf-2u')+
     op('/')+
     nennerFeld+
     op('=')+
@@ -122,9 +130,10 @@ function heizKarte(k,idx){
     '</span>',
     'Gesamtmenge der Liegenschaft laut Techem-Abrechnung – Grundlage für den Verteilerschlüssel, auch bevor alle Einheiten importiert sind. Ohne Import: leer lassen, dann gilt die Summe der erfassten Einzelverbräuche.', 'hf-1u');
   return '<div class="unit-card einheit-card'+(k.vorjahr?' vorjahr':'')+'">'+
-    (k.vorjahr ? '<div class="heiz-vorjahr"><span><b>Aus dem Vorjahr vorbelegt.</b> Bitte Verbrauch und Preis prüfen.</span><button type="button" onclick="uebernehmeHeizVorjahr('+idx+')">Übernehmen</button></div>' : '')+
+    /* UX-Review 2026-07-15 (Kano): Banner-Zeile ersetzt durch Badge + Dreieck am Betragsfeld (s. o.) */
     '<div class="unit-head">'+
       '<input class="unit-name" value="'+esc(k.bez)+'" oninput="store.setKostenFeld('+idx+',\'bez\',this.value)">'+
+      (k.vorjahr?'<span class="vorjahr-badge">aus Vorjahr</span>':'')+
       '<label class="unit-f">Energieart <span class="feld-wrap'+(energieartVorschlag?' unbestaetigt':'')+'" id="heiz-energieart-wrap-'+idx+'"><select onchange="setEnergieart('+idx+',this.value)">'+eaOpts+'</select>'+(energieartVorschlag?'<button type="button" class="vorschlag-tri" title="Energieart aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder ändern)" onclick="heizEnergieartVorschlagUebernehmen('+idx+')"></button>':'')+'</span></label>'+
       '<button class="row-del" title="Heizblock entfernen" onclick="delHeizblock('+idx+')" style="margin-left:auto;">×</button>'+
     '</div>'+

@@ -131,8 +131,33 @@
   .field>.feld-wrap,.field>.betrag-wrap{display:block;width:100%;}
   .vorschlag-tri{position:absolute;top:2px;right:2px;width:0;height:0;padding:0;margin:0;border:none;background:transparent;cursor:pointer;border-top:12px solid #2f6fed;border-left:12px solid transparent;}
   .vorschlag-tri:hover,.vorschlag-tri:focus{border-top-color:#1b4fc0;outline:none;}
+  /* Fund UX-Review 2026-07-16: ".hf input,.hf button{width:100%}" (Feld-Raster) streckte das
+     Dreieck in Heizungs-/hf-Feldern zu einem blauen Band über die volle Feldbreite – Breite und
+     box-sizing hier gezielt zurücksetzen (betraf auch die bestehenden Techem-Ecken im Heizung-Reiter). */
+  .hf button.vorschlag-tri{width:0;box-sizing:content-box;}
   .unit-card.vorjahr{border-color:#e6c878;box-shadow:0 0 0 1px rgba(230,200,120,.35);}
-  .heiz-vorjahr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fbf4e6;border:1px solid #e6c878;border-radius:8px;padding:6px 10px;margin-bottom:8px;font-size:12.5px;color:#7a5a12;}
+  /* UX-Review 2026-07-15 (Kano): .heiz-vorjahr-Banner entfernt – die Heizungs-Vorjahr-Übernahme
+     läuft jetzt wie im Kosten-Reiter über das blaue Dreieck am Betragsfeld (uebernehmeHeizVorjahr). */
+  /* UX-Review 2026-07-15 (Kano): Schnellstart-Hinweis – ruhig (soft/line statt Warn-Sand), Schritte
+     als klickbare Links auf die Reiter, "×" blendet dauerhaft aus (localStorage). */
+  .schnellstart-banner{display:flex;align-items:flex-start;gap:12px;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:12px 0;}
+  .schnellstart-banner .ss-text{flex:1;min-width:240px;font-size:13px;color:var(--ink);line-height:1.7;}
+  .schnellstart-banner .ss-demo{color:var(--muted);}
+  .ss-step{display:inline;background:none;border:none;padding:0;margin:0;font-size:13px;font-weight:600;color:var(--primary);cursor:pointer;text-decoration:underline;text-underline-offset:2px;}
+  .ss-step:hover{color:var(--primary-dark);}
+  .schnellstart-banner .ss-x{background:none;border:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:0 4px;}
+  /* UX-Review 2026-07-15 (Kano): Jahresverlauf "Nebenkosten je m²" – schlichtes SVG-Balkendiagramm,
+     aktives Jahr in Petrol, frühere Jahre gedämpft (#6E97A1, Kontrast/CVD geprüft); Werte direkt
+     beschriftet (Text in Ink-/Muted-Tönen, nicht in der Balkenfarbe). */
+  .jv-box{margin-top:12px;padding-top:8px;border-top:1px solid #eef2f6;}
+  .jv-titel{font-size:13px;font-weight:600;color:#41505f;margin-bottom:4px;}
+  .jv-box svg{display:block;max-width:100%;height:auto;}
+  .jv-box text{font-family:var(--font);}
+  .jv-wert{font-size:11px;fill:var(--ink);font-variant-numeric:tabular-nums;}
+  .jv-jahr{font-size:11px;fill:var(--muted);}
+  .jv-jahr.aktiv{font-weight:700;fill:var(--primary);}
+  /* UX-Review 2026-07-15 (Kano): "Fertig!"-Dialog – Erfolgsgrün wie .freischalt-box.frei. */
+  .fertig-dlg h2{color:#1d7a3a;}
   .heiz-vorjahr button{margin-left:auto;background:var(--primary);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:12.5px;cursor:pointer;}
   .reset-data{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer;}
   .reset-data:hover{background:rgba(255,255,255,.25);}
@@ -832,6 +857,19 @@
   <div id="csv_overlay" class="csv-overlay" style="display:none" onclick="if(event.target===this)closeUmsatzReview()">
     <div class="csv-modal" id="csv_modal"></div>
   </div>
+  <!-- UX-Review 2026-07-15 (Kano): ruhiger "Fertig!"-Moment nach dem ERSTEN versandfertigen
+       (freigeschalteten) PDF eines Objekts/Jahres – einmalig, kein Konfetti (s. zeigeFertigMoment). -->
+  <div class="overlay-obj" id="fertigdlg_overlay" hidden onclick="if(event.target===this)closeFertigDialog()">
+    <div class="dialog-obj fertig-dlg" style="width:min(460px,94vw)">
+      <h2>Ihre Abrechnung ist fertig</h2>
+      <p id="fertigdlg_text" style="margin:0 18px 8px;font-size:14px;line-height:1.5;color:var(--ink);"></p>
+      <p class="hint" style="margin:0 18px 16px;">Damit ist der aufwendigste Teil geschafft. Die PDFs werden ohne Wasserzeichen erzeugt und können verschickt werden.</p>
+      <div class="dlg-foot">
+        <span></span>
+        <button class="btn-primary" onclick="closeFertigDialog()">Schließen</button>
+      </div>
+    </div>
+  </div>
   <span class="spacer"></span>
   <span id="save_status" class="save-status"></span>
   <label class="abr-status-wrap" title="Status der Abrechnung">Status:
@@ -853,6 +891,9 @@
   </aside>
   <div class="content">
   <div id="vorjahr_banner"></div>
+  <!-- UX-Review 2026-07-15 (Kano): optionaler, dauerhaft wegklickbarer Schnellstart-Hinweis mit der
+       empfohlenen Reihenfolge für die erste Abrechnung (kein Zwangs-Wizard, s. renderSchnellstart). -->
+  <div id="schnellstart_banner"></div>
 
   <!-- Step 1: Objekt & Einheiten -->
   <section class="panel" data-step="0">

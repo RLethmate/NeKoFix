@@ -22,7 +22,7 @@ const STEPS = ["Gebäude & Einheiten","Vorauszahlung (Soll)","Heizung","Kosten",
 /* Ralf-Vorgabe 2026-07-14: "bis aktueller Monat" ist jetzt die Voreinstellung (US-83 – Monate
    sollen bis zum echten aktuellen Monat sichtbar sein, nicht nur bis zum Ende des
    Abrechnungszeitraums; passendes Markup dazu in index.html, s. #zv_faellig/#zahl_laeuft_hint). */
-const ui = { current:0, activeMieter:0, vorausModus:"monatlich", zeigeVorjahr:false, nurUngeprueft:false, expandedKosten:new Set(), expandedHeizZeit:new Set(), expandedAutomatik:new Set(), expandedChronik:new Set(), navPlausiOpen:false, drag:null, zahlBisAktuell:true, csvImport:{ buchungen:[], dateiname:"", fehler:null }, csvAutoProtokoll:false, termineAnsicht:"faellig" }; /* AC-3 (US-118): gebündelter UI-/Sitzungs-State. expandedMV entfaellt (Mieter&Vertrag-Layout-Story 2026-07-07): Kaltmiete/Anrede/E-Mail immer sichtbar, kein Vertrag-Aufklapper mehr; expandedChronik neu fuer die "┃ Chronik"-Leiste. */
+const ui = { current:0, activeMieter:0, vorausModus:"monatlich", zeigeVorjahr:false, nurUngeprueft:false, expandedKosten:new Set(), expandedHeizZeit:new Set(), expandedAutomatik:new Set(), expandedChronik:new Set(), navPlausiOpen:false, drag:null, zahlBisAktuell:true, csvImport:{ buchungen:[], dateiname:"", fehler:null }, csvAutoProtokoll:false, termineAnsicht:"faellig", ersterStart:false }; /* AC-3 (US-118): gebündelter UI-/Sitzungs-State. expandedMV entfaellt (Mieter&Vertrag-Layout-Story 2026-07-07): Kaltmiete/Anrede/E-Mail immer sichtbar, kein Vertrag-Aufklapper mehr; expandedChronik neu fuer die "┃ Chronik"-Leiste. */
 
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit", verbrauch:"nach Verbrauch", direkt:"Direkt (eine Einheit)" };
@@ -221,6 +221,7 @@ function go(i){
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', +p.dataset.step===i));
   const r=RENDERERS[i]; if(r) r();
   renderStepper();
+  renderSchnellstart(); /* UX-Review 2026-07-15 (Kano): Sichtbarkeits-Bedingung (frisches Objekt) bei jedem Reiterwechsel neu prüfen */
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -299,8 +300,8 @@ const APP_MAJOR="0";
    läuft dieser Schritt nie. Damit sich beim lokalen Testen sofort erkennen lässt, welcher Branch/
    Stand gerade offen ist (statt eines immer gleichen Platzhalters), hier den Branch-/Story-Namen
    + heutiges Datum eintragen, sobald ein Stand zum lokalen Testen ansteht. */
-const APP_VERSION="v-0.0.0 (lokal: us-121-mieter-vertrag-raster)";
-const BUILD_DATE="2026-07-05";
+const APP_VERSION="v-0.0.0 (lokal: kano-begeisterungsfeatures)";
+const BUILD_DATE="2026-07-16";
 function toggleDateiMenu(forceClose){ const m=document.getElementById('datei_menu'); if(!m) return; m.hidden = forceClose ? true : !m.hidden; const s=document.getElementById('mru_sub'); if(s) s.hidden=true; /* US-91: Submenü „Zuletzt verwendet" beim Öffnen/Schließen zurücksetzen */ }
 document.addEventListener('click', e=>{ const m=document.getElementById('datei_menu'); if(m && !m.hidden && !e.target.closest('.menu')){ m.hidden=true; const s=document.getElementById('mru_sub'); if(s) s.hidden=true; } });
 
@@ -484,7 +485,7 @@ function renderMruSub(){ const s=document.getElementById('mru_sub'); if(!s) retu
   if(!list.length){ s.innerHTML='<button disabled>– noch keine –</button>'; return; }
   s.innerHTML=list.map((x,n)=>'<button onclick="waehleObjekt('+x.idx+');toggleDateiMenu(true)"><span class="mru-num">'+(n+1)+'</span><span style="flex:1">'+esc(x.label)+'</span></button>').join('')
     +'<div class="menu-sep"></div><button onclick="openObjektDialog();toggleDateiMenu(true)">Alle Objekte öffnen…</button>'; }
-function renderAll(){ renderObjTitle(); renderVorjahrBanner(); fillObjektKopf();
+function renderAll(){ renderObjTitle(); renderVorjahrBanner(); renderSchnellstart(); fillObjektKopf();
   const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus;
   renderEinheiten(); renderVoraus(); renderKosten();
   const r=RENDERERS[ui.current]; if(r) r(); /* aktuellen Reiter über dieselbe Tabelle wie go() rendern */
@@ -639,6 +640,46 @@ function confirmVorjahr(){
   (state.einheiten||[]).forEach(e=>{ e.vorjahr=false; (e.mv||[]).forEach(m=>{ m.vorjahr=false; }); });
   renderAll(); neuerVerlauf(); saveState(); updateSaveStatus();
 }
+/* UX-Review 2026-07-15 (Kano): optionaler Schnellstart-Hinweis – beantwortet "was mache ich
+   zuerst?" beim allerersten Start (Beispieldaten) und bei jedem frischen, noch leeren Objekt
+   (keine Kosten erfasst). Kein Zwangs-Wizard: nur klickbare Reiter-Links in der empfohlenen
+   Reihenfolge; "×" blendet ihn dauerhaft aus (localStorage, objektübergreifend wie DOK_KEY). */
+const SCHNELLSTART_KEY="nekofix-schnellstart-weg";
+function schnellstartWeg(){ try{ return localStorage.getItem(SCHNELLSTART_KEY)==="1"; }catch(e){ return false; } }
+function dismissSchnellstart(){ try{ localStorage.setItem(SCHNELLSTART_KEY,"1"); }catch(e){} renderSchnellstart(); }
+function renderSchnellstart(){
+  const box=document.getElementById('schnellstart_banner'); if(!box) return;
+  const frisch=!(state.kosten||[]).length;
+  const zeigen=!schnellstartWeg() && !(state.objekt&&state.objekt.freigeschaltet) && (frisch || ui.ersterStart);
+  if(!zeigen){ box.innerHTML=''; return; }
+  const step=(i,txt)=>'<button type="button" class="ss-step" onclick="go('+i+')">'+txt+'</button>';
+  box.innerHTML='<div class="schnellstart-banner"><div class="ss-text"><b>Schnellstart – so entsteht die erste Abrechnung:</b> '+
+    (ui.ersterStart&&!frisch?'<span class="ss-demo">Zum Ausprobieren sind Beispieldaten geladen; ein eigenes Objekt legen Sie über „Datei → Neu…" an.</span><br>':'')+
+    '1. '+step(0,'Gebäude & Einheiten')+' (Adresse, Zeitraum, Flächen) · '+
+    '2. '+step(7,'Mieter & Vertrag')+' (Mieter, Vorauszahlung) · '+
+    '3. '+step(2,'Heizung')+' und '+step(3,'Kosten')+' erfassen · '+
+    '4. '+step(5,'Fertige Abrechnung')+' prüfen und als PDF erzeugen. '+
+    'Die Reihenfolge ist nur eine Empfehlung – alle Bereiche sind jederzeit frei erreichbar.</div>'+
+    '<button class="ss-x" onclick="dismissSchnellstart()" title="Hinweis dauerhaft ausblenden" aria-label="Hinweis dauerhaft ausblenden">×</button></div>';
+}
+/* UX-Review 2026-07-15 (Kano): ruhiger "Fertig!"-Moment – einmal je Objekt+Jahr (gleicher Schlüssel
+   wie die Freischaltung, nkFreischaltKey), nur wenn das PDF versandfertig (freigeschaltet, ohne
+   Wasserzeichen) erzeugt wurde. Aufruf aus pdf.js nach erfolgreichem Mieter-PDF-Export/-Versand. */
+const FERTIG_KEY="nekofix-fertig-gezeigt";
+function zeigeFertigMoment(){
+  if(!(state.objekt && state.objekt.freigeschaltet)) return;
+  let gezeigt=[]; try{ gezeigt=JSON.parse(localStorage.getItem(FERTIG_KEY)||'[]'); }catch(e){ gezeigt=[]; }
+  if(!Array.isArray(gezeigt)) gezeigt=[];
+  const key=nkFreischaltKey(state.objekt);
+  if(gezeigt.indexOf(key)>=0) return;
+  try{ localStorage.setItem(FERTIG_KEY, JSON.stringify(gezeigt.concat(key))); }catch(e){}
+  const f=nkFertigMoment(state.einheiten, state.kosten, state.objekt);
+  const t=document.getElementById('fertigdlg_text');
+  if(t) t.textContent='Die Abrechnung'+(f.jahr?' '+f.jahr:'')+' für „'+((state.objekt.name||state.objekt.addr)||'')+'" ist versandfertig: '+
+    f.mieter+' Mietverhältnis'+(f.mieter===1?'':'se')+' in '+f.einheiten+' Einheit'+(f.einheiten===1?'':'en')+', '+eur(f.summe)+' Kosten verteilt.';
+  const ov=document.getElementById('fertigdlg_overlay'); if(ov) ov.hidden=false;
+}
+function closeFertigDialog(){ const ov=document.getElementById('fertigdlg_overlay'); if(ov) ov.hidden=true; }
 function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ return; }
   const dateiname=f.name; /* Speicher: Objektname (Header) folgt dem Dateinamen, nicht dem Adressfeld */
   const r=new FileReader();

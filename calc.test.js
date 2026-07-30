@@ -2181,3 +2181,66 @@ test("nkTechemKopfParsen: unvollständige/anonymisierte Vorlage liefert leere St
   assert.equal(kopf.absenderName, "Auftraggeber");
   assert.equal(kopf.mieterName, "...");
 });
+
+/* UX-Review 2026-07-15 (Kano): Kennzahlen für den "Fertig!"-Moment nach dem ersten
+   versandfertigen PDF – Jahr, Anzahl Mietverhältnisse/Einheiten, verteilte Gesamtsumme. */
+test("nkFertigMoment: Jahr, Zählungen und Summe stimmen mit nkObjektAbrechnung überein", () => {
+  const objekt = { von: "2025-01-01", bis: "2025-12-31" };
+  const ein = [
+    { name: "EG", flaeche: 70, personen: 2, mv: [{ mieter: "A", von: "2025-01-01", bis: "2025-12-31", voraus: 1800 }] },
+    { name: "OG", flaeche: 30, personen: 1, mv: [
+      { mieter: "B", von: "2025-01-01", bis: "2025-06-30", voraus: 600 },
+      { mieter: "C", von: "2025-07-01", bis: "2025-12-31", voraus: 600 }
+    ] }
+  ];
+  const kos = [{ bez: "Grundsteuer", betrag: 1000, schluessel: "flaeche" }];
+  const f = calc.nkFertigMoment(ein, kos, objekt);
+  assert.equal(f.jahr, "2025");
+  assert.equal(f.mieter, 3);
+  assert.equal(f.einheiten, 2);
+  const ab = calc.nkObjektAbrechnung(ein, kos, objekt);
+  assert.equal(f.summe, ab.summeAnteil);
+});
+
+/* UX-Review 2026-07-15 (Kano): sichtbarer Jahresvergleich – €/m²·Monat über die Jahrgänge
+   desselben Objekts (Namens-Match wie nkFindVorjahr), aufsteigend sortiert. */
+test("nkJahresverlauf: sortiert die Jahrgänge desselben Objekts, markiert das aktive Jahr", () => {
+  const mk = (addr, jahr, betrag, flaeche) => ({
+    objekt: { addr: addr, von: jahr + "-01-01", bis: jahr + "-12-31" },
+    einheiten: [{ name: "EG", flaeche: flaeche }],
+    kosten: [{ bez: "Grundsteuer", betrag: betrag }]
+  });
+  const objekte = [
+    mk("Lindenhof 1", "2025", 2400, 100), /* aktiv */
+    mk("Lindenhof 1", "2024", 1200, 100),
+    mk("Andere Straße 9", "2024", 9999, 100) /* anderes Objekt – darf nicht auftauchen */
+  ];
+  const v = calc.nkJahresverlauf(objekte, 0);
+  assert.equal(v.length, 2);
+  assert.deepEqual(v.map(x => x.jahr), ["2024", "2025"]);
+  assert.deepEqual(v.map(x => x.aktiv), [false, true]);
+  assert.equal(v[0].eurQmMonat, 1);  /* 1200 € / 100 m² / 12 */
+  assert.equal(v[1].eurQmMonat, 2);  /* 2400 € / 100 m² / 12 */
+  assert.equal(v[1].gesamt, 2400);
+});
+test("nkJahresverlauf: Jahrgänge ohne Fläche werden übersprungen; doppeltes Jahr – aktives Objekt gewinnt", () => {
+  const mk = (jahr, betrag, flaeche) => ({
+    objekt: { addr: "Lindenhof 1", von: jahr + "-01-01", bis: jahr + "-12-31" },
+    einheiten: [{ name: "EG", flaeche: flaeche }],
+    kosten: [{ bez: "Grundsteuer", betrag: betrag }]
+  });
+  const objekte = [
+    mk("2024", 1200, 0),    /* keine Fläche -> übersprungen */
+    mk("2025", 2400, 100),  /* Dublette, nicht aktiv -> unterliegt */
+    mk("2025", 3600, 100)   /* aktiv -> gewinnt */
+  ];
+  const v = calc.nkJahresverlauf(objekte, 2);
+  assert.equal(v.length, 1);
+  assert.equal(v[0].jahr, "2025");
+  assert.equal(v[0].gesamt, 3600);
+  assert.equal(v[0].aktiv, true);
+});
+test("nkJahresverlauf: ohne aktives Objekt oder ohne Namen leeres Ergebnis", () => {
+  assert.deepEqual(calc.nkJahresverlauf([], 0), []);
+  assert.deepEqual(calc.nkJahresverlauf([{ objekt: { addr: "" }, einheiten: [], kosten: [] }], 0), []);
+});

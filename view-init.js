@@ -2,8 +2,9 @@
    da hier die Render-Funktionen aller Reiter aufgerufen werden. */
 
 /* ---------- Init ---------- */
-loadState();
+const _geladen=loadState();
 if(!objekte.length){ objekte=[snapshot()]; aktivIdx=0; } /* Erststart: Demodaten als erstes Objekt */
+ui.ersterStart=!_geladen; /* UX-Review 2026-07-15 (Kano): allererster Start (Beispieldaten) → Schnellstart-Hinweis zeigen */
 if(state.objekt && !state.objekt.name) state.objekt.name=state.objekt.addr||""; /* US-65: Objektname (Header) aus Adresse vorbelegen, danach stabil */
 ensureIds();
 /* US-84: Nur wenn keine Speicherpunkte vorliegen (Erststart/Legacy), den Anfangsstand – nach
@@ -21,6 +22,7 @@ fillObjektKopf();
 initNav(); /* US-54: gespeicherten Klapp-Zustand der Lasche anwenden */
 applyDokAnker(); /* US-80: gespeicherten Einklapp-Zustand der Dokument-Anker anwenden */
 renderEinheiten(); renderVoraus(); renderKosten(); renderStepper(); go(0);
+renderSchnellstart(); /* UX-Review 2026-07-15 (Kano): läuft auch in go(0), hier explizit fürs Erststart-Flag */
 neuerVerlauf(); /* US-82: Verlauf-Baseline auf den geladenen Anfangszustand setzen */
 saveState();
 updateSaveStatus(); /* US-84: Anfangsstatus „✓ Gespeichert" anzeigen */

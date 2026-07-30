@@ -90,6 +90,12 @@ const store = {
   setVertragFeld(ei,mi,field,val,num){ state.einheiten[ei].mv[mi][field]= num?(+val):val; commit(); },
   setBezahlt(ei,mi,key,checked){ const m=state.einheiten[ei].mv[mi]; if(!m.bezahlt)m.bezahlt={}; m.bezahlt[key]=checked; commit(); },
   setErhalten(ei,mi,key,val){ const m=state.einheiten[ei].mv[mi]; if(!m.erhalten)m.erhalten={}; m.erhalten[key]=+val||0; commit(); }, /* US-74 */
+  /* UX-Review 2026-07-15 (Kano, blaue Ecke): CSV-Import hat auf einen bereits erfassten Monatswert
+     aufaddiert – der Monat trägt bis zur Bestätigung ein Vorschlag-Flag (WISO-Stil blaues Eck,
+     wie setKostenVorschlagFeld). val=false räumt Flag und leere Map wieder ab. */
+  setErhaltenVorschlag(ei,mi,key,val){ const m=state.einheiten[ei].mv[mi]; if(!m.erhaltenVorschlag) m.erhaltenVorschlag={};
+    if(val) m.erhaltenVorschlag[key]=true; else delete m.erhaltenVorschlag[key];
+    if(!Object.keys(m.erhaltenVorschlag).length) delete m.erhaltenVorschlag; commit(); },
   setSollSnap(ei,mi,key,val){ const m=state.einheiten[ei].mv[mi]; if(!m.sollSnap)m.sollSnap={}; m.sollSnap[key]=+val||0; commit(); }, /* US-74: Soll bei bezahltem Monat einfrieren */
   clearSollSnap(ei,mi,key){ const m=state.einheiten[ei].mv[mi]; if(m.sollSnap&&key in m.sollSnap){ delete m.sollSnap[key]; commit(); } }, /* US-74: Einfrieren aufheben (z. B. beim Ent-Haken von „geprüft") */
   // Chronik

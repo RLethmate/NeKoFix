@@ -1433,6 +1433,43 @@ function nkFreischaltGueltig(code, objekt) {
   return !!String(code || "").trim() && norm(code) === norm(nkFreischaltCode(objekt));
 }
 
+/* UX-Review 2026-07-15 (Kano): Kennzahlen für den "Fertig!"-Moment nach dem ersten versandfertigen
+   PDF – Abrechnungsjahr, Anzahl Mietverhältnisse/Einheiten und die verteilte Gesamtsumme
+   (= summeAnteil aus nkObjektAbrechnung, inkl. Leerstand). Reine Anzeige-Kennzahl. */
+function nkFertigMoment(einheiten, kosten, objekt) {
+  const ab = nkObjektAbrechnung(einheiten, kosten, objekt);
+  const mieter = ab.einheiten.reduce((s, er) => s + er.mietverhaeltnisse.length, 0);
+  return { jahr: nkObjektJahr({ objekt: objekt }), mieter: mieter, einheiten: ab.totals.einheiten, summe: ab.summeAnteil };
+}
+
+/* UX-Review 2026-07-15 (Kano): sichtbarer Jahresvergleich – Nebenkosten je m² (Monatswert) über
+   alle gespeicherten Jahrgänge DESSELBEN Objekts (Namens-/Adress-Match wie nkFindVorjahr).
+   Jahrgänge ohne Jahr oder ohne erfasste Fläche werden übersprungen; gibt es ein Jahr doppelt,
+   gewinnt das aktive Objekt, sonst der erste Treffer. Aufsteigend nach Jahr sortiert.
+   Reine Anzeige-Kennzahl (ändert keine Verteilung). */
+function nkJahresverlauf(objekte, aktivIdx) {
+  const liste = objekte || [];
+  const akt = liste[aktivIdx];
+  if (!akt) return [];
+  const name = nkNormName((akt.objekt && (akt.objekt.addr || akt.objekt.name)) || "");
+  if (!name) return [];
+  const out = [], proJahr = {};
+  liste.forEach((d, i) => {
+    const n = nkNormName((d && d.objekt && (d.objekt.addr || d.objekt.name)) || "");
+    if (n !== name) return;
+    const jahr = nkObjektJahr(d);
+    if (!jahr) return;
+    const flaeche = (d.einheiten || []).reduce((s, e) => s + (+e.flaeche || 0), 0);
+    if (!(flaeche > 0)) return;
+    const r = nkEurProQm(d.kosten || [], flaeche);
+    const eintrag = { jahr: jahr, flaeche: flaeche, gesamt: r.gesamt.betrag, eurQmMonat: r.gesamt.monat, aktiv: i === aktivIdx };
+    if (proJahr[jahr] != null) { if (eintrag.aktiv) out[proJahr[jahr]] = eintrag; return; }
+    proJahr[jahr] = out.length;
+    out.push(eintrag);
+  });
+  return out.sort((a, b) => String(a.jahr).localeCompare(String(b.jahr)));
+}
+
 /* ================= US-111: Termine & Wartung ("Chronik der Zukunft") ================= */
 /* Feste Rubriken (Art) für die gruppierte Ansicht. "mieterhoehung" ist synthetisch (aggregiert). */
 const NK_TERMIN_ARTEN = { vorort: "Vor Ort", verwaltung: "Schreibtisch/Verwaltung", sonstiges: "Sonstiges" };
@@ -1852,6 +1889,8 @@ if (typeof module !== "undefined" && module.exports) {
     nkFreischaltKey,
     nkFreischaltCode,
     nkFreischaltGueltig,
+    nkFertigMoment,
+    nkJahresverlauf,
     nkTotals,
     nkFactor,
     nkAnteilOf,
