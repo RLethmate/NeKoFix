@@ -984,6 +984,19 @@
       <tbody></tbody>
     </table>
     <p class="hint">Der Verteilerschlüssel wird je Kostenart vorgeschlagen und ist überschreibbar (↺). Ein <b>!</b> markiert <b>typische</b> nicht umlagefähige Positionen (Verwaltung, Instandhaltung/Reparatur, Rücklagen, Kabel-TV) – als Hinweis, nicht abschließend; im Zweifel selbst prüfen. Markierte Positionen werden weiterhin verteilt.</p>
+
+    <!-- US-130: eigener Bereich, bewusst getrennt von der Kosten-Liste oben – diese Positionen
+         fließen NICHT in die Nebenkostenabrechnung ein. -->
+    <div class="zahlungs-box">
+      <h2 class="zahlungs-titel">Sonstige Ausgaben (nicht umlagefähig)</h2>
+      <p class="hint">Investitionen und andere Ausgaben, die nicht auf die Mieter umgelegt werden (z. B. eine neue Wärmepumpe), aber für deine Steuererklärung dokumentiert sein sollten. Diese Positionen fließen nicht in die Nebenkostenabrechnung ein.</p>
+      <table id="tbl_ausgaben">
+        <thead><tr><th>Bezeichnung</th><th>Dienstleister</th><th class="num">Betrag</th><th>Belegdatum</th><th>Zurechnungsjahr</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <button class="addrow" onclick="addAusgabeRow()">+ Ausgabe hinzufügen</button>
+      <p class="hint">Das Zurechnungsjahr wird aus dem Belegdatum vorgeschlagen, ist aber frei änderbar – bei Rechnungen nahe dem Jahreswechsel (z. B. einer Schlussrechnung im Folgejahr) bitte mit dem Steuerberater abstimmen, welchem Jahr die Ausgabe zuzurechnen ist.</p>
+    </div>
   </section>
 
   <!-- Step 4: Heizung (US-05) -->

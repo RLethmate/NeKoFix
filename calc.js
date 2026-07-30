@@ -1129,6 +1129,22 @@ function nkObjektJahr(s) {
   return m ? m[1] : "";
 }
 
+/* US-130: neue Position für "Sonstige Ausgaben (nicht umlagefähig)" – eigene Kategorie, getrennt
+   von state.kosten, fließt NICHT in nkObjektAbrechnung ein. Zurechnungsjahr wird zunächst auf das
+   Objektjahr vorbelegt (beim Anlegen liegt meist noch kein Belegdatum vor); s. nkAusgabeJahrVorschlag
+   für die feinere Vorbelegung sobald ein Datum erfasst ist. Reine Funktion. */
+function nkAusgabeNeu(objektJahr) {
+  return { bez: "", dienstleister: "", betrag: 0, datum: "", zurechnungsjahr: objektJahr || "" };
+}
+/* US-130: Zurechnungsjahr-Vorschlag aus dem Belegdatum. Die tatsächliche steuerliche Zuordnung
+   (z. B. bei einer Schlussrechnung im Folgejahr) ist eine Fachfrage für den Steuerberater – diese
+   Funktion liefert nur einen überschreibbaren Vorschlag, keine verbindliche Festlegung. Reine
+   Funktion. */
+function nkAusgabeJahrVorschlag(datum, fallbackJahr) {
+  const m = String(datum == null ? "" : datum).match(/^(\d{4})/);
+  return m ? m[1] : (fallbackJahr || "");
+}
+
 /* US-104: prozentuale Veränderung neu ggü. alt (Vorjahr), auf eine Nachkommastelle gerundet.
    Liefert null, wenn alt nicht endlich oder 0 ist (kein sinnvoller Bezug). Reine Funktion (Tests). */
 function nkProzentDelta(neu, alt) {
@@ -1348,16 +1364,20 @@ function nkMonatAusZweck(zweck, fallbackDatum) {
   if (mm) return mm[2] + "-" + String(+mm[1]).padStart(2, "0");
   return String(fallbackDatum || "").slice(0, 7);
 }
-/* US-87/88: Übernahme-Plan aus den zugeordneten Buchungen. Nutzt die gelernten Regeln
+/* US-87/88/130: Übernahme-Plan aus den zugeordneten Buchungen. Nutzt die gelernten Regeln
    (nkMatchRegel), überspringt bereits übernommene (Fingerprint in opts.gesehen), summiert Kosten
-   je Kostenart und sammelt Zahlungen je Mietverhältnis/Monat. Rein & testbar.
-   Rückgabe: { kosten:[{bez,summe,anzahl}], zahlungen:[{einheitId,mvId,monat,betrag}],
-   neueKosten:[bez], ignoriert, offen, fingerprints:[fp] }. */
+   je Kostenart, sammelt Zahlungen je Mietverhältnis/Monat und sammelt "Sonstige Ausgaben"
+   (ziel.art==="ausgabe") einzeln (keine Summierung – jede Anschaffung bleibt als eigener Beleg
+   erkennbar, anders als bei Kostenarten). opts.objektJahr ist nur der Vorschlag fürs
+   Zurechnungsjahr (nkAusgabeJahrVorschlag), keine automatische steuerliche Festlegung. Rein &
+   testbar. Rückgabe: { kosten:[{bez,summe,anzahl}], zahlungen:[{einheitId,mvId,monat,betrag}],
+   ausgaben:[{bez,betrag,datum,zurechnungsjahr}], neueKosten:[bez], ignoriert, offen,
+   fingerprints:[fp] }. */
 function nkImportPlan(buchungen, regeln, opts) {
   opts = opts || {};
   const gesehen = new Set(opts.gesehen || []);
   const vorhanden = new Set(opts.kostenBez || []);
-  const kostenMap = {}, zahlungen = [], neueKosten = new Set(), fps = [];
+  const kostenMap = {}, zahlungen = [], ausgaben = [], neueKosten = new Set(), fps = [];
   let ignoriert = 0, offen = 0;
   (buchungen || []).forEach(b => {
     const ziel = nkMatchRegel(b, regeln);
@@ -1379,9 +1399,13 @@ function nkImportPlan(buchungen, regeln, opts) {
       if (schon) return;
       zahlungen.push({ einheitId: ziel.einheitId, mvId: ziel.mvId, monat: nkMonatAusZweck(b.zweck, b.datum), betrag: +b.betrag || 0 });
       fps.push(fp);
+    } else if (ziel.art === "ausgabe") {
+      if (schon) return;
+      ausgaben.push({ bez: b.name || b.zweck || "Sonstige Ausgabe", betrag: Math.abs(+b.betrag || 0), datum: b.datum || "", zurechnungsjahr: nkAusgabeJahrVorschlag(b.datum, opts.objektJahr) });
+      fps.push(fp);
     }
   });
-  return { kosten: Object.values(kostenMap), zahlungen: zahlungen, neueKosten: [...neueKosten], ignoriert: ignoriert, offen: offen, fingerprints: fps };
+  return { kosten: Object.values(kostenMap), zahlungen: zahlungen, ausgaben: ausgaben, neueKosten: [...neueKosten], ignoriert: ignoriert, offen: offen, fingerprints: fps };
 }
 
 /* US-40: Freischaltung des versandfertigen PDFs – Stufe 1 (serverlos). Der Code ist deterministisch
@@ -1984,5 +2008,7 @@ if (typeof module !== "undefined" && module.exports) {
     nkTechemKopfParsen,
     nkTechemAbrechnungParsen,
     nkTechemGebaeudeAbweichung,
+    nkAusgabeNeu,
+    nkAusgabeJahrVorschlag,
   };
 }
