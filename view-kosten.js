@@ -332,9 +332,9 @@ function renderAusgaben(){
     const jahrAbweichend = !!(jahrVorschlag && String(a.zurechnungsjahr||'')!==jahrVorschlag);
     const tr=document.createElement('tr');
     tr.innerHTML=
-      '<td><input value="'+esc(a.bez)+'" placeholder="z. B. Wärmepumpe" oninput="updAusgabeFeld('+idx+',\'bez\',this.value)">'+herkunftBadgeHtml(a)+'</td>'+
-      '<td><input value="'+esc(a.dienstleister||'')+'" placeholder="Dienstleister" list="dienstleister_liste" oninput="updAusgabeFeld('+idx+',\'dienstleister\',this.value)"></td>'+
+      '<td class="bez-col"><input value="'+esc(a.bez)+'" placeholder="z. B. Wärmepumpe" oninput="updAusgabeFeld('+idx+',\'bez\',this.value)">'+herkunftBadgeHtml(a)+'</td>'+
       '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(a.betrag)+' €" oninput="updAusgabeBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'"></td>'+
+      '<td><input value="'+esc(a.dienstleister||'')+'" placeholder="Dienstleister" list="dienstleister_liste" oninput="updAusgabeFeld('+idx+',\'dienstleister\',this.value)"></td>'+
       '<td><input type="date" value="'+esc(a.datum||'')+'" onchange="updAusgabeDatum('+idx+',this.value)"></td>'+
       '<td><span class="feld-wrap"><input class="short" type="text" inputmode="numeric" style="max-width:64px" title="Zurechnungsjahr (Steuerjahr) – bei Rechnungen nahe dem Jahreswechsel ggf. mit dem Steuerberater abstimmen" value="'+esc(a.zurechnungsjahr||'')+'" onchange="updAusgabeJahr('+idx+',this.value)"></span>'+
         (jahrAbweichend?' <button type="button" class="reset-btn" title="Auf Jahr aus dem Belegdatum ('+esc(jahrVorschlag)+') zurücksetzen" onclick="resetAusgabeJahr('+idx+')">↺</button>':'')+

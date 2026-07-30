@@ -96,9 +96,12 @@
   tr.vorjahr td{background:#fdf6e8;}
   tr.vorjahr td:nth-child(2) input{border-color:#e6c878;background:#fffaf0;font-style:italic;}
   .vorjahr-badge{display:inline-block;font-size:11px;color:#7a5a12;background:#fbf4e6;border:1px solid #e6c878;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
-  /* US-131: Belege per Drag & Drop – Dropzone je Position, Kürzel-Chips, Herkunfts-Badge. */
-  .beleg-drop{border:1px dashed var(--line);border-radius:6px;padding:5px 8px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap;}
-  .beleg-drop.drag-over{border-color:var(--primary);background:var(--soft,#eef3f8);color:var(--primary);}
+  /* US-131: Belege per Drag & Drop – Dropzone je Position, Kürzel-Chips, Herkunfts-Badge.
+     Ralf-Feedback 2026-07-30: schon im Ruhezustand deutlich blau hinterlegt statt nur einer
+     dezenten grauen Umrandung, damit die Dropzonen als anklickbare/bespielbare Fläche auffallen. */
+  .beleg-drop{border:1.5px dashed var(--primary);border-radius:6px;padding:5px 8px;font-size:12px;color:var(--primary-dark);background:#e3f0f3;cursor:pointer;white-space:nowrap;}
+  .beleg-drop.drag-over{border-color:var(--primary-dark);background:var(--primary);color:#fff;}
+  .beleg-drop-haupt{flex:1 1 260px;min-width:220px;text-align:center;padding:10px;white-space:normal;font-weight:600;align-self:stretch;display:flex;align-items:center;justify-content:center;}
   .beleg-chips{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;}
   .sr-marker{font-size:11px;color:#1a6b3c;}
   .herkunft-badge{display:inline-block;font-size:10px;color:var(--muted);background:var(--soft,#eef3f8);border:1px solid var(--line);border-radius:6px;padding:0 5px;margin-left:6px;vertical-align:middle;}
@@ -596,6 +599,20 @@
   #tbl_kosten td:nth-child(3),#tbl_kosten th:nth-child(3){width:270px;}
   #tbl_kosten td:nth-child(4),#tbl_kosten th:nth-child(4){width:64px;}
   #tbl_kosten td:nth-child(5),#tbl_kosten th:nth-child(5){width:42px;}
+  /* US-131-Feedback: gleicher Breiten-Rhythmus wie #tbl_kosten oben – Bezeichnung maximieren,
+     übrige Spalten fest, Dienstleister ausreichend breit statt auf Default-Inputbreite gequetscht.
+     .tabelle-scroll faengt auf, wenn die Summe der festen Breiten (bei 7 Spalten) den verfügbaren
+     Platz sprengt, statt Spalten unsichtbar aus dem Fenster laufen zu lassen. */
+  .tabelle-scroll{overflow-x:auto;}
+  #tbl_ausgaben{min-width:820px;}
+  #tbl_ausgaben td.bez-col input,#tbl_ausgaben td:nth-child(3) input{width:100%;}
+  #tbl_ausgaben td:nth-child(1),#tbl_ausgaben th:nth-child(1){min-width:140px;}
+  #tbl_ausgaben td:nth-child(2),#tbl_ausgaben th:nth-child(2){width:95px;}
+  #tbl_ausgaben td:nth-child(3),#tbl_ausgaben th:nth-child(3){width:130px;}
+  #tbl_ausgaben td:nth-child(4),#tbl_ausgaben th:nth-child(4){width:115px;}
+  #tbl_ausgaben td:nth-child(5),#tbl_ausgaben th:nth-child(5){width:70px;}
+  #tbl_ausgaben td:nth-child(6),#tbl_ausgaben th:nth-child(6){width:170px;}
+  #tbl_ausgaben td:nth-child(7),#tbl_ausgaben th:nth-child(7){width:42px;}
   /* US-58: Rubriken-Gruppen + Zwischensummen */
   .heiz-ro td{color:var(--muted);background:var(--soft);font-style:italic;}
   .heiz-ro .pill{font-style:normal;cursor:help;}
@@ -669,7 +686,14 @@
   .csv-overlay{position:fixed;inset:0;background:rgba(20,30,45,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:32px 16px;overflow:auto;}
   .csv-modal{background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.25);width:100%;max-width:920px;padding:18px 20px;}
   .csv-modal h2{font-size:16px;margin:0 0 4px;color:#1d2733;}
-  .csv-modal .csv-meta{font-size:12.5px;color:#5a6675;margin-bottom:12px;}
+  .csv-modal .csv-meta{margin-bottom:12px;}
+  /* Ralf-Feedback 2026-07-30: Datei-Meta- und Zugeordnet-Zeile als gleiches Spaltenraster
+     (identisches grid-template-columns in beiden Zeilen -> Werte stehen optisch untereinander,
+     statt als zwei frei fließende, unterschiedlich lange Textzeilen). */
+  .csv-statrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 14px;font-size:12.5px;color:#41505f;}
+  .csv-stat{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .csv-stat b{color:#1d2733;}
+  .csv-modal .csv-stat.csv-offen,.csv-modal .csv-stat.csv-offen b{color:#b3392e;font-weight:600;}
   .csv-modal .csv-err{background:#fdecea;border:1px solid #e6a9a3;color:#8a2e26;border-radius:8px;padding:10px 12px;font-size:13px;}
   .csv-tablewrap{max-height:52vh;overflow:auto;border:1px solid #e6ebf0;border-radius:8px;}
   .csv-table{width:100%;border-collapse:collapse;font-size:12.5px;}
@@ -680,11 +704,14 @@
   .csv-table td.betrag.pos{color:#1d7a3a;} .csv-table td.betrag.neg{color:#b3392e;}
   .csv-badge{display:inline-block;font-size:11px;border-radius:10px;padding:1px 8px;}
   .csv-badge.eingang{background:#e3f4e9;color:#1d7a3a;} .csv-badge.kosten{background:#fbe7e4;color:#b3392e;} .csv-badge.ignor{background:#eef0f2;color:#6b7480;}
-  .csv-modal .csv-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap;}
-  .csv-modal .csv-note{font-size:12px;color:#7a8593;flex:1;min-width:240px;}
+  /* Ralf-Feedback 2026-07-30: Hinweistext über die volle Breite, Buttons in eigener Zeile darunter
+     statt einer gemeinsamen, dadurch zu schmal umbrechenden Zeile. */
+  .csv-modal .csv-foot{display:flex;flex-direction:column;align-items:stretch;gap:10px;margin-top:14px;}
+  .csv-modal .csv-note{font-size:12px;color:#7a8593;}
+  .csv-modal .csv-foot-actions{display:flex;justify-content:flex-end;align-items:center;gap:12px;flex-wrap:wrap;}
   .csv-modal .csv-close{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;}
   .csv-modal .csv-close:hover{background:var(--primary-dark);}
-  .csv-modal .csv-summe{font-size:12.5px;color:#41505f;margin:0 0 4px;}
+  .csv-modal .csv-summe{margin:0 0 4px;}
   .csv-modal .csv-filterzeile{font-size:12.5px;color:#41505f;margin:0 0 10px;text-align:left;}
   .csv-modal .csv-offen{color:#b3392e;font-weight:600;margin-left:6px;}
   /* US-107: Kontrollzeile im Import-Dialog */
@@ -1028,6 +1055,13 @@
         </div>
       </div>
       <button class="btn-ghost csv-import-btn" onclick="document.getElementById('csv_import').click()" title="Kosten und Zahlungseingänge aus dem Bank-CSV übernehmen">Kontoauszug (.csv) importieren</button>
+      <!-- US-131-Feedback: allgemeine Ablagefläche in die Nähe des CSV-Imports geholt – legt bei
+           Bedarf selbst eine neue Ausgabe an, statt eine vorhandene Zeile vorauszusetzen. -->
+      <div class="beleg-drop beleg-drop-haupt"
+           title="Beleg hierher ziehen, um eine neue Ausgabe anzulegen"
+           ondragover="event.preventDefault();this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')"
+           ondrop="belegDropNeu(event)">Beleg hierher ziehen, um eine neue Ausgabe anzulegen</div>
     </div>
     <div id="kleinrep_warn"></div>
     <label class="filter-toggle"><input type="checkbox" onchange="setNurUngeprueft(this.checked)"> Nur ungeprüfte Belege anzeigen<span id="ungeprueft_count" class="muted"></span></label>
@@ -1040,23 +1074,21 @@
     <!-- US-130: eigener Bereich, bewusst getrennt von der Kosten-Liste oben – diese Positionen
          fließen NICHT in die Nebenkostenabrechnung ein. -->
     <div class="zahlungs-box">
-      <h2 class="zahlungs-titel">Sonstige Ausgaben (nicht umlagefähig)</h2>
+      <h2 class="zahlungs-titel">Sonstige Ausgaben (nicht umlagefähig, aber steuerrelevant)</h2>
       <p class="hint">Investitionen und andere Ausgaben, die nicht auf die Mieter umgelegt werden (z. B. eine neue Wärmepumpe), aber für deine Steuererklärung dokumentiert sein sollten. Diese Positionen fließen nicht in die Nebenkostenabrechnung ein.</p>
       <!-- US-131-Feedback: Autovervollständigung bereits erfasster Dienstleister-Namen -->
       <datalist id="dienstleister_liste"></datalist>
+      <!-- Ralf-Feedback 2026-07-30: bei 7 Spalten reicht die Breite mancher Fenster/Sidebar-
+           Kombinationen nicht aus – horizontal scrollbar statt Spalten (u. a. die Beleg-Aktionen)
+           unsichtbar aus dem Fenster laufen zu lassen. -->
+      <div class="tabelle-scroll">
       <table id="tbl_ausgaben">
-        <thead><tr><th>Bezeichnung</th><th>Dienstleister</th><th class="num">Betrag</th><th>Belegdatum</th><th>Zurechnungsjahr</th><th>Beleg</th><th></th></tr></thead>
+        <thead><tr><th>Bezeichnung</th><th class="num">Betrag</th><th>Dienstleister</th><th>Belegdatum</th><th>Zurechnungsjahr</th><th>Beleg</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
+      </div>
       <button class="addrow" onclick="addAusgabeRow()">+ Ausgabe hinzufügen</button>
       <p class="hint">Das Zurechnungsjahr wird aus dem Belegdatum vorgeschlagen, ist aber frei änderbar – bei Rechnungen nahe dem Jahreswechsel (z. B. einer Schlussrechnung im Folgejahr) bitte mit dem Steuerberater abstimmen, welchem Jahr die Ausgabe zuzurechnen ist.</p>
-      <!-- US-131: allgemeine Ablagefläche – legt bei Bedarf selbst eine neue Ausgabe an, statt
-           eine vorhandene Zeile vorauszusetzen (Rechnung liegt vor, bevor sie erfasst ist). -->
-      <div class="beleg-drop" style="padding:10px;text-align:center"
-           title="Beleg hierher ziehen, um eine neue Ausgabe anzulegen"
-           ondragover="event.preventDefault();this.classList.add('drag-over')"
-           ondragleave="this.classList.remove('drag-over')"
-           ondrop="belegDropNeu(event)">Beleg hierher ziehen, um eine neue Ausgabe anzulegen</div>
     </div>
 
     <!-- US-131: Checklisten-Übersicht über alle beleg-pflichtigen Positionen (Kosten + Sonstige
