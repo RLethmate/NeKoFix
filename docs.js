@@ -168,19 +168,38 @@ async function dokChronikAnhang(ei,mi,ci){
    oben ungenutzten dokListe/dokAutoLoad-Muster steht hier, welche Belege zu welcher Position
    gehören, direkt im State (k.belege/a.belege, s. core.js) – nur das eigentliche Schreiben/Öffnen/
    Löschen der Datei läuft über das Dateisystem. */
+/* Ralf-Feedback 2026-07-30: SHA-256-Hash einer Datei für die Duplikat-Erkennung (nkBelegDuplikat,
+   calc.js). Reiner Browser-Helfer (Web Crypto API), kein Teil der reinen, getesteten Funktionen. */
+async function nkDateiHash(file){
+  const buf = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest('SHA-256', buf);
+  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2,'0')).join('');
+}
 async function belegHochladen(art, idx, file){
   if(!dokVerfuegbar()){ alert('Belege ablegen benötigt Chrome, Edge oder Brave (File System Access API).'); return; }
-  const basis=await _dokBasisAktuell(true); if(!basis) return;
-  ensureIds(); /* Sicherheit: Positions-ID muss gesetzt sein, bevor sie in den Dateinamen einfließt */
+  ensureIds(); /* Sicherheit: Objekt-/Positions-ID müssen gesetzt sein, bevor sie in Ordner-/Dateinamen einfließen */
+  /* Ralf-Vorgabe 2026-07-30: Belege liegen IMMER im Objekt-Stammordner (bei Bedarf selbstständig
+     angelegt) – unabhängig vom v1/v2-Ablageschema der bestehenden Mieter-Dokumente oben. Vorher
+     fragte dies über _dokBasisAktuell bei v1-Objekten (u. a. dem mitgelieferten Demo-Objekt) nach
+     einem generischen, global geteilten Ordner statt selbstständig einen Objektordner anzulegen. */
+  const basis=await dokObjektRootSicherstellen(state.objekt); if(!basis) return;
   const pos = art==='kosten' ? store.kosten(idx) : store.ausgabe(idx); if(!pos) return;
   const jahr = art==='ausgabe' ? (pos.zurechnungsjahr||objektJahr(snapshot())) : objektJahr(snapshot());
   const dienstleister = art==='ausgabe' ? (pos.dienstleister||'') : ''; /* Kosten haben (noch) kein eigenes Dienstleister-Feld */
+  /* Ralf-Feedback 2026-07-30: inhaltsgleiche Datei erkennen, BEVOR sie erneut abgelegt wird. */
+  const hash = await nkDateiHash(file);
+  const dup = nkBelegDuplikat(state.kosten, state.ausgaben, hash);
+  if(dup && !confirm('Diese Datei ist inhaltsgleich bereits als „'+dup.dateiname+'" bei „'+dup.bez+'" hinterlegt.\n\nTrotzdem zusätzlich ablegen?')) return;
   const belegNr = (pos.belege||[]).length + 1; /* 1-basiert, macht den Namen bei mehreren Belegen je Position eindeutig */
   const name = nkBelegDateiname(jahr, pos.id, belegNr, dienstleister, file.name);
   try{
     const dir=await _dokOrdner(basis, nkBelegPfad(jahr), true);
     const fh=await dir.getFileHandle(name,{create:true}); const w=await fh.createWritable(); await w.write(file); await w.close();
-    store.addBeleg(art, idx, { dateiname:name, jahr:jahr, angehaengtAm:new Date().toISOString().slice(0,10), schlussrechnung:false });
+    store.addBeleg(art, idx, { dateiname:name, jahr:jahr, angehaengtAm:new Date().toISOString().slice(0,10), schlussrechnung:false, hash:hash });
+    /* Ralf-Feedback 2026-07-30: bestehenden "Beleg"-Status im Kosten-Aufklapper (US-58, VERFUEGBAR)
+       konsistent mitziehen, statt zwei getrennte, unsynchronisierte Beleg-Anzeigen zu haben. Gilt
+       nur für Kostenarten – Sonstige Ausgaben (US-130) haben dieses Altfeld nicht. */
+    if(art==='kosten') store.setKostenFeld(idx,'verfuegbar','vorhanden');
   }catch(e){ alert('Konnte „'+file.name+'" nicht speichern: '+((e&&e.message)||e)); }
 }
 /* Klick-Auswahl als Fallback zu Drag & Drop – eine oder mehrere Dateien auf einmal. */
@@ -206,16 +225,26 @@ async function belegDropNeu(ev){
   ev.preventDefault(); if(ev.currentTarget&&ev.currentTarget.classList) ev.currentTarget.classList.remove('drag-over');
   const files=(ev.dataTransfer&&ev.dataTransfer.files)?[...ev.dataTransfer.files]:[];
   if(!files.length) return;
-  store.addAusgabePos(Object.assign(nkAusgabeNeu(objektJahr(snapshot())), { herkunft:'beleg' }));
+  /* Ralf-Feedback 2026-07-30: Bezeichnung mit dem (bereinigten) Dateinamen der ersten Datei
+     vorbelegen, statt ein leeres Feld zu hinterlassen; steckt zusätzlich ein erkennbares Datum im
+     Dateinamen, wird das auch gleich als Belegdatum/Zurechnungsjahr übernommen. */
+  const objJahr = objektJahr(snapshot());
+  const neu = Object.assign(nkAusgabeNeu(objJahr), { herkunft:'beleg' }, nkDateiVorschlagAusName(files[0].name, objJahr));
+  store.addAusgabePos(neu);
   const idx=state.ausgaben.length-1;
   for(const f of files){ await belegHochladen('ausgabe', idx, f); }
   if(typeof renderAusgaben==='function') renderAusgaben();
+}
+/* Objekt-Stammordner NUR lesen (nie einen Dialog aufreißen) – für die reinen Lesepfade unten. */
+async function _belegBasisVorhanden(){
+  if(!state.objekt || !state.objekt.id) return null;
+  return _dokObjektRootCache[state.objekt.id] || await _dokObjektRootLaden(state.objekt.id) || null;
 }
 async function belegOeffnen(art, idx, belegIdx){
   const pos = art==='kosten' ? store.kosten(idx) : store.ausgabe(idx);
   const beleg = pos && pos.belege && pos.belege[belegIdx]; if(!beleg) return;
   try{
-    const basis=await _dokBasisAktuell(false);
+    const basis=await _belegBasisVorhanden();
     const dir=await _dokOrdner(basis, nkBelegPfad(beleg.jahr), false);
     const fh=await dir.getFileHandle(beleg.dateiname); const file=await fh.getFile();
     const url=URL.createObjectURL(file); window.open(url,'_blank'); setTimeout(()=>URL.revokeObjectURL(url),60000);
@@ -225,7 +254,7 @@ async function belegLoeschen(art, idx, belegIdx){
   const pos = art==='kosten' ? store.kosten(idx) : store.ausgabe(idx);
   const beleg = pos && pos.belege && pos.belege[belegIdx]; if(!beleg) return;
   if(!confirm('Beleg „'+beleg.dateiname+'“ wirklich löschen?')) return;
-  try{ const basis=await _dokBasisAktuell(false); const dir=await _dokOrdner(basis, nkBelegPfad(beleg.jahr), false); await dir.removeEntry(beleg.dateiname); }catch(e){}
+  try{ const basis=await _belegBasisVorhanden(); const dir=await _dokOrdner(basis, nkBelegPfad(beleg.jahr), false); await dir.removeEntry(beleg.dateiname); }catch(e){}
   store.removeBeleg(art, idx, belegIdx);
   if(art==='ausgabe' && typeof renderAusgaben==='function') renderAusgaben();
   if(art==='kosten' && typeof renderKosten==='function') renderKosten();

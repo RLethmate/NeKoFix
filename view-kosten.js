@@ -323,13 +323,17 @@ function renderAusgaben(){
   const tb=document.querySelector('#tbl_ausgaben tbody'); if(!tb) return;
   tb.innerHTML='';
   const liste=state.ausgaben||[];
+  /* Ralf-Feedback 2026-07-30: Autovervollständigung – bereits erfasste Dienstleister-Namen des
+     Objekts als Vorschlagsliste, damit man sie bei der nächsten Position nicht neu tippen muss. */
+  const dl=document.getElementById('dienstleister_liste');
+  if(dl) dl.innerHTML=[...new Set(liste.map(a=>a.dienstleister).filter(Boolean))].map(d=>'<option value="'+esc(d)+'">').join('');
   liste.forEach((a,idx)=>{
     const jahrVorschlag=nkAusgabeJahrVorschlag(a.datum, objektJahr(snapshot()));
     const jahrAbweichend = !!(jahrVorschlag && String(a.zurechnungsjahr||'')!==jahrVorschlag);
     const tr=document.createElement('tr');
     tr.innerHTML=
       '<td><input value="'+esc(a.bez)+'" placeholder="z. B. Wärmepumpe" oninput="updAusgabeFeld('+idx+',\'bez\',this.value)">'+herkunftBadgeHtml(a)+'</td>'+
-      '<td><input value="'+esc(a.dienstleister||'')+'" placeholder="Dienstleister" oninput="updAusgabeFeld('+idx+',\'dienstleister\',this.value)"></td>'+
+      '<td><input value="'+esc(a.dienstleister||'')+'" placeholder="Dienstleister" list="dienstleister_liste" oninput="updAusgabeFeld('+idx+',\'dienstleister\',this.value)"></td>'+
       '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(a.betrag)+' €" oninput="updAusgabeBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'"></td>'+
       '<td><input type="date" value="'+esc(a.datum||'')+'" onchange="updAusgabeDatum('+idx+',this.value)"></td>'+
       '<td><span class="feld-wrap"><input class="short" type="text" inputmode="numeric" style="max-width:64px" title="Zurechnungsjahr (Steuerjahr) – bei Rechnungen nahe dem Jahreswechsel ggf. mit dem Steuerberater abstimmen" value="'+esc(a.zurechnungsjahr||'')+'" onchange="updAusgabeJahr('+idx+',this.value)"></span>'+
@@ -342,7 +346,18 @@ function renderAusgaben(){
 }
 function addAusgabeRow(){ store.addAusgabe(); renderAusgaben(); }
 function deleteAusgabeRow(idx){ store.removeAusgabe(idx); renderAusgaben(); }
-function updAusgabeFeld(idx,field,val){ store.setAusgabeFeld(idx,field,val); }
+function updAusgabeFeld(idx,field,val){
+  store.setAusgabeFeld(idx,field,val);
+  /* Ralf-Feedback 2026-07-30: korrigiert der Nutzer den Dienstleister-Namen einer per CSV
+     angelegten Position, merkt sich die zugehörige Regel das – die nächste Teilzahlung derselben
+     Firma übernimmt dann die korrigierte Schreibweise (s. nkImportPlan, calc.js). */
+  if(field==='dienstleister'){
+    const a=state.ausgaben[idx];
+    if(a.csvSchluessel){
+      store.setObjektFeld('importRegeln', nkRegelSetDienstleister(state.objekt.importRegeln||[], a.csvSchluessel.schluessel, a.csvSchluessel.typ, val));
+    }
+  }
+}
 function updAusgabeBetrag(idx,val){ store.setAusgabeBetrag(idx,val); }
 /* Zurechnungsjahr wird beim ERSTEN Setzen des Belegdatums vorbelegt; ist bereits ein Jahr gesetzt
    (manuell oder aus einem früheren Datum), bleibt es unangetastet – Abweichungen zeigt das ↺. */

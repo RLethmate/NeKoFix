@@ -1201,6 +1201,63 @@ function nkBelegFortschritt(items) {
   const liste = Array.isArray(items) ? items : [];
   return { gesamt: liste.length, fertig: liste.filter(i => i.status === "vollstaendig").length };
 }
+/* Ralf-Feedback 2026-07-30: erkennt, ob eine Datei (per Hashwert) bereits als Beleg irgendwo im
+   Objekt hinterlegt ist – über Kosten UND Ausgaben hinweg, damit ein versehentlich doppelt
+   hochgeladener Beleg (z. B. an der falschen Position) auffällt, bevor er unbemerkt zweimal
+   gezählt wird. Liefert die erste Fundstelle oder null. Reine Funktion. */
+function nkBelegDuplikat(kosten, ausgaben, hash) {
+  if (!hash) return null;
+  const suchen = (liste, art) => {
+    for (const pos of (Array.isArray(liste) ? liste : [])) {
+      for (const b of (pos.belege || [])) {
+        if (b && b.hash && b.hash === hash) return { art: art, bez: pos.bez, dateiname: b.dateiname };
+      }
+    }
+    return null;
+  };
+  return suchen(kosten, "kosten") || suchen(ausgaben, "ausgabe");
+}
+/* Ralf-Feedback 2026-07-30: Bezeichnungs-Vorschlag aus einem Dateinamen (Endung weg, Unterstriche/
+   Bindestriche zu Leerzeichen) – für die allgemeine Ablagefläche, die selbst eine neue Position
+   anlegt (belegDropNeu, docs.js), damit das Bezeichnungsfeld nicht leer bleibt. Reine Funktion. */
+function nkDateiTitelVorschlag(originalName) {
+  return String(originalName == null ? "" : originalName)
+    .replace(/\.[^.]+$/, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+/* Ralf-Feedback 2026-07-30: erkennt ein Datum (ISO "JJJJ-MM-TT" oder deutsch "TT.MM.JJJJ") im
+   Dateinamen eines abgelegten Belegs – rein am sichtbaren Dateinamen, KEIN Lesen des Dateiinhalts
+   (aus denselben Gründen wie die bewusst unterlassene PDF-Text-Erkennung, s. US-131: ein falsch
+   erkanntes Datum im Dateinamen ist für den Nutzer sofort sichtbar und korrigierbar, ein aus dem
+   PDF-Inhalt geratenes wäre es nicht). Liefert "" ohne Fund. Reine Funktion. */
+/* "\b" versagt zwischen Unterstrich und Ziffer (beide gelten als Wortzeichen, z. B.
+   "Rechnung_2025-12-03…") – deshalb Ziffern-Lookaround statt Wortgrenze: davor/danach darf keine
+   weitere Ziffer stehen, Unterstriche/Bindestriche/Punkte als Trenner sind dagegen erlaubt. */
+const NK_DATEINAME_ISO_RE = /(?<!\d)(20\d{2})-(\d{2})-(\d{2})(?!\d)/;
+const NK_DATEINAME_DE_RE = /(?<!\d)(\d{1,2})\.(\d{1,2})\.(20\d{2})(?!\d)/;
+function nkDatumAusDateiname(originalName) {
+  const s = String(originalName == null ? "" : originalName);
+  const iso = s.match(NK_DATEINAME_ISO_RE);
+  if (iso && +iso[2] >= 1 && +iso[2] <= 12 && +iso[3] >= 1 && +iso[3] <= 31) return iso[1] + "-" + iso[2] + "-" + iso[3];
+  const de = s.match(NK_DATEINAME_DE_RE);
+  if (de) { const conv = nkParseDatumDE(de[1].padStart(2, "0") + "." + de[2].padStart(2, "0") + "." + de[3]); if (conv) return conv; }
+  return "";
+}
+/* Ralf-Feedback 2026-07-30: Vorschlag (Bezeichnung + ggf. Belegdatum/Zurechnungsjahr) aus dem
+   Dateinamen einer per Drag & Drop neu angelegten Ausgabe (belegDropNeu, docs.js). Ein erkanntes
+   Datum wird aus dem Titel entfernt (sonst stünde es doppelt: einmal als Text, einmal im eigenen
+   Feld) und beeinflusst den Zurechnungsjahr-Vorschlag wie ein normal eingegebenes Belegdatum.
+   Reine Funktion. */
+function nkDateiVorschlagAusName(originalName, objektJahrFallback) {
+  const name = String(originalName == null ? "" : originalName);
+  const datum = nkDatumAusDateiname(name);
+  const ohneDatum = datum ? name.replace(NK_DATEINAME_ISO_RE, "").replace(NK_DATEINAME_DE_RE, "") : name;
+  const out = { bez: nkDateiTitelVorschlag(ohneDatum) };
+  if (datum) { out.datum = datum; out.zurechnungsjahr = nkAusgabeJahrVorschlag(datum, objektJahrFallback); }
+  return out;
+}
 
 /* US-104: prozentuale Veränderung neu ggü. alt (Vorjahr), auf eine Nachkommastelle gerundet.
    Liefert null, wenn alt nicht endlich oder 0 ist (kein sinnvoller Bezug). Reine Funktion (Tests). */
@@ -1402,6 +1459,20 @@ function nkRegelUpsert(regeln, tx, ziel) {
   if (ziel) list.push({ schluessel: k.schluessel, typ: k.typ, ziel: ziel });
   return list;
 }
+/* Ralf-Feedback 2026-07-30: korrigiert der Nutzer nach dem Import den Dienstleister-Namen einer
+   per CSV angelegten "Sonstigen Ausgabe" (US-130), merkt sich die zugehörige Regel diesen Namen –
+   der NÄCHSTE Import derselben IBAN/desselben Namens (z. B. die zweite Teilzahlung) übernimmt dann
+   die korrigierte Schreibweise statt erneut den rohen Bankdaten-Namen (nkImportPlan bevorzugt
+   ziel.dienstleister, falls vorhanden). Ändert nur Regeln vom Typ "ausgabe", keine Mutation der
+   übergebenen Liste. Reine Funktion. */
+function nkRegelSetDienstleister(regeln, schluessel, typ, dienstleister) {
+  return (Array.isArray(regeln) ? regeln : []).map(r => {
+    if (r.typ === typ && r.schluessel === schluessel && r.ziel && r.ziel.art === "ausgabe") {
+      return Object.assign({}, r, { ziel: Object.assign({}, r.ziel, { dienstleister: dienstleister }) });
+    }
+    return r;
+  });
+}
 /* US-86: stabiler Fingerabdruck einer Buchung (für Dedupe beim Re-Import, US-87/88).
    Buchungstag + Betrag + IBAN + normalisierter Verwendungszweck. Reine Funktion. */
 function nkUmsatzFingerprint(tx) {
@@ -1458,7 +1529,15 @@ function nkImportPlan(buchungen, regeln, opts) {
       fps.push(fp);
     } else if (ziel.art === "ausgabe") {
       if (schon) return;
-      ausgaben.push({ bez: b.name || b.zweck || "Sonstige Ausgabe", betrag: Math.abs(+b.betrag || 0), datum: b.datum || "", zurechnungsjahr: nkAusgabeJahrVorschlag(b.datum, opts.objektJahr), herkunft: "csv" });
+      /* Ralf-Feedback 2026-07-30: Bezeichnung bevorzugt aus dem Verwendungszweck (liest sich als
+         Titel der Ausgabe sinnvoller, z. B. "Abschlagsrechnung Wärmepumpe"), der Zahlungsempfänger
+         geht zusätzlich ins eigene Dienstleister-Feld statt komplett unbefüllt zu bleiben – ABER:
+         hat die Regel bereits einen (vom Nutzer nachträglich korrigierten) Dienstleister-Namen
+         gemerkt (nkRegelSetDienstleister), hat der Vorrang vor dem rohen Bankdaten-Namen – so
+         übernimmt die zweite Teilzahlung derselben Firma die einmal korrigierte Schreibweise.
+         csvSchluessel wird NICHT angezeigt, sondern nur intern gebraucht, um bei einer späteren
+         manuellen Korrektur die richtige Regel wiederzufinden (view-kosten.js updAusgabeFeld). */
+      ausgaben.push({ bez: b.zweck || b.name || "Sonstige Ausgabe", dienstleister: ziel.dienstleister || b.name || "", betrag: Math.abs(+b.betrag || 0), datum: b.datum || "", zurechnungsjahr: nkAusgabeJahrVorschlag(b.datum, opts.objektJahr), herkunft: "csv", csvSchluessel: nkRegelSchluessel(b) });
       fps.push(fp);
     }
   });
@@ -2111,5 +2190,10 @@ if (typeof module !== "undefined" && module.exports) {
     nkBelegStatus,
     nkBelegChecklist,
     nkBelegFortschritt,
+    nkBelegDuplikat,
+    nkDateiTitelVorschlag,
+    nkDatumAusDateiname,
+    nkDateiVorschlagAusName,
+    nkRegelSetDienstleister,
   };
 }

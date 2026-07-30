@@ -1495,13 +1495,53 @@ test("nkImportPlan: Sonstige Ausgaben (nicht umlagefähig) einzeln übernommen, 
   const plan = calc.nkImportPlan(bs, regeln, { kostenBez: [], gesehen: [], objektJahr: "2025" });
   assert.equal(plan.kosten.length, 0);
   assert.equal(plan.ausgaben.length, 2);
-  assert.deepEqual(plan.ausgaben[0], { bez: "Heiztechnik Müller GmbH", betrag: 8500, datum: "2025-12-03", zurechnungsjahr: "2025", herkunft: "csv" });
+  assert.deepEqual(plan.ausgaben[0], { bez: "Abschlagsrechnung Wärmepumpe", dienstleister: "Heiztechnik Müller GmbH", betrag: 8500, datum: "2025-12-03", zurechnungsjahr: "2025", herkunft: "csv", csvSchluessel: { schluessel: "DE00000000000000000030", typ: "iban" } });
   // Zurechnungsjahr folgt dem Belegdatum, nicht dem übergebenen objektJahr-Fallback
   assert.equal(plan.ausgaben[1].zurechnungsjahr, "2026");
   assert.equal(plan.fingerprints.length, 2);
   // Dedupe beim Re-Import
   const plan2 = calc.nkImportPlan(bs, regeln, { kostenBez: [], gesehen: plan.fingerprints, objektJahr: "2025" });
   assert.equal(plan2.ausgaben.length, 0);
+});
+test("nkImportPlan: von der Regel gemerkter (korrigierter) Dienstleister hat Vorrang vor dem rohen Bankdaten-Namen (US-131-Feedback)", () => {
+  const regeln = [
+    { schluessel: "DE00000000000000000030", typ: "iban", ziel: { art: "ausgabe", dienstleister: "Heiztechnik Sonnenberg GmbH (korrigiert)" } },
+  ];
+  const bs = [{ buchungstag: "20.11.2025", datum: "2025-11-20", iban: "DE00000000000000000030", betrag: -10000, name: "HEIZTECHNIK SONNENBG GMBH", zweck: "Abschlag 2" }];
+  const plan = calc.nkImportPlan(bs, regeln, { kostenBez: [], gesehen: [], objektJahr: "2025" });
+  assert.equal(plan.ausgaben[0].dienstleister, "Heiztechnik Sonnenberg GmbH (korrigiert)");
+});
+test("nkRegelSetDienstleister: aktualisiert nur die passende Ausgabe-Regel, ohne Mutation (US-131-Feedback)", () => {
+  const regeln = [
+    { schluessel: "X", typ: "iban", ziel: { art: "ausgabe" } },
+    { schluessel: "Y", typ: "iban", ziel: { art: "kosten", bez: "Wasser" } },
+  ];
+  const neu = calc.nkRegelSetDienstleister(regeln, "X", "iban", "Heiztechnik Sonnenberg GmbH");
+  assert.deepEqual(neu[0], { schluessel: "X", typ: "iban", ziel: { art: "ausgabe", dienstleister: "Heiztechnik Sonnenberg GmbH" } });
+  assert.deepEqual(neu[1], regeln[1]); // Kosten-Regel unangetastet
+  assert.deepEqual(regeln[0].ziel, { art: "ausgabe" }); // Original unverändert
+  // Kein Treffer (falscher Schlüssel oder falsche Art) -> Liste bleibt inhaltlich gleich
+  assert.deepEqual(calc.nkRegelSetDienstleister(regeln, "Z", "iban", "Foo"), regeln);
+  assert.deepEqual(calc.nkRegelSetDienstleister(regeln, "Y", "iban", "Foo")[1].ziel, { art: "kosten", bez: "Wasser" });
+});
+test("nkDatumAusDateiname: erkennt ISO- und deutsches Datum im Dateinamen, sonst leer (US-131-Feedback)", () => {
+  assert.equal(calc.nkDatumAusDateiname("Rechnung_2025-12-03_Heiztechnik.pdf"), "2025-12-03");
+  assert.equal(calc.nkDatumAusDateiname("Rechnung vom 03.12.2025.pdf"), "2025-12-03");
+  assert.equal(calc.nkDatumAusDateiname("Rechnung vom 3.12.2025.pdf"), "2025-12-03"); // einstellig toleriert
+  assert.equal(calc.nkDatumAusDateiname("scan001.pdf"), "");
+  assert.equal(calc.nkDatumAusDateiname("Vertrag_2025-13-40.pdf"), ""); // ungueltiges Datum -> kein Fund
+  assert.equal(calc.nkDatumAusDateiname(""), "");
+});
+test("nkDateiVorschlagAusName: Titel + Belegdatum/Zurechnungsjahr aus dem Dateinamen (US-131-Feedback)", () => {
+  const mitDatum = calc.nkDateiVorschlagAusName("Rechnung_2025-12-03_Waermepumpe.pdf", "2026");
+  assert.equal(mitDatum.datum, "2025-12-03");
+  assert.equal(mitDatum.zurechnungsjahr, "2025"); // aus dem erkannten Datum, nicht dem Fallback
+  assert.equal(mitDatum.bez.indexOf("2025-12-03"), -1); // Datum aus dem Titel entfernt
+  assert.equal(mitDatum.bez, "Rechnung Waermepumpe");
+  const ohneDatum = calc.nkDateiVorschlagAusName("Testbeleg-Waermepumpe-Schlussrechnung.pdf", "2026");
+  assert.equal(ohneDatum.bez, "Testbeleg Waermepumpe Schlussrechnung");
+  assert.equal(ohneDatum.datum, undefined); // kein Fund -> Feld fehlt, statt einen falschen Wert zu erzwingen
+  assert.equal(ohneDatum.zurechnungsjahr, undefined);
 });
 test("nkAusgabeNeu / nkAusgabeJahrVorschlag: Vorbelegung Sonstige Ausgaben (US-130)", () => {
   assert.deepEqual(calc.nkAusgabeNeu("2025"), { bez: "", dienstleister: "", betrag: 0, datum: "", zurechnungsjahr: "2025" });
@@ -1547,6 +1587,22 @@ test("nkBelegChecklist / nkBelegFortschritt: Kosten + Ausgaben zusammengeführt,
   assert.equal(items[2].status, "unvollstaendig"); // 2 Belege, keine Schlussrechnung markiert
   assert.equal(items[2].herkunft, "csv");
   assert.deepEqual(calc.nkBelegFortschritt(items), { gesamt: 3, fertig: 1 });
+});
+test("nkBelegDuplikat: findet inhaltsgleiche Datei über Kosten und Ausgaben hinweg (US-131-Feedback)", () => {
+  const kosten = [{ id: 1, bez: "Grundsteuer", belege: [{ dateiname: "25-1.pdf", hash: "abc" }] }];
+  const ausgaben = [{ id: 10, bez: "Wärmepumpe", belege: [{ dateiname: "25-10.pdf", hash: "def" }] }];
+  assert.deepEqual(calc.nkBelegDuplikat(kosten, ausgaben, "abc"), { art: "kosten", bez: "Grundsteuer", dateiname: "25-1.pdf" });
+  assert.deepEqual(calc.nkBelegDuplikat(kosten, ausgaben, "def"), { art: "ausgabe", bez: "Wärmepumpe", dateiname: "25-10.pdf" });
+  assert.equal(calc.nkBelegDuplikat(kosten, ausgaben, "xyz"), null);
+  assert.equal(calc.nkBelegDuplikat(kosten, ausgaben, ""), null);
+  assert.equal(calc.nkBelegDuplikat([], [], "abc"), null);
+});
+test("nkDateiTitelVorschlag: Bezeichnungs-Vorschlag aus Dateiname (US-131-Feedback)", () => {
+  assert.equal(calc.nkDateiTitelVorschlag("Testbeleg-Waermepumpe-Schlussrechnung.pdf"), "Testbeleg Waermepumpe Schlussrechnung");
+  assert.equal(calc.nkDateiTitelVorschlag("Rechnung_2025_12_03.PDF"), "Rechnung 2025 12 03");
+  assert.equal(calc.nkDateiTitelVorschlag("scan.jpg"), "scan");
+  assert.equal(calc.nkDateiTitelVorschlag(""), "");
+  assert.equal(calc.nkDateiTitelVorschlag(null), "");
 });
 test("nkArrMove: Element verschieben ohne Mutation (US-89)", () => {
   const a = ["A", "B", "C", "D"];
