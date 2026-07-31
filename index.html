@@ -109,7 +109,8 @@
   .beleg-chips{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;}
   .sr-marker{font-size:11px;color:#1a6b3c;}
   .herkunft-badge{display:inline-block;font-size:10px;color:var(--muted);background:var(--soft,#eef3f8);border:1px solid var(--line);border-radius:6px;padding:0 5px;margin-left:6px;vertical-align:middle;}
-  .beleg-uebersicht-zeile{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--line);font-size:13px;}
+  .beleg-uebersicht-zeile{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 6px;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer;border-radius:6px;}
+  .beleg-uebersicht-zeile:hover{background:var(--soft,#eef3f8);}
   /* US-59: Vorjahreswert IM selben Betragsfeld eingeblendet (Toggle Alt+V) – read-only, blau kursiv.
      Bewusst kein zusätzliches Element, damit sich Layout/Zeilenhöhe nicht ändern. */
   input.vj-field{color:#1565c0;font-style:italic;background:#f3f7fe;border-color:#c3d6f5;cursor:default;}
@@ -1146,9 +1147,13 @@
     </details>
 
     <!-- US-131: Checklisten-Übersicht über alle beleg-pflichtigen Positionen (Kosten + Sonstige
-         Ausgaben) mit Fortschrittsanzeige. -->
-    <details class="eurqm" id="beleg_uebersicht_box">
-      <summary>Beleg-Übersicht<span id="beleg_uebersicht_fortschritt"></span></summary>
+         Ausgaben) mit Fortschrittsanzeige. Ralf-Feedback 2026-07-31: bisher mit der eingerückten
+         "eurqm"-Kartenoptik (wie das kleine "Nebenkosten je m²"-Detail) - das wirkte wie ein
+         Unterpunkt von "Sonstige Ausgaben" statt eines gleichrangigen Bereichs. Jetzt dieselbe
+         Klasse wie ausgaben_box, damit beide auf derselben Gliederungsebene stehen. -->
+    <details class="zahlungs-box" id="beleg_uebersicht_box">
+      <summary class="zahlungs-titel" style="cursor:pointer;">Beleg-Übersicht<span id="beleg_uebersicht_fortschritt"></span></summary>
+      <p class="hint">Kostenarten werden im Reiter „Kosten" gepflegt – hier siehst du den Gesamtstand über beide Reiter hinweg. Klick auf eine Kostenart springt dorthin.</p>
       <div id="beleg_uebersicht_inhalt"></div>
     </details>
   </section>

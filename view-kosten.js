@@ -445,8 +445,13 @@ function renderBelegUebersicht(){
   const filterZeile = '<p class="filter-toggle">'+
     ['alle','offen','vorhanden'].map(f=>'<button type="button" class="linklike" style="font-weight:'+(filter===f?'700':'400')+'" onclick="setBelegFilter(\''+f+'\')">'+(f==='alle'?'Alle':f==='offen'?'Offen':'Vorhanden')+'</button>').join(' · ')+
     '</p>';
+  /* Ralf-Feedback 2026-07-31: Klick-zum-Springen statt einer voll bedienbaren Übersicht – eine
+     Kostenart wird weiterhin im Reiter "Kosten" gepflegt, ein Klick auf die Zeile springt dorthin,
+     klappt sie auf und lässt sie kurz aufblinken (dieselbe belegZeileAufblinken()-Funktion wie beim
+     Ziel-Dialog). cddToggle() ruft stopPropagation() auf, ein Ampel-Klick löst also nicht zugleich
+     den Sprung aus. */
   const zeilen = sichtbar.length ? sichtbar.map(i =>
-    '<div class="beleg-uebersicht-zeile"><span>'+esc(i.bez||'(ohne Bezeichnung)')+herkunftBadgeHtml(i)+'</span>'+
+    '<div class="beleg-uebersicht-zeile" onclick="belegZeileAufblinken(\''+i.art+'\','+i.idx+')" title="Zur Position im Reiter „'+(i.art==='kosten'?'Kosten':'Steuer & Belege')+'" springen"><span>'+esc(i.bez||'(ohne Bezeichnung)')+herkunftBadgeHtml(i)+'</span>'+
     '<span>'+eur(i.betrag||0)+' '+cddHtml(i.art, 'verfuegbar', i.idx, i.verfuegbar, VERFUEGBAR, VERFUEGBAR_FARBE)+'</span></div>'
   ).join('') : '<p class="hint">Keine Positionen in dieser Ansicht.</p>';
   box.innerHTML = filterZeile + zeilen;

@@ -281,6 +281,10 @@ function belegZeileAufblinken(art, idx){
      wechseln (go() rendert dabei automatisch mit), sonst reicht ein gezielter Re-Render. */
   const zielStep = art==='kosten' ? 3 : 11;
   if(art==='kosten'){ const k=state.kosten[idx]; if(k) ui.expandedKosten.add(k.id); }
+  /* Sonstige Ausgaben stehen in einem einklappbaren <details> (Ralf-Feedback 2026-07-30) – ohne
+     dieses Aufklappen wäre die Zielzeile zwar im DOM, aber unsichtbar und das Aufblinken liefe ins
+     Leere. */
+  else { const box=document.getElementById('ausgaben_box'); if(box) box.open=true; }
   if(ui.current !== zielStep) go(zielStep);
   else if(art==='kosten'){ if(typeof renderKosten==='function') renderKosten(); }
   else if(typeof renderAusgaben==='function') renderAusgaben();
