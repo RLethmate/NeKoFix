@@ -1197,20 +1197,30 @@ function nkBelegStatus(belege) {
    ihre eigene Pflege im Reiter "Heizung" (s. view-kosten.js appendHeizHinweisRow) und werden dort
    künftig separat beleg-geführt. Reine Funktion. */
 function nkBelegChecklist(kosten, ausgaben) {
-  const kostenItems = (kosten || []).filter(k => k.typ !== "heizung").map(k => ({
-    id: k.id, art: "kosten", bez: k.bez, betrag: k.betrag,
-    status: nkBelegStatus(k.belege), herkunft: k.herkunft || "manuell",
+  /* Ralf-Vorgabe 2026-07-31 (Reiter-Split "Steuer & Belege"): idx wird VOR dem Heizung-Filter
+     berechnet und mitgeliefert – sonst würde der Index nach dem Filter nicht mehr zur Position im
+     ORIGINAL-Array (state.kosten) passen, und die Übersicht würde beim Klick auf die Ampel die
+     falsche Kostenart treffen. verfuegbar (Ampel fehlt/kommt noch/vorhanden) macht die Übersicht
+     interaktiv statt nur Text anzuzeigen; Default "fehlt" für BEIDE Arten (vereinheitlicht, s.
+     appendKostenRow – vorher hatten Kostenarten den Default "vorhanden", was in der gemeinsamen
+     Übersicht neben Ausgaben mit Default "fehlt" inkonsistent gewirkt hätte). */
+  const kostenItems = (kosten || []).map((k, idx) => ({ k, idx })).filter(o => o.k.typ !== "heizung").map(o => ({
+    idx: o.idx, id: o.k.id, art: "kosten", bez: o.k.bez, betrag: o.k.betrag,
+    status: nkBelegStatus(o.k.belege), herkunft: o.k.herkunft || "manuell", verfuegbar: o.k.verfuegbar || "fehlt",
   }));
-  const ausgabenItems = (ausgaben || []).map(a => ({
-    id: a.id, art: "ausgabe", bez: a.bez, betrag: a.betrag,
-    status: nkBelegStatus(a.belege), herkunft: a.herkunft || "manuell",
+  const ausgabenItems = (ausgaben || []).map((a, idx) => ({
+    idx: idx, id: a.id, art: "ausgabe", bez: a.bez, betrag: a.betrag,
+    status: nkBelegStatus(a.belege), herkunft: a.herkunft || "manuell", verfuegbar: a.verfuegbar || "fehlt",
   }));
   return kostenItems.concat(ausgabenItems);
 }
-/* US-131: Fortschritt "X von Y vollständig belegt" für die Checklisten-Übersicht. Reine Funktion. */
+/* US-131: Fortschritt "X von Y vollständig belegt" für die Checklisten-Übersicht. Zählt anhand der
+   Ampel (verfuegbar==="vorhanden"), nicht des automatisch aus den Dateien abgeleiteten status –
+   die Ampel ist seit dem Reiter-Split das direkt in der Übersicht editierbare, primäre Signal.
+   Reine Funktion. */
 function nkBelegFortschritt(items) {
   const liste = Array.isArray(items) ? items : [];
-  return { gesamt: liste.length, fertig: liste.filter(i => i.status === "vollstaendig").length };
+  return { gesamt: liste.length, fertig: liste.filter(i => i.verfuegbar === "vorhanden").length };
 }
 /* Ralf-Feedback 2026-07-30: erkennt, ob eine Datei (per Hashwert) bereits als Beleg irgendwo im
    Objekt hinterlegt ist – über Kosten UND Ausgaben hinweg, damit ein versehentlich doppelt

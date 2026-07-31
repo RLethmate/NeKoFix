@@ -32,7 +32,11 @@ function renderKosten(){
   }
   /* US-58: eine Kostenzeile (+ Detail) anhängen. */
   function appendKostenRow(k, idx){
-    const st=k.status||'vorlaeufig', vf=k.verfuegbar||'vorhanden';
+    /* Ralf-Vorgabe 2026-07-31: Ampel-Default auf "fehlt" vereinheitlicht (vorher "vorhanden") – in
+       der jetzt gemeinsamen Beleg-Übersicht (Steuer & Belege) neben Ausgaben (Default "fehlt")
+       wäre der alte Default sonst inkonsistent gewesen: neue Kostenart grün, neue Ausgabe rot,
+       ohne dass der Nutzer etwas getan hat. */
+    const st=k.status||'vorlaeufig', vf=k.verfuegbar||'fehlt';
     if(k.vorsteuer===undefined) k.vorsteuer=nkVorschlagVorsteuer(k.bez);
     let opts='';
     for(const key in SCHLUESSEL){ opts+='<option value="'+key+'"'+(k.schluessel===key?' selected':'')+'>'+SCHLUESSEL[key]+'</option>'; }
@@ -170,8 +174,16 @@ function renderKosten(){
   renderRubrikPicker();
   renderPicker();
   renderKostenTitel(); /* US-59: Titel-Suffix „aus Vorjahr …" konsistent mitführen */
-  renderAusgaben(); /* US-130: eigener Bereich „Sonstige Ausgaben", getrennt von der Kosten-Liste */
-  renderBelegUebersicht(); /* US-131: Checklisten-Übersicht über alle beleg-pflichtigen Positionen */
+  /* Die Beleg-Übersicht lebt seit US-135 im Reiter „Steuer & Belege", zeigt aber auch Kostenarten
+     an – jede Änderung hier muss dort mitgezogen werden, auch wenn dieser Reiter gerade nicht
+     sichtbar ist (harmlos, s. cddPick weiter unten). */
+  renderBelegUebersicht();
+}
+/* US-135: eigener Reiter „Steuer & Belege" – Sonstige Ausgaben und die Beleg-Übersicht sind vom
+   Reiter „Kosten" (Nebenkostenabrechnung) getrennt, weil sie einen eigenen, zeitlich versetzten
+   Anwendungsfall (Steuererklärung) bedienen. */
+function renderSteuerBelege(){
+  renderAusgaben(); /* rendert am Ende auch die Beleg-Übersicht mit, s. dort */
 }
 /* US-89-Schliff: Rubrik-Auswahl als Combobox (analog „Kostenart wählen …"). Das Dropdown listet die
    typischen, noch nicht angelegten Rubriken (Klick legt an); im Fuß eine „Eigene …". Sortieren/
@@ -230,7 +242,9 @@ function cddToggle(id, ev){ ev.stopPropagation();
   list.hidden=!willOpen;
 }
 function cddPick(art, kind, idx, key){
-  if(art==='kosten') updKosten(idx, kind==='status'?'status':'verfuegbar', key); /* renderKosten schließt die Liste */
+  /* renderKosten()/renderAusgaben() rendern am Ende jeweils auch die Beleg-Übersicht mit – so
+     bleibt deren Ampel synchron, egal von welcher Tabelle aus geändert wurde. */
+  if(art==='kosten') updKosten(idx, kind==='status'?'status':'verfuegbar', key);
   else { store.setAusgabeFeld(idx,'verfuegbar',key); renderAusgaben(); }
 }
 document.addEventListener('click', function(){ document.querySelectorAll('.cdd-list').forEach(l=>l.hidden=true); });
@@ -367,6 +381,9 @@ function renderAusgaben(){
       '<td class="act-col"><button class="row-del" title="Position entfernen" onclick="deleteAusgabeRow('+idx+')">×</button></td>';
     tb.appendChild(tr);
   });
+  /* Ohne diesen Aufruf zeigt die Beleg-Übersicht neu angelegte/gelöschte/umbenannte Ausgaben erst
+     nach dem nächsten Reiter-Wechsel – die Übersicht muss aber live mit dieser Tabelle mitziehen. */
+  renderBelegUebersicht();
 }
 function addAusgabeRow(){ store.addAusgabe(); renderAusgaben(); }
 function deleteAusgabeRow(idx){ store.removeAusgabe(idx); renderAusgaben(); }
@@ -403,25 +420,25 @@ function updAusgabeJahr(idx,val){ store.setAusgabeFeld(idx,'zurechnungsjahr', va
 function resetAusgabeJahr(idx){ const a=state.ausgaben[idx]; store.setAusgabeFeld(idx,'zurechnungsjahr', nkAusgabeJahrVorschlag(a.datum, objektJahr(snapshot()))); belegNamenAktualisierenDebounced('ausgabe',idx); renderAusgaben(); }
 
 /* US-131: Checklisten-Übersicht über alle beleg-pflichtigen Positionen (Kosten + Sonstige
-   Ausgaben), mit Fortschritt "X von Y vollständig belegt" und Filter offen/vollständig. Rein
-   informativ – kein eigener State-Schreibzugriff, nur Anzeige der bereits an den Positionen
-   gepflegten Belege. */
-const BELEG_STATUS_LABEL = { kein_beleg: "kein Beleg", unvollstaendig: "unvollständig", vollstaendig: "vollständig belegt" };
+   Ausgaben), mit Fortschritt "X von Y vorhanden" und Filter offen/vorhanden. Die Ampel je Zeile
+   ist seit US-135 interaktiv (dieselbe cddHtml/cddPick-Komponente wie in den Kostenarten- und
+   Ausgaben-Tabellen) – sie springt automatisch auf "vorhanden", sobald ein Beleg abgelegt wird,
+   bleibt aber manuell überschreibbar (Wiedererkennungseffekt, Ralf-Feedback zum ASCII-Dummy). */
 function setBelegFilter(v){ ui.belegFilter=v; renderBelegUebersicht(); }
 function renderBelegUebersicht(){
   const items = nkBelegChecklist(state.kosten, state.ausgaben);
   const fortschritt = nkBelegFortschritt(items);
   const fEl=document.getElementById('beleg_uebersicht_fortschritt');
-  if(fEl) fEl.textContent = fortschritt.gesamt ? ' — '+fortschritt.fertig+' von '+fortschritt.gesamt+' vollständig belegt' : '';
+  if(fEl) fEl.textContent = fortschritt.gesamt ? ' — '+fortschritt.fertig+' von '+fortschritt.gesamt+' vorhanden' : '';
   const box=document.getElementById('beleg_uebersicht_inhalt'); if(!box) return;
   const filter = ui.belegFilter || 'alle';
-  const sichtbar = items.filter(i => filter==='alle' || (filter==='offen' ? i.status!=='vollstaendig' : i.status==='vollstaendig'));
+  const sichtbar = items.filter(i => filter==='alle' || (filter==='offen' ? i.verfuegbar!=='vorhanden' : i.verfuegbar==='vorhanden'));
   const filterZeile = '<p class="filter-toggle">'+
-    ['alle','offen','vollstaendig'].map(f=>'<button type="button" class="linklike'+(filter===f?'':'')+'" style="font-weight:'+(filter===f?'700':'400')+'" onclick="setBelegFilter(\''+f+'\')">'+(f==='alle'?'Alle':f==='offen'?'Offen':'Vollständig')+'</button>').join(' · ')+
+    ['alle','offen','vorhanden'].map(f=>'<button type="button" class="linklike" style="font-weight:'+(filter===f?'700':'400')+'" onclick="setBelegFilter(\''+f+'\')">'+(f==='alle'?'Alle':f==='offen'?'Offen':'Vorhanden')+'</button>').join(' · ')+
     '</p>';
   const zeilen = sichtbar.length ? sichtbar.map(i =>
     '<div class="beleg-uebersicht-zeile"><span>'+esc(i.bez||'(ohne Bezeichnung)')+herkunftBadgeHtml(i)+'</span>'+
-    '<span>'+eur(i.betrag||0)+' <span class="beleg-uebersicht-status '+i.status+'">'+BELEG_STATUS_LABEL[i.status]+'</span></span></div>'
+    '<span>'+eur(i.betrag||0)+' '+cddHtml(i.art, 'verfuegbar', i.idx, i.verfuegbar, VERFUEGBAR, VERFUEGBAR_FARBE)+'</span></div>'
   ).join('') : '<p class="hint">Keine Positionen in dieser Ansicht.</p>';
   box.innerHTML = filterZeile + zeilen;
 }

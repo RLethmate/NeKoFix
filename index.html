@@ -109,11 +109,7 @@
   .beleg-chips{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;}
   .sr-marker{font-size:11px;color:#1a6b3c;}
   .herkunft-badge{display:inline-block;font-size:10px;color:var(--muted);background:var(--soft,#eef3f8);border:1px solid var(--line);border-radius:6px;padding:0 5px;margin-left:6px;vertical-align:middle;}
-  .beleg-uebersicht-zeile{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--line);font-size:13px;}
-  .beleg-uebersicht-status{font-size:11px;padding:1px 6px;border-radius:6px;white-space:nowrap;}
-  .beleg-uebersicht-status.kein_beleg{background:#fbeaea;color:#a83232;}
-  .beleg-uebersicht-status.unvollstaendig{background:#fbf4e6;color:#7a5a12;}
-  .beleg-uebersicht-status.vollstaendig{background:#e8f5ec;color:#1a6b3c;}
+  .beleg-uebersicht-zeile{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--line);font-size:13px;}
   /* US-59: Vorjahreswert IM selben Betragsfeld eingeblendet (Toggle Alt+V) – read-only, blau kursiv.
      Bewusst kein zusätzliches Element, damit sich Layout/Zeilenhöhe nicht ändern. */
   input.vj-field{color:#1565c0;font-style:italic;background:#f3f7fe;border-color:#c3d6f5;cursor:default;}
@@ -676,6 +672,9 @@
     .add-row .combo,.add-row .combo-field,.csv-import-btn{width:100%;}
     .csv-import-btn{margin-left:0;align-self:stretch;}
   }
+  /* US-135: reiterunabhängiger Aktionsstreifen (Kosten + Steuer & Belege teilen sich den CSV-Import) */
+  .beleg-aktionsstreifen{display:flex;justify-content:flex-end;margin-bottom:10px;}
+  .beleg-aktionsstreifen .csv-import-btn{margin-left:0;}
   .combo{position:relative;}
   .picker-list .picker-item{display:block;width:100%;text-align:left;background:none;border:none;cursor:pointer;padding:5px 8px;border-radius:6px;font-size:13px;color:var(--ink);}
   .picker-list .picker-item:hover{background:var(--soft);}
@@ -960,6 +959,13 @@
        empfohlenen Reihenfolge für die erste Abrechnung (kein Zwangs-Wizard, s. renderSchnellstart). -->
   <div id="schnellstart_banner"></div>
 
+  <!-- US-135: reiterunabhängiger Aktionsstreifen – die Übernahme betrifft Kostenarten, Sonstige
+       Ausgaben UND Mieter-Zahlungen gleichermaßen, gehört also keinem der beiden Reiter allein.
+       Sichtbarkeit wird in go() (view-shell.js) an "Kosten" (3) und "Steuer & Belege" (11) geknüpft. -->
+  <div id="beleg_aktionsstreifen" class="beleg-aktionsstreifen" hidden>
+    <button class="btn-ghost csv-import-btn" onclick="document.getElementById('csv_import').click()" title="Kosten, Zahlungseingänge und Sonstige Ausgaben aus dem Bank-CSV übernehmen">Kontoauszug (.csv) importieren</button>
+  </div>
+
   <!-- Step 1: Objekt & Einheiten -->
   <section class="panel" data-step="0">
     <h1>Gebäude &amp; Einheiten<span id="vjt_einh" class="vj-titel"></span><button class="dok-mini" onclick="toggleDokAnker()" aria-label="Benötigte Unterlagen einblenden" title="Benötigte Unterlagen einblenden"><span class="dok-i" aria-hidden="true">ⓘ</span><span class="dok-chev" aria-hidden="true">▸</span></button></h1>
@@ -1081,7 +1087,6 @@
           </div>
         </div>
       </div>
-      <button class="btn-ghost csv-import-btn" onclick="document.getElementById('csv_import').click()" title="Kosten und Zahlungseingänge aus dem Bank-CSV übernehmen">Kontoauszug (.csv) importieren</button>
       <!-- US-131-Feedback: allgemeine Ablagefläche in die Nähe des CSV-Imports geholt – legt bei
            Bedarf selbst eine neue Ausgabe an, statt eine vorhandene Zeile vorauszusetzen. -->
       <div class="beleg-drop beleg-drop-haupt"
@@ -1098,12 +1103,26 @@
       <tbody></tbody>
     </table>
     <p class="hint">Der Verteilerschlüssel wird je Kostenart vorgeschlagen und ist überschreibbar (↺). Ein <b>!</b> markiert <b>typische</b> nicht umlagefähige Positionen (Verwaltung, Instandhaltung/Reparatur, Rücklagen, Kabel-TV) – als Hinweis, nicht abschließend; im Zweifel selbst prüfen. Markierte Positionen werden weiterhin verteilt.</p>
+  </section>
 
-    <!-- US-130: eigener Bereich, bewusst getrennt von der Kosten-Liste oben – diese Positionen
-         fließen NICHT in die Nebenkostenabrechnung ein. -->
-    <!-- Ralf-Feedback 2026-07-30: reversibler Test gegen die zunehmende Reiter-Länge (UX-Review) –
-         einklappbar statt fest offen, wie die Beleg-Übersicht darunter. Standardmäßig offen, damit
-         sich am bisherigen Verhalten nichts ändert; wer will, kann den Abschnitt zuklappen. -->
+  <!-- Step 12: Steuer & Belege (US-135: eigener Reiter, getrennt von der NK-Abrechnung, da
+       zeitlich und thematisch ein eigener Anwendungsfall). -->
+  <section class="panel" data-step="11">
+    <h1>Steuer &amp; Belege</h1>
+    <p class="sub">Nicht umlagefähige, aber steuerrelevante Ausgaben und der Beleg-Nachweis für alle Positionen – für deine Steuererklärung.</p>
+    <div class="add-row">
+      <!-- US-131-Feedback: allgemeine Ablagefläche auch hier, identisch zum Reiter „Kosten" –
+           bewusst dupliziert statt in ein Menü verschoben (Entscheidung US-135). -->
+      <div class="beleg-drop beleg-drop-haupt"
+           title="Beleg hierher ziehen oder klicken, um eine neue Ausgabe anzulegen"
+           ondragover="event.preventDefault();this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')"
+           ondrop="belegDropNeu(event)"
+           onclick="belegAuswaehlenNeu()">Beleg hierher ziehen, um eine neue Ausgabe anzulegen</div>
+    </div>
+
+    <!-- US-130: eigener Bereich, bewusst getrennt von der Kosten-Liste im Reiter „Kosten" – diese
+         Positionen fließen NICHT in die Nebenkostenabrechnung ein. -->
     <details class="zahlungs-box" id="ausgaben_box" open>
       <summary class="zahlungs-titel" style="cursor:pointer;">Sonstige Ausgaben (nicht umlagefähig, aber steuerrelevant)</summary>
       <p class="hint">Investitionen und andere Ausgaben, die nicht auf die Mieter umgelegt werden (z. B. eine neue Wärmepumpe), aber für deine Steuererklärung dokumentiert sein sollten. Diese Positionen fließen nicht in die Nebenkostenabrechnung ein.</p>

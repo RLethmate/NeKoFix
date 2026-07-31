@@ -18,7 +18,11 @@
 /* Ralf-Vorgabe 2026-07-13: "Mietspiegel" als Index 10 angehängt (Muster US-81/US-123: kein
    Umnummerieren, Position über STEP_GROUPS). Bettet den RentMap-Prototyp per iframe ein.
    Ralf-Vorgabe 2026-07-15: nicht mehr Debug-only, für alle Nutzer sichtbar (s. DEBUG_ONLY_STEPS). */
-const STEPS = ["Gebäude & Einheiten","Vorauszahlung (Soll)","Heizung","Kosten","Nebenkosten-Saldo","Fertige Abrechnung","Zahlungen (Ist)","Mieter & Vertrag","Termine & Wartung","Vermieter & Zahlungsangaben","Mietspiegel"];
+/* Ralf-Vorgabe 2026-07-31: "Steuer & Belege" als Index 11 angehängt (gleiches Muster wie
+   Mietspiegel oben – kein Umnummerieren, Position über STEP_GROUPS). Nimmt "Sonstige Ausgaben"
+   und die reiterübergreifende Beleg-Übersicht aus dem Kosten-Reiter auf (US-135: NK-Abrechnung
+   und steuerliche Beleg-Dokumentation sind zeitlich/thematisch getrennte Anwendungsfälle). */
+const STEPS = ["Gebäude & Einheiten","Vorauszahlung (Soll)","Heizung","Kosten","Nebenkosten-Saldo","Fertige Abrechnung","Zahlungen (Ist)","Mieter & Vertrag","Termine & Wartung","Vermieter & Zahlungsangaben","Mietspiegel","Steuer & Belege"];
 /* Ralf-Vorgabe 2026-07-14: "bis aktueller Monat" ist jetzt die Voreinstellung (US-83 – Monate
    sollen bis zum echten aktuellen Monat sichtbar sein, nicht nur bis zum Ende des
    Abrechnungszeitraums; passendes Markup dazu in index.html, s. #zv_faellig/#zahl_laeuft_hint). */
@@ -84,7 +88,7 @@ function alleMV(){ const out=[]; state.einheiten.forEach((e,ei)=>{ (e.mv||[]).fo
 function leerstandZa(e){ const s=(e.mv||[]).reduce((a,m)=>a+nkZeitanteil(m.von,nkMvEnde(m,state.objekt.bis),state.objekt.von,state.objekt.bis),0); return Math.max(0,1-s); }
 
 /* ---------- Stepper (US-54: seitliche Lasche, Gruppen, Kürzel, Versand-Ampel) ---------- */
-const STEP_ABBR = ["GE","VZ","HE","KO","NS","AB","ZA","MV","TW","VM","MS"];
+const STEP_ABBR = ["GE","VZ","HE","KO","NS","AB","ZA","MV","TW","VM","MS","SB"];
 /* US-122: themenbasierte Bereiche statt "Abrechnung erstellen"/"Nachverfolgung" (erzwungene
    Assistenten-Reihenfolge) statt strikter Reihenfolge. Siehe UX-Review-Navigation-und-Workflow.md.
    "Vorauszahlung (Soll)" bleibt bewusst inhaltlich unverändert (weiterhin editierbar) - der Umbau
@@ -100,7 +104,10 @@ const STEP_ABBR = ["GE","VZ","HE","KO","NS","AB","ZA","MV","TW","VM","MS"];
 const STEP_GROUPS = [
   { titel:"Objekt",              steps:[0,10,9,7,8] },
   { titel:"Abrechnung",          steps:[2,3,5] },
-  { titel:"Zahlungen & Saldo",   steps:[1,6,4] }
+  { titel:"Zahlungen & Saldo",   steps:[1,6,4] },
+  /* US-135: eigene Gruppe ganz unten – bewusst NICHT Teil der Abrechnungs-Kette, sondern ein
+     zeitlich/thematisch getrennter, laufender Anwendungsfall (Beleg-Sammlung fürs Finanzamt). */
+  { titel:"Steuer & Belege",     steps:[11] }
 ];
 /* Nur im Debug-Modus sichtbare Reiter. Gleiche Prüfung wie nkMvDebugAktiv (view-mieter.js):
    explizit ?debug=1, nicht bloß Anwesenheit von ?debug. Aktuell leer - Mietspiegel (Index 10)
@@ -210,6 +217,7 @@ const RENDERERS = {
       .then(r=>{ nkMsBase = r.ok ? 'mietspiegel/' : f.dataset.src; apply(nkMsBase); })
       .catch(()=>{ nkMsBase=f.dataset.src; apply(nkMsBase); });
   },
+  11: () => renderSteuerBelege(), /* US-135: Sonstige Ausgaben + reiterübergreifende Beleg-Übersicht */
 };
 /* Erkannte RentMap-Quelle (eingebettetes Bundle oder Dev-Server), einmal pro Sitzung. */
 let nkMsBase=null;
@@ -219,6 +227,10 @@ function go(i){
      (Ralf-Fund 2026-07-06, sichtbares Symptom: Zahlungsfrist-Feld wirkte leer/kollabiert). */
   ui.current=i;
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', +p.dataset.step===i));
+  /* US-135: der CSV-Import-Aktionsstreifen ist reiterunabhängig (dieselbe Übernahme betrifft
+     Kostenarten, Sonstige Ausgaben UND Mieter-Zahlungen), aber nur sinnvoll sichtbar, solange
+     einer der beiden Reiter aktiv ist, die ihn tatsächlich nutzen. */
+  const streifen=document.getElementById('beleg_aktionsstreifen'); if(streifen) streifen.hidden = !(i===3 || i===11);
   const r=RENDERERS[i]; if(r) r();
   renderStepper();
   renderSchnellstart(); /* UX-Review 2026-07-15 (Kano): Sichtbarkeits-Bedingung (frisches Objekt) bei jedem Reiterwechsel neu prüfen */
@@ -300,8 +312,8 @@ const APP_MAJOR="0";
    läuft dieser Schritt nie. Damit sich beim lokalen Testen sofort erkennen lässt, welcher Branch/
    Stand gerade offen ist (statt eines immer gleichen Platzhalters), hier den Branch-/Story-Namen
    + heutiges Datum eintragen, sobald ein Stand zum lokalen Testen ansteht. */
-const APP_VERSION="v-0.0.0 (lokal: us-131-belege-drag-drop)";
-const BUILD_DATE="2026-07-30";
+const APP_VERSION="v-0.0.0 (lokal: us-135-steuer-belege-reiter)";
+const BUILD_DATE="2026-07-31";
 function toggleDateiMenu(forceClose){ const m=document.getElementById('datei_menu'); if(!m) return; m.hidden = forceClose ? true : !m.hidden; const s=document.getElementById('mru_sub'); if(s) s.hidden=true; /* US-91: Submenü „Zuletzt verwendet" beim Öffnen/Schließen zurücksetzen */ }
 document.addEventListener('click', e=>{ const m=document.getElementById('datei_menu'); if(m && !m.hidden && !e.target.closest('.menu')){ m.hidden=true; const s=document.getElementById('mru_sub'); if(s) s.hidden=true; } });
 

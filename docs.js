@@ -275,7 +275,14 @@ async function _belegZielDialogWeiter(){
    über die allgemeine Ablagefläche zugeordneter Beleg gelandet ist. Bei Kostenarten wird die
    Detailkarte gleich mit aufgeklappt (sonst wäre der neue Beleg-Chip unsichtbar). */
 function belegZeileAufblinken(art, idx){
-  if(art==='kosten'){ const k=state.kosten[idx]; if(k) ui.expandedKosten.add(k.id); if(typeof renderKosten==='function') renderKosten(); }
+  /* US-135: Kostenarten leben im Reiter "Kosten" (Step 3), Sonstige Ausgaben seit dem Reiter-Split
+     im Reiter "Steuer & Belege" (Step 11) – das Ziel des Beleg-Zieldialogs kann in einem anderen
+     Reiter liegen als dem, in dem gerade importiert/abgelegt wurde. In dem Fall erst dorthin
+     wechseln (go() rendert dabei automatisch mit), sonst reicht ein gezielter Re-Render. */
+  const zielStep = art==='kosten' ? 3 : 11;
+  if(art==='kosten'){ const k=state.kosten[idx]; if(k) ui.expandedKosten.add(k.id); }
+  if(ui.current !== zielStep) go(zielStep);
+  else if(art==='kosten'){ if(typeof renderKosten==='function') renderKosten(); }
   else if(typeof renderAusgaben==='function') renderAusgaben();
   setTimeout(function(){
     const el=document.getElementById(art==='kosten' ? 'krow-'+idx : 'arow-'+idx);

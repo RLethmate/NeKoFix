@@ -1577,24 +1577,29 @@ test("nkBelegStatus: kein Beleg / ein Beleg reicht / mehrere brauchen die Schlus
   assert.equal(calc.nkBelegStatus([{ dateiname: "a.pdf" }, { dateiname: "b.pdf" }]), "unvollstaendig"); // Teilzahlungen ohne Schlussrechnung
   assert.equal(calc.nkBelegStatus([{ dateiname: "a.pdf" }, { dateiname: "b.pdf", schlussrechnung: true }]), "vollstaendig");
 });
-test("nkBelegChecklist / nkBelegFortschritt: Kosten + Ausgaben zusammengeführt, Heizblöcke ausgeschlossen (US-131)", () => {
+test("nkBelegChecklist / nkBelegFortschritt: Kosten + Ausgaben zusammengeführt, Heizblöcke ausgeschlossen, Index bleibt trotz Filter erhalten (US-131 + Reiter-Split 2026-07-31)", () => {
   const kosten = [
-    { id: 1, bez: "Grundsteuer", betrag: 1200, belege: [{ dateiname: "x" }] },
-    { id: 2, bez: "Wasser", betrag: 800 }, // kein Beleg
-    { id: 3, bez: "Heizung (Erdgas)", typ: "heizung", betrag: 3600, belege: [{ dateiname: "x" }] }, // ausgeschlossen
+    { id: 1, bez: "Grundsteuer", betrag: 1200, belege: [{ dateiname: "x" }], verfuegbar: "vorhanden" },
+    { id: 2, bez: "Heizung (Erdgas)", typ: "heizung", betrag: 3600, belege: [{ dateiname: "x" }] }, // ausgeschlossen, mitten im Array
+    { id: 3, bez: "Wasser", betrag: 800 }, // kein Beleg, Ampel-Default "fehlt"
   ];
   const ausgaben = [
-    { id: 10, bez: "Wärmepumpe", betrag: 8500, herkunft: "csv", belege: [{ dateiname: "a" }, { dateiname: "b" }] },
+    { id: 10, bez: "Wärmepumpe", betrag: 8500, herkunft: "csv", belege: [{ dateiname: "a" }, { dateiname: "b" }], verfuegbar: "vorhanden" },
   ];
   const items = calc.nkBelegChecklist(kosten, ausgaben);
   assert.equal(items.length, 3); // Heizblock nicht dabei
   assert.deepEqual(items.map(i => i.art), ["kosten", "kosten", "ausgabe"]);
+  assert.equal(items[0].idx, 0); // Grundsteuer bleibt Original-Index 0
+  assert.equal(items[1].idx, 2); // Wasser ist im ORIGINAL-Array Index 2, nicht 1 - der Heizung-Filter darf das nicht verschieben
   assert.equal(items[0].status, "vollstaendig");
+  assert.equal(items[0].verfuegbar, "vorhanden");
   assert.equal(items[0].herkunft, "manuell"); // kein Feld gesetzt -> Default
   assert.equal(items[1].status, "kein_beleg");
+  assert.equal(items[1].verfuegbar, "fehlt"); // Ampel-Default, vereinheitlicht mit Ausgaben
   assert.equal(items[2].status, "unvollstaendig"); // 2 Belege, keine Schlussrechnung markiert
+  assert.equal(items[2].verfuegbar, "vorhanden");
   assert.equal(items[2].herkunft, "csv");
-  assert.deepEqual(calc.nkBelegFortschritt(items), { gesamt: 3, fertig: 1 });
+  assert.deepEqual(calc.nkBelegFortschritt(items), { gesamt: 3, fertig: 2 }); // zählt "vorhanden", nicht "vollstaendig"
 });
 test("nkBelegDuplikat: findet inhaltsgleiche Datei über Kosten und Ausgaben hinweg (US-131-Feedback)", () => {
   const kosten = [{ id: 1, bez: "Grundsteuer", belege: [{ dateiname: "25-1.pdf", hash: "abc" }] }];
