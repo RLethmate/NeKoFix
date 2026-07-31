@@ -94,7 +94,7 @@
   .vorjahr-banner .vb-text{font-size:13px;color:#7a5a12;flex:1;min-width:240px;}
   .vorjahr-banner button{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;}
   tr.vorjahr td{background:#fdf6e8;}
-  tr.vorjahr td:nth-child(2) input{border-color:#e6c878;background:#fffaf0;font-style:italic;}
+  tr.vorjahr td:nth-child(3) input{border-color:#e6c878;background:#fffaf0;font-style:italic;} /* Betrag-Spalte, seit US-135-Feedback Spalte 3 (Löschen-Kreuz jetzt Spalte 1) */
   .vorjahr-badge{display:inline-block;font-size:11px;color:#7a5a12;background:#fbf4e6;border:1px solid #e6c878;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
   /* US-131: Belege per Drag & Drop – Dropzone je Position, Kürzel-Chips, Herkunfts-Badge.
      Ralf-Feedback 2026-07-30: schon im Ruhezustand deutlich blau hinterlegt statt nur einer
@@ -595,10 +595,12 @@
   #mieter_vertrag_box .einheit-card:nth-child(even){background:#eef3f8;} /* Ralf-Feedback 2026-07-07: dieselbe Einheiten-Alternierung wie Gebäude & Einheiten/Heizung fehlte hier noch */
   /* US-58: Kostenart-Spalte maximieren, übrige Spalten schmal halten */
   #tbl_kosten td.bez-col input{width:100%;}
-  #tbl_kosten td:nth-child(2),#tbl_kosten th:nth-child(2){width:120px;}
-  #tbl_kosten td:nth-child(3),#tbl_kosten th:nth-child(3){width:270px;}
-  #tbl_kosten td:nth-child(4),#tbl_kosten th:nth-child(4){width:64px;}
-  #tbl_kosten td:nth-child(5),#tbl_kosten th:nth-child(5){width:42px;}
+  /* Ralf-Feedback 2026-07-31: Löschen-Kreuz der Position ist jetzt Spalte 1 (s. appendKostenRow) –
+     Spaltenbreiten entsprechend um eine Position verschoben. */
+  #tbl_kosten td:nth-child(1),#tbl_kosten th:nth-child(1){width:42px;}
+  #tbl_kosten td:nth-child(3),#tbl_kosten th:nth-child(3){width:120px;}
+  #tbl_kosten td:nth-child(4),#tbl_kosten th:nth-child(4){width:270px;}
+  #tbl_kosten td:nth-child(5),#tbl_kosten th:nth-child(5){width:64px;}
   /* US-131-Feedback: gleicher Breiten-Rhythmus wie #tbl_kosten oben – Bezeichnung maximieren,
      übrige Spalten fest, Dienstleister ausreichend breit statt auf Default-Inputbreite gequetscht.
      .tabelle-scroll faengt auf, wenn die Summe der festen Breiten (bei 7 Spalten) den verfügbaren
@@ -611,14 +613,16 @@
   #tbl_ausgaben th{overflow-wrap:break-word;}
   /* Ralf-Feedback 2026-07-30: Betragsfeld war trotz Spaltenbreite zu kurz (kein width:100% auf dem
      Input selbst) – jetzt wie Bezeichnung/Dienstleister behandelt, Spalte zusätzlich verbreitert. */
-  #tbl_ausgaben td.bez-col input,#tbl_ausgaben td:nth-child(2) input,#tbl_ausgaben td:nth-child(3) input{width:100%;}
-  #tbl_ausgaben td:nth-child(1),#tbl_ausgaben th:nth-child(1){min-width:140px;}
-  #tbl_ausgaben td:nth-child(2),#tbl_ausgaben th:nth-child(2){width:140px;}
-  #tbl_ausgaben td:nth-child(3),#tbl_ausgaben th:nth-child(3){width:130px;}
-  #tbl_ausgaben td:nth-child(4),#tbl_ausgaben th:nth-child(4){width:115px;}
-  #tbl_ausgaben td:nth-child(5),#tbl_ausgaben th:nth-child(5){width:70px;}
-  #tbl_ausgaben td:nth-child(6),#tbl_ausgaben th:nth-child(6){width:170px;}
-  #tbl_ausgaben td:nth-child(7),#tbl_ausgaben th:nth-child(7){width:42px;}
+  /* Ralf-Feedback 2026-07-31: Löschen-Kreuz der Position ist jetzt Spalte 1 (s. renderAusgaben) –
+     Spaltenbreiten entsprechend um eine Position verschoben. */
+  #tbl_ausgaben td.bez-col input,#tbl_ausgaben td:nth-child(3) input,#tbl_ausgaben td:nth-child(4) input{width:100%;}
+  #tbl_ausgaben td:nth-child(1),#tbl_ausgaben th:nth-child(1){width:42px;}
+  #tbl_ausgaben td:nth-child(2),#tbl_ausgaben th:nth-child(2){min-width:140px;}
+  #tbl_ausgaben td:nth-child(3),#tbl_ausgaben th:nth-child(3){width:140px;}
+  #tbl_ausgaben td:nth-child(4),#tbl_ausgaben th:nth-child(4){width:130px;}
+  #tbl_ausgaben td:nth-child(5),#tbl_ausgaben th:nth-child(5){width:115px;}
+  #tbl_ausgaben td:nth-child(6),#tbl_ausgaben th:nth-child(6){width:70px;}
+  #tbl_ausgaben td:nth-child(7),#tbl_ausgaben th:nth-child(7){width:170px;}
   /* US-58: Rubriken-Gruppen + Zwischensummen */
   .heiz-ro td{color:var(--muted);background:var(--soft);font-style:italic;}
   .heiz-ro .pill{font-style:normal;cursor:help;}
@@ -1099,7 +1103,7 @@
     <div id="kleinrep_warn"></div>
     <label class="filter-toggle"><input type="checkbox" onchange="setNurUngeprueft(this.checked)"> Nur ungeprüfte Belege anzeigen<span id="ungeprueft_count" class="muted"></span></label>
     <table id="tbl_kosten">
-      <thead><tr><th>Kostenart</th><th class="num">Betrag</th><th>Verteilerschlüssel</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th></th><th>Kostenart</th><th class="num">Betrag</th><th>Verteilerschlüssel</th><th>Status</th></tr></thead>
       <tbody></tbody>
     </table>
     <p class="hint">Der Verteilerschlüssel wird je Kostenart vorgeschlagen und ist überschreibbar (↺). Ein <b>!</b> markiert <b>typische</b> nicht umlagefähige Positionen (Verwaltung, Instandhaltung/Reparatur, Rücklagen, Kabel-TV) – als Hinweis, nicht abschließend; im Zweifel selbst prüfen. Markierte Positionen werden weiterhin verteilt.</p>
@@ -1133,7 +1137,7 @@
            unsichtbar aus dem Fenster laufen zu lassen. -->
       <div class="tabelle-scroll">
       <table id="tbl_ausgaben">
-        <thead><tr><th>Bezeichnung</th><th class="num">Betrag</th><th>Dienstleister</th><th>Belegdatum</th><th title="Zurechnungsjahr (Steuerjahr)">Jahr</th><th>Beleg</th><th></th></tr></thead>
+        <thead><tr><th></th><th>Bezeichnung</th><th class="num">Betrag</th><th>Dienstleister</th><th>Belegdatum</th><th title="Zurechnungsjahr (Steuerjahr)">Jahr</th><th>Beleg</th></tr></thead>
         <tbody></tbody>
       </table>
       </div>

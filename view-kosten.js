@@ -47,7 +47,10 @@ function renderKosten(){
     const open=ui.expandedKosten.has(k.id);
     const ausNamen=nkAusschlussNamen(k, state.einheiten);
     const tr=document.createElement('tr'); tr.id='krow-'+idx; if(k.vorjahr) tr.className='vorjahr';
+    /* Ralf-Feedback 2026-07-31: Löschen-Kreuz der gesamten Position an den Anfang der Zeile
+       gestellt (analog zum Löschen-Kreuz je Beleg-Chip in belegSpalteHtml). */
     tr.innerHTML=
+      '<td class="act-col"><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button></td>'+
       '<td class="bez-col"><div class="bez-wrap"><span class="drag-grip" draggable="true" ondragstart="kostenDragStart(event,'+k.id+')" title="Ziehen zum Verschieben (Rubrik &amp; Reihenfolge)">⠿</span><span class="bez-cell"><input value="'+esc(k.bez)+'" oninput="updKostenBez('+idx+',this.value)" onchange="applyKostenart('+idx+',this.value)">'+warn+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr</span>':'')+herkunftBadgeHtml(k)+'</span></div></td>'+
       betragCellHtml(k,idx)+
       '<td><span class="schluessel-cell"><span class="feld-wrap'+((k.vorschlag&&k.vorschlag.schluessel)?' unbestaetigt':'')+'" id="kv-schluessel-wrap-'+idx+'"><select title="Vorschlag – überschreibbar. Üblich: Fläche (z. B. Grundsteuer, Versicherung, Heizung), Personen (z. B. Wasser/Abwasser), Wohneinheit (z. B. Müll, Aufzug). „Direkt" ordnet die Position einer einzelnen Einheit zu 100 % zu." onchange="setSchluessel('+idx+',this.value)">'+opts+'</select>'+((k.vorschlag&&k.vorschlag.schluessel)?'<button type="button" class="vorschlag-tri" title="Verteilerschlüssel aus Techem-Import übernehmen – bitte prüfen, dann anklicken (oder ändern)" onclick="kostenSchluesselVorschlagUebernehmen('+idx+')"></button>':'')+'</span><button class="reset-btn" title="Verteilerschlüssel auf Vorschlag zurücksetzen" onclick="resetSchluessel('+idx+')">↺</button>'+
@@ -55,8 +58,7 @@ function renderKosten(){
           ? '<select class="direkt-select" title="Diese Kosten trägt eine Einheit zu 100 %" onchange="store.setKostenFeld('+idx+',\'direktEinheit\',+this.value)">'+state.einheiten.map(x=>'<option value="'+x.id+'"'+(k.direktEinheit===x.id?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>'
           : '<button class="teilnahme-chip'+(ausNamen.length?' aktiv':'')+'" title="Teilnehmende Einheiten festlegen" onclick="toggleKostenDetail('+k.id+')">'+(ausNamen.length?'ohne '+ausNamen.map(esc).join(', '):'alle')+'</button>')+
         '</span></td>'+
-      '<td><button class="status-toggle" onclick="toggleKostenDetail('+k.id+')" title="Status & Notiz">'+dots+'<span class="chev">'+(open?'▴':'▾')+'</span></button></td>'+
-      '<td class="act-col"><button class="row-del" title="Position entfernen" onclick="deleteKostenRow('+idx+')">×</button></td>';
+      '<td><button class="status-toggle" onclick="toggleKostenDetail('+k.id+')" title="Status & Notiz">'+dots+'<span class="chev">'+(open?'▴':'▾')+'</span></button></td>';
     tb.appendChild(tr);
     const rub=nkRubrik(k); /* US-89 Phase 2: Drop auf diese Zeile = davor einsortieren, deren Rubrik übernehmen */
     tr.ondragover=dndOver; tr.ondragleave=dndLeave; tr.ondrop=function(e){ rowDrop(e, k.id, rub); };
@@ -112,17 +114,17 @@ function renderKosten(){
   /* US-59: Heizblöcke ausgegraut (Pflege im Heizung-Reiter) statt komplett ausblenden. */
   function appendHeizHinweisRow(k){
     const tr=document.createElement('tr'); tr.className='heiz-ro'; tr.title='Heizkosten werden im Reiter „Heizung" gepflegt';
-    tr.innerHTML='<td class="bez-col">'+esc(k.bez)+' <span class="pill">s. Heizung</span>'+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr – im Reiter „Heizung" übernehmen</span>':'')+'</td>'+
-      '<td class="num">'+eur(k.betrag||0)+'</td><td>'+schluesselAnzeige(k)+'</td><td></td><td></td>';
+    tr.innerHTML='<td></td><td class="bez-col">'+esc(k.bez)+' <span class="pill">s. Heizung</span>'+(k.vorjahr?' <span class="vorjahr-badge">aus Vorjahr – im Reiter „Heizung" übernehmen</span>':'')+'</td>'+
+      '<td class="num">'+eur(k.betrag||0)+'</td><td>'+schluesselAnzeige(k)+'</td><td></td>';
     tb.appendChild(tr);
   }
   /* US-59: nur im Vorjahr vorhandene Kostenart – temporäre, read-only Zeile (blau); verschwindet,
      sobald der Vorjahr-Modus wieder aus ist (sie wird nie in den State geschrieben). */
   function appendVjOnlyRow(vk){
     const tr=document.createElement('tr'); tr.className='vj-only-row';
-    tr.innerHTML='<td class="bez-col">'+esc(vk.bez)+' <span class="vj-only-badge">nur Vorjahr</span></td>'+
+    tr.innerHTML='<td></td><td class="bez-col">'+esc(vk.bez)+' <span class="vj-only-badge">nur Vorjahr</span></td>'+
       '<td class="num"><span class="betrag-wrap"><input class="short vj-field" type="text" readonly tabindex="-1" title="Vorjahreswert (nur im Vorjahr vorhanden)" value="'+nkFmtBetrag(vk.betrag)+' €"></span></td>'+
-      '<td>'+schluesselAnzeige(vk)+'</td><td></td><td></td>';
+      '<td>'+schluesselAnzeige(vk)+'</td><td></td>';
     tb.appendChild(tr);
   }
   /* US-58/US-89: Positionen nach Rubrik (objekt-eigene Reihenfolge) gruppieren. Die Rubrik-
@@ -163,7 +165,7 @@ function renderKosten(){
         ? grp.reduce((s,o)=>{ const key=nkNormName(o.k.bez); return s+((vjMap&&key in vjMap)?vjMap[key]:0); },0)+vjHere.reduce((s,vk)=>s+(+vk.betrag||0),0)
         : grp.reduce((s,o)=>s+(+o.k.betrag||0),0);
       const sr=document.createElement('tr'); sr.className='rubrik-sum'+(vjOn?' vj-sum':''); sr.dataset.rub=rub;
-      sr.innerHTML='<td>Zwischensumme '+esc(rub)+'</td><td class="num">'+eur(sum)+'</td><td colspan="3"></td>'; tb.appendChild(sr);
+      sr.innerHTML='<td></td><td>Zwischensumme '+esc(rub)+'</td><td class="num">'+eur(sum)+'</td><td colspan="2"></td>'; tb.appendChild(sr);
     } else {
       const er=document.createElement('tr'); er.className='rubrik-empty'; er.innerHTML='<td colspan="5">leer – Positionen hierher ziehen</td>';
       er.ondragover=dndOver; er.ondragleave=dndLeave; er.ondrop=(function(r){ return function(e){ headDrop(e, r); }; })(rub);
@@ -337,9 +339,13 @@ function belegSpalteHtml(art, idx, pos){
           ? ' <b class="sr-marker" title="Als Schlussrechnung markiert">Schlussrechnung</b>'
           : ' <button type="button" class="linklike" onclick="belegSchlussrechnung(\''+art+'\','+idx+','+bi+')">als Schlussrechnung markieren</button>')
       : '';
-    return '<span class="dok-chip">'+esc(b.dateiname)+
-      ' <button type="button" class="linklike" onclick="belegOeffnen(\''+art+'\','+idx+','+bi+')">öffnen</button>'+sr+
-      ' <button type="button" class="row-del" title="Beleg löschen" onclick="belegLoeschen(\''+art+'\','+idx+','+bi+')">×</button></span>';
+    /* Ralf-Feedback 2026-07-31: Löschen-Kreuz vor den Dateinamen gestellt – die Namen sind
+       unterschiedlich lang, ein nachgestelltes × sitzt dadurch bei jedem Chip an einer anderen
+       Stelle und ist schlecht anzuklicken. */
+    return '<span class="dok-chip">'+
+      '<button type="button" class="row-del" title="Beleg löschen" onclick="belegLoeschen(\''+art+'\','+idx+','+bi+')">×</button> '+
+      esc(b.dateiname)+
+      ' <button type="button" class="linklike" onclick="belegOeffnen(\''+art+'\','+idx+','+bi+')">öffnen</button>'+sr+'</span>';
   }).join('');
   const status = nkBelegStatus(belege);
   const label = status==='kein_beleg' ? 'PDF ablegen' : (status==='unvollstaendig' ? 'unvollständig' : 'vollständig');
@@ -369,7 +375,11 @@ function renderAusgaben(){
        hat; das Ablegen einer Datei setzt die Ampel automatisch auf "vorhanden" (belegHochladen). */
     const vf=a.verfuegbar||'fehlt';
     const tr=document.createElement('tr'); tr.id='arow-'+idx; /* Ralf-Feedback 2026-07-30: stabile ID fürs Aufblinken nach Beleg-Zuordnung */
+    /* Ralf-Feedback 2026-07-31: Löschen-Kreuz der gesamten Position an den Anfang der Zeile gestellt
+       (analog zum Löschen-Kreuz je Beleg-Chip) – so steht es immer an derselben Stelle, unabhängig
+       davon, wie lang Bezeichnung/Dienstleister o. Ä. gerade sind. */
     tr.innerHTML=
+      '<td class="act-col"><button class="row-del" title="Position entfernen" onclick="deleteAusgabeRow('+idx+')">×</button></td>'+
       '<td class="bez-col"><input value="'+esc(a.bez)+'" placeholder="z. B. Wärmepumpe" oninput="updAusgabeFeld('+idx+',\'bez\',this.value)">'+herkunftBadgeHtml(a)+'</td>'+
       '<td class="num"><input class="short" type="text" inputmode="decimal" value="'+nkFmtBetrag(a.betrag)+' €" oninput="updAusgabeBetrag('+idx+',this.value)" onblur="this.value=nkFmtBetrag(nkParseBetrag(this.value))+\' €\'"></td>'+
       '<td><input value="'+esc(a.dienstleister||'')+'" placeholder="Dienstleister" list="dienstleister_liste" oninput="updAusgabeFeld('+idx+',\'dienstleister\',this.value)"></td>'+
@@ -377,8 +387,7 @@ function renderAusgaben(){
       '<td><span class="feld-wrap"><input class="short" type="text" inputmode="numeric" style="max-width:64px" title="Zurechnungsjahr (Steuerjahr) – bei Rechnungen nahe dem Jahreswechsel ggf. mit dem Steuerberater abstimmen" value="'+esc(a.zurechnungsjahr||'')+'" onchange="updAusgabeJahr('+idx+',this.value)"></span>'+
         (jahrAbweichend?' <button type="button" class="reset-btn" title="Auf Jahr aus dem Belegdatum ('+esc(jahrVorschlag)+') zurücksetzen" onclick="resetAusgabeJahr('+idx+')">↺</button>':'')+
       '</td>'+
-      '<td>'+cddHtml('ausgabe','verfuegbar', idx, vf, VERFUEGBAR, VERFUEGBAR_FARBE)+belegSpalteHtml('ausgabe', idx, a)+'</td>'+
-      '<td class="act-col"><button class="row-del" title="Position entfernen" onclick="deleteAusgabeRow('+idx+')">×</button></td>';
+      '<td>'+cddHtml('ausgabe','verfuegbar', idx, vf, VERFUEGBAR, VERFUEGBAR_FARBE)+belegSpalteHtml('ausgabe', idx, a)+'</td>';
     tb.appendChild(tr);
   });
   /* Ohne diesen Aufruf zeigt die Beleg-Übersicht neu angelegte/gelöschte/umbenannte Ausgaben erst
