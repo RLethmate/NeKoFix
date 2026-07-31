@@ -161,6 +161,226 @@ async function dokChronikAnhang(ei,mi,ci){
       if(typeof scheduleSave==='function') scheduleSave(); if(typeof renderMieterVertrag==='function') renderMieterVertrag(); }
     catch(e){ alert('Konnte „'+f.name+'“ nicht speichern: '+((e&&e.message)||e)); } };
   inp.click(); }
+/* ---------- US-131: Belege für Kosten/Sonstige Ausgaben (objektbezogen, nicht mieterbezogen) ----------
+   Eigener Zweig "Belege/<Zurechnungsjahr>" im selben Objekt-Stammordner wie oben (dieselbe
+   Ordner-Wahl/Rechte-Prüfung über _dokBasisAktuell/_dokPerm/_dokOrdner), aber unabhängig vom
+   Einheit/Mieter/Jahr-Zweig – eine Heizöl-Rechnung gehört keinem einzelnen Mieter. Anders als beim
+   oben ungenutzten dokListe/dokAutoLoad-Muster steht hier, welche Belege zu welcher Position
+   gehören, direkt im State (k.belege/a.belege, s. core.js) – nur das eigentliche Schreiben/Öffnen/
+   Löschen der Datei läuft über das Dateisystem. */
+/* Ralf-Feedback 2026-07-30: SHA-256-Hash einer Datei für die Duplikat-Erkennung (nkBelegDuplikat,
+   calc.js). Reiner Browser-Helfer (Web Crypto API), kein Teil der reinen, getesteten Funktionen. */
+async function nkDateiHash(file){
+  const buf = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest('SHA-256', buf);
+  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2,'0')).join('');
+}
+async function belegHochladen(art, idx, file){
+  if(!dokVerfuegbar()){ alert('Belege ablegen benötigt Chrome, Edge oder Brave (File System Access API).'); return; }
+  ensureIds(); /* Sicherheit: Objekt-/Positions-ID müssen gesetzt sein, bevor sie in Ordner-/Dateinamen einfließen */
+  /* Ralf-Vorgabe 2026-07-30: Belege liegen IMMER im Objekt-Stammordner (bei Bedarf selbstständig
+     angelegt) – unabhängig vom v1/v2-Ablageschema der bestehenden Mieter-Dokumente oben. Vorher
+     fragte dies über _dokBasisAktuell bei v1-Objekten (u. a. dem mitgelieferten Demo-Objekt) nach
+     einem generischen, global geteilten Ordner statt selbstständig einen Objektordner anzulegen. */
+  const basis=await dokObjektRootSicherstellen(state.objekt); if(!basis) return;
+  const pos = art==='kosten' ? store.kosten(idx) : store.ausgabe(idx); if(!pos) return;
+  const jahr = art==='ausgabe' ? (pos.zurechnungsjahr||objektJahr(snapshot())) : objektJahr(snapshot());
+  /* Ralf-Feedback 2026-07-30: Kostenarten bekommen jetzt ebenfalls ein Dienstleister-Feld (view-
+     kosten.js appendKostenRow), damit auch dort abgelegte Belege ein aussagekräftiges Kürzel
+     bekommen statt nur "<Jahr>-<Nummer>.pdf" ohne jeden Hinweis auf den Aussteller. */
+  const dienstleister = pos.dienstleister || '';
+  /* Ralf-Feedback 2026-07-30: inhaltsgleiche Datei erkennen, BEVOR sie erneut abgelegt wird. */
+  const hash = await nkDateiHash(file);
+  const dup = nkBelegDuplikat(state.kosten, state.ausgaben, hash);
+  if(dup && !confirm('Diese Datei ist inhaltsgleich bereits als „'+dup.dateiname+'" bei „'+dup.bez+'" hinterlegt.\n\nTrotzdem zusätzlich ablegen?')) return;
+  const belegNr = (pos.belege||[]).length + 1; /* 1-basiert, macht den Namen bei mehreren Belegen je Position eindeutig */
+  const name = nkBelegDateiname({ zurechnungsjahr:jahr, laufendeNummer:pos.id, belegNr:belegNr, bez:pos.bez, dienstleister:dienstleister, betrag:pos.betrag, originalName:file.name });
+  try{
+    const dir=await _dokOrdner(basis, nkBelegPfad(jahr), true);
+    const fh=await dir.getFileHandle(name,{create:true}); const w=await fh.createWritable(); await w.write(file); await w.close();
+    /* originalName wird mitgespeichert, damit die spätere Live-Umbenennung (belegNamenAktualisieren)
+       weiterhin auf den echten Original-Dateinamen als Vorbelegung zurückgreifen kann, falls
+       Dienstleister leer bleibt – s. nkBelegDateiname. */
+    store.addBeleg(art, idx, { dateiname:name, jahr:jahr, angehaengtAm:new Date().toISOString().slice(0,10), schlussrechnung:false, hash:hash, originalName:file.name });
+    /* Ralf-Feedback 2026-07-30: bestehenden "Beleg"-Status (US-58, VERFUEGBAR) konsistent mitziehen,
+       statt zwei getrennte, unsynchronisierte Beleg-Anzeigen zu haben – gilt jetzt für Kostenarten
+       UND Sonstige Ausgaben (die Ampel wurde für Ausgaben nachgerüstet, s. renderAusgaben). */
+    if(art==='kosten') store.setKostenFeld(idx,'verfuegbar','vorhanden');
+    else store.setAusgabeFeld(idx,'verfuegbar','vorhanden');
+  }catch(e){ alert('Konnte „'+file.name+'" nicht speichern: '+((e&&e.message)||e)); }
+}
+/* Klick-Auswahl als Fallback zu Drag & Drop – eine oder mehrere Dateien auf einmal. */
+function belegAuswaehlen(art, idx){
+  const inp=document.createElement('input'); inp.type='file'; inp.multiple=true;
+  inp.onchange=async function(){ for(const f of [...inp.files]){ await belegHochladen(art, idx, f); }
+    if(art==='ausgabe' && typeof renderAusgaben==='function') renderAusgaben();
+    if(art==='kosten' && typeof renderKosten==='function') renderKosten(); };
+  inp.click();
+}
+/* Drag & Drop einer/mehrerer Dateien auf eine BESTEHENDE Position. */
+async function belegDrop(art, idx, ev){
+  ev.preventDefault(); if(ev.currentTarget&&ev.currentTarget.classList) ev.currentTarget.classList.remove('drag-over');
+  const files=(ev.dataTransfer&&ev.dataTransfer.files)?[...ev.dataTransfer.files]:[];
+  for(const f of files){ await belegHochladen(art, idx, f); }
+  if(art==='ausgabe' && typeof renderAusgaben==='function') renderAusgaben();
+  if(art==='kosten' && typeof renderKosten==='function') renderKosten();
+}
+/* Ralf-Feedback 2026-07-30: die allgemeine Ablagefläche muss zwischen Kostenart (NK) und Sonstiger
+   Ausgabe (steuerrelevant) unterscheiden können – analog zum "Ziel"-Dropdown beim CSV-Import
+   (view-csv.js umsatzZielSelect). Statt sofort zu entscheiden, öffnet sich ein kleiner, seiten-
+   integrierter Dialog mit derselben Ziel-Auswahl; erst danach wird der Beleg zugeordnet. */
+let _belegZielPendingFiles = null;
+function openBelegZielDialog(files){
+  if(!files.length) return;
+  _belegZielPendingFiles = files;
+  const opt=(v,t)=>'<option value="'+esc(v)+'">'+esc(t)+'</option>';
+  let h = opt('ausgabe', 'Sonstige Ausgabe (neu anlegen)');
+  const kostenOptionen = state.kosten.filter(k=>k.typ!=='heizung').map(k=>opt('kosten:'+k.id, k.bez)).join('');
+  h += '<optgroup label="Kostenart">'+opt('kosten_neu','+ neue Kostenart …')+kostenOptionen+'</optgroup>';
+  const sel=document.getElementById('belegzieldlg_select'); if(sel){ sel.innerHTML=h; sel.value='ausgabe'; }
+  const neuName=document.getElementById('belegzieldlg_neu_name'); if(neuName){ neuName.hidden=true; neuName.value=''; }
+  const ov=document.getElementById('belegzieldlg_overlay'); if(ov) ov.hidden=false;
+}
+function closeBelegZielDialog(){ _belegZielPendingFiles=null; const ov=document.getElementById('belegzieldlg_overlay'); if(ov) ov.hidden=true; }
+function _belegZielDialogAuswahlGeaendert(){
+  const sel=document.getElementById('belegzieldlg_select'), neuName=document.getElementById('belegzieldlg_neu_name');
+  if(neuName) neuName.hidden = !sel || sel.value!=='kosten_neu';
+}
+async function _belegZielDialogWeiter(){
+  const files=_belegZielPendingFiles; if(!files || !files.length){ closeBelegZielDialog(); return; }
+  const sel=document.getElementById('belegzieldlg_select'); const val=sel?sel.value:'ausgabe';
+  let art, idx;
+  if(val==='ausgabe'){
+    const objJahr=objektJahr(snapshot());
+    const neu=Object.assign(nkAusgabeNeu(objJahr), { herkunft:'beleg' }, nkDateiVorschlagAusName(files[0].name, objJahr));
+    store.addAusgabePos(neu);
+    art='ausgabe'; idx=state.ausgaben.length-1;
+  } else if(val==='kosten_neu'){
+    const name=((document.getElementById('belegzieldlg_neu_name')||{}).value||'').trim();
+    if(!name){ alert('Bitte einen Namen für die neue Kostenart eingeben.'); return; }
+    store.addKostenOben(name);
+    art='kosten'; idx=state.kosten.findIndex(k=>k.bez===name);
+    if(idx<0){ closeBelegZielDialog(); return; }
+  } else if(val.indexOf('kosten:')===0){
+    const zielId=+val.slice(7);
+    idx=state.kosten.findIndex(k=>k.id===zielId);
+    if(idx<0){ closeBelegZielDialog(); return; }
+    art='kosten';
+  } else { closeBelegZielDialog(); return; }
+  closeBelegZielDialog();
+  for(const f of files){ await belegHochladen(art, idx, f); }
+  belegZeileAufblinken(art, idx);
+}
+/* Ralf-Feedback 2026-07-30: Aufblinken + Hinscrollen zur Zielzeile, damit sichtbar wird, wohin ein
+   über die allgemeine Ablagefläche zugeordneter Beleg gelandet ist. Bei Kostenarten wird die
+   Detailkarte gleich mit aufgeklappt (sonst wäre der neue Beleg-Chip unsichtbar). */
+function belegZeileAufblinken(art, idx){
+  /* US-135: Kostenarten leben im Reiter "Kosten" (Step 3), Sonstige Ausgaben seit dem Reiter-Split
+     im Reiter "Steuer & Belege" (Step 11) – das Ziel des Beleg-Zieldialogs kann in einem anderen
+     Reiter liegen als dem, in dem gerade importiert/abgelegt wurde. In dem Fall erst dorthin
+     wechseln (go() rendert dabei automatisch mit), sonst reicht ein gezielter Re-Render. */
+  const zielStep = art==='kosten' ? 3 : 11;
+  if(art==='kosten'){ const k=state.kosten[idx]; if(k) ui.expandedKosten.add(k.id); }
+  /* Sonstige Ausgaben stehen in einem einklappbaren <details> (Ralf-Feedback 2026-07-30) – ohne
+     dieses Aufklappen wäre die Zielzeile zwar im DOM, aber unsichtbar und das Aufblinken liefe ins
+     Leere. */
+  else { const box=document.getElementById('ausgaben_box'); if(box) box.open=true; }
+  if(ui.current !== zielStep) go(zielStep);
+  else if(art==='kosten'){ if(typeof renderKosten==='function') renderKosten(); }
+  else if(typeof renderAusgaben==='function') renderAusgaben();
+  setTimeout(function(){
+    const el=document.getElementById(art==='kosten' ? 'krow-'+idx : 'arow-'+idx);
+    if(!el) return;
+    el.scrollIntoView({behavior:'smooth', block:'center'});
+    el.classList.add('beleg-aufblink');
+    setTimeout(function(){ el.classList.remove('beleg-aufblink'); }, 1600);
+  }, 60);
+}
+async function belegDropNeu(ev){
+  ev.preventDefault(); if(ev.currentTarget&&ev.currentTarget.classList) ev.currentTarget.classList.remove('drag-over');
+  const files=(ev.dataTransfer&&ev.dataTransfer.files)?[...ev.dataTransfer.files]:[];
+  openBelegZielDialog(files);
+}
+/* Ralf-Feedback 2026-07-30: Klick auf die allgemeine Ablagefläche soll wie bei den einzelnen
+   Beleg-Dropzones (belegAuswaehlen) einen Datei-Auswahldialog öffnen, statt nur auf Drag & Drop zu
+   reagieren. */
+function belegAuswaehlenNeu(){
+  const inp=document.createElement('input'); inp.type='file'; inp.multiple=true;
+  inp.onchange=function(){ openBelegZielDialog([...inp.files]); };
+  inp.click();
+}
+/* Objekt-Stammordner NUR lesen (nie einen Dialog aufreißen) – für die reinen Lesepfade unten. */
+async function _belegBasisVorhanden(){
+  if(!state.objekt || !state.objekt.id) return null;
+  return _dokObjektRootCache[state.objekt.id] || await _dokObjektRootLaden(state.objekt.id) || null;
+}
+async function belegOeffnen(art, idx, belegIdx){
+  const pos = art==='kosten' ? store.kosten(idx) : store.ausgabe(idx);
+  const beleg = pos && pos.belege && pos.belege[belegIdx]; if(!beleg) return;
+  try{
+    const basis=await _belegBasisVorhanden();
+    const dir=await _dokOrdner(basis, nkBelegPfad(beleg.jahr), false);
+    const fh=await dir.getFileHandle(beleg.dateiname); const file=await fh.getFile();
+    const url=URL.createObjectURL(file); window.open(url,'_blank'); setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }catch(e){ alert('Datei nicht gefunden – wurde sie evtl. außerhalb verschoben/gelöscht?'); }
+}
+async function belegLoeschen(art, idx, belegIdx){
+  const pos = art==='kosten' ? store.kosten(idx) : store.ausgabe(idx);
+  const beleg = pos && pos.belege && pos.belege[belegIdx]; if(!beleg) return;
+  if(!confirm('Beleg „'+beleg.dateiname+'“ wirklich löschen?')) return;
+  try{ const basis=await _belegBasisVorhanden(); const dir=await _dokOrdner(basis, nkBelegPfad(beleg.jahr), false); await dir.removeEntry(beleg.dateiname); }catch(e){}
+  store.removeBeleg(art, idx, belegIdx);
+  if(art==='ausgabe' && typeof renderAusgaben==='function') renderAusgaben();
+  if(art==='kosten' && typeof renderKosten==='function') renderKosten();
+}
+function belegSchlussrechnung(art, idx, belegIdx){
+  store.toggleSchlussrechnung(art, idx, belegIdx);
+  if(art==='ausgabe' && typeof renderAusgaben==='function') renderAusgaben();
+  if(art==='kosten' && typeof renderKosten==='function') renderKosten();
+}
+/* Ralf-Feedback 2026-07-30: vorher bekam ein Beleg seinen Kürzel-Namen NUR einmalig beim Ablegen –
+   wurden Dienstleister/Betrag/Zurechnungsjahr DANACH ausgefüllt oder geändert, blieb der alte,
+   weniger aussagekräftige Name stehen. Diese Funktion benennt alle Belege einer Position auf den
+   aktuell zutreffenden Namen um (Datei lesen, unter neuem Namen schreiben, alte entfernen) und wird
+   aus den Feld-Änderungshandlern in view-kosten.js aufgerufen, sobald sich einer der drei Werte
+   ändert. Läuft still im Hintergrund; eine nicht mehr auffindbare Datei wird übersprungen statt
+   den Namen im State zu verwerfen (US-109-Muster: Datei-Ordner-Trennung bleibt tolerant). */
+async function belegNamenAktualisieren(art, idx){
+  if(!dokVerfuegbar()) return;
+  const pos = art==='kosten' ? store.kosten(idx) : store.ausgabe(idx);
+  if(!pos || !pos.belege || !pos.belege.length) return;
+  const basis = await _belegBasisVorhanden(); if(!basis) return;
+  const jahrAktuell = art==='ausgabe' ? (pos.zurechnungsjahr||objektJahr(snapshot())) : objektJahr(snapshot());
+  let geaendert=false;
+  for(let i=0;i<pos.belege.length;i++){
+    const beleg=pos.belege[i];
+    const altesJahr=beleg.jahr||jahrAktuell;
+    const neuerName=nkBelegDateiname({ zurechnungsjahr:jahrAktuell, laufendeNummer:pos.id, belegNr:i+1, bez:pos.bez, dienstleister:pos.dienstleister||'', betrag:pos.betrag, originalName:beleg.originalName||beleg.dateiname });
+    if(neuerName===beleg.dateiname && altesJahr===jahrAktuell) continue; /* nichts zu tun */
+    try{
+      const altDir=await _dokOrdner(basis, nkBelegPfad(altesJahr), false);
+      const altFh=await altDir.getFileHandle(beleg.dateiname);
+      const datei=await altFh.getFile();
+      const neuDir=await _dokOrdner(basis, nkBelegPfad(jahrAktuell), true);
+      const neuFh=await neuDir.getFileHandle(neuerName,{create:true});
+      const w=await neuFh.createWritable(); await w.write(datei); await w.close();
+      if(!(neuerName===beleg.dateiname && altesJahr===jahrAktuell)) await altDir.removeEntry(beleg.dateiname).catch(()=>{});
+      beleg.dateiname=neuerName; beleg.jahr=jahrAktuell; geaendert=true;
+    }catch(e){ /* Datei extern verschoben/gelöscht - Name im State bewusst unangetastet lassen */ }
+  }
+  if(geaendert){ if(typeof scheduleSave==='function') scheduleSave();
+    if(art==='ausgabe' && typeof renderAusgaben==='function') renderAusgaben();
+    if(art==='kosten' && typeof renderKosten==='function') renderKosten(); }
+}
+/* Entprellt (600 ms), damit nicht jeder einzelne Tastenanschlag im Dienstleister-/Betragsfeld
+   sofort eine Datei-Umbenennung auf der Platte auslöst – erst wenn kurz Ruhe ist, wird umbenannt. */
+let _belegRenameTimer={};
+function belegNamenAktualisierenDebounced(art, idx){
+  const key=art+':'+idx;
+  clearTimeout(_belegRenameTimer[key]);
+  _belegRenameTimer[key]=setTimeout(function(){ belegNamenAktualisieren(art, idx); }, 600);
+}
+
 /* Ralf-Vorgabe 2026-07-08: JSON-Speicherstand ("Speichern unter") bei v2-Objekten als KIND des
    Objekt-Stammordners ablegen statt an einem beliebigen, unabhängigen Ort (showSaveFilePicker) –
    siehe speichernUnter() in view-shell.js. Legt den Stammordner bei Bedarf gleich mit an. */

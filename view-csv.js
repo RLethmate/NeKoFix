@@ -70,7 +70,7 @@ function uebernehmeUmsaetze(){
   let markiert=0;
   plan.kosten.forEach(k=>{
     let idx=state.kosten.findIndex(x=>String(x.bez||'').trim()===k.bez);
-    if(idx<0){ store.addKosten(k.bez); idx=state.kosten.findIndex(x=>String(x.bez||'').trim()===k.bez); }
+    if(idx<0){ store.addKosten(k.bez); idx=state.kosten.findIndex(x=>String(x.bez||'').trim()===k.bez); if(idx>=0) store.setKostenFeld(idx,'herkunft','csv'); /* US-131: Herkunfts-Badge nur für neu angelegte, nicht bei Aufaddieren auf eine manuell angelegte Position */ }
     if(idx>=0){ const alt=+state.kosten[idx].betrag||0; store.setKostenBetrag(idx, alt+k.summe);
       if(alt>0){ store.setKostenVorschlagFeld(idx,'betrag',true); markiert++; } }
   });
@@ -124,17 +124,39 @@ function renderUmsatzReview(){
   /* US-107: Kontrollzeile – alle Buchungen berücksichtigt, Betragskontrolle, weiche Warnung, Vertrauens-Hinweis. */
   const netto=sumPos+sumNeg;
   const csvKontrolle = bs.length ? '<div class="csv-kontrolle"><b>Kontrolle:</b> alle '+bs.length+' Buchungen berücksichtigt · Eingänge '+nkFmtBetrag(sumPos)+' € − Kosten '+nkFmtBetrag(Math.abs(sumNeg))+' € = <b>'+nkFmtBetrag(netto)+' €</b> (Saldo der Datei) '+(nOffen?'<span class="csv-orange">⚠ '+nOffen+' Umsätze bitte noch zuordnen, falls relevant</span>':'<span class="csv-ok">✓ alle zugeordnet</span>')+'<br><span class="csv-hinweis">Es wird nichts gespeichert, bis Sie auf „Importieren" klicken. Prüfen Sie die Zuordnung und laden Sie bei Bedarf das Prüfprotokoll (.xlsx).</span></div>' : '';
+  /* Ralf-Feedback 2026-07-30: die beiden Info-Zeilen (Datei-Meta/Zugeordnet) als gleich
+     aufgebautes Raster statt zweier frei fließender Textzeilen – dieselbe Spaltenvorlage in
+     beiden Zeilen sorgt dafür, dass die Werte optisch untereinander stehen. */
+  const statPill = (n, label) => '<span class="csv-stat"><b>'+n+'</b> '+esc(label)+'</span>';
+  const csvMeta = '<div class="csv-statrow csv-meta">'+
+    statPill(esc(ui.csvImport.dateiname), '')+
+    statPill(bs.length, 'Buchungen')+
+    statPill(pos.length+' ('+nkFmtBetrag(sumPos)+' €)', 'Eingänge')+
+    statPill(neg.length+' ('+nkFmtBetrag(Math.abs(sumNeg))+' €)', 'Kosten/Ausgänge')+
+    statPill(esc(zeitraum), 'Zeitraum')+
+    '</div>';
+  const csvSumme = bs.length ? '<div class="csv-statrow csv-summe">'+
+    statPill('Zugeordnet', '')+
+    statPill(nMieter+' ('+nkFmtBetrag(sMieter)+' €)', 'Mieter-Eingänge')+
+    statPill(nKosten+' ('+nkFmtBetrag(sKosten)+' €)', 'Kosten')+
+    statPill(nAusgabe+' ('+nkFmtBetrag(sAusgabe)+' €)', 'sonstige Ausgabe(n)')+
+    statPill(nIgnor, 'ignoriert')+
+    '<span class="csv-stat'+(nOffen?' csv-offen':'')+'"><b>'+nOffen+'</b> nicht zugeordnet</span>'+
+    '</div>' : '';
   const wrap0=box.querySelector('.csv-tablewrap'); const scroll0=wrap0?wrap0.scrollTop:0; /* Scroll-Position über das Re-Rendern erhalten */
   box.innerHTML='<h2>Kontoumsätze importieren – Zuordnung</h2>'+
-    '<div class="csv-meta">'+esc(ui.csvImport.dateiname)+' · '+bs.length+' Buchungen · '+pos.length+' Eingänge ('+nkFmtBetrag(sumPos)+' €) · '+neg.length+' Kosten ('+nkFmtBetrag(sumNeg)+' €) · Zeitraum '+esc(zeitraum)+'</div>'+
-    (bs.length? '<div class="csv-summe">Zugeordnet: '+nMieter+' Mieter-Eingänge ('+nkFmtBetrag(sMieter)+' €) · '+nKosten+' Kosten ('+nkFmtBetrag(sKosten)+' €) · '+nAusgabe+' sonstige Ausgabe(n) ('+nkFmtBetrag(sAusgabe)+' €) · '+nIgnor+' ignoriert · <b'+(nOffen?' class="csv-offen"':'')+'>'+nOffen+' nicht zugeordnet</b></div>'+csvKontrolle+filterZeile+
+    csvMeta+
+    (bs.length? csvSumme+csvKontrolle+filterZeile+
       '<div class="csv-tablewrap"><table class="csv-table"><thead><tr><th>Datum</th><th>Name</th><th>Verwendungszweck</th><th>Betrag</th><th>Vorschlag</th><th>Ziel</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
               : '<div class="csv-err">Keine Buchungen gefunden (Kopfzeile erkannt, aber keine Datenzeilen).</div>')+
+    /* Ralf-Feedback 2026-07-30: Hinweistext über die volle Breite, Buttons in eigener Zeile darunter
+       statt in einer gemeinsamen, dadurch zu schmal umbrechenden Zeile. */
     '<div class="csv-foot"><span class="csv-note">Zuordnungen werden als Regel am Objekt gemerkt (IBAN bzw. Name) und beim nächsten Import automatisch vorgeschlagen. „Importieren" übernimmt: Kosten je Kostenart summiert (neue werden angelegt – Name/Rubrik später im Reiter „Kosten"), Zahlungseingänge als „erhalten" je Mieter/Monat. Bereits übernommene Buchungen werden beim erneuten Import übersprungen; eine gelöschte Kostenart wird durch erneuten Import wiederhergestellt.</span>'+
+    '<div class="csv-foot-actions">'+
     (bs.length? '<label class="csv-autoprot"><input type="checkbox"'+(ui.csvAutoProtokoll?' checked':'')+' onchange="setCsvAutoProtokoll(this.checked)"> Prüfprotokoll nach Import öffnen</label>':'')+
     '<button class="csv-close csv-cancel" onclick="closeUmsatzReview()">Schließen</button>'+
     (bs.length? '<button class="csv-close csv-cancel" onclick="exportUmsatzProtokoll()" title="Exakte Original-Tabelle + Spalte „erfasst" + Kontrollsummen als Excel (selbstprüfend)">Prüfprotokoll (.xlsx)</button>':'')+
-    '<button class="csv-close" onclick="uebernehmeUmsaetze()">Importieren</button></div>';
+    '<button class="csv-close" onclick="uebernehmeUmsaetze()">Importieren</button></div></div>';
   const wrap1=box.querySelector('.csv-tablewrap'); if(wrap1) wrap1.scrollTop=scroll0;
   o.style.display='flex';
 }
