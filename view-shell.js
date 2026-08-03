@@ -692,6 +692,20 @@ function zeigeFertigMoment(){
   const ov=document.getElementById('fertigdlg_overlay'); if(ov) ov.hidden=false;
 }
 function closeFertigDialog(){ const ov=document.getElementById('fertigdlg_overlay'); if(ov) ov.hidden=true; }
+/* Willkommens-Splash: einmalig beim echten Erststart (ui.ersterStart, s. view-init.js), egal ob
+   über app.nekofix.de/?start=leer oder ?start=demo eingestiegen wird. Kein eigener localStorage-
+   Merker nötig – ui.ersterStart ist bereits genau dann true, wenn noch kein Stand gespeichert war
+   (bzw. nach resetState()), das deckt "nur beim allerersten Start" ab. */
+function zeigeWillkommen(){
+  const frisch=!(state.kosten||[]).length;
+  const t=document.getElementById('willkommen_text');
+  if(t) t.textContent = (frisch
+    ? 'Sie starten mit einem leeren Objekt – Sie können sofort Ihre eigenen Daten erfassen (Gebäude & Einheiten, Mieter, Kosten). '
+    : 'Zum Ausprobieren sind Beispieldaten geladen; ein eigenes Objekt legen Sie über „Datei → Neu…" an. ')
+    + 'Diese Version dient zum Testen.';
+  const ov=document.getElementById('willkommen_overlay'); if(ov) ov.hidden=false;
+}
+function closeWillkommen(){ const ov=document.getElementById('willkommen_overlay'); if(ov) ov.hidden=true; }
 function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ return; }
   const dateiname=f.name; /* Speicher: Objektname (Header) folgt dem Dateinamen, nicht dem Adressfeld */
   const r=new FileReader();
