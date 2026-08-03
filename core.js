@@ -263,7 +263,12 @@ function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw)
       ladeDaten(objekte[aktivIdx]); return true; }
     if(o && Array.isArray(o.einheiten)){ objekte=[o]; aktivIdx=0; savedSigs=[]; savedData=[]; ladeDaten(o); return true; } /* Migration: altes Einzelformat */
     return false; }catch(e){ return false; } }
-function resetState(){ if(confirm('Aktuelle Eingaben verwerfen und die Beispiel-/Testdaten laden? Alle gespeicherten Daten (auch weitere Objekte) gehen dabei verloren.')){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} location.reload(); } }
+/* Ralf-Fund 2026-08-03: der beforeunload-Handler (view-shell.js) speichert bei JEDEM Verlassen der
+   Seite (auch bei reload) den aktuellen Stand erneut – das unterlief bisher lautlos den Reset, weil
+   er direkt nach dem removeItem, aber VOR dem eigentlichen Reload, den alten Stand zurückschrieb.
+   _resetInProgress lässt den Handler diesen einen Fall auslassen. */
+let _resetInProgress=false;
+function resetState(){ if(confirm('Aktuelle Eingaben verwerfen und die Beispiel-/Testdaten laden? Alle gespeicherten Daten (auch weitere Objekte) gehen dabei verloren.')){ _resetInProgress=true; try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} location.reload(); } }
 /* ---------- US-82: Undo/Redo-Verlauf (aktives Objekt) ----------
    Jede granulare Bearbeitung läuft durch commit(); dort wird der vorige Stand erfasst.
    Objekt-Operationen (Wechsel/Neu/Import/Vorjahr/Reset) setzen den Verlauf über histReset()

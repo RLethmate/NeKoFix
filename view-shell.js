@@ -733,7 +733,7 @@ function updateHistButtons(){
 /* saveState, loadState, resetState, commit/scheduleSave: in core.js (US-33b). */
 document.addEventListener('input', commit);  /* Sicherheitsnetz für nicht über den Store laufende Eingaben */
 document.addEventListener('change', commit);
-window.addEventListener('beforeunload', function(e){ saveState(); if(!istGespeichert()){ e.preventDefault(); e.returnValue=''; } }); /* US-84: bei ungespeicherten Änderungen warnen (Arbeitsstand bleibt im Browser) */
+window.addEventListener('beforeunload', function(e){ if(_resetInProgress) return; saveState(); if(!istGespeichert()){ e.preventDefault(); e.returnValue=''; } }); /* US-84: bei ungespeicherten Änderungen warnen (Arbeitsstand bleibt im Browser); _resetInProgress (core.js): resetState() lässt hier NICHT erneut den alten Stand zurückschreiben */
 /* US-82: Button-Status nach jeder Eingabe aktualisieren (nach commit, daher hier registriert). */
 document.addEventListener('input', updateHistButtons);
 document.addEventListener('change', updateHistButtons);
