@@ -33,3 +33,5 @@ Danach in den Repo-Einstellungen GitHub Pages wie in Variante A, Schritt 4, akti
 - Für einen geschlossenen Test genügt es, die URL nur an die Teilnehmer weiterzugeben
   (GitHub Pages bietet im kostenlosen Tarif keinen Passwortschutz).
 - Updates: geänderte `index.html` erneut committen/hochladen – Pages aktualisiert automatisch.
+
+<!-- Testcommit 2026-08-03: prüft, ob nekofix-app nach Umstellung auf die Coolify-GitHub-App-Quelle automatisch deployt. -->
