@@ -700,8 +700,8 @@ function zeigeWillkommen(){
   const frisch=!(state.kosten||[]).length;
   const t=document.getElementById('willkommen_text');
   if(t) t.textContent = (frisch
-    ? 'Sie starten mit einem leeren Objekt – Sie können sofort Ihre eigenen Daten erfassen (Gebäude & Einheiten, Mieter, Kosten). '
-    : 'Zum Ausprobieren sind Beispieldaten geladen; ein eigenes Objekt legen Sie über „Datei → Neu…" an. ')
+    ? 'Du startest mit einem leeren Objekt – du kannst sofort deine eigenen Daten erfassen (Gebäude & Einheiten, Mieter, Kosten). '
+    : 'Zum Ausprobieren sind Beispieldaten geladen; ein eigenes Objekt legst du über „Datei → Neu…" an. ')
     + 'Diese Version dient zum Testen.';
   const ov=document.getElementById('willkommen_overlay'); if(ov) ov.hidden=false;
 }
