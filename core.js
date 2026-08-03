@@ -4,10 +4,12 @@
 
 /* ---------- In-Memory-State ---------- */
 const state = {
-  /* Ralf-Vorgabe 2026-07-14: reale Muenster-Adresse statt fiktiver Musterstadt, damit der
-     Mietspiegel-Reiter (Debug) die Adresse geocoden und direkt den Vergleich zeigen kann.
-     Gilt nur fuer frische Sitzungen - bestehende localStorage-Staende behalten ihre Adresse. */
-  objekt: { addr:"Prinzipalmarkt 10, 48143 Münster", von:"2025-01-01", bis:"2025-12-31", co2Denkmal:false, co2ProzentOverride:"" },
+  /* Ralf-Vorgabe 2026-08-03: reale Koeln-Adresse (Stadtteil Lindenthal, vorher Muenster) statt
+     fiktiver Musterstadt, damit der Mietspiegel-Reiter (Debug) die Adresse geocoden und direkt den
+     Vergleich zeigen kann. Universitaetsstrasse 14 liegt an der Universitaet zu Koeln (Lindenthal)
+     - eine institutionelle, keine private Adresse. Gilt nur fuer frische Sitzungen - bestehende
+     localStorage-Staende behalten ihre Adresse. */
+  objekt: { addr:"Universitätsstraße 14, 50939 Köln", von:"2025-01-01", bis:"2025-12-31", co2Denkmal:false, co2ProzentOverride:"" },
   einheiten: [
     { id:1, name:"EG links", flaeche:70, personen:2, mv:[
       { mieter:"Mieter 1", von:"2025-01-01", bis:"2025-12-31", vmonat:150, vmonate:12, vjahr:1800, einmal:0, voraus:1800, grundmiete:800, stellAnzahl:1, stellPreis:40, bezahlt:{}, vertragGrundmiete:760, vertragNK:140, letzteAnpassung:"2025-09-01", naechsteAnpassung:"2026-09-01", chronik:[{datum:"2025-09-01",text:"Indexmiete +5 % (Grundmiete 760 → 800 €)"}] }
