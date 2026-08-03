@@ -3,7 +3,15 @@
 
 /* ---------- Init ---------- */
 const _geladen=loadState();
-if(!objekte.length){ objekte=[snapshot()]; aktivIdx=0; } /* Erststart: Demodaten als erstes Objekt */
+/* Website-Einstieg (Hero-Buttons "Kostenlos ausprobieren"/"Demodaten laden"): ?start=leer liefert
+   beim ECHTEN Erststart (kein gespeicherter Stand) ein leeres Objekt statt der Demodaten; ohne
+   Parameter oder ?start=demo bleibt das bisherige Verhalten (Demodaten) unverändert. Wirkt nur,
+   solange noch nichts gespeichert ist – bestehende Daten eines wiederkehrenden Besuchs bleiben
+   unberührt, egal welcher Parameter dabei ist. */
+if(!objekte.length){
+  if(new URLSearchParams(location.search).get('start')==='leer'){ ladeDaten(makeFreshDaten()); }
+  objekte=[snapshot()]; aktivIdx=0; /* Erststart: Demodaten (Default) oder frisches Objekt als erstes Objekt */
+}
 ui.ersterStart=!_geladen; /* UX-Review 2026-07-15 (Kano): allererster Start (Beispieldaten) → Schnellstart-Hinweis zeigen */
 if(state.objekt && !state.objekt.name) state.objekt.name=state.objekt.addr||""; /* US-65: Objektname (Header) aus Adresse vorbelegen, danach stabil */
 ensureIds();
@@ -23,6 +31,7 @@ initNav(); /* US-54: gespeicherten Klapp-Zustand der Lasche anwenden */
 applyDokAnker(); /* US-80: gespeicherten Einklapp-Zustand der Dokument-Anker anwenden */
 renderEinheiten(); renderVoraus(); renderKosten(); renderStepper(); go(0);
 renderSchnellstart(); /* UX-Review 2026-07-15 (Kano): läuft auch in go(0), hier explizit fürs Erststart-Flag */
+if(ui.ersterStart) zeigeWillkommen(); /* Willkommens-Splash: einmalig beim echten Erststart, s. view-shell.js */
 neuerVerlauf(); /* US-82: Verlauf-Baseline auf den geladenen Anfangszustand setzen */
 saveState();
 updateSaveStatus(); /* US-84: Anfangsstatus „✓ Gespeichert" anzeigen */

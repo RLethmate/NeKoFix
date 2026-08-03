@@ -939,6 +939,20 @@
       </div>
     </div>
   </div>
+  <!-- Willkommens-Splash beim allerersten Start (Website-Einstieg über app.nekofix.de/?start=...):
+       bewusst OHNE Klick-auf-Hintergrund-schließen, muss aktiv per Button bestätigt werden. -->
+  <div class="overlay-obj" id="willkommen_overlay" hidden>
+    <div class="dialog-obj" style="width:min(480px,94vw)">
+      <h2>Willkommen bei NeKoFix</h2>
+      <p id="willkommen_text" style="margin:0 18px 8px;font-size:14px;line-height:1.5;color:var(--ink);"></p>
+      <p class="hint" style="margin:0 18px 8px;">Erzeugte PDFs tragen deshalb ein Wasserzeichen, bis das Objekt für das jeweilige Jahr freigeschaltet wird (Hinweis dazu im Reiter „Fertige Abrechnung").</p>
+      <p class="hint" style="margin:0 18px 16px;">Wichtig: Alle Daten werden ausschließlich lokal in diesem Browser gespeichert – es gibt keinen Server und keine Cloud. Sichern Sie Ihre Daten daher regelmäßig selbst über „Datei → Speichern unter…" mit einem Zielordner auf Ihrem Rechner, sonst gehen sie z. B. beim Leeren des Browser-Caches unwiderruflich verloren.</p>
+      <div class="dlg-foot">
+        <span></span>
+        <button class="btn-primary" onclick="closeWillkommen()">Verstanden</button>
+      </div>
+    </div>
+  </div>
   <span class="spacer"></span>
   <span id="save_status" class="save-status"></span>
   <label class="abr-status-wrap" title="Status der Abrechnung">Status:
