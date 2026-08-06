@@ -692,10 +692,9 @@ function zeigeFertigMoment(){
   const ov=document.getElementById('fertigdlg_overlay'); if(ov) ov.hidden=false;
 }
 function closeFertigDialog(){ const ov=document.getElementById('fertigdlg_overlay'); if(ov) ov.hidden=true; }
-/* Willkommens-Splash: einmalig beim echten Erststart (ui.ersterStart, s. view-init.js), egal ob
-   über app.nekofix.de/?start=leer oder ?start=demo eingestiegen wird. Kein eigener localStorage-
-   Merker nötig – ui.ersterStart ist bereits genau dann true, wenn noch kein Stand gespeichert war
-   (bzw. nach resetState()), das deckt "nur beim allerersten Start" ab. */
+/* Willkommens-Splash: wird bei JEDEM Start gezeigt (Ralf-Vorgabe 2026-08-06, s. view-init.js) –
+   bewusst kein localStorage-Merker fürs Wegdrücken, unabhängig von ui.ersterStart (das bleibt nur
+   für den Schnellstart-Banner relevant, s. renderSchnellstart weiter unten). */
 function zeigeWillkommen(){
   const frisch=!(state.kosten||[]).length;
   const t=document.getElementById('willkommen_text');

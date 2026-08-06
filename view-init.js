@@ -31,7 +31,7 @@ initNav(); /* US-54: gespeicherten Klapp-Zustand der Lasche anwenden */
 applyDokAnker(); /* US-80: gespeicherten Einklapp-Zustand der Dokument-Anker anwenden */
 renderEinheiten(); renderVoraus(); renderKosten(); renderStepper(); go(0);
 renderSchnellstart(); /* UX-Review 2026-07-15 (Kano): läuft auch in go(0), hier explizit fürs Erststart-Flag */
-if(ui.ersterStart) zeigeWillkommen(); /* Willkommens-Splash: einmalig beim echten Erststart, s. view-shell.js */
+zeigeWillkommen(); /* Willkommens-Splash: bei jedem Start zeigen (Ralf-Vorgabe 2026-08-06), nicht mehr an ui.ersterStart gekoppelt */
 neuerVerlauf(); /* US-82: Verlauf-Baseline auf den geladenen Anfangszustand setzen */
 saveState();
 updateSaveStatus(); /* US-84: Anfangsstatus „✓ Gespeichert" anzeigen */
