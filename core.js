@@ -265,6 +265,29 @@ function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw)
       ladeDaten(objekte[aktivIdx]); return true; }
     if(o && Array.isArray(o.einheiten)){ objekte=[o]; aktivIdx=0; savedSigs=[]; savedData=[]; ladeDaten(o); return true; } /* Migration: altes Einzelformat */
     return false; }catch(e){ return false; } }
+/* ---------- US-136: Briefkopf (Logo + Textvorlagen) ----------
+   Bewusst GETRENNT vom objektbezogenen `state`/`objekte[]` gespeichert (eigener localStorage-Key,
+   analog zu NAV_KEY/DOK_KEY in view-shell.js/docs.js): Logo und Textvorlagen gelten für ALLE
+   Objekte gleich, nicht pro Objekt wie state.zahlung. `texte` hält nur vom Nutzer geänderte
+   Bausteine (Key -> Text); fehlt ein Key, gilt der Standard aus NK_BRIEFKOPF_TEXTE (calc.js). */
+const BRIEFKOPF_KEY="nekofix-briefkopf-v1";
+let briefkopf={ logo:null, logoW:0, logoH:0, texte:{} };
+function loadBriefkopf(){ try{ const raw=localStorage.getItem(BRIEFKOPF_KEY); if(!raw) return;
+  const o=JSON.parse(raw); briefkopf={ logo:o.logo||null, logoW:+o.logoW||0, logoH:+o.logoH||0, texte:(o.texte&&typeof o.texte==='object')?o.texte:{} }; }catch(e){} }
+function saveBriefkopf(){ try{ localStorage.setItem(BRIEFKOPF_KEY, JSON.stringify(briefkopf)); }catch(e){} }
+/* Effektiver Text eines Bausteins: nutzerdefiniert, falls vorhanden (auch leerer String zählt als
+   bewusste Entscheidung), sonst der Standard. */
+function briefkopfText(key){ const t=briefkopf.texte[key]; return (t!=null) ? t : nkBriefkopfStandard(key); }
+function briefkopfIstStandard(key){ return briefkopf.texte[key]==null; }
+Object.assign(store, {
+  /* Fund 2026-08-06 (Ralf): ohne logoW/logoH kennt nkLogoBox() nur den 1x1-Fallback -> Logo wurde
+     ins Quadrat verzerrt. Naturmaße kommen von view-shell.js (dort ohnehin schon per Image() ermittelt). */
+  setBriefkopfLogo(dataUrl,w,h){ briefkopf.logo=dataUrl; briefkopf.logoW=+w||0; briefkopf.logoH=+h||0; saveBriefkopf(); },
+  removeBriefkopfLogo(){ briefkopf.logo=null; briefkopf.logoW=0; briefkopf.logoH=0; saveBriefkopf(); },
+  setBriefkopfText(key,val){ briefkopf.texte[key]=val; saveBriefkopf(); },
+  resetBriefkopfText(key){ delete briefkopf.texte[key]; saveBriefkopf(); },
+});
+
 /* Ralf-Fund 2026-08-03: der beforeunload-Handler (view-shell.js) speichert bei JEDEM Verlassen der
    Seite (auch bei reload) den aktuellen Stand erneut – das unterlief bisher lautlos den Reset, weil
    er direkt nach dem removeItem, aber VOR dem eigentlichen Reload, den alten Stand zurückschrieb.

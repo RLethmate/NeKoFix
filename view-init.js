@@ -3,6 +3,7 @@
 
 /* ---------- Init ---------- */
 const _geladen=loadState();
+loadBriefkopf(); /* US-136: Logo/Textvorlagen – global, unabhängig vom objektbezogenen Stand */
 /* Website-Einstieg (Hero-Buttons "Kostenlos ausprobieren"/"Demodaten laden"): ?start=leer liefert
    beim ECHTEN Erststart (kein gespeicherter Stand) ein leeres Objekt statt der Demodaten; ohne
    Parameter oder ?start=demo bleibt das bisherige Verhalten (Demodaten) unverändert. Wirkt nur,
@@ -27,6 +28,9 @@ renderObjTitle();
   const t=document.getElementById('btn_techem_import'); if(t) t.hidden=false; /* Ralf-Vorgabe 2026-07-10: experimentell, s. index.html */ } })();
 (function(){ const a=document.getElementById('abr_status'); if(a) a.value=state.abrechnungStatus; })();
 fillObjektKopf();
+/* US-136: renderBriefkopf() NICHT hier aufrufen – pdf.js (buildTenantPdf/buildMieterhoehungPdf
+   für die Live-Vorschau) lädt laut Skriptliste in index.html ERST NACH view-init.js. RENDERERS[9]
+   rendert den Bereich, sobald der Reiter tatsächlich aufgerufen wird (dann ist pdf.js längst da). */
 initNav(); /* US-54: gespeicherten Klapp-Zustand der Lasche anwenden */
 applyDokAnker(); /* US-80: gespeicherten Einklapp-Zustand der Dokument-Anker anwenden */
 renderEinheiten(); renderVoraus(); renderKosten(); renderStepper(); go(0);

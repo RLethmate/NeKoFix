@@ -40,6 +40,77 @@ function pdfWasserzeichen(doc){
   }
   doc.setTextColor(0); doc.setFont(undefined,'normal'); doc.setFontSize(10);
 }
+/* US-136: effektiver Text eines Briefkopf-Textbausteins (nutzerdefiniert oder Standard aus
+   NK_BRIEFKOPF_TEXTE), mit den zur Verfügung stehenden dynamischen Werten befüllt. */
+function bkText(key, werte){ return nkFuellePlatzhalter(briefkopfText(key), werte||{}); }
+/* US-136: Logo oben rechts im Kopfbereich, innerhalb der Seitenränder, seitenverhältniserhaltend
+   in eine feste Box eingepasst – ohne Absenderzeile (y≈70) bzw. Datum (y≈92) zu überlappen. */
+function pdfLogo(doc, R){
+  if(!briefkopf.logo) return;
+  const box=nkLogoBox(briefkopf.logoW||1, briefkopf.logoH||1, 110, 46);
+  const fmt=/^data:image\/png/i.test(briefkopf.logo) ? 'PNG' : 'JPEG';
+  try{ doc.addImage(briefkopf.logo, fmt, R-box.w, 32, box.w, box.h); }
+  catch(e){ /* beschädigtes/inkompatibles Bild – Kopf bleibt einfach ohne Logo */ }
+}
+/* US-136: Live-Vorschau der Briefkopf-/Textvorlagen-Einstellungen mit festen Muster-Daten
+   (bewusst NICHT dem aktuell aktiven Mieter, s. Story) – dieselbe Erzeugung wie beim echten
+   Export. dokTyp: 'nk' | 'mh_index' | 'mh_staffel'. */
+/* Ralf-Fund 2026-08-06: die Vorschau soll die bereits real gepflegten Vermieter-/Zahlungsangaben
+   (dasselbe Panel, direkt oberhalb) zeigen statt einer erfundenen Muster-Signatur – sonst wirkt es,
+   als würde „die Vermieter-Signatur nicht übernommen". Nur die MIETER-seitigen Daten (Name,
+   Beträge) bleiben synthetisch, da es dafür in einer globalen Einstellungsseite keinen „echten"
+   Bezug gibt. Mit Platzhaltern, falls das aktive Objekt dort noch gar nichts eingetragen hat. */
+function bkVermieterMuster(){
+  const z=state.zahlung||{};
+  return {
+    empfaenger: z.empfaenger || 'M. Vermieter',
+    anschrift: z.anschrift || 'Beispielweg 1, 12345 Musterstadt',
+    iban: z.iban || 'DE89370400440532013000',
+    bic: z.bic || '',
+    frist: z.frist || '14 Tage nach Zugang'
+  };
+}
+function buildBriefkopfPreviewDoc(dokTyp){
+  /* Ralf-Fund 2026-08-06: ohne Titel-Metadaten schlägt der eingebettete PDF-Betrachter beim
+     Speichern aus der Vorschau (blob:-URL, kein Dateiname in der URL selbst) einen langen,
+     nummernhaltigen Namen vor – setProperties({title}) liefert stattdessen einen sprechenden. */
+  if(dokTyp==='mh_index' || dokTyp==='mh_staffel'){
+    const v=bkVermieterMuster();
+    const doc=buildMieterhoehungPdf({
+      typ: dokTyp==='mh_index' ? 'index' : 'staffel',
+      mieter:'Max Mustermann', anredeText:'Guten Tag Herr Mustermann',
+      empfZeile2:'Einheit 1 · Musterstr. 10, 12345 Musterstadt',
+      vermieter:v.empfaenger, vermieterAnschrift:v.anschrift,
+      stichtag:'2026-09-01', stichtag1:'2025-09-01', alteMiete:800, neueMiete:840, prozent:5,
+      monatVon:'2025-01', monatBis:'2025-06', betrag:40, stellAnzahl:0, stellPreis:0, nk:150,
+      iban:v.iban, bic:v.bic, objektAddr:'Musterstr. 10, 12345 Musterstadt', einheitName:'Einheit 1'
+    });
+    doc.setProperties({ title:'Musterdokument – Mieterhöhung '+(dokTyp==='mh_index'?'Index':'Staffel') });
+    return doc;
+  }
+  /* Für die Nebenkostenabrechnung liest buildTenantPdf() intern global aus `state` (Objekt,
+     Kosten, Einheiten) – die Werte werden für die Dauer des synchronen Aufrufs (kein await darin)
+     durch Muster-Daten ersetzt und danach zwingend wiederhergestellt, damit das echte, aktive
+     Objekt unangetastet bleibt. state.zahlung bleibt bewusst UNVERÄNDERT (s. o.). */
+  const backup={ objekt:state.objekt, kosten:state.kosten, einheiten:state.einheiten };
+  try{
+    const bezahlt={}; for(let mo=1; mo<=11; mo++) bezahlt['2025-'+String(mo).padStart(2,'0')]=true; /* Dezember offen -> 1 Monat Mietrückstand für die Vorschau */
+    const musterMieter={ mieter:'Max Mustermann', anrede:'Herr', von:'2025-01-01', bis:'2025-12-31', vmonat:150, vmonate:12, vjahr:1800, einmal:0, voraus:1800, grundmiete:800, stellAnzahl:0, stellPreis:0, bezahlt:bezahlt };
+    const musterEinheit={ id:'muster', name:'Einheit 1', flaeche:75, personen:2, mv:[musterMieter] };
+    state.objekt={ addr:'Musterstr. 10, 12345 Musterstadt', von:'2025-01-01', bis:'2025-12-31', co2Denkmal:false, co2ProzentOverride:'', freigeschaltet:true };
+    state.kosten=[
+      { bez:'Grundsteuer', betrag:1200, schluessel:'flaeche' },
+      { bez:'Wasser / Abwasser', betrag:1600, schluessel:'person' },
+      { bez:'Müllbeseitigung', betrag:900, schluessel:'einheit' }
+    ];
+    state.einheiten=[musterEinheit];
+    const doc=buildTenantPdf({ e:musterEinheit, m:musterMieter });
+    doc.setProperties({ title:'Musterdokument – Nebenkostenabrechnung' });
+    return doc;
+  } finally {
+    Object.assign(state, backup);
+  }
+}
 /* US-53: Abrechnung als amtliches PDF im DIN-Briefformat. */
 function buildTenantPdf(sel){
   const { jsPDF } = window.jspdf;
@@ -51,6 +122,7 @@ function buildTenantPdf(sel){
   const rueck=nkMietrueckstand(m, nkMvEnde(m,state.objekt.bis), state.objekt.von, state.objekt.bis); /* US-79: separater Mietrückstand */
   const L=56, R=540, W=R-L;
   const nl=(t)=>{ if(y>780){ doc.addPage(); y=64; } doc.text(t,L,y); y+=14; };
+  pdfLogo(doc, R); /* US-136: Logo oben rechts im Kopfbereich, falls hinterlegt */
   // Absenderzeile (klein)
   doc.setFontSize(8); doc.setTextColor(110);
   const abs=[z.empfaenger, z.anschrift].filter(Boolean).join(' · ');
@@ -64,11 +136,11 @@ function buildTenantPdf(sel){
   doc.text(String(e.name+' · '+state.objekt.addr), L, y);
   // Betreff
   y=180; doc.setFont(undefined,'bold'); doc.setFontSize(12);
-  doc.splitTextToSize('Betriebs- und Heizkostenabrechnung '+zeitraumSatz(), W).forEach(l=>{ doc.text(l,L,y); y+=16; });
+  doc.splitTextToSize(bkText('nk_betreff',{zeitraum:zeitraumSatz()}), W).forEach(l=>{ doc.text(l,L,y); y+=16; });
   doc.setFont(undefined,'normal'); doc.setFontSize(10);
   // Anrede + Einleitung
   y+=8; nl(nkAnrede(m)+','); y+=4;
-  doc.splitTextToSize('anbei erhalten Sie die Betriebs- und Heizkostenabrechnung für '+zeitraumSatz()+'. Nachstehend finden Sie die Aufstellung der Kosten, Ihren Anteil und die Verrechnung mit den geleisteten Vorauszahlungen.', W).forEach(l=>nl(l));
+  doc.splitTextToSize(bkText('nk_einleitung',{zeitraum:zeitraumSatz()}), W).forEach(l=>nl(l));
   y+=8;
   // US-62: kompakter Ergebnis-Block oben (Messdienst-Stil, 3 Zeilen) – dezenter Kasten mit Rahmen.
   const boxB=R-260; // schmaler Kasten links
@@ -166,16 +238,16 @@ function buildTenantPdf(sel){
   const vzweck='NK-Abr. '+(state.objekt.addr||'')+'-'+e.name+'-'+m.mieter+'-'+zeitraumText(); // US-55: Verwendungszweck
   if(saldo>0){
     doc.setFont(undefined,'bold');
-    doc.splitTextToSize('Zahlungsaufforderung: Bitte überweisen Sie die Nachzahlung von '+eur(saldo)+' innerhalb von '+(z.frist||'14 Tage nach Zugang')+' auf folgendes Konto:', W).forEach(l=>nl(l));
+    doc.splitTextToSize(bkText('nk_zahlungsaufforderung',{betrag:eur(saldo),frist:(z.frist||'14 Tage nach Zugang')}), W).forEach(l=>nl(l));
     doc.setFont(undefined,'normal');
     nl('Empfänger: '+(z.empfaenger||'')+'    IBAN: '+(z.iban||'')+'    BIC: '+(z.bic||''));
     nl('Verwendungszweck: '+vzweck);
     // US-93: Sicherheitshinweis gegen Bankverbindungs-Betrug.
     y+=3; doc.setFontSize(8); doc.setTextColor(110);
-    doc.splitTextToSize('Hinweis zur Sicherheit: Eine Änderung unserer Bankverbindung teilen wir Ihnen ausschließlich schriftlich und niemals unaufgefordert per E-Mail mit. Im Zweifel prüfen Sie die hier genannte Bankverbindung oder fragen Sie unter der angegebenen Kontaktadresse nach.', W).forEach(l=>{ if(y>790){doc.addPage();y=64;} doc.text(l,L,y); y+=11; });
+    doc.splitTextToSize(bkText('nk_sicherheitshinweis',{}), W).forEach(l=>{ if(y>790){doc.addPage();y=64;} doc.text(l,L,y); y+=11; });
     doc.setFontSize(10); doc.setTextColor(0); y+=4;
   } else {
-    nl('Das Guthaben wird Ihnen innerhalb von '+((z.frist||'14 Tage').replace(/\s*nach Zugang/i,'').replace(/\bTage\b/,'Tagen'))+' erstattet.');
+    nl(bkText('nk_guthaben',{frist:((z.frist||'14 Tage').replace(/\s*nach Zugang/i,'').replace(/\bTage\b/,'Tagen'))}));
   }
   // US-55: GiroCode (EPC-QR) bei Nachzahlung – Überweisung per Banking-App ohne Abtippen.
   if(saldo>0 && nkIbanGueltig(z.iban)){
@@ -196,13 +268,13 @@ function buildTenantPdf(sel){
     y+=8; if(y>700){ doc.addPage(); y=64; }
     doc.setFont(undefined,'bold'); doc.setFontSize(10); nl('Mietrückstand (separat)'); doc.setFont(undefined,'normal'); doc.setFontSize(9);
     doc.setTextColor(110);
-    doc.splitTextToSize('Für den Abrechnungszeitraum besteht ein offener Mietbetrag, unabhängig von dieser Nebenkostenabrechnung. Er ist nicht Bestandteil der NK-Abrechnung und wird separat geltend gemacht.', W).forEach(l=>nl(l));
+    doc.splitTextToSize(bkText('nk_mietrueckstand_hinweis',{}), W).forEach(l=>nl(l));
     doc.setTextColor(0); doc.setFontSize(10);
     nl('Abrechnungssaldo (Nebenkosten): '+(saldo>0?'Nachzahlung ':'Guthaben ')+eur(Math.abs(saldo)));
     nl('Mietrückstand aus dem Abrechnungszeitraum: '+eur(rueck));
     if(saldo>0){ doc.setFont(undefined,'bold'); nl('Gesamt offener Betrag: '+eur(saldo+rueck)); doc.setFont(undefined,'normal'); }
     doc.setFont(undefined,'bold');
-    doc.splitTextToSize('Bitte gleichen Sie den offenen Betrag von '+eur((saldo>0?saldo:0)+rueck)+' innerhalb von '+(z.frist||'14 Tage nach Zugang')+' aus.', W).forEach(l=>{ if(y>790){doc.addPage();y=64;} doc.text(l,L,y); y+=13; });
+    doc.splitTextToSize(bkText('nk_mietrueckstand_aufforderung',{betrag:eur((saldo>0?saldo:0)+rueck),frist:(z.frist||'14 Tage nach Zugang')}), W).forEach(l=>{ if(y>790){doc.addPage();y=64;} doc.text(l,L,y); y+=13; });
     doc.setFont(undefined,'normal'); y+=2;
     // US-116: eigener GiroCode + Zahltext NUR für den Mietrückstand (getrennt vom NK-QR, eigener Zweck).
     if(nkIbanGueltig(z.iban)){
@@ -226,7 +298,7 @@ function buildTenantPdf(sel){
     }
   }
   y+=20;
-  nl('Mit freundlichen Grüßen'); y+=18; nl(String(z.empfaenger||''));
+  nl(bkText('nk_grussformel',{})); y+=18; nl(String(z.empfaenger||''));
   pdfWasserzeichen(doc); /* US-40: Vorschau bis Freischaltung */
   return doc;
 }
@@ -243,6 +315,7 @@ function buildMieterhoehungPdf(a){
   const idx = a.typ==='index';
   const stell=(+a.stellAnzahl||0)*(+a.stellPreis||0); const nk=+a.nk||0;
   // Briefkopf (alle Werte aus a – self-contained, auch für eingefrorene Schnappschüsse)
+  pdfLogo(doc, R); /* US-136: Logo oben rechts im Kopfbereich, falls hinterlegt */
   doc.setFontSize(8); doc.setTextColor(110);
   const abs=[a.vermieter, a.vermieterAnschrift].filter(Boolean).join(' · ');
   if(abs) doc.text(abs, L, 70);
@@ -253,20 +326,20 @@ function buildMieterhoehungPdf(a){
   doc.text(String(a.empfZeile2||''), L, y);
   // Betreff
   y=180; doc.setFont(undefined,'bold'); doc.setFontSize(12);
-  const betreff = idx ? 'Mietanpassung nach Indexmietvereinbarung (§ 557b BGB)' : 'Mietanpassung nach Staffelmietvereinbarung (§ 557a BGB)';
+  const betreff = bkText(idx ? 'mh_betreff_index' : 'mh_betreff_staffel', {});
   doc.splitTextToSize(betreff, W).forEach(l=>{ doc.text(l,L,y); y+=16; });
   doc.setFont(undefined,'normal'); doc.setFontSize(10);
   y+=8; nl((a.anredeText||'Guten Tag')+','); y+=4;
   if(idx){
     const erh=a.alteMiete*(a.prozent/100);
-    par('wie angekündigt, informiere ich Sie hiermit über die vereinbarte Anpassung der Nettokaltmiete nach § 557b BGB.'); y+=6;
+    par(bkText('mh_einleitung_index',{})); y+=6;
     par('Die Ausgangsmiete beträgt mit Stichtag '+(a.stichtag1?fmtDatum(a.stichtag1):'—')+': '+nkFmtBetrag(a.alteMiete)+' EUR.'); y+=6;
     par('Gemäß Angabe des Statistischen Bundesamts beträgt die prozentuale Veränderung vom Indexstand des Monats '+pdfMonatLang(a.monatVon)+' bis zum gewählten Indexstand des Monats '+pdfMonatLang(a.monatBis)+': '+nkFmtBetrag(a.prozent)+' %.'); y+=2;
     doc.setTextColor(80); doc.setFontSize(8); nl('https://www.destatis.de/DE/Themen/Wirtschaft/Preise/Verbraucherpreisindex/Methoden/Internetprogramm.html'); doc.setFontSize(10); doc.setTextColor(0); y+=6;
     nl(nkFmtBetrag(a.alteMiete)+' EUR * '+nkFmtBetrag(a.prozent)+' % = '+nkFmtBetrag(erh)+' EUR'); y+=6;
     par('Somit setzt sich die Monatsmiete wie folgt zusammen (neue Nettokaltmiete auf volle Euro abgerundet):');
   } else {
-    par('wie angekündigt, informiere ich Sie hiermit über die vertraglich vereinbarte Anpassung der Nettokaltmiete nach § 557a BGB (Staffelmiete).'); y+=6;
+    par(bkText('mh_einleitung_staffel',{})); y+=6;
     par('Die bisherige Nettokaltmiete beträgt: '+nkFmtBetrag(a.alteMiete)+' EUR.');
     par('Zum '+fmtDatum(a.stichtag)+' erhöht sie sich vereinbarungsgemäß um '+nkFmtBetrag(a.betrag)+' EUR.'); y+=6;
     par('Somit setzt sich die Monatsmiete wie folgt zusammen:');
@@ -285,7 +358,7 @@ function buildMieterhoehungPdf(a){
   y+=2; doc.line(L,y,R,y); y+=14;
   const gesamtNeu=a.neueMiete+stell+nk;
   doc.setFont(undefined,'bold'); doc.text('Gesamtmiete monatlich',L,y); doc.text(eur(a.alteMiete+stell+nk),cBis,y,{align:'right'}); doc.text(eur(gesamtNeu),cNeu,y,{align:'right'}); doc.setFont(undefined,'normal'); y+=20;
-  par('Bitte passen Sie Ihren Dauerauftrag zum '+fmtDatum(a.stichtag)+' entsprechend an.'); y+=4;
+  par(bkText('mh_dauerauftrag',{datum:fmtDatum(a.stichtag)})); y+=4;
   // US-55: GiroCode (EPC-QR) – Einrichtung in der Banking-App ohne Abtippen.
   if(nkIbanGueltig(a.iban) && gesamtNeu>0){
     const giro=nkGiroCode({ empfaenger:a.vermieter, iban:a.iban, bic:a.bic, betrag:gesamtNeu, zweck:'Miete '+(a.objektAddr||'')+'-'+(a.einheitName||'')+'-'+(a.mieter||'')+' ab '+fmtDatum(a.stichtag) });
@@ -300,8 +373,8 @@ function buildMieterhoehungPdf(a){
       doc.splitTextToSize('In Ihrer Banking-App scannen – IBAN, neue Gesamtmiete und Verwendungszweck sind hinterlegt. Bitte vor dem Einrichten prüfen.', W-qs-12).forEach((l,i)=>doc.text(l,L+qs+12,y+28+i*11));
       doc.setTextColor(0); doc.setFontSize(10); y+=qs+10; }
   }
-  par('Für Rückfragen stehe ich gerne zur Verfügung.'); y+=10;
-  nl('Mit freundlichen Grüßen'); y+=18; nl(String(a.vermieter||''));
+  par(bkText('mh_rueckfragen',{})); y+=10;
+  nl(bkText('mh_grussformel',{})); y+=18; nl(String(a.vermieter||''));
   return doc;
 }
 /* US-52: Abrechnungs-PDF erzeugen und teilen (Web Share API mit Datei) – Anhang, wo unterstützt;
