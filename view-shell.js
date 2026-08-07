@@ -26,7 +26,7 @@ const STEPS = ["Gebäude & Einheiten","Vorauszahlung (Soll)","Heizung","Kosten",
 /* Ralf-Vorgabe 2026-07-14: "bis aktueller Monat" ist jetzt die Voreinstellung (US-83 – Monate
    sollen bis zum echten aktuellen Monat sichtbar sein, nicht nur bis zum Ende des
    Abrechnungszeitraums; passendes Markup dazu in index.html, s. #zv_faellig/#zahl_laeuft_hint). */
-const ui = { current:0, activeMieter:0, vorausModus:"monatlich", zeigeVorjahr:false, nurUngeprueft:false, expandedKosten:new Set(), expandedHeizZeit:new Set(), expandedAutomatik:new Set(), expandedChronik:new Set(), navPlausiOpen:false, drag:null, zahlBisAktuell:true, csvImport:{ buchungen:[], dateiname:"", fehler:null }, csvAutoProtokoll:false, termineAnsicht:"faellig", ersterStart:false }; /* AC-3 (US-118): gebündelter UI-/Sitzungs-State. expandedMV entfaellt (Mieter&Vertrag-Layout-Story 2026-07-07): Kaltmiete/Anrede/E-Mail immer sichtbar, kein Vertrag-Aufklapper mehr; expandedChronik neu fuer die "┃ Chronik"-Leiste. */
+const ui = { current:0, activeMieter:0, vorausModus:"monatlich", zeigeVorjahr:false, nurUngeprueft:false, expandedKosten:new Set(), expandedAusgaben:new Set(), expandedHeizZeit:new Set(), expandedAutomatik:new Set(), expandedChronik:new Set(), navPlausiOpen:false, drag:null, zahlBisAktuell:true, csvImport:{ buchungen:[], dateiname:"", fehler:null }, csvAutoProtokoll:false, termineAnsicht:"faellig", ersterStart:false, briefkopfOffen:{nk:true,mh:false}, briefkopfPreviewDok:"nk" }; /* AC-3 (US-118): gebündelter UI-/Sitzungs-State. expandedMV entfaellt (Mieter&Vertrag-Layout-Story 2026-07-07): Kaltmiete/Anrede/E-Mail immer sichtbar, kein Vertrag-Aufklapper mehr; expandedChronik neu fuer die "┃ Chronik"-Leiste. */
 
 const eur = n => n.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const SCHLUESSEL = { flaeche:"nach Wohnfläche (m²)", person:"nach Personen", einheit:"nach Wohneinheit", verbrauch:"nach Verbrauch", direkt:"Direkt (eine Einheit)" };
@@ -186,7 +186,7 @@ const RENDERERS = {
      autoGrow(z_frist) muss aber erneut laufen, sobald das Panel sichtbar wird: beim initialen
      fillObjektKopf() (Panel noch display:none) liefert scrollHeight einen falschen (zu kleinen)
      Wert, das Feld wirkte dadurch wie leer/kollabiert (Ralf-Fund 2026-07-06). */
-  9: () => { const el=document.getElementById('z_frist'); if(el) autoGrow(el); },
+  9: () => { const el=document.getElementById('z_frist'); if(el) autoGrow(el); renderBriefkopf(); /* US-136 */ },
   /* Mietspiegel (Index 10): RentMap-iframe erst beim ersten Öffnen laden, damit der
      externe Prototyp nicht bei jedem App-Start angefragt wird.
      Quelle: bevorzugt das mit ausgelieferte statische Bundle unter mietspiegel/ (Produktiv-
@@ -282,6 +282,120 @@ function updateIbanHint(){
   if(!iban.trim()){ el.textContent=''; el.className='iban-hint'; return; }
   if(nkIbanGueltig(iban)){ el.textContent='✓ IBAN gültig'; el.className='iban-hint ok'; }
   else { el.textContent='⚠ IBAN ungültig (Prüfziffer/Länge)'; el.className='iban-hint bad'; }
+}
+/* ---------- US-136: Briefkopf (Logo + Textvorlagen), GLOBAL über alle Objekte ----------
+   Bewusst im Reiter "Vermieter & Zahlungsangaben" untergebracht, aber unterhalb der
+   objektbezogenen Felder klar per .zahlungs-box/-titel abgegrenzt (mit Ralf abgestimmt). */
+function renderBriefkopf(){
+  const box=document.getElementById('briefkopf_box'); if(!box) return;
+  bkMigriereLogoMasse(); /* Ralf-Fund 2026-08-06: vor dem Fix gespeicherte Logos hatten keine
+    logoW/logoH -> Selbstheilung statt "erneut hochladen" verlangen. */
+  const logoImg = briefkopf.logo ? '<img src="'+briefkopf.logo+'" alt="Logo">' : 'Kein Logo';
+  box.innerHTML =
+    '<div class="zahlungs-box">'
+    +'<h3 class="zahlungs-titel">Briefkopf &amp; Textvorlagen <span class="bk-hinweis">– gilt für ALLE Objekte, nicht nur dieses</span></h3>'
+    +'<div class="bk-logo-row">'
+      +'<div class="bk-logo-thumb">'+logoImg+'</div>'
+      +'<div>'
+        +'<button type="button" class="btn-ghost" onclick="document.getElementById(\'bk_logo_input\').click()">Logo hochladen…</button> '
+        +(briefkopf.logo ? '<button type="button" class="btn-ghost" onclick="bkLogoRemove()">Logo entfernen</button>' : '')
+        +'<input type="file" id="bk_logo_input" accept="image/png,image/jpeg" style="display:none" onchange="bkLogoUpload(this)">'
+        +'<p class="hint">PNG oder JPG, max. 200&nbsp;KB. Erscheint oben rechts im Kopfbereich der Nebenkostenabrechnung und des Mieterhöhungs-Schreibens.</p>'
+      +'</div>'
+    +'</div>'
+    +'<div class="bk-block bk-block-info">'
+      +'<div class="bk-block-head"><label>Anrede</label>'
+        +'<button type="button" class="status-toggle" onclick="go(7)">Zum Reiter „Mieter &amp; Vertrag"</button>'
+      +'</div>'
+      +'<p class="hint">Wird je Mieter festgelegt (Herr/Frau/neutral) und dort angepasst, nicht hier.</p>'
+    +'</div>'
+    +bkGruppeHtml('nk','Nebenkostenabrechnung')
+    +bkGruppeHtml('mh','Mieterhöhung Index/Staffel')
+    +'<div class="bk-preview">'
+      +'<label for="bk_preview_dok">Live-Vorschau (Muster-Daten)</label> '
+      +'<select id="bk_preview_dok" onchange="ui.briefkopfPreviewDok=this.value; bkPreviewRender();">'
+        +'<option value="nk"'+(ui.briefkopfPreviewDok==='nk'?' selected':'')+'>Nebenkostenabrechnung</option>'
+        +'<option value="mh_index"'+(ui.briefkopfPreviewDok==='mh_index'?' selected':'')+'>Mieterhöhung (Index)</option>'
+        +'<option value="mh_staffel"'+(ui.briefkopfPreviewDok==='mh_staffel'?' selected':'')+'>Mieterhöhung (Staffel)</option>'
+      +'</select>'
+      +'<div class="bk-preview-wrap"><iframe id="bk_preview_frame" title="PDF-Vorschau"></iframe></div>'
+    +'</div>'
+    +'</div>';
+  bkPreviewRender();
+}
+function bkGruppeHtml(gruppe, titel){
+  const offen = ui.briefkopfOffen[gruppe] ? ' open' : '';
+  const inner = nkBriefkopfTexteListe().filter(t=>t.gruppe===gruppe).map(t=>{
+    const val=briefkopfText(t.key), istStandard=briefkopfIstStandard(t.key);
+    return '<div class="bk-block">'
+      +'<div class="bk-block-head"><label>'+nkEsc(t.label)+'</label>'
+        +'<button type="button" class="status-toggle" id="bk_reset_'+t.key+'" onclick="bkTextReset(\''+t.key+'\')"'+(istStandard?' hidden':'')+'>Standard wiederherstellen</button>'
+      +'</div>'
+      +'<textarea id="bk_text_'+t.key+'" oninput="bkTextInput(\''+t.key+'\')">'+nkEsc(val)+'</textarea>'
+      +(t.platzhalter.length ? '<p class="hint">Platzhalter: '+t.platzhalter.map(p=>'{{'+p+'}}').join(', ')+'</p>' : '')
+      +'<div id="bk_warn_'+t.key+'">'+bkWarnHtml(t.key, val)+'</div>'
+    +'</div>';
+  }).join('');
+  return '<details class="bk-grp"'+offen+' ontoggle="ui.briefkopfOffen[\''+gruppe+'\']=this.open"><summary>'+titel+'</summary>'+inner+'</details>';
+}
+/* Sichtbare Warnung (Stil wie die IBAN-Prüfung), falls ein Pflicht-Platzhalter im bearbeiteten
+   Text fehlt – sonst leer. */
+function bkWarnHtml(key, text){
+  const pflicht=nkBriefkopfPlatzhalter(key);
+  const fehlend=nkPlatzhalterFehlend(pflicht, text);
+  if(!fehlend.length) return '';
+  return '<span class="iban-hint bad">⚠ Platzhalter '+fehlend.map(p=>'{{'+p+'}}').join(', ')+' fehlt – im PDF erscheint an dieser Stelle nichts. Verfügbar: '+pflicht.map(p=>'{{'+p+'}}').join(', ')+'</span>';
+}
+function bkTextInput(key){
+  const el=document.getElementById('bk_text_'+key); if(!el) return;
+  store.setBriefkopfText(key, el.value);
+  const warn=document.getElementById('bk_warn_'+key); if(warn) warn.innerHTML=bkWarnHtml(key, el.value);
+  const btn=document.getElementById('bk_reset_'+key); if(btn) btn.hidden=false;
+  bkSchedulePreview();
+}
+function bkTextReset(key){ store.resetBriefkopfText(key); renderBriefkopf(); }
+/* Selbstheilung für Logos, die VOR dem logoW/logoH-Fix hochgeladen wurden (Ralf-Fund 2026-08-06):
+   solche Altstände haben ein Bild, aber keine Naturmaße -> nkLogoBox() griff auf den 1x1-Fallback
+   zurück und verzerrte das Logo ins Quadrat. Einmalig serverlos nachladen und die Maße ergänzen,
+   statt vom Nutzer ein erneutes Hochladen zu verlangen. `_bkMigrating` verhindert Mehrfachstarts,
+   während img.onload noch aussteht (renderBriefkopf() ruft diese Funktion bei jedem Rebuild auf). */
+let _bkMigrating=false;
+function bkMigriereLogoMasse(){
+  if(!briefkopf.logo || briefkopf.logoW || _bkMigrating) return;
+  _bkMigrating=true;
+  const img=new Image();
+  img.onload=()=>{ _bkMigrating=false; store.setBriefkopfLogo(briefkopf.logo, img.naturalWidth, img.naturalHeight); renderBriefkopf(); };
+  img.onerror=()=>{ _bkMigrating=false; };
+  img.src=briefkopf.logo;
+}
+function bkLogoUpload(input){
+  const file=input.files && input.files[0]; input.value=''; if(!file) return;
+  if(!/^image\/(png|jpeg)$/.test(file.type)){ alert('Bitte eine PNG- oder JPG-Datei auswählen.'); return; }
+  if(file.size > 300*1024){ alert('Das Logo ist zu groß (max. ca. 200 KB). Bitte eine kleinere Datei wählen.'); return; }
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const dataUrl=reader.result;
+    if(dataUrl.length > 280*1024){ alert('Das Logo ist zu groß (max. ca. 200 KB). Bitte eine kleinere Datei wählen.'); return; }
+    const img=new Image();
+    img.onload=()=>{ store.setBriefkopfLogo(dataUrl, img.naturalWidth, img.naturalHeight); renderBriefkopf(); };
+    img.onerror=()=>{ alert('Die Datei konnte nicht als Bild gelesen werden.'); };
+    img.src=dataUrl;
+  };
+  reader.onerror=()=>{ alert('Die Datei konnte nicht gelesen werden.'); };
+  reader.readAsDataURL(file);
+}
+function bkLogoRemove(){ store.removeBriefkopfLogo(); renderBriefkopf(); }
+let _bkPreviewTimer=null;
+function bkSchedulePreview(){ clearTimeout(_bkPreviewTimer); _bkPreviewTimer=setTimeout(bkPreviewRender, 400); }
+let _bkPreviewUrl=null;
+function bkPreviewRender(){
+  const frame=document.getElementById('bk_preview_frame'); if(!frame || typeof buildBriefkopfPreviewDoc!=='function') return;
+  try{
+    const doc=buildBriefkopfPreviewDoc(ui.briefkopfPreviewDok||'nk');
+    const url=URL.createObjectURL(doc.output('blob'));
+    const alt=_bkPreviewUrl; frame.src=url; _bkPreviewUrl=url;
+    if(alt) setTimeout(()=>URL.revokeObjectURL(alt), 1000); /* erst freigeben, nachdem das iframe die neue URL geladen hat */
+  }catch(e){ /* z. B. Muster-Daten (noch) unvollständig – Vorschau bleibt einfach stehen */ }
 }
 /* US-59: read-only Vorjahr-Feld (blau kursiv) für den Vergleich. val null/leer -> "–". */
 function vjFeld(val){

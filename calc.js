@@ -2037,6 +2037,63 @@ function nkTechemGebaeudeAbweichung(positionen, einheiten) {
   return out;
 }
 
+/* US-136: Standard-Textbausteine für Logo/Textvorlagen in PDFs (Vorbelegung + verfügbare
+   Platzhalter je Baustein). gruppe steuert die Akkordeon-Gruppierung in der UI ('nk' =
+   Nebenkostenabrechnung, 'mh' = Mieterhöhung Index/Staffel). */
+const NK_BRIEFKOPF_TEXTE = [
+  { key:"nk_betreff", gruppe:"nk", label:"Betreff", platzhalter:["zeitraum"],
+    standard:"Betriebs- und Heizkostenabrechnung {{zeitraum}}" },
+  { key:"nk_einleitung", gruppe:"nk", label:"Einleitungssatz", platzhalter:["zeitraum"],
+    standard:"anbei erhalten Sie die Betriebs- und Heizkostenabrechnung für {{zeitraum}}. Nachstehend finden Sie die Aufstellung der Kosten, Ihren Anteil und die Verrechnung mit den geleisteten Vorauszahlungen." },
+  { key:"nk_zahlungsaufforderung", gruppe:"nk", label:"Zahlungsaufforderung", platzhalter:["betrag","frist"],
+    standard:"Zahlungsaufforderung: Bitte überweisen Sie die Nachzahlung von {{betrag}} innerhalb von {{frist}} auf folgendes Konto:" },
+  { key:"nk_sicherheitshinweis", gruppe:"nk", label:"Sicherheitshinweis Bankverbindung", platzhalter:[],
+    standard:"Hinweis zur Sicherheit: Eine Änderung unserer Bankverbindung teilen wir Ihnen ausschließlich schriftlich und niemals unaufgefordert per E-Mail mit. Im Zweifel prüfen Sie die hier genannte Bankverbindung oder fragen Sie unter der angegebenen Kontaktadresse nach." },
+  { key:"nk_guthaben", gruppe:"nk", label:"Guthaben-Hinweis", platzhalter:["frist"],
+    standard:"Das Guthaben wird Ihnen innerhalb von {{frist}} erstattet." },
+  { key:"nk_mietrueckstand_hinweis", gruppe:"nk", label:"Mietrückstand – Hinweistext", platzhalter:[],
+    standard:"Für den Abrechnungszeitraum besteht ein offener Mietbetrag, unabhängig von dieser Nebenkostenabrechnung. Er ist nicht Bestandteil der NK-Abrechnung und wird separat geltend gemacht." },
+  { key:"nk_mietrueckstand_aufforderung", gruppe:"nk", label:"Mietrückstand – Zahlungsaufforderung", platzhalter:["betrag","frist"],
+    standard:"Bitte gleichen Sie den offenen Betrag von {{betrag}} innerhalb von {{frist}} aus." },
+  { key:"nk_grussformel", gruppe:"nk", label:"Grußformel", platzhalter:[],
+    standard:"Mit freundlichen Grüßen" },
+  { key:"mh_betreff_index", gruppe:"mh", label:"Betreff (Index)", platzhalter:[],
+    standard:"Mietanpassung nach Indexmietvereinbarung (§ 557b BGB)" },
+  { key:"mh_betreff_staffel", gruppe:"mh", label:"Betreff (Staffel)", platzhalter:[],
+    standard:"Mietanpassung nach Staffelmietvereinbarung (§ 557a BGB)" },
+  { key:"mh_einleitung_index", gruppe:"mh", label:"Einleitungssatz (Index)", platzhalter:[],
+    standard:"wie angekündigt, informiere ich Sie hiermit über die vereinbarte Anpassung der Nettokaltmiete nach § 557b BGB." },
+  { key:"mh_einleitung_staffel", gruppe:"mh", label:"Einleitungssatz (Staffel)", platzhalter:[],
+    standard:"wie angekündigt, informiere ich Sie hiermit über die vertraglich vereinbarte Anpassung der Nettokaltmiete nach § 557a BGB (Staffelmiete)." },
+  { key:"mh_dauerauftrag", gruppe:"mh", label:"Dauerauftrag-Hinweis", platzhalter:["datum"],
+    standard:"Bitte passen Sie Ihren Dauerauftrag zum {{datum}} entsprechend an." },
+  { key:"mh_rueckfragen", gruppe:"mh", label:"Rückfragen-Satz", platzhalter:[],
+    standard:"Für Rückfragen stehe ich gerne zur Verfügung." },
+  { key:"mh_grussformel", gruppe:"mh", label:"Grußformel", platzhalter:[],
+    standard:"Mit freundlichen Grüßen" }
+];
+function nkBriefkopfTexteListe(){ return NK_BRIEFKOPF_TEXTE; }
+function nkBriefkopfStandard(key){ const t=NK_BRIEFKOPF_TEXTE.find(x=>x.key===key); return t?t.standard:""; }
+function nkBriefkopfPlatzhalter(key){ const t=NK_BRIEFKOPF_TEXTE.find(x=>x.key===key); return t?t.platzhalter:[]; }
+/* Ersetzt {{platzhalter}} im Text durch werte[platzhalter]; unbekannte/fehlende Werte -> leer.
+   Reine Funktion (US-136). */
+function nkFuellePlatzhalter(text, werte) {
+  return String(text || "").replace(/\{\{(\w+)\}\}/g, (m, k) => (werte && k in werte) ? String(werte[k]) : "");
+}
+/* Welche der `pflicht`-Platzhalter fehlen im (ggf. vom Nutzer bearbeiteten) `text`? Grundlage für
+   die sichtbare Warnung in der Textvorlagen-UI. Reine Funktion (US-136). */
+function nkPlatzhalterFehlend(pflicht, text) {
+  const t = String(text || "");
+  return (pflicht || []).filter(k => !t.includes("{{" + k + "}}"));
+}
+/* Skaliert ein Bild (imgW×imgH) in eine maximale Box (maxW×maxH), Seitenverhältnis erhalten.
+   Grundlage für die Logo-Platzierung im PDF-Kopf. Reine Funktion (US-136). */
+function nkLogoBox(imgW, imgH, maxW, maxH) {
+  imgW = Number(imgW) || 1; imgH = Number(imgH) || 1;
+  const scale = Math.min((Number(maxW) || 1) / imgW, (Number(maxH) || 1) / imgH);
+  return { w: imgW * scale, h: imgH * scale };
+}
+
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
    und die Funktionen stehen global zur Verfügung.
    Eine Funktion pro Zeile (mit Komma am Ende) – das entschärft Merge-Konflikte beim
@@ -2216,5 +2273,12 @@ if (typeof module !== "undefined" && module.exports) {
     nkDatumAusDateiname,
     nkDateiVorschlagAusName,
     nkRegelSetDienstleister,
+    NK_BRIEFKOPF_TEXTE,
+    nkBriefkopfTexteListe,
+    nkBriefkopfStandard,
+    nkBriefkopfPlatzhalter,
+    nkFuellePlatzhalter,
+    nkPlatzhalterFehlend,
+    nkLogoBox,
   };
 }

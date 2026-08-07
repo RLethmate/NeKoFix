@@ -2351,3 +2351,41 @@ test("nkJahresverlauf: ohne aktives Objekt oder ohne Namen leeres Ergebnis", () 
   assert.deepEqual(calc.nkJahresverlauf([], 0), []);
   assert.deepEqual(calc.nkJahresverlauf([{ objekt: { addr: "" }, einheiten: [], kosten: [] }], 0), []);
 });
+
+/* US-136: Logo und Textvorlagen in PDFs individualisieren. */
+test("nkFuellePlatzhalter: ersetzt bekannte Platzhalter, unbekannte/fehlende werden leer", () => {
+  assert.equal(calc.nkFuellePlatzhalter("Bitte {{betrag}} innerhalb {{frist}} zahlen.", { betrag: "100,00 €", frist: "14 Tage" }), "Bitte 100,00 € innerhalb 14 Tage zahlen.");
+  assert.equal(calc.nkFuellePlatzhalter("Text ohne Platzhalter.", {}), "Text ohne Platzhalter.");
+  assert.equal(calc.nkFuellePlatzhalter("Fehlt: {{unbekannt}}.", { betrag: "1" }), "Fehlt: .");
+  assert.equal(calc.nkFuellePlatzhalter("", { betrag: "1" }), "");
+});
+test("nkPlatzhalterFehlend: meldet nur tatsächlich fehlende Pflicht-Platzhalter", () => {
+  assert.deepEqual(calc.nkPlatzhalterFehlend(["betrag", "frist"], "Bitte {{betrag}} innerhalb {{frist}} zahlen."), []);
+  assert.deepEqual(calc.nkPlatzhalterFehlend(["betrag", "frist"], "Bitte innerhalb {{frist}} zahlen."), ["betrag"]);
+  assert.deepEqual(calc.nkPlatzhalterFehlend(["betrag", "frist"], "Freier Text ohne Platzhalter."), ["betrag", "frist"]);
+  assert.deepEqual(calc.nkPlatzhalterFehlend([], "Egal welcher Text."), []);
+});
+test("nkLogoBox: passt ein Bild seitenverhältniserhaltend in eine maximale Box ein", () => {
+  assert.deepEqual(calc.nkLogoBox(200, 100, 120, 50), { w: 100, h: 50 }); /* Höhe limitiert */
+  assert.deepEqual(calc.nkLogoBox(100, 200, 120, 50), { w: 25, h: 50 }); /* Breite limitiert */
+  assert.deepEqual(calc.nkLogoBox(50, 50, 120, 50), { w: 50, h: 50 }); /* passt exakt in die Höhe */
+});
+test("nkBriefkopfStandard/nkBriefkopfPlatzhalter: liefern die Vorbelegung bzw. Platzhalter-Liste je Textbaustein", () => {
+  assert.match(calc.nkBriefkopfStandard("nk_einleitung"), /Betriebs- und Heizkostenabrechnung/);
+  assert.deepEqual(calc.nkBriefkopfPlatzhalter("nk_zahlungsaufforderung"), ["betrag", "frist"]);
+  assert.deepEqual(calc.nkBriefkopfPlatzhalter("nk_sicherheitshinweis"), []);
+  assert.equal(calc.nkBriefkopfStandard("nicht-vorhanden"), "");
+  assert.deepEqual(calc.nkBriefkopfPlatzhalter("nicht-vorhanden"), []);
+});
+test("nkBriefkopfStandard: Betreff-Bausteine (Ralf-Feedback 2026-08-06) sind vorhanden", () => {
+  assert.equal(calc.nkBriefkopfStandard("nk_betreff"), "Betriebs- und Heizkostenabrechnung {{zeitraum}}");
+  assert.deepEqual(calc.nkBriefkopfPlatzhalter("nk_betreff"), ["zeitraum"]);
+  assert.match(calc.nkBriefkopfStandard("mh_betreff_index"), /557b BGB/);
+  assert.match(calc.nkBriefkopfStandard("mh_betreff_staffel"), /557a BGB/);
+});
+test("nkBriefkopfTexteListe: alle Bausteine haben eindeutige Keys und eine Gruppe (nk/mh)", () => {
+  const liste = calc.nkBriefkopfTexteListe();
+  const keys = liste.map(t => t.key);
+  assert.equal(keys.length, new Set(keys).size);
+  liste.forEach(t => assert.ok(t.gruppe === "nk" || t.gruppe === "mh"));
+});
