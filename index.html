@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NeKoFix – Prototyp Durchstich</title>
+<title>NeKoFix</title>
 <style>
   :root{
     --primary:#15616D;      /* tiefes Petrol – Vertrauen/Seriosität */
@@ -925,6 +925,20 @@
       <div class="dlg-foot">
         <button class="btn-ghost" onclick="closeBelegZielDialog()">Abbrechen</button>
         <button class="btn-primary" onclick="_belegZielDialogWeiter()">Übernehmen</button>
+      </div>
+    </div>
+  </div>
+  <!-- Ralf-Vorgabe 2026-08-06: Schreibzugriff auf den Dokumentenordner kann nach einiger Zeit
+       (z. B. Browser-Neustart) verlorengehen (queryPermission() nicht mehr "granted"). Dieses Dialog
+       fordert die Freigabe gezielt aus einem frischen Klick heraus erneut an (statt einer reinen
+       Fehlermeldung) und wiederholt bei Erfolg automatisch den Beleg-Upload, der ausgelöst hat. -->
+  <div class="overlay-obj" id="dokzugriffdlg_overlay" hidden onclick="if(event.target===this)closeDokZugriffDialog()">
+    <div class="dialog-obj" style="width:min(440px,94vw)">
+      <h2>Zugriff auf Ordner erneuern</h2>
+      <p class="hint" id="dokzugriffdlg_text" style="margin:0 18px 16px;"></p>
+      <div class="dlg-foot">
+        <button class="btn-ghost" onclick="closeDokZugriffDialog()">Abbrechen</button>
+        <button class="btn-primary" onclick="dokZugriffErteilen()">Zugriff erteilen</button>
       </div>
     </div>
   </div>

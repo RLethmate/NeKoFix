@@ -114,7 +114,9 @@ function _dokCtx(ei,mi){ const e=state.einheiten[ei], m=e&&e.mv[mi]; if(!m) retu
    Fehlermeldung statt des immer gleichen "konnte nicht speichern" (Ralf-Feedback 2026-07-08). */
 async function _dokOrdner(basis, segs, create){
   if(!basis) throw new Error('Kein Dokumentenordner gewählt.');
-  if(!(await _dokPerm(basis))) throw new Error('Kein Schreibzugriff auf den Dokumentenordner – bitte im Datei-Menü erneut auswählen.');
+  /* Ralf-Vorgabe 2026-08-06: Ordnernamen nennen statt des unpräzisen "Dokumentenordner" – basis.name
+     ist der tatsächliche, vom Nutzer vergebene/gewählte Ordnername. */
+  if(!(await _dokPerm(basis))) throw new Error('Kein Schreibzugriff auf den Ordner „'+(basis.name||'?')+'" – bitte Zugriff erneut erteilen.');
   let d=basis; for(const s of segs){ d=await d.getDirectoryHandle(s,{create:!!create}); } return d;
 }
 /* Liste der Dateien im Mieter-Ordner in den zugehörigen Container rendern. */
@@ -183,6 +185,13 @@ async function belegHochladen(art, idx, file){
      fragte dies über _dokBasisAktuell bei v1-Objekten (u. a. dem mitgelieferten Demo-Objekt) nach
      einem generischen, global geteilten Ordner statt selbstständig einen Objektordner anzulegen. */
   const basis=await dokObjektRootSicherstellen(state.objekt); if(!basis) return;
+  /* Ralf-Vorgabe 2026-08-06: Schreibzugriff SOFORT nach der Nutzeraktion (Drop/Datei-Auswahl) prüfen,
+     VOR der Hash-Berechnung/Duplikat-Prüfung unten – sonst kann die dafür nötige "User Activation"
+     bis zur eigentlichen Schreib-Operation verstreichen (dieselbe Fehlerklasse wie der
+     showDirectoryPicker()-Fund weiter oben). Bei fehlendem Zugriff ein Dialog zeigen, das die
+     Freigabe aus einem frischen Klick heraus erneut anfordert und den Upload danach automatisch
+     wiederholt, statt nur eine Fehlermeldung auszugeben. */
+  if(!(await _dokPerm(basis))){ zeigeDokZugriffDialog(basis, {basis:basis, art:art, idx:idx, file:file}); return; }
   const pos = art==='kosten' ? store.kosten(idx) : store.ausgabe(idx); if(!pos) return;
   const jahr = art==='ausgabe' ? (pos.zurechnungsjahr||objektJahr(snapshot())) : objektJahr(snapshot());
   /* Ralf-Feedback 2026-07-30: Kostenarten bekommen jetzt ebenfalls ein Dienstleister-Feld (view-
@@ -208,6 +217,31 @@ async function belegHochladen(art, idx, file){
     if(art==='kosten') store.setKostenFeld(idx,'verfuegbar','vorhanden');
     else store.setAusgabeFeld(idx,'verfuegbar','vorhanden');
   }catch(e){ alert('Konnte „'+file.name+'" nicht speichern: '+((e&&e.message)||e)); }
+}
+/* Ralf-Vorgabe 2026-08-06: Zugriffs-Dialog – zeigt den konkreten Ordnernamen und fordert die
+   Freigabe aus einem frischen Klick auf "Zugriff erteilen" heraus erneut an (gültige User
+   Activation, anders als der automatische Versuch in _dokPerm() mitten im Upload-Ablauf). Bei
+   Erfolg wird der ursprünglich ausgelöste Upload automatisch wiederholt. */
+let _dokZugriffRetry=null;
+function zeigeDokZugriffDialog(basis, retry){
+  _dokZugriffRetry = retry;
+  const t=document.getElementById('dokzugriffdlg_text');
+  if(t) t.textContent='Kein Schreibzugriff mehr auf den Ordner „'+((basis&&basis.name)||'?')+'" (kann z. B. nach einem Browser-Neustart passieren). Zugriff jetzt erneut erteilen?';
+  const ov=document.getElementById('dokzugriffdlg_overlay'); if(ov) ov.hidden=false;
+}
+function closeDokZugriffDialog(){ const ov=document.getElementById('dokzugriffdlg_overlay'); if(ov) ov.hidden=true; _dokZugriffRetry=null; }
+async function dokZugriffErteilen(){
+  const retry=_dokZugriffRetry; if(!retry){ closeDokZugriffDialog(); return; }
+  const ok = await _dokPerm(retry.basis);
+  if(!ok){
+    const t=document.getElementById('dokzugriffdlg_text');
+    if(t) t.textContent='Zugriff weiterhin verweigert. Bitte in den Browser-Einstellungen (Website-Berechtigungen) prüfen, ob lokale Dateizugriffe für diese Seite blockiert sind.';
+    return; /* Dialog offen lassen, damit der Hinweis sichtbar bleibt */
+  }
+  closeDokZugriffDialog();
+  await belegHochladen(retry.art, retry.idx, retry.file);
+  if(retry.art==='ausgabe' && typeof renderAusgaben==='function') renderAusgaben();
+  if(retry.art==='kosten' && typeof renderKosten==='function') renderKosten();
 }
 /* Klick-Auswahl als Fallback zu Drag & Drop – eine oder mehrere Dateien auf einmal. */
 function belegAuswaehlen(art, idx){
@@ -283,8 +317,9 @@ function belegZeileAufblinken(art, idx){
   if(art==='kosten'){ const k=state.kosten[idx]; if(k) ui.expandedKosten.add(k.id); }
   /* Sonstige Ausgaben stehen in einem einklappbaren <details> (Ralf-Feedback 2026-07-30) – ohne
      dieses Aufklappen wäre die Zielzeile zwar im DOM, aber unsichtbar und das Aufblinken liefe ins
-     Leere. */
-  else { const box=document.getElementById('ausgaben_box'); if(box) box.open=true; }
+     Leere. Seit Ralf-Vorgabe 2026-08-06 (Beleg-Aufklapper je Zeile, analog Kosten) zusätzlich die
+     Zeile selbst aufklappen, sonst wäre der neue Beleg-Chip im Detailbereich unsichtbar. */
+  else { const box=document.getElementById('ausgaben_box'); if(box) box.open=true; const a=state.ausgaben[idx]; if(a) ui.expandedAusgaben.add(a.id); }
   if(ui.current !== zielStep) go(zielStep);
   else if(art==='kosten'){ if(typeof renderKosten==='function') renderKosten(); }
   else if(typeof renderAusgaben==='function') renderAusgaben();

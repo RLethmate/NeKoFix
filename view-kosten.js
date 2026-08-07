@@ -378,6 +378,12 @@ function renderAusgaben(){
     /* Ralf-Feedback 2026-07-31: Löschen-Kreuz der gesamten Position an den Anfang der Zeile gestellt
        (analog zum Löschen-Kreuz je Beleg-Chip) – so steht es immer an derselben Stelle, unabhängig
        davon, wie lang Bezeichnung/Dienstleister o. Ä. gerade sind. */
+    /* Ralf-Vorgabe 2026-08-06: Beleg-Ampel + Ablegebereich standen bisher gestapelt (Span + Block
+       nacheinander in derselben Zelle) und wichen damit vom Kosten-Reiter ab. Jetzt wie dort: die
+       Zelle zeigt nur einen Aufklapper (Punkt, kein Text); erst aufgeklappt erscheinen Ampel-Dropdown
+       und Ablegebereich nebeneinander (dasselbe .detail-grid-Muster wie appendKostenRow). Ausgaben
+       haben – anders als Kostenarten – kein separates "Status"-Feld, daher nur ein Punkt statt zwei. */
+    const open=ui.expandedAusgaben.has(a.id);
     tr.innerHTML=
       '<td class="act-col"><button class="row-del" title="Position entfernen" onclick="deleteAusgabeRow('+idx+')">×</button></td>'+
       '<td class="bez-col"><input value="'+esc(a.bez)+'" placeholder="z. B. Wärmepumpe" oninput="updAusgabeFeld('+idx+',\'bez\',this.value)">'+herkunftBadgeHtml(a)+'</td>'+
@@ -387,8 +393,16 @@ function renderAusgaben(){
       '<td><span class="feld-wrap"><input class="short" type="text" inputmode="numeric" style="max-width:64px" title="Zurechnungsjahr (Steuerjahr) – bei Rechnungen nahe dem Jahreswechsel ggf. mit dem Steuerberater abstimmen" value="'+esc(a.zurechnungsjahr||'')+'" onchange="updAusgabeJahr('+idx+',this.value)"></span>'+
         (jahrAbweichend?' <button type="button" class="reset-btn" title="Auf Jahr aus dem Belegdatum ('+esc(jahrVorschlag)+') zurücksetzen" onclick="resetAusgabeJahr('+idx+')">↺</button>':'')+
       '</td>'+
-      '<td>'+cddHtml('ausgabe','verfuegbar', idx, vf, VERFUEGBAR, VERFUEGBAR_FARBE)+belegSpalteHtml('ausgabe', idx, a)+'</td>';
+      '<td><button class="status-toggle" onclick="toggleAusgabeDetail('+a.id+')" title="Beleg"><span class="dot" style="background:'+VERFUEGBAR_FARBE[vf]+'" title="Beleg: '+VERFUEGBAR[vf]+'"></span><span class="chev">'+(open?'▴':'▾')+'</span></button></td>';
     tb.appendChild(tr);
+    if(open){
+      const d=document.createElement('tr'); d.className='detail-row';
+      d.innerHTML='<td colspan="7"><div class="detail-grid">'+
+        '<label>Beleg '+cddHtml('ausgabe', 'verfuegbar', idx, vf, VERFUEGBAR, VERFUEGBAR_FARBE)+'</label>'+
+        '<div class="notiz-field" style="flex:0 0 auto;min-width:0;">'+belegSpalteHtml('ausgabe', idx, a)+'</div>'+
+      '</div></td>';
+      tb.appendChild(d);
+    }
   });
   /* Ohne diesen Aufruf zeigt die Beleg-Übersicht neu angelegte/gelöschte/umbenannte Ausgaben erst
      nach dem nächsten Reiter-Wechsel – die Übersicht muss aber live mit dieser Tabelle mitziehen. */
@@ -396,6 +410,8 @@ function renderAusgaben(){
 }
 function addAusgabeRow(){ store.addAusgabe(); renderAusgaben(); }
 function deleteAusgabeRow(idx){ store.removeAusgabe(idx); renderAusgaben(); }
+/* Ralf-Vorgabe 2026-08-06: Beleg-Aufklapper je Ausgabe, analog toggleKostenDetail. */
+function toggleAusgabeDetail(id){ if(ui.expandedAusgaben.has(id)) ui.expandedAusgaben.delete(id); else ui.expandedAusgaben.add(id); renderAusgaben(); }
 function updAusgabeFeld(idx,field,val){
   store.setAusgabeFeld(idx,field,val);
   /* Ralf-Feedback 2026-07-30: korrigiert der Nutzer den Dienstleister-Namen einer per CSV
