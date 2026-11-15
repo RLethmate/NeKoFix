@@ -210,10 +210,23 @@ const RENDERERS = {
       const m=(e.mv||[])[ (e.mv||[]).length-1 ];
       if(e.flaeche>0 && m && m.grundmiete>0){ size=e.flaeche; rent=m.grundmiete; break; }
     }
-    const params='?embed=1'
+    /* Datenschutz (2026-11-15): Adresse/Fläche/Miete als #-Fragment statt ?-Query – der Teil nach #
+       verlässt den Browser nie, landet also auch nicht im Zugriffslog unseres Servers. Das
+       Mietspiegel-Bundle liest dafür zuerst location.hash (Patch in mietspiegel/assets/index-*.js). */
+    const params='#embed=1'
       +(adr?'&address='+encodeURIComponent(adr):'')
       +(size&&rent?'&size='+size+'&rent='+rent:'');
-    const apply=(base)=>{ const src=base+params; if(f.getAttribute('src')!==src) f.src=src; };
+    const apply=(base)=>{
+      const src=base+params; const alt=f.getAttribute('src')||'';
+      if(alt===src) return;
+      f.setAttribute('src',src);
+      /* Ändert sich nur das Fragment, lädt ein iframe nicht neu – das Bundle liest die Werte aber
+         nur beim Start. Dann gezielt neu laden. */
+      if(alt && alt.split('#')[0]===src.split('#')[0]){
+        try{ f.contentWindow.location.hash=params.slice(1); f.contentWindow.location.reload(); }
+        catch(e){ f.setAttribute('src','about:blank'); setTimeout(()=>f.setAttribute('src',src),0); }
+      }
+    };
     if(nkMsBase){ apply(nkMsBase); return; }
     /* Verzeichnis-URL mit Slash: nur so bleiben die relativen Pfade des Bundles intakt
        (z. B. redirectet "serve" .../index.html auf eine Extension-lose URL ohne Slash). */
