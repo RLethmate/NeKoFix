@@ -100,7 +100,7 @@ function renderPlausi(){
   const r=nkPlausibilitaet(state);
   const sym={ok:'✓',warn:'!',fehler:'✗'};
   const head = r.bereit ? '<div class="plausi-head ok">✓ Bereit zum Versand</div>' : '<div class="plausi-head warn">Bitte vor dem Versand prüfen</div>';
-  box.innerHTML = head + r.punkte.map(p=>'<div class="plausi-item '+p.level+'">'+sym[p.level]+' '+p.text+'</div>').join('');
+  box.innerHTML = head + r.punkte.map(p=>'<div class="plausi-item '+p.level+'">'+sym[p.level]+' '+esc(p.text)+'</div>').join('');
 }
 function nkRechenweg(){
   const t=nkTotals(state.einheiten);
@@ -312,10 +312,10 @@ function renderDoc(){
     p35aBlock(ab.p35a)+  /* US-62: zwei Volltabellen (Abs. 2 / Abs. 3), nur private MV */
     '<div class="pay"><h3>Zahlungsmodalitäten</h3>'+
     (saldo>0
-      ? 'Bitte überweisen Sie den Nachzahlungsbetrag innerhalb von '+src.zahlung.frist+' auf folgendes Konto:<br>'
-        +'Empfänger: '+src.zahlung.empfaenger+' · IBAN: '+src.zahlung.iban+' · BIC: '+src.zahlung.bic+'<br>'
+      ? 'Bitte überweisen Sie den Nachzahlungsbetrag innerhalb von '+esc(src.zahlung.frist)+' auf folgendes Konto:<br>'
+        +'Empfänger: '+esc(src.zahlung.empfaenger)+' · IBAN: '+esc(src.zahlung.iban)+' · BIC: '+esc(src.zahlung.bic)+'<br>'
         +'Verwendungszweck: '+esc('NK-Abr. '+(src.objekt.addr||'')+'-'+e.name+'-'+m.mieter+'-'+(vjDoc?(nkObjektJahr(src)||''):zeitraumText()))
-      : 'Das Guthaben wird Ihnen innerhalb von '+src.zahlung.frist+' auf Ihr hinterlegtes Konto erstattet.')
+      : 'Das Guthaben wird Ihnen innerhalb von '+esc(src.zahlung.frist)+' auf Ihr hinterlegtes Konto erstattet.')
     +'<br><span class="hint">Hinweis: Einwendungen können Sie innerhalb von 12 Monaten nach Zugang geltend machen.</span></div>'+
     (rueck>0
       ? '<div class="pay"><h3>Mietrückstand (separat)</h3>'+
@@ -403,9 +403,9 @@ function renderZahlungen(){
       return '<div class="zahl-monat '+st+'">'+
         '<span class="zm-label">'+monatLabel(k)+'</span>'+
         '<span class="zm-soll"'+(sollTitle?' title="'+sollTitle+'"':'')+'>Soll '+eur(soll)+'</span>'+
-        '<label class="zm-erh">erhalten <span class="feld-wrap'+(erhVorschlag?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+(erhalten?nkFmtBetrag(erhalten)+' €':'')+'" placeholder="'+nkFmtBetrag(soll)+' €" onchange="updErhalten('+ei+','+mi+',\''+k+'\',this.value)">'+(erhVorschlag?'<button type="button" class="vorschlag-tri" title="Summe aus CSV-Import übernehmen (Bestandswert + importierte Zahlung) – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="erhaltenVorschlagUebernehmen('+ei+','+mi+',\''+k+'\')"></button>':'')+'</span></label>'+
+        '<label class="zm-erh">erhalten <span class="feld-wrap'+(erhVorschlag?' unbestaetigt':'')+'"><input class="short" type="text" inputmode="decimal" value="'+(erhalten?nkFmtBetrag(erhalten)+' €':'')+'" placeholder="'+nkFmtBetrag(soll)+' €" onchange="updErhalten('+ei+','+mi+',\''+jsArg(k)+'\',this.value)">'+(erhVorschlag?'<button type="button" class="vorschlag-tri" title="Summe aus CSV-Import übernehmen (Bestandswert + importierte Zahlung) – bitte prüfen, dann anklicken (oder den Wert anpassen)" onclick="erhaltenVorschlagUebernehmen('+ei+','+mi+',\''+jsArg(k)+'\')"></button>':'')+'</span></label>'+
         diffHtml+
-        '<button class="zm-pruef'+(geprueft?' aktiv':'')+'" title="'+(geprueft?'Geprüft – erneut klicken hebt es auf':'Zahlungseingang als korrekt bestätigen (setzt erhalten = Soll)')+'" onclick="toggleGeprueft('+ei+','+mi+',\''+k+'\')">'+(geprueft?'geprüft':'zu prüfen')+'</button>'+
+        '<button class="zm-pruef'+(geprueft?' aktiv':'')+'" title="'+(geprueft?'Geprüft – erneut klicken hebt es auf':'Zahlungseingang als korrekt bestätigen (setzt erhalten = Soll)')+'" onclick="toggleGeprueft('+ei+','+mi+',\''+jsArg(k)+'\')">'+(geprueft?'geprüft':'zu prüfen')+'</button>'+
       '</div>';
     }).join('');
     const offenBetrag=Math.max(0, Math.round((sumSoll-sumErh)*100)/100);

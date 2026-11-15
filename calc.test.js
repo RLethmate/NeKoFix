@@ -2389,3 +2389,26 @@ test("nkBriefkopfTexteListe: alle Bausteine haben eindeutige Keys und eine Grupp
   assert.equal(keys.length, new Set(keys).size);
   liste.forEach(t => assert.ok(t.gruppe === "nk" || t.gruppe === "mh"));
 });
+
+test("Import-Prüfung: gültige Objektdatei (Lindenhof-Fixture) wird akzeptiert", () => {
+  const fx = require("./lindenhof-2025.fixture.json");
+  assert.equal(calc.nkPruefeObjektImport(fx), null);
+});
+
+test("Import-Prüfung: ungültige oder präparierte Objektdateien werden abgelehnt", () => {
+  assert.match(calc.nkPruefeObjektImport(null), /kein gültiges Objekt/);
+  assert.match(calc.nkPruefeObjektImport([]), /kein gültiges Objekt/);
+  assert.match(calc.nkPruefeObjektImport({}), /es fehlen Einheiten/);
+  assert.match(calc.nkPruefeObjektImport({ einheiten: ["x"] }), /ungültige Einheiten/);
+  assert.match(calc.nkPruefeObjektImport({ einheiten: [{ mv: "x" }] }), /ungültige Mietverhältnisse/);
+  assert.match(calc.nkPruefeObjektImport({ einheiten: [], kosten: {} }), /ungültige Kostenpositionen/);
+  assert.match(calc.nkPruefeObjektImport({ einheiten: [], zahlung: "x" }), /ungültigen Abschnitt/);
+  assert.match(calc.nkPruefeObjektImport(JSON.parse('{"einheiten":[],"objekt":{"__proto__":{"x":1}}}')), /unzulässige Schlüssel/);
+  let tief = { einheiten: [] }; let k = tief; for (let i = 0; i < 40; i++) { k.a = {}; k = k.a; }
+  assert.match(calc.nkPruefeObjektImport(tief), /zu tief/);
+});
+
+test("Import-Prüfung: HTML in Textfeldern ist erlaubt (Escaping erfolgt bei der Ausgabe)", () => {
+  const d = { einheiten: [{ name: "<b>EG</b>", mv: [{ mieter: "x');alert(1);('" }] }], zahlung: { empfaenger: "<img src=x onerror=alert(1)>" } };
+  assert.equal(calc.nkPruefeObjektImport(d), null);
+});

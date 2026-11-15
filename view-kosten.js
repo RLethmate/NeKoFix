@@ -233,9 +233,9 @@ function kostenEinheitVorschlagUebernehmen(idx){ store.setKostenVorschlagFeld(id
 function cddHtml(art, kind, idx, cur, map, farbe){
   const id='cdd-'+art+'-'+kind+'-'+idx;
   const opts=Object.keys(map).map(key=>
-    '<button type="button" class="cdd-opt'+(key===cur?' sel':'')+'" style="color:'+farbe[key]+'" onclick="cddPick(\''+art+'\',\''+kind+'\','+idx+',\''+key+'\')">●&nbsp;'+esc(map[key])+'</button>').join('');
+    '<button type="button" class="cdd-opt'+(key===cur?' sel':'')+'" style="color:'+farbe[key]+'" onclick="cddPick(\''+jsArg(art)+'\',\''+jsArg(kind)+'\','+idx+',\''+jsArg(key)+'\')">●&nbsp;'+esc(map[key])+'</button>').join('');
   return '<span class="cdd" id="'+id+'">'+
-    '<button type="button" class="cdd-btn" style="color:'+farbe[cur]+'" onclick="cddToggle(\''+id+'\',event)">●&nbsp;'+esc(map[cur])+' <span class="cdd-caret" aria-hidden="true">▾</span></button>'+
+    '<button type="button" class="cdd-btn" style="color:'+farbe[cur]+'" onclick="cddToggle(\''+jsArg(id)+'\',event)">●&nbsp;'+esc(map[cur])+' <span class="cdd-caret" aria-hidden="true">▾</span></button>'+
     '<div class="cdd-list" hidden>'+opts+'</div></span>';
 }
 function cddToggle(id, ev){ ev.stopPropagation();
@@ -337,21 +337,21 @@ function belegSpalteHtml(art, idx, pos){
     const sr = mehrere
       ? (b.schlussrechnung
           ? ' <b class="sr-marker" title="Als Schlussrechnung markiert">Schlussrechnung</b>'
-          : ' <button type="button" class="linklike" onclick="belegSchlussrechnung(\''+art+'\','+idx+','+bi+')">als Schlussrechnung markieren</button>')
+          : ' <button type="button" class="linklike" onclick="belegSchlussrechnung(\''+jsArg(art)+'\','+idx+','+bi+')">als Schlussrechnung markieren</button>')
       : '';
     /* Ralf-Feedback 2026-07-31: Löschen-Kreuz vor den Dateinamen gestellt – die Namen sind
        unterschiedlich lang, ein nachgestelltes × sitzt dadurch bei jedem Chip an einer anderen
        Stelle und ist schlecht anzuklicken. */
     return '<span class="dok-chip">'+
-      '<button type="button" class="row-del" title="Beleg löschen" onclick="belegLoeschen(\''+art+'\','+idx+','+bi+')">×</button> '+
+      '<button type="button" class="row-del" title="Beleg löschen" onclick="belegLoeschen(\''+jsArg(art)+'\','+idx+','+bi+')">×</button> '+
       esc(b.dateiname)+
-      ' <button type="button" class="linklike" onclick="belegOeffnen(\''+art+'\','+idx+','+bi+')">öffnen</button>'+sr+'</span>';
+      ' <button type="button" class="linklike" onclick="belegOeffnen(\''+jsArg(art)+'\','+idx+','+bi+')">öffnen</button>'+sr+'</span>';
   }).join('');
   const status = nkBelegStatus(belege);
   const label = status==='kein_beleg' ? 'PDF ablegen' : (status==='unvollstaendig' ? 'unvollständig' : 'vollständig');
   return '<div class="beleg-drop" title="Beleg hierher ziehen oder klicken zum Auswählen" '+
       'ondragover="event.preventDefault();this.classList.add(\'drag-over\')" ondragleave="this.classList.remove(\'drag-over\')" '+
-      'ondrop="belegDrop(\''+art+'\','+idx+',event)" onclick="belegAuswaehlen(\''+art+'\','+idx+')">'+esc(label)+'</div>'+
+      'ondrop="belegDrop(\''+jsArg(art)+'\','+idx+',event)" onclick="belegAuswaehlen(\''+jsArg(art)+'\','+idx+')">'+esc(label)+'</div>'+
     (chips?'<div class="beleg-chips">'+chips+'</div>':'');
 }
 /* US-130: „Sonstige Ausgaben (nicht umlagefähig)" – eigener, von der Kosten-Liste getrennter
@@ -459,7 +459,7 @@ function renderBelegUebersicht(){
   const filter = ui.belegFilter || 'alle';
   const sichtbar = items.filter(i => filter==='alle' || (filter==='offen' ? i.verfuegbar!=='vorhanden' : i.verfuegbar==='vorhanden'));
   const filterZeile = '<p class="filter-toggle">'+
-    ['alle','offen','vorhanden'].map(f=>'<button type="button" class="linklike" style="font-weight:'+(filter===f?'700':'400')+'" onclick="setBelegFilter(\''+f+'\')">'+(f==='alle'?'Alle':f==='offen'?'Offen':'Vorhanden')+'</button>').join(' · ')+
+    ['alle','offen','vorhanden'].map(f=>'<button type="button" class="linklike" style="font-weight:'+(filter===f?'700':'400')+'" onclick="setBelegFilter(\''+jsArg(f)+'\')">'+(f==='alle'?'Alle':f==='offen'?'Offen':'Vorhanden')+'</button>').join(' · ')+
     '</p>';
   /* Ralf-Feedback 2026-07-31: Klick-zum-Springen statt einer voll bedienbaren Übersicht – eine
      Kostenart wird weiterhin im Reiter "Kosten" gepflegt, ein Klick auf die Zeile springt dorthin,
@@ -467,7 +467,7 @@ function renderBelegUebersicht(){
      Ziel-Dialog). cddToggle() ruft stopPropagation() auf, ein Ampel-Klick löst also nicht zugleich
      den Sprung aus. */
   const zeilen = sichtbar.length ? sichtbar.map(i =>
-    '<div class="beleg-uebersicht-zeile" onclick="belegZeileAufblinken(\''+i.art+'\','+i.idx+')" title="Zur Position im Reiter „'+(i.art==='kosten'?'Kosten':'Steuer & Belege')+'" springen"><span>'+esc(i.bez||'(ohne Bezeichnung)')+herkunftBadgeHtml(i)+'</span>'+
+    '<div class="beleg-uebersicht-zeile" onclick="belegZeileAufblinken(\''+jsArg(i.art)+'\','+i.idx+')" title="Zur Position im Reiter „'+(i.art==='kosten'?'Kosten':'Steuer & Belege')+'" springen"><span>'+esc(i.bez||'(ohne Bezeichnung)')+herkunftBadgeHtml(i)+'</span>'+
     '<span>'+eur(i.betrag||0)+' '+cddHtml(i.art, 'verfuegbar', i.idx, i.verfuegbar, VERFUEGBAR, VERFUEGBAR_FARBE)+'</span></div>'
   ).join('') : '<p class="hint">Keine Positionen in dieser Ansicht.</p>';
   box.innerHTML = filterZeile + zeilen;

@@ -128,7 +128,7 @@ async function dokListe(ei,mi){ const ctx=_dokCtx(ei,mi); if(!ctx) return;
   try{ const dir=await _dokOrdner(basis,ctx.segs,false);
     const namen=[]; for await (const entry of dir.values()){ if(entry.kind==='file') namen.push(entry.name); } namen.sort();
     box.innerHTML = namen.length
-      ? namen.map(nm=>'<div class="dok-item"><span>'+esc(nm)+'</span> <button type="button" class="linklike" onclick="dokOeffnen('+ei+','+mi+',\''+encodeURIComponent(nm)+'\')">öffnen</button> <button type="button" class="row-del" title="Datei löschen" onclick="dokLoeschen('+ei+','+mi+',\''+encodeURIComponent(nm)+'\')">×</button></div>').join('')
+      ? namen.map(nm=>'<div class="dok-item"><span>'+esc(nm)+'</span> <button type="button" class="linklike" onclick="dokOeffnen('+ei+','+mi+',\''+jsArg(encodeURIComponent(nm))+'\')">öffnen</button> <button type="button" class="row-del" title="Datei löschen" onclick="dokLoeschen('+ei+','+mi+',\''+jsArg(encodeURIComponent(nm))+'\')">×</button></div>').join('')
       : '<span class="hint">Noch keine Dateien in diesem Mieter-Ordner.</span>';
   }catch(e){ box.innerHTML='<span class="hint">Noch keine Dateien (Ordner wird beim ersten Upload angelegt).</span>'; }
 }

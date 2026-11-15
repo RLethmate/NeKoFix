@@ -4,16 +4,17 @@
    Einheit) steht als LEBENDE FORMEL im Reiter „Berechnung" und verweist über Blätter hinweg auf
    „Kosten" (Betrag) und „Objekt & Einheiten" (Flächen/Personen); „Abrechnung" verweist auf die
    Einheit-Namen und rechnet USt/Saldo per Formel. Bewusst als WERTE: Verbrauchs-/Direktverteilung,
-   Zeitanteil und CO2. Formelzellen tragen zusätzlich den berechneten Wert (v). Nutzt SheetJS per CDN. */
-function ensureXlsxLib(){
+   Zeitanteil und CO2. Formelzellen tragen zusätzlich den berechneten Wert (v). Nutzt SheetJS (selbst gehostet in vendor/, bei Bedarf nachgeladen). */
+async function ensureXlsxLib(){
+  try{ await nkLadeXlsx(); }catch(e){ /* Bibliothek liegt in vendor/ – Fehler nur bei Verbindungsabbruch zum eigenen Server */ }
   if(!(window.XLSX && XLSX.utils)){
-    alert("Die Excel-Bibliothek konnte nicht geladen werden. Bitte Internetverbindung prüfen, einen evtl. Adblocker deaktivieren und die Seite neu laden.");
+    alert("Die Excel-Bibliothek konnte nicht geladen werden. Bitte Internetverbindung prüfen und die Seite neu laden.");
     return false;
   }
   return true;
 }
-function exportExcel(){
-  if(!ensureXlsxLib()) return;
+async function exportExcel(){
+  if(!(await ensureXlsxLib())) return;
   const XL=window.XLSX;
   const E=state.einheiten||[], K=state.kosten||[], O=state.objekt||{};
   const n=E.length;

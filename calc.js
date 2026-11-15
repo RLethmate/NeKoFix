@@ -2094,12 +2094,48 @@ function nkLogoBox(imgW, imgH, maxW, maxH) {
   return { w: imgW * scale, h: imgH * scale };
 }
 
+/* Due Diligence 2026-11-15: Strukturprüfung einer importierten Objektdatei (JSON), bevor sie in
+   den State übernommen wird. Eine fremde/präparierte Datei darf nur reine JSON-Daten in der
+   erwarteten Grobstruktur enthalten. Gibt null (ok) oder einen Fehlertext für den Nutzer zurück.
+   Ergänzt – ersetzt nicht – das Escaping bei der Ausgabe. */
+function nkPruefeObjektImport(d) {
+  const istObj = v => v !== null && typeof v === "object" && !Array.isArray(v);
+  if (!istObj(d)) return "Datei ist kein gültiges Objekt.";
+  if (!Array.isArray(d.einheiten)) return "Datei ist kein gültiges Objekt (es fehlen Einheiten).";
+  if (!d.einheiten.every(istObj)) return "Datei enthält ungültige Einheiten.";
+  for (const e of d.einheiten) {
+    if (e.mv != null && !(Array.isArray(e.mv) && e.mv.every(istObj))) return "Datei enthält ungültige Mietverhältnisse.";
+  }
+  if (d.kosten != null && !(Array.isArray(d.kosten) && d.kosten.every(istObj))) return "Datei enthält ungültige Kostenpositionen.";
+  for (const f of ["objekt", "zahlung"]) if (d[f] != null && !istObj(d[f])) return "Datei enthält einen ungültigen Abschnitt „" + f + "“.";
+  /* Rekursiv: nur JSON-Grundtypen, keine Prototyp-Schlüssel, begrenzte Tiefe/Größe. */
+  const VERBOTEN = new Set(["__proto__", "constructor", "prototype"]);
+  let knoten = 0;
+  const pruefe = (v, tiefe) => {
+    if (++knoten > 200000) return "Datei ist zu groß.";
+    if (tiefe > 30) return "Datei ist zu tief verschachtelt.";
+    if (v === null || typeof v === "string" || typeof v === "boolean") return null;
+    if (typeof v === "number") return Number.isFinite(v) ? null : "Datei enthält ungültige Zahlen.";
+    if (Array.isArray(v)) { for (const x of v) { const f = pruefe(x, tiefe + 1); if (f) return f; } return null; }
+    if (typeof v === "object") {
+      for (const k of Object.keys(v)) {
+        if (VERBOTEN.has(k)) return "Datei enthält unzulässige Schlüssel.";
+        const f = pruefe(v[k], tiefe + 1); if (f) return f;
+      }
+      return null;
+    }
+    return "Datei enthält unzulässige Datentypen.";
+  };
+  return pruefe(d, 0);
+}
+
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
    und die Funktionen stehen global zur Verfügung.
    Eine Funktion pro Zeile (mit Komma am Ende) – das entschärft Merge-Konflikte beim
    Hinzufügen neuer Funktionen. */
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
+    nkPruefeObjektImport,
     nkFreischaltKey,
     nkFreischaltCode,
     nkFreischaltGueltig,

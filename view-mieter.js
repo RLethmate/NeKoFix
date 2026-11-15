@@ -165,7 +165,7 @@ function mvZeilen(e, ei){
           l2+='<span class="termin-akt">';
           if(typeof dokVerfuegbar==='function' && dokVerfuegbar()){
             const dateien=c.dateien||[];
-            const chips=dateien.map(nm=>'<span class="dok-chip">'+esc(nm)+' <button type="button" class="linklike" onclick="dokOeffnen('+ei+','+mi+',\''+encodeURIComponent(nm)+'\')">öffnen</button></span>').join('');
+            const chips=dateien.map(nm=>'<span class="dok-chip">'+esc(nm)+' <button type="button" class="linklike" onclick="dokOeffnen('+ei+','+mi+',\''+jsArg(encodeURIComponent(nm))+'\')">öffnen</button></span>').join('');
             l2+='<button type="button" class="linklike" title="Datei anfügen" onclick="dokChronikAnhang('+ei+','+mi+','+ci+')">Datei'+(dateien.length?' ('+dateien.length+')':'')+'</button>'+chips;
           }
           l2+='<button type="button" class="linklike" title="Status umschalten (offen/erledigt) – löscht nicht" onclick="toggleChronikErledigtUi('+ei+','+mi+','+ci+')">'+(c.erledigt?'offen':'erledigt')+'</button>'+
@@ -543,7 +543,7 @@ function mhNaechsteInfo(m,ei,mi){
     const datum=nkIndexNaechsteAnpassung(m.idxEinzug, m.idxFrequenz, anz);
     if(!datum) return null;
     return mitFaelligkeit(datum, freqLabel(m.idxFrequenz||1), nkIstAngekuendigt(ank,datum),
-      'idxVorabAnkuendigung('+ei+','+mi+',\''+datum+'\',this.checked)');
+      'idxVorabAnkuendigung('+ei+','+mi+',\''+jsArg(datum)+'\',this.checked)');
   }
   if(m.mhTyp==='staffel'){
     const plan=nkStaffelPlan(m.stafBeginn, m.stafEnde, m.stafFrequenz, m.stafAusgangsmiete, m.stafBetrag);
@@ -552,7 +552,7 @@ function mhNaechsteInfo(m,ei,mi){
               || plan.find(s=> nkDatum(s.datum) > nkDatum(h))
               || plan[plan.length-1];
     return mitFaelligkeit(next.datum, freqLabel(m.stafFrequenz||1), nkIstAngekuendigt(ank,next.datum),
-      'staffelAnkuendigung('+ei+','+mi+',\''+next.datum+'\',this.checked)');
+      'staffelAnkuendigung('+ei+','+mi+',\''+jsArg(next.datum)+'\',this.checked)');
   }
   return null;
 }
@@ -838,7 +838,7 @@ function indexBlock(m,ei,mi){
         ' <button class="addrow" onclick="indexAnschreibenPdf('+ei+','+mi+')">Ankündigung als PDF</button>'+
         /* AC-2a (US-118): Ankündigung der KOMMENDEN Index-Anpassung – verbunden mit dem Termine-Reiter
            (mhAngekuendigt, Stichtag-keyed). Setzen rückt dort den nächsten Termin nach. */
-        ' <label class="staffel-ank"><input type="checkbox" '+(nkIstAngekuendigt(m.ankuendigungen||{}, stichtag2)?'checked':'')+' onchange="idxVorabAnkuendigung('+ei+','+mi+',\''+stichtag2+'\',this.checked)"> angekündigt</label></div>'+
+        ' <label class="staffel-ank"><input type="checkbox" '+(nkIstAngekuendigt(m.ankuendigungen||{}, stichtag2)?'checked':'')+' onchange="idxVorabAnkuendigung('+ei+','+mi+',\''+jsArg(stichtag2)+'\',this.checked)"> angekündigt</label></div>'+
     '</div>';
   }
   if(typ==='staffel'){
@@ -870,8 +870,8 @@ function indexBlock(m,ei,mi){
         return '<div class="index-hist'+(warn?' staffel-warn':'')+'">'+
           '<div class="ih-text">'+fmtDatum(s.datum)+': '+eur(s.alteMiete)+' + '+eur(s.neueMiete-s.alteMiete)+' = <b>'+eur(s.neueMiete)+'</b>'+
           (warn?' <span style="color:var(--nachzahlung);">'+WARN_ICON+' fällig</span>':'')+'</div>'+
-          '<div class="ih-actions"><label class="staffel-ank"'+(istAng&&angDatum?' title="verschickt am '+fmtDatum(angDatum)+'"':'')+'><input type="checkbox" '+(istAng?'checked':'')+' onchange="staffelAnkuendigung('+ei+','+mi+',\''+s.datum+'\',this.checked)"> angekündigt</label>'+
-          ' <button class="addrow" onclick="staffelAnschreibenPdf('+ei+','+mi+',\''+s.datum+'\','+s.alteMiete+','+s.neueMiete+','+(s.neueMiete-s.alteMiete)+')">Ankündigung als PDF</button></div>'+
+          '<div class="ih-actions"><label class="staffel-ank"'+(istAng&&angDatum?' title="verschickt am '+fmtDatum(angDatum)+'"':'')+'><input type="checkbox" '+(istAng?'checked':'')+' onchange="staffelAnkuendigung('+ei+','+mi+',\''+jsArg(s.datum)+'\',this.checked)"> angekündigt</label>'+
+          ' <button class="addrow" onclick="staffelAnschreibenPdf('+ei+','+mi+',\''+jsArg(s.datum)+'\','+s.alteMiete+','+s.neueMiete+','+(s.neueMiete-s.alteMiete)+')">Ankündigung als PDF</button></div>'+
         '</div>';
       }).join('');
     } else if(m.stafEnde){
@@ -884,8 +884,8 @@ function indexBlock(m,ei,mi){
       h+='<div class="chronik-titel">Versendete Ankündigungen außerhalb des aktuellen Plans</div>';
       h+=orphans.map(d=>{ const snap=ank[d].snapshot; return '<div class="index-hist">'+
         '<div class="ih-text">'+fmtDatum(d)+': → <b>'+eur(snap.neueMiete)+'</b> <span class="hint">(verschickt am '+fmtDatum(ank[d].verschicktAm)+')</span></div>'+
-        '<div class="ih-actions"><button class="addrow" onclick="staffelOrphanPdf('+ei+','+mi+',\''+d+'\')">Ankündigung als PDF</button>'+
-        ' <button class="row-del" title="Beleg löschen" onclick="staffelOrphanLoeschen('+ei+','+mi+',\''+d+'\')">×</button></div>'+
+        '<div class="ih-actions"><button class="addrow" onclick="staffelOrphanPdf('+ei+','+mi+',\''+jsArg(d)+'\')">Ankündigung als PDF</button>'+
+        ' <button class="row-del" title="Beleg löschen" onclick="staffelOrphanLoeschen('+ei+','+mi+',\''+jsArg(d)+'\')">×</button></div>'+
       '</div>'; }).join('');
     }
   }

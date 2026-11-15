@@ -75,6 +75,10 @@ function heute(){ return new Date().toISOString().slice(0,10); }
 
 /* Rechenkern ausgelagert nach calc.js (testbar): nkTotals, nkFactor, nkAnteilOf, nkLineItemsFor */
 const esc = nkEsc; /* US-36: Freitext-Escaping (aus calc.js) */
+/* Sicheres String-Argument für Inline-Handler der Form onclick="f('…')" (Due Diligence
+   2026-11-15, XSS über importierte Objektdateien): erst JS-String-Escaping (\ und '), dann
+   HTML-Escaping für das Attribut. Der Handler erhält den Originalwert unverändert. */
+const jsArg = s => esc(String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n|\r|\u2028|\u2029/g,' '));
 function fmtDatum(s){ const p=String(s||'').split('-'); return p.length===3 ? p[2]+'.'+p[1]+'.'+p[0] : (s||''); }
 function zeitraumText(){ return fmtDatum(state.objekt.von)+' – '+fmtDatum(state.objekt.bis); }
 /* US-53: „das Jahr 2025" bei vollem Kalenderjahr, sonst „den Zeitraum …". */
@@ -155,7 +159,7 @@ function renderNavPlausi(){
   let html='<button class="nav-plausi-head'+(ui.navPlausiOpen?' open':'')+' '+(r.bereit?'ok':'bad')+'" onclick="toggleNavPlausi()" title="Plausibilitätsprüfung – klicken für Details">'+
     '<span class="dot"></span><span class="np-label">'+kurz+'</span><span class="np-caret">'+(ui.navPlausiOpen?'▴':'▾')+'</span></button>';
   if(ui.navPlausiOpen){
-    html+='<div class="nav-plausi-list">'+r.punkte.map(p=>'<div class="plausi-item '+p.level+'">'+symMap[p.level]+' '+p.text+'</div>').join('')+'</div>';
+    html+='<div class="nav-plausi-list">'+r.punkte.map(p=>'<div class="plausi-item '+p.level+'">'+symMap[p.level]+' '+esc(p.text)+'</div>').join('')+'</div>';
   } else if(warn>0){
     html+='<div class="nav-plausi-sub">'+warn+' Hinweis'+(warn===1?'':'e')+'</div>';
   }
@@ -329,14 +333,14 @@ function bkGruppeHtml(gruppe, titel){
     const val=briefkopfText(t.key), istStandard=briefkopfIstStandard(t.key);
     return '<div class="bk-block">'
       +'<div class="bk-block-head"><label>'+nkEsc(t.label)+'</label>'
-        +'<button type="button" class="status-toggle" id="bk_reset_'+t.key+'" onclick="bkTextReset(\''+t.key+'\')"'+(istStandard?' hidden':'')+'>Standard wiederherstellen</button>'
+        +'<button type="button" class="status-toggle" id="bk_reset_'+t.key+'" onclick="bkTextReset(\''+jsArg(t.key)+'\')"'+(istStandard?' hidden':'')+'>Standard wiederherstellen</button>'
       +'</div>'
-      +'<textarea id="bk_text_'+t.key+'" oninput="bkTextInput(\''+t.key+'\')">'+nkEsc(val)+'</textarea>'
+      +'<textarea id="bk_text_'+t.key+'" oninput="bkTextInput(\''+jsArg(t.key)+'\')">'+nkEsc(val)+'</textarea>'
       +(t.platzhalter.length ? '<p class="hint">Platzhalter: '+t.platzhalter.map(p=>'{{'+p+'}}').join(', ')+'</p>' : '')
       +'<div id="bk_warn_'+t.key+'">'+bkWarnHtml(t.key, val)+'</div>'
     +'</div>';
   }).join('');
-  return '<details class="bk-grp"'+offen+' ontoggle="ui.briefkopfOffen[\''+gruppe+'\']=this.open"><summary>'+titel+'</summary>'+inner+'</details>';
+  return '<details class="bk-grp"'+offen+' ontoggle="ui.briefkopfOffen[\''+jsArg(gruppe)+'\']=this.open"><summary>'+titel+'</summary>'+inner+'</details>';
 }
 /* Sichtbare Warnung (Stil wie die IBAN-Prüfung), falls ein Pflicht-Platzhalter im bearbeiteten
    Text fehlt – sonst leer. */
@@ -823,7 +827,8 @@ function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ 
   const dateiname=f.name; /* Speicher: Objektname (Header) folgt dem Dateinamen, nicht dem Adressfeld */
   const r=new FileReader();
   r.onload=function(){ try{ const d=JSON.parse(r.result);
-      if(!d || !Array.isArray(d.einheiten)){ alert('Datei ist kein gültiges Objekt (es fehlen Einheiten).'); return; }
+      const pruef=nkPruefeObjektImport(d); /* Due Diligence 2026-11-15: Strukturprüfung vor Übernahme */
+      if(pruef){ alert(pruef); return; }
       const sig=JSON.stringify(d);
       if(objekte.some(x=>JSON.stringify(x)===sig) && !confirm('Dieses Objekt ist bereits vorhanden (identische Daten). Trotzdem importieren?')) return;
       const nameAusDatei=nkNameAusDateiname(dateiname); /* Speicher: Header-Name aus Dateiname (ohne .json/NeKoFix-/-JJJJ) */
@@ -894,4 +899,28 @@ function flashKeinVorjahr(){
   vjs.textContent=' kein Vorjahr gefunden'; vjs.classList.add('vj-titel-hint');
   clearTimeout(flashKeinVorjahr._t);
   flashKeinVorjahr._t=setTimeout(()=>{ vjs.classList.remove('vj-titel-hint'); vjs.textContent=''; }, 2500);
+}
+
+/* Bibliotheken bei Bedarf nachladen (Due Diligence 2026-11-15): Excel (SheetJS) und PDF-Lesen
+   (pdf.js) liegen selbst gehostet in vendor/ und werden erst geladen, wenn sie gebraucht werden –
+   kein CDN mehr (keine IP-Übertragung an Dritte, keine fremde Skriptquelle) und ein leichterer
+   App-Start. jsPDF und qrcode-generator (PDF-Export) werden weiterhin direkt in index.html geladen. */
+const _nkSkripte={};
+function nkLadeSkript(src){
+  if(!_nkSkripte[src]) _nkSkripte[src]=new Promise((res,rej)=>{
+    const s=document.createElement('script'); s.src=src;
+    s.onload=()=>res();
+    s.onerror=()=>{ delete _nkSkripte[src]; rej(new Error('Skript konnte nicht geladen werden: '+src)); };
+    document.head.appendChild(s);
+  });
+  return _nkSkripte[src];
+}
+async function nkLadeXlsx(){
+  if(!(window.XLSX && window.XLSX.utils)) await nkLadeSkript('vendor/xlsx.full.min.js');
+  return window.XLSX;
+}
+async function nkLadePdfJs(){
+  if(typeof pdfjsLib==='undefined') await nkLadeSkript('vendor/pdf.min.js');
+  pdfjsLib.GlobalWorkerOptions.workerSrc='vendor/pdf.worker.min.js';
+  return pdfjsLib;
 }
