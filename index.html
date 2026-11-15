@@ -392,6 +392,9 @@
   /* US-125: dezenter Copyright-Hinweis, kein optisches Gewicht (kompakte, ruhige UI). */
   .app-footer{text-align:center;font-size:11px;color:var(--muted);padding:18px 0 22px;}
   .app-footer a{color:inherit;}
+  /* US-137: Hinweis bei gesperrtem Speichern (anderer Tab, neuere Version, defekter Stand) */
+  .speicher-sperre{position:fixed;left:50%;transform:translateX(-50%);top:12px;z-index:9999;max-width:min(720px,calc(100vw - 32px));display:flex;gap:12px;align-items:center;background:#fff4e5;border:1px solid #f0b46b;border-radius:10px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.15);font-size:13px;line-height:1.45;}
+  .speicher-sperre .bh-save{white-space:nowrap;}
   /* US-80: Dokument-Anker (Info-Lasche je Schritt) – dezent abgesetzt, global einklappbar */
   .dok-anker{display:flex;align-items:center;gap:9px;margin:0 0 16px;padding:9px 12px;background:#eef3f1;border:1px solid #d4e2dc;border-left:3px solid var(--accent);border-radius:8px;font-size:13px;color:var(--ink);}
   .dok-anker .dok-ico{flex:0 0 auto;font-size:15px;line-height:1;color:var(--accent);}
@@ -822,6 +825,7 @@
       <div class="menu-sep"></div>
       <button onclick="speichern();toggleDateiMenu(true)">Speichern<span class="menu-kbd">Strg+S</span></button>
       <button onclick="speichernUnter();toggleDateiMenu(true)">Speichern unter…</button>
+      <button onclick="exportAlleObjekte();toggleDateiMenu(true)" title="Alle Objekte in eine Sicherungsdatei schreiben – wiederherstellen über „Objekt öffnen… → Aus Datei…“">Alle Objekte sichern…</button>
       <button onclick="objektLoeschen();toggleDateiMenu(true)">Objekt löschen…</button>
       <div class="menu-sep"></div>
       <button onclick="neuesJahrAusVorjahr();toggleDateiMenu(true)">Neues Jahr aus Objekt…</button>
@@ -1010,6 +1014,7 @@
   <div id="vorjahr_banner"></div>
   <!-- UX-Review 2026-07-15 (Kano): optionaler, dauerhaft wegklickbarer Schnellstart-Hinweis mit der
        empfohlenen Reihenfolge für die erste Abrechnung (kein Zwangs-Wizard, s. renderSchnellstart). -->
+  <div id="sicherung_banner"></div>
   <div id="schnellstart_banner"></div>
 
   <!-- US-135: reiterunabhängiger Aktionsstreifen – die Übernahme betrifft Kostenarten, Sonstige
