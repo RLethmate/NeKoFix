@@ -256,15 +256,42 @@ function deleteAktivesObjekt(){ if(!objekte.length) return;
   if(savedData.length!==objekte.length){ savedData = objekte.map(d=>nkClone(d)); }
   saveState(); notifyStateChange();
 }
-function saveState(){ let ok=true; try{ if(objekte.length) objekte[aktivIdx]=snapshot(); localStorage.setItem(STORAGE_KEY, JSON.stringify({ objekte, aktivIdx, savedSigs, savedData, mru })); }catch(e){ ok=false; } if(_persistListener) _persistListener(ok); return ok; }
-function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return false; const o=JSON.parse(raw);
+/* US-137: Schutz vor Datenverlust. _speicherSperre verhindert jedes Schreiben, solange der Stand
+   nicht sicher überschrieben werden darf: 'fremdTab' (ein anderer Tab hat gespeichert),
+   'neuereVersion' (gespeicherter Stand stammt aus einer neueren App-Version) oder
+   'defektOhneKopie' (unlesbarer Stand konnte nicht gesichert werden). _ladeProblem beschreibt einen
+   Fund beim Start für die Anzeige; _letzterSpeicherFehler den Fehlernamen (z. B. QuotaExceededError). */
+const DEFEKT_KEY=STORAGE_KEY+"-defekt";
+let _speicherSperre=null, _ladeProblem=null, _letzterSpeicherFehler=null;
+function sperreSpeichern(grund){ if(!_speicherSperre) _speicherSperre=grund; }
+function speicherSperre(){ return _speicherSperre; }
+function ladeProblem(){ return _ladeProblem; }
+function letzterSpeicherFehler(){ return _letzterSpeicherFehler; }
+function saveState(){ let ok=true;
+  if(_speicherSperre){ if(_persistListener) _persistListener(false); return false; }
+  try{ if(objekte.length) objekte[aktivIdx]=snapshot(); localStorage.setItem(STORAGE_KEY, JSON.stringify({ schema:NK_SCHEMA_VERSION, objekte, aktivIdx, savedSigs, savedData, mru })); _letzterSpeicherFehler=null; }
+  catch(e){ ok=false; _letzterSpeicherFehler=(e&&e.name)||'Fehler'; }
+  if(_persistListener) _persistListener(ok); return ok; }
+/* US-137: unlesbaren Stand vor dem Überschreiben unter DEFEKT_KEY sichern. Gelingt das nicht
+   (z. B. Speicher voll), wird das Speichern gesperrt, damit der Rohstand erhalten bleibt. */
+function _sichereDefektenStand(raw, grund){
+  _ladeProblem={ art:'defekt', grund, raw };
+  try{ localStorage.setItem(DEFEKT_KEY, raw); _ladeProblem.gesichert=true; }
+  catch(e){ _ladeProblem.gesichert=false; sperreSpeichern('defektOhneKopie'); }
+}
+function loadState(){ let raw=null; try{ raw=localStorage.getItem(STORAGE_KEY); if(!raw) return false; const o=JSON.parse(raw);
+    if(o && typeof o.schema==='number' && o.schema>NK_SCHEMA_VERSION){ /* US-137: neuerer Stand – nicht anfassen */
+      _ladeProblem={ art:'neuereVersion', schema:o.schema }; sperreSpeichern('neuereVersion'); return false; }
     if(o && Array.isArray(o.objekte) && o.objekte.length){ objekte=nkDedupeObjekte(o.objekte); aktivIdx=Math.max(0,Math.min(o.aktivIdx||0, objekte.length-1));
       savedSigs = (Array.isArray(o.savedSigs) && o.savedSigs.length===objekte.length) ? o.savedSigs : []; /* US-84: vorhandene Speicherpunkte behalten (dirty übersteht Reload); sonst Baseline im Init */
       savedData = (Array.isArray(o.savedData) && o.savedData.length===objekte.length) ? o.savedData : []; /* Speicher: gespeicherte Daten je Objekt fürs Verwerfen; sonst Baseline im Init */
       mru = Array.isArray(o.mru) ? o.mru : []; /* US-91: Zuletzt verwendet */
       ladeDaten(objekte[aktivIdx]); return true; }
     if(o && Array.isArray(o.einheiten)){ objekte=[o]; aktivIdx=0; savedSigs=[]; savedData=[]; ladeDaten(o); return true; } /* Migration: altes Einzelformat */
-    return false; }catch(e){ return false; } }
+    _sichereDefektenStand(raw, 'unbekannte Struktur'); return false; }
+  catch(e){ if(raw) _sichereDefektenStand(raw, (e&&e.message)||'nicht lesbar'); return false; } }
+/* US-137: alle Objekte gelten als Datei gesichert (nach „Alle Objekte sichern"). */
+function markAlleDateiGesichert(){ if(!objekte.length) return; objekte[aktivIdx]=snapshot(); dateiSigs=objekte.map(d=>nkSig(d)); }
 /* ---------- US-136: Briefkopf (Logo + Textvorlagen) ----------
    Bewusst GETRENNT vom objektbezogenen `state`/`objekte[]` gespeichert (eigener localStorage-Key,
    analog zu NAV_KEY/DOK_KEY in view-shell.js/docs.js): Logo und Textvorlagen gelten für ALLE

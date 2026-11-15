@@ -2129,12 +2129,47 @@ function nkPruefeObjektImport(d) {
   return pruefe(d, 0);
 }
 
+/* US-137: Schema-Version des im Browser gespeicherten Stands und Sicherungsdatei (alle Objekte).
+   Eine Sicherungsdatei ist {format, version, erstellt, objekte:[…]}; eine einzelne Objektdatei
+   bleibt wie bisher das nackte Objekt. nkSicherungLesen() akzeptiert beides und prüft jedes
+   Objekt mit nkPruefeObjektImport(). */
+const NK_SCHEMA_VERSION = 1;
+const NK_SICHERUNG_FORMAT = "nekofix-sicherung";
+function nkSicherungBauen(objekte, erstelltIso) {
+  return { format: NK_SICHERUNG_FORMAT, version: NK_SCHEMA_VERSION, erstellt: erstelltIso || "", objekte: (objekte || []).map(nkClone) };
+}
+function nkSicherungLesen(d) {
+  if (d && typeof d === "object" && !Array.isArray(d) && d.format === NK_SICHERUNG_FORMAT) {
+    if (!Array.isArray(d.objekte) || !d.objekte.length) return { fehler: "Die Sicherungsdatei enthält keine Objekte." };
+    for (let i = 0; i < d.objekte.length; i++) {
+      const f = nkPruefeObjektImport(d.objekte[i]);
+      if (f) return { fehler: "Sicherungsdatei, Objekt " + (i + 1) + ": " + f };
+    }
+    return { objekte: d.objekte, sicherung: true };
+  }
+  const f = nkPruefeObjektImport(d);
+  return f ? { fehler: f } : { objekte: [d], sicherung: false };
+}
+/* Fälligkeit des Sicherungs-Hinweises: noch nie gesichert oder letzte Sicherung älter als `tage`. */
+function nkSicherungFaellig(letzteIso, jetztIso, tage) {
+  const t = (tage == null) ? 30 : tage;
+  if (!letzteIso) return true;
+  const a = Date.parse(letzteIso), b = Date.parse(jetztIso);
+  if (!isFinite(a) || !isFinite(b)) return true;
+  return (b - a) > t * 86400000;
+}
+
 /* Export nur in Node (für die Tests); im Browser wird dieser Block ignoriert,
    und die Funktionen stehen global zur Verfügung.
    Eine Funktion pro Zeile (mit Komma am Ende) – das entschärft Merge-Konflikte beim
    Hinzufügen neuer Funktionen. */
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
+    NK_SCHEMA_VERSION,
+    NK_SICHERUNG_FORMAT,
+    nkSicherungBauen,
+    nkSicherungLesen,
+    nkSicherungFaellig,
     nkPruefeObjektImport,
     nkFreischaltKey,
     nkFreischaltCode,

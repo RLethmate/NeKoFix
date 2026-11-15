@@ -461,10 +461,20 @@ function updateSaveStatus(){
   else { el.textContent='● Ungespeicherte Änderungen'; el.classList.add('dirty'); el.title='Es gibt ungespeicherte Änderungen. Speichern mit Strg/Cmd+S oder über „Datei → Speichern". Der Arbeitsstand ist im Browser zwischengespeichert (Absturzschutz).'; }
 }
 onStateChange(updateSaveStatus);
-onPersist(function(ok){ if(!ok){ setSaveStatus('⚠ nicht gespeichert'); } else { updateSaveStatus(); } });
+onPersist(function(ok){ if(!ok){ setSaveStatus('⚠ nicht gespeichert'); speicherFehlerMelden(); } else { updateSaveStatus(); } });
+/* US-137: Speicherfehler (z. B. voller Browser-Speicher) einmal pro Sitzung verständlich melden;
+   eine aktive Sperre hat ihren eigenen Hinweis. */
+function speicherFehlerMelden(){
+  if(speicherSperre() || speicherFehlerMelden._gemeldet) return;
+  const name=letzterSpeicherFehler(); if(!name) return;
+  speicherFehlerMelden._gemeldet=true;
+  const voll=/quota/i.test(name);
+  setTimeout(()=>alert((voll?'Der Speicher dieses Browsers ist voll – deine letzten Änderungen konnten nicht gespeichert werden.':'Deine letzten Änderungen konnten im Browser nicht gespeichert werden ('+name+').')
+    +'\n\nBitte sichere jetzt alle Objekte als Datei (Datei → Alle Objekte sichern…).'+(voll?' Platz schaffen kannst du, indem du nicht mehr benötigte Objekte löschst oder ein kleineres Logo verwendest.':'')),0);
+}
 /* US-84: expliziter Speicherbefehl – setzt den gespeicherten Stand (Dokument). „Speichern unter…"
    schreibt zusätzlich die Datei. (Phase 2: „Speichern" schreibt in Chromium direkt in die Datei.) */
-function speichern(){ markGespeichert(); }
+function speichern(){ markGespeichert(); nkSpeicherDauerhaftAnfragen(); }
 /* Speicher: „Speichern unter…" wie im Office – legt aus dem AKTUELLEN (ggf. geänderten) Stand ein
    NEUES Dokument an und schaltet darauf um. Das Ausgangsobjekt wird auf seinen zuletzt
    gespeicherten Stand zurückgesetzt (Änderungen dort verworfen). So bleiben Quelle und Kopie
@@ -753,6 +763,20 @@ async function exportObjekt(){
   const neuerName=nkNameAusDateiname(res.dateiname);
   if(neuerName && neuerName!==state.objekt.name){ store.setObjektFeld('name', neuerName); renderObjTitle(); }
   markDateiGesichert(); /* US-76: aktueller Stand liegt jetzt als PC-Datei vor */
+  merkeLetzteSicherung(); nkSpeicherDauerhaftAnfragen(); /* US-137 */
+  return true;
+}
+/* US-137: alle Objekte in EINE Sicherungsdatei schreiben (Wiederherstellung über „Aus Datei…"). */
+async function exportAlleObjekte(){
+  saveState();
+  const heute=new Date(); const d=nkSicherungBauen(objekte, heute.toISOString());
+  const datum=heute.getFullYear()+'-'+String(heute.getMonth()+1).padStart(2,'0')+'-'+String(heute.getDate()).padStart(2,'0');
+  const res=await schreibeDatei(JSON.stringify(d,null,2), 'NeKoFix-Sicherung-'+datum+'.json');
+  if(!res.ok) return false;
+  markAlleDateiGesichert(); merkeLetzteSicherung(); nkSpeicherDauerhaftAnfragen();
+  const b=document.getElementById('sicherung_banner'); if(b) b.innerHTML='';
+  dismissBackupHinweis();
+  alert('Gesichert: '+objekte.length+' Objekt'+(objekte.length===1?'':'e')+' in „'+res.dateiname+'".\n\nWiederherstellen: Datei → Objekt öffnen… → Aus Datei… (JSON).');
   return true;
 }
 /* US-11: Folgejahr aus dem aktiven Objekt anlegen */
@@ -839,9 +863,12 @@ function closeWillkommen(){ const ov=document.getElementById('willkommen_overlay
 function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ return; }
   const dateiname=f.name; /* Speicher: Objektname (Header) folgt dem Dateinamen, nicht dem Adressfeld */
   const r=new FileReader();
-  r.onload=function(){ try{ const d=JSON.parse(r.result);
-      const pruef=nkPruefeObjektImport(d); /* Due Diligence 2026-11-15: Strukturprüfung vor Übernahme */
-      if(pruef){ alert(pruef); return; }
+  r.onload=function(){ try{ const roh=JSON.parse(r.result);
+      /* Due Diligence 2026-11-15 / US-137: Strukturprüfung vor Übernahme; Einzelobjekt oder Sicherungsdatei */
+      const gelesen=nkSicherungLesen(roh);
+      if(gelesen.fehler){ alert(gelesen.fehler); return; }
+      if(gelesen.sicherung){ importSicherung(gelesen.objekte); return; }
+      const d=gelesen.objekte[0];
       const sig=JSON.stringify(d);
       if(objekte.some(x=>JSON.stringify(x)===sig) && !confirm('Dieses Objekt ist bereits vorhanden (identische Daten). Trotzdem importieren?')) return;
       const nameAusDatei=nkNameAusDateiname(dateiname); /* Speicher: Header-Name aus Dateiname (ohne .json/NeKoFix-/-JJJJ) */
@@ -849,6 +876,19 @@ function importObjekt(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ 
       saveState(); objekte.push(d); aktivIdx=objekte.length-1; ladeDaten(d); ensureIds(); ui.current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
     }catch(e){ alert('Datei konnte nicht gelesen werden.'); } finally{ ev.target.value=''; } };
   r.readAsText(f); }
+/* US-137: Sicherungsdatei einlesen – jedes noch nicht (identisch) vorhandene Objekt wird ergänzt;
+   bestehende Objekte bleiben unverändert. */
+function importSicherung(liste){
+  const vorhanden=new Set(objekte.map(x=>JSON.stringify(x)));
+  const neu=liste.filter(d=>!vorhanden.has(JSON.stringify(d)));
+  const doppelt=liste.length-neu.length;
+  if(!neu.length){ alert('Alle '+liste.length+' Objekte der Sicherung sind bereits vorhanden – nichts zu tun.'); return; }
+  if(!confirm('Sicherungsdatei mit '+liste.length+' Objekt'+(liste.length===1?'':'en')+'.\n\n'+neu.length+' werden ergänzt'+(doppelt?', '+doppelt+' sind bereits identisch vorhanden und werden übersprungen':'')+'. Bestehende Objekte bleiben unverändert.\n\nFortfahren?')) return;
+  saveState();
+  neu.forEach(d=>{ objekte.push(nkClone(d)); savedSigs.push(nkSig(d)); savedData.push(nkClone(d)); });
+  aktivIdx=objekte.length-1; ladeDaten(objekte[aktivIdx]); ensureIds(); ui.current=0; renderAll(); go(0); neuerVerlauf(); saveState(); updateSaveStatus();
+  alert(neu.length+' Objekt'+(neu.length===1?'':'e')+' wiederhergestellt.');
+}
 
 /* ---------- App-Rahmen: Status, Verlauf (Undo/Redo), Vorjahr-Umschaltung (US-118 AC-4) ---------- */
 function setAbrStatus(v){ store.setAbrechnungStatus(v); }
@@ -864,7 +904,7 @@ function updateHistButtons(){
 /* saveState, loadState, resetState, commit/scheduleSave: in core.js (US-33b). */
 document.addEventListener('input', commit);  /* Sicherheitsnetz für nicht über den Store laufende Eingaben */
 document.addEventListener('change', commit);
-window.addEventListener('beforeunload', function(e){ if(_resetInProgress) return; saveState(); if(!istGespeichert()){ e.preventDefault(); e.returnValue=''; } }); /* US-84: bei ungespeicherten Änderungen warnen (Arbeitsstand bleibt im Browser); _resetInProgress (core.js): resetState() lässt hier NICHT erneut den alten Stand zurückschreiben */
+window.addEventListener('beforeunload', function(e){ if(_resetInProgress || speicherSperre()) return; saveState(); if(!istGespeichert()){ e.preventDefault(); e.returnValue=''; } }); /* US-84: bei ungespeicherten Änderungen warnen (Arbeitsstand bleibt im Browser); _resetInProgress (core.js): resetState() lässt hier NICHT erneut den alten Stand zurückschreiben */
 /* US-82: Button-Status nach jeder Eingabe aktualisieren (nach commit, daher hier registriert). */
 document.addEventListener('input', updateHistButtons);
 document.addEventListener('change', updateHistButtons);
@@ -936,4 +976,58 @@ async function nkLadePdfJs(){
   if(typeof pdfjsLib==='undefined') await nkLadeSkript('vendor/pdf.min.js');
   pdfjsLib.GlobalWorkerOptions.workerSrc='vendor/pdf.worker.min.js';
   return pdfjsLib;
+}
+
+/* ---------- US-137: Schutz vor Datenverlust ---------- */
+const SICHERUNG_KEY='nekofix-letzte-sicherung';
+function merkeLetzteSicherung(){ try{ localStorage.setItem(SICHERUNG_KEY, new Date().toISOString()); }catch(e){} }
+/* Browser um dauerhaften Speicher bitten (schützt vor automatischem Aufräumen). Nur nach einer
+   ausdrücklichen Sicherungs-Aktion, weil Firefox dafür nachfragt; einmal pro Sitzung. */
+function nkSpeicherDauerhaftAnfragen(){
+  if(nkSpeicherDauerhaftAnfragen._erledigt) return; nkSpeicherDauerhaftAnfragen._erledigt=true;
+  try{ if(navigator.storage && navigator.storage.persist){
+    navigator.storage.persisted().then(p=>{ if(!p) return navigator.storage.persist(); }).catch(()=>{}); } }catch(e){}
+}
+/* Mehrtab-Schutz: speichert ein anderer Tab, ist dieser Tab veraltet. Er schreibt dann nicht mehr
+   (sonst würde er die Änderungen des anderen Tabs still überschreiben) und bittet ums Neuladen. */
+window.addEventListener('storage', function(e){
+  if(e.key!==STORAGE_KEY || e.storageArea!==localStorage) return;
+  sperreSpeichern('fremdTab'); zeigeSpeicherSperre();
+});
+function zeigeSpeicherSperre(){
+  const grund=speicherSperre(); if(!grund) return;
+  let box=document.getElementById('speicher_sperre');
+  if(!box){ box=document.createElement('div'); box.id='speicher_sperre'; box.className='speicher-sperre'; document.body.appendChild(box); }
+  const texte={
+    fremdTab:'<b>NeKoFix ist in einem anderen Tab geöffnet und hat dort gespeichert.</b> Damit sich die beiden Tabs nicht gegenseitig überschreiben, speichert dieser Tab nicht mehr. Lade die Seite neu, um mit dem aktuellen Stand weiterzuarbeiten. Änderungen, die du seitdem in diesem Tab gemacht hast, werden nicht übernommen.',
+    neuereVersion:'<b>Deine gespeicherten Daten stammen aus einer neueren Version von NeKoFix.</b> Sie wurden nicht verändert. Bitte lade die Seite neu (ggf. mit Strg/Cmd+Umschalt+R), damit die aktuelle Version geladen wird.',
+    defektOhneKopie:'<b>Der gespeicherte Stand ist nicht lesbar und konnte nicht automatisch gesichert werden.</b> Damit er nicht verloren geht, speichert NeKoFix vorerst nicht. Lade die Rohdaten herunter und melde dich über das Feedback-Formular.'
+  };
+  box.innerHTML='<span>'+(texte[grund]||'Speichern ist vorübergehend gesperrt.')+'</span>'
+    +(grund==='defektOhneKopie'?'<button class="bh-save" onclick="ladeRohdatenHerunter()">Rohdaten herunterladen</button>':'<button class="bh-save act-green" onclick="location.reload()">Neu laden</button>');
+}
+function ladeRohdatenHerunter(){
+  const p=ladeProblem(); const raw=(p&&p.raw)||(function(){ try{ return localStorage.getItem(DEFEKT_KEY)||localStorage.getItem(STORAGE_KEY)||''; }catch(e){ return ''; } })();
+  if(!raw){ alert('Keine Rohdaten gefunden.'); return; }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([raw],{type:'application/json;charset=utf-8'})); a.download='NeKoFix-Rohdaten-'+Date.now()+'.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+}
+/* Beim Start: Ladeprobleme melden und ggf. an eine fällige Sicherung erinnern. */
+function zeigeSpeicherHinweise(){
+  const p=ladeProblem();
+  if(p && p.art==='defekt' && p.gesichert){
+    setTimeout(()=>{ if(confirm('Der zuletzt im Browser gespeicherte Stand war nicht lesbar ('+p.grund+'). Er wurde unverändert als Kopie aufbewahrt; geladen wurden stattdessen die Beispieldaten.\n\nRohdaten jetzt als Datei herunterladen?')) ladeRohdatenHerunter(); },0);
+  }
+  if(speicherSperre()) zeigeSpeicherSperre();
+  renderSicherungBanner();
+}
+function renderSicherungBanner(){
+  const b=document.getElementById('sicherung_banner'); if(!b) return;
+  let letzte=null; try{ letzte=localStorage.getItem(SICHERUNG_KEY); }catch(e){}
+  if(ui.ersterStart || renderSicherungBanner._weg || !nkSicherungFaellig(letzte, new Date().toISOString(), 30)){ b.innerHTML=''; return; }
+  b.innerHTML='<div class="backup-hinweis" style="display:flex"><span class="bh-text"><b>Datensicherung:</b> '
+    +(letzte?'Deine letzte Sicherung als Datei ist über 30 Tage alt.':'Du hast deine Daten noch nicht als Datei gesichert.')
+    +' Sie liegen nur in diesem Browser und können beim Löschen der Browserdaten verloren gehen.</span>'
+    +'<button class="bh-save act-green" onclick="exportAlleObjekte()">Alle Objekte sichern</button>'
+    +'<button class="bh-x" onclick="renderSicherungBanner._weg=true;renderSicherungBanner()" title="Hinweis ausblenden" aria-label="Hinweis ausblenden">×</button></div>';
 }

@@ -38,6 +38,7 @@ renderSchnellstart(); /* UX-Review 2026-07-15 (Kano): läuft auch in go(0), hier
 zeigeWillkommen(); /* Willkommens-Splash: bei jedem Start zeigen (Ralf-Vorgabe 2026-08-06), nicht mehr an ui.ersterStart gekoppelt */
 neuerVerlauf(); /* US-82: Verlauf-Baseline auf den geladenen Anfangszustand setzen */
 saveState();
+zeigeSpeicherHinweise(); /* US-137: Ladeprobleme, Speicher-Sperre, fällige Sicherung */
 updateSaveStatus(); /* US-84: Anfangsstatus „✓ Gespeichert" anzeigen */
 /* US-54: Versand-Ampel live aktualisieren, sobald sich Eingaben ändern. */
 document.addEventListener('input', renderNavPlausi);

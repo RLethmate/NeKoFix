@@ -2412,3 +2412,35 @@ test("Import-Prüfung: HTML in Textfeldern ist erlaubt (Escaping erfolgt bei der
   const d = { einheiten: [{ name: "<b>EG</b>", mv: [{ mieter: "x');alert(1);('" }] }], zahlung: { empfaenger: "<img src=x onerror=alert(1)>" } };
   assert.equal(calc.nkPruefeObjektImport(d), null);
 });
+
+test("US-137: Sicherungsdatei – bauen und wieder lesen (Rundlauf)", () => {
+  const fx = require("./lindenhof-2025.fixture.json");
+  const zweit = JSON.parse(JSON.stringify(fx)); zweit.objekt.name = "Zweites Objekt";
+  const s = calc.nkSicherungBauen([fx, zweit], "2026-11-15T12:00:00.000Z");
+  assert.equal(s.format, calc.NK_SICHERUNG_FORMAT);
+  assert.equal(s.version, calc.NK_SCHEMA_VERSION);
+  assert.equal(s.objekte.length, 2);
+  assert.notEqual(s.objekte[0], fx, "Objekte werden kopiert, nicht referenziert");
+  const r = calc.nkSicherungLesen(JSON.parse(JSON.stringify(s)));
+  assert.equal(r.fehler, undefined);
+  assert.equal(r.sicherung, true);
+  assert.deepEqual(r.objekte[1], zweit);
+});
+
+test("US-137: Sicherungsdatei – Einzelobjekt bleibt lesbar, Fehler werden benannt", () => {
+  const fx = require("./lindenhof-2025.fixture.json");
+  const einzel = calc.nkSicherungLesen(fx);
+  assert.equal(einzel.sicherung, false);
+  assert.equal(einzel.objekte.length, 1);
+  assert.match(calc.nkSicherungLesen({ format: "nekofix-sicherung", objekte: [] }).fehler, /keine Objekte/);
+  assert.match(calc.nkSicherungLesen({ format: "nekofix-sicherung", objekte: [fx, { kosten: [] }] }).fehler, /Objekt 2: .*Einheiten/);
+  assert.match(calc.nkSicherungLesen("text").fehler, /kein gültiges Objekt/);
+});
+
+test("US-137: Sicherungs-Hinweis ist nach 30 Tagen bzw. ohne Sicherung fällig", () => {
+  assert.equal(calc.nkSicherungFaellig(null, "2026-11-15T00:00:00Z"), true);
+  assert.equal(calc.nkSicherungFaellig("unsinn", "2026-11-15T00:00:00Z"), true);
+  assert.equal(calc.nkSicherungFaellig("2026-11-01T00:00:00Z", "2026-11-15T00:00:00Z"), false);
+  assert.equal(calc.nkSicherungFaellig("2026-10-15T00:00:00Z", "2026-11-15T00:00:00Z"), true);
+  assert.equal(calc.nkSicherungFaellig("2026-11-10T00:00:00Z", "2026-11-15T00:00:00Z", 3), true);
+});
