@@ -6,7 +6,7 @@
 function setCsvAutoProtokoll(v){ ui.csvAutoProtokoll=!!v; }
 function importUmsaetze(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f){ return; }
   const dateiname=f.name; const r=new FileReader();
-  r.onload=function(){ try{ const res=nkParseUmsatzCsv(String(r.result||'')); ui.csvImport={ buchungen:res.buchungen||[], dateiname:dateiname, fehler:res.fehler, header:res.header||[], betragIdx:(res.betragIdx==null?-1:res.betragIdx) }; renderUmsatzReview(); }
+  r.onload=function(){ try{ const res=nkParseUmsatzCsv(String(r.result||'')); ui.csvImport={ buchungen:res.buchungen||[], dateiname:dateiname, fehler:res.fehler, header:res.header||[], betragIdx:(res.betragIdx==null?-1:res.betragIdx) }; renderUmsatzReview(); nkLadeXlsx().catch(()=>{}); /* Excel-Bibliothek fürs Prüfprotokoll schon im Hintergrund holen */ }
     catch(e){ alert('CSV konnte nicht gelesen werden.'); } finally{ ev.target.value=''; } };
   r.readAsText(f,'utf-8'); }
 /* US-85: Anzeige-Mapping der reinen Vorsortierung (calc.js: nkVorsortierung) auf Badge + Label. */
@@ -164,8 +164,8 @@ function renderUmsatzReview(){
 function toggleNurOffen(v){ ui.csvImport.nurOffen=!!v; renderUmsatzReview(); }
 /* US-108: Prüfprotokoll des Imports als .xlsx – Reiter „Umsätze" (Originalzeilen + Kategorie/Ziel/
    erfasst) und „Kontrollsummen" mit lebenden Formeln (selbstprüfend). Nutzt SheetJS (excel.js). */
-function exportUmsatzProtokoll(){
-  if(typeof ensureXlsxLib!=='function' || !ensureXlsxLib()) return;
+async function exportUmsatzProtokoll(){
+  if(typeof ensureXlsxLib!=='function' || !(await ensureXlsxLib())) return;
   const XL=window.XLSX; const bs=ui.csvImport.buchungen||[]; if(!bs.length) return;
   const regeln=state.objekt.importRegeln||[];
   const header=ui.csvImport.header||[]; const nCols=header.length;

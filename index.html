@@ -387,6 +387,7 @@
   .legal{font-size:12px;color:var(--primary);background:var(--soft);border-left:3px solid var(--primary);padding:8px 12px;border-radius:6px;margin:0 0 18px;}
   /* US-125: dezenter Copyright-Hinweis, kein optisches Gewicht (kompakte, ruhige UI). */
   .app-footer{text-align:center;font-size:11px;color:var(--muted);padding:18px 0 22px;}
+  .app-footer a{color:inherit;}
   /* US-80: Dokument-Anker (Info-Lasche je Schritt) – dezent abgesetzt, global einklappbar */
   .dok-anker{display:flex;align-items:center;gap:9px;margin:0 0 16px;padding:9px 12px;background:#eef3f1;border:1px solid #d4e2dc;border-left:3px solid var(--accent);border-radius:8px;font-size:13px;color:var(--ink);}
   .dok-anker .dok-ico{flex:0 0 auto;font-size:15px;line-height:1;color:var(--accent);}
@@ -1294,16 +1295,14 @@
 </div>
 <!-- US-125: Copyright-Hinweis auf der ausgelieferten Seite selbst (nicht nur im Repo, das für
      Dritte ggf. gar nicht sichtbar ist) – Jahr wird per JS aktuell gehalten, s. view-init.js. -->
-<footer class="app-footer">© <span id="copyright_jahr"></span> Ralf Lethmate. Alle Rechte vorbehalten.</footer>
+<footer class="app-footer">© <span id="copyright_jahr"></span> Ralf Lethmate. Alle Rechte vorbehalten. · <a href="https://nekofix.de/#impressum" target="_blank" rel="noopener">Impressum</a> · <a href="https://nekofix.de/#datenschutz" target="_blank" rel="noopener">Datenschutz</a></footer>
 
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<!-- Ralf-Vorgabe 2026-07-10 (Techem-Abrechnungsimport): pdf.js liest PDF-Text rein client-seitig
-     (nur die Bibliothek selbst kommt per CDN, wie jsPDF/xlsx – keine PDF-Inhalte verlassen den
-     Browser). worker via CDN, damit die Textextraktion nicht den UI-Thread blockiert. -->
-<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-<script>if(typeof pdfjsLib!=='undefined') pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
+<!-- Bibliotheken selbst gehostet in vendor/ (Due Diligence 2026-11-15: kein CDN mehr – keine
+     IP-Übertragung an Dritte, keine fremde Skriptquelle, PDF-Export auch offline). Versionen und
+     Prüfsummen: vendor/README.md. SheetJS (Excel) und pdf.js (Techem-Import) werden erst bei
+     Bedarf nachgeladen (nkLadeXlsx/nkLadePdfJs in view-shell.js). -->
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/qrcode.js"></script>
 <script>
 /* US-56: lokale Skripte mit Versionskennung laden (Cache-Busting). `v` wird beim Deploy
    automatisch auf den Commit-Hash gesetzt (siehe .github/workflows/pages.yml); lokal bleibt "0.4".

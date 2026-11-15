@@ -9,12 +9,12 @@
    die Positionen an (Abgleich über `bez`), jeder weitere ergänzt nur `k.verbrauch[einheitId]`
    der jeweiligen Einheit bzw. aktualisiert den (objektweit identischen) Gesamtbetrag.
 
-   Datenschutz: nur die pdf.js-Bibliothek selbst kommt per CDN (wie jsPDF/xlsx) – der PDF-Inhalt
-   wird ausschließlich lokal im Browser verarbeitet, nichts wird irgendwohin übertragen. */
+   Datenschutz: pdf.js liegt selbst gehostet in vendor/ und wird erst beim Import nachgeladen –
+   der PDF-Inhalt wird ausschließlich lokal im Browser verarbeitet, nichts wird übertragen. */
 let _techemBeleg = null; /* zuletzt geparster Beleg, bis "Übernehmen" oder "Abbrechen" */
 
 function techemImportStarten() {
-  if (typeof pdfjsLib === 'undefined') { alert('Die PDF-Bibliothek konnte nicht geladen werden – bitte Internetverbindung beim Laden der Seite prüfen und erneut versuchen.'); return; }
+  nkLadePdfJs().catch(() => {}); /* pdf.js schon während der Dateiauswahl im Hintergrund holen */
   const inp = document.getElementById('techem_import'); if (inp) inp.click();
 }
 async function techemDateiGewaehlt(ev) {
@@ -22,7 +22,12 @@ async function techemDateiGewaehlt(ev) {
   if (!file) return;
   try {
     const buf = await file.arrayBuffer();
-    const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+    let lib;
+    try { lib = await nkLadePdfJs(); }
+    catch (e) { alert('Die PDF-Bibliothek konnte nicht geladen werden – bitte Internetverbindung prüfen und erneut versuchen.'); return; }
+    /* isEvalSupported:false = offizielle Gegenmaßnahme zu CVE-2024-4367 für pdf.js < 4.2.67:
+       präparierte Schriften in fremden PDFs können sonst Code im Browser ausführen. */
+    const doc = await lib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
     let zeilen = [];
     for (let p = 1; p <= doc.numPages; p++) {
       const page = await doc.getPage(p);

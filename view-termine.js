@@ -25,7 +25,7 @@ function terminZeile(t){
         '<input type="date" class="termin-datum-in" value="'+(t.datum||'')+'" disabled title="Stichtag – im Vertrag ändern">'+
         '<input type="text" class="termin-sel" value="Mieterhöhung" disabled title="Rubrik">'+
         '<input type="text" class="termin-sel" value="'+esc(faellig)+'" disabled title="Fälligkeit">'+
-        '<label class="termin-verschickt" title="Ankündigung verschickt – verbunden mit dem Vertragsteil"><input type="checkbox" onchange="setMhAngekuendigtUi('+t.einheitId+','+t.mvId+',\''+t.datum+'\',\''+esc(t.typ)+'\',this.checked)"> angekündigt</label>'+
+        '<label class="termin-verschickt" title="Ankündigung verschickt – verbunden mit dem Vertragsteil"><input type="checkbox" onchange="setMhAngekuendigtUi('+t.einheitId+','+t.mvId+',\''+jsArg(t.datum)+'\',\''+jsArg(t.typ)+'\',this.checked)"> angekündigt</label>'+
         '<span class="termin-akt"><button type="button" class="linklike" onclick="go(7)">Vertrag öffnen</button></span></div>'+
     '</div>';
   }
@@ -42,7 +42,7 @@ function terminZeile(t){
       '<div class="termin-l2">'+
         '<input type="date" class="termin-datum-in" value="'+(t.datum||'')+'" disabled title="Fälligkeit – aus letzter Wartung/letztem Austausch berechnet">'+
         '<input type="text" class="termin-sel" value="Vor Ort" disabled title="Rubrik">'+
-        '<span class="termin-akt"><button type="button" class="linklike" onclick="rwmErledigtUi('+t.einheitId+',\''+t.typ+'\')" title="Heute durchgeführt: Termin rückt ums Intervall vor, Chronik-Eintrag wird angelegt">heute erledigt</button></span></div>'+
+        '<span class="termin-akt"><button type="button" class="linklike" onclick="rwmErledigtUi('+t.einheitId+',\''+jsArg(t.typ)+'\')" title="Heute durchgeführt: Termin rückt ums Intervall vor, Chronik-Eintrag wird angelegt">heute erledigt</button></span></div>'+
     '</div>';
   }
   /* Zeile 1: Tage + Bezeichnung (breit); Zeile 2: Datum, Uhrzeit, Rubrik, Fälligkeit, angekündigt, erledigt, .ics, ×. */
@@ -108,7 +108,7 @@ function renderTermine(){
   const banner=(nRot||nOrange)
     ? '<div class="termin-banner warn">'+WARN_ICON+' '+(nRot?('<b>'+nRot+' fällig/überfällig</b>'):'')+(nRot&&nOrange?' · ':'')+(nOrange?(nOrange+' bald fällig'):'')+'</div>'
     : '<div class="termin-banner ok">Aktuell nichts fällig.</div>';
-  const vorlagen=NK_TERMIN_VORLAGEN.map(v=>'<button type="button" class="termin-add" onclick="addTerminVorlage(\''+v.key+'\')">+ '+esc(v.bez)+'</button>').join('');
+  const vorlagen=NK_TERMIN_VORLAGEN.map(v=>'<button type="button" class="termin-add" onclick="addTerminVorlage(\''+jsArg(v.key)+'\')">+ '+esc(v.bez)+'</button>').join('');
   const addbar='<div class="termin-addbar">'+vorlagen+'<button type="button" class="termin-add" onclick="addTerminEigen()">+ Eigener Termin</button></div>';
   const toggle='<div class="termin-ansicht"><span class="termin-ansicht-lbl">Ansicht:</span>'+
     '<button type="button" class="'+(ui.termineAnsicht==='faellig'?'aktiv':'')+'" onclick="setTermineAnsicht(\'faellig\')">Nach Fälligkeit</button>'+
